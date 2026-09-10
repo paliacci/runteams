@@ -1,0 +1,24 @@
+name: Feature request
+description: Suggest an improvement to the open-source core
+title: "[Feature]: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What user problem would this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: Describe the behavior you would like and any alternatives considered.
+    validations:
+      required: true
+  - type: textarea
+    id: boundaries
+    attributes:
+      label: Local-first and compatibility impact
+      description: Explain any effect on local data, agent permissions, protocols, or existing workflows.
