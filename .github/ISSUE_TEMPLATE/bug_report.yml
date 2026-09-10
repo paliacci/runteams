@@ -1,0 +1,36 @@
+name: Bug report
+description: Report a reproducible problem in the open-source core
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please search existing issues first. Never include credentials or private workspace data.
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      description: Describe the observed behavior and the behavior you expected.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How can we reproduce it?
+      description: Give the smallest set of steps, commands, or fixture details.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: RunTeams version or commit
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, Python version, and connected agent runtime.
+    validations:
+      required: true
