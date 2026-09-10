@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>RunTeams · iPad 分栏</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --bg:#f4f2ef; --panel:#fff; --rail:#efece8; --ink:#282623; --ink2:#55524c; --sub:#7a766e; --faint:#a6a199;
+    --line:#eceae6; --line2:#e3e1dc; --field:#f6f4f1; --col:#efedea;
+    --run:#a9760f; --run-weak:#f4eddb; --ok:#3f7d4e; --ok-weak:#e8efe6; --block:#bd4a3d; --block-weak:#f6e9e5;
+    --sans:"Hanken Grotesk","PingFang SC",system-ui,sans-serif; --mono:"IBM Plex Mono",ui-monospace,monospace;
+    --sh-sm:0 1px 2px rgba(45,38,25,.05); --sh:0 1px 2px rgba(45,38,25,.045),0 8px 22px rgba(45,38,25,.06);
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-font-smoothing:antialiased;}
+  body{font-family:var(--sans);color:var(--ink);width:1194px;height:834px;background:var(--bg);position:relative;overflow:hidden;}
+  .mono{font-family:var(--mono);}
+  .sbar{position:absolute;top:0;left:0;right:0;height:24px;display:flex;align-items:center;justify-content:space-between;padding:0 22px;font-family:var(--mono);font-size:13px;font-weight:500;color:var(--ink);z-index:5;}
+  .sbar .r{display:flex;gap:6px;align-items:center;}
+  .stage-wrap{position:absolute;top:24px;left:0;right:0;bottom:0;display:flex;}
+
+  /* sidebar */
+  .side{width:300px;flex:none;background:var(--rail);border-right:1px solid var(--line);display:flex;flex-direction:column;padding:16px 14px;}
+  .side .brand{display:flex;align-items:center;gap:10px;padding:6px 8px 18px;}
+  .side .mark{width:32px;height:32px;border-radius:9px;background:var(--ink);display:flex;align-items:center;justify-content:center;}
+  .side .mark svg{width:20px;height:20px;}
+  .side .wm{font-size:18px;font-weight:600;letter-spacing:-.02em;}
+  .rl{font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--faint);padding:0 8px 8px;margin-top:10px;}
+  .ri{display:flex;align-items:center;gap:11px;height:44px;padding:0 12px;border-radius:11px;font-size:15px;color:var(--ink2);}
+  .ri svg{width:20px;height:20px;color:var(--sub);flex:none;}
+  .ri .dot{width:9px;height:9px;border-radius:50%;flex:none;}
+  .ri.on{background:var(--panel);color:var(--ink);font-weight:500;box-shadow:var(--sh-sm);}
+  .ri .cnt{margin-left:auto;font-family:var(--mono);font-size:12px;color:var(--faint);}
+  .ri .tb{margin-left:auto;min-width:20px;height:20px;border-radius:11px;background:var(--block);color:#fff;font-size:11px;font-weight:600;display:flex;align-items:center;justify-content:center;padding:0 5px;}
+  .sp{flex:1;}
+  .acct{display:flex;align-items:center;gap:11px;padding:11px;border-radius:12px;border:1px solid var(--line);background:var(--panel);}
+  .acct .av{width:34px;height:34px;border-radius:50%;background:#e7e0d5;border:1px solid #d9d0c3;color:#655a4d;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;}
+  .acct .nm{font-size:14px;font-weight:500;} .acct .pl{font-size:12px;color:var(--sub);}
+
+  /* board */
+  .main{flex:1;display:flex;flex-direction:column;min-width:0;}
+  .th{height:64px;flex:none;display:flex;align-items:center;gap:14px;padding:0 24px;border-bottom:1px solid var(--line);}
+  .th h1{font-size:20px;font-weight:600;letter-spacing:-.02em;}
+  .th .snap{font-family:var(--mono);font-size:12px;color:var(--faint);}
+  .runchip{display:inline-flex;align-items:center;gap:7px;height:30px;padding:0 13px;border-radius:20px;background:var(--ok-weak);border:1px solid #cfe0cd;font-size:13px;font-weight:500;color:#2f5d3b;}
+  .runchip .d{width:7px;height:7px;border-radius:50%;background:var(--ok);}
+  .th .sp{flex:1;}
+  .tbtn{width:38px;height:38px;border-radius:10px;border:1px solid var(--line2);background:var(--panel);display:flex;align-items:center;justify-content:center;color:var(--ink2);}
+  .tbtn svg{width:18px;height:18px;}
+  .boardrow{flex:1;display:flex;min-height:0;}
+  .board{flex:1;display:flex;gap:16px;padding:20px 24px;overflow-x:auto;align-items:flex-start;}
+  .col{width:250px;flex:none;display:flex;flex-direction:column;gap:10px;}
+  .ch{display:flex;align-items:center;gap:9px;padding:2px 4px;}
+  .ch .nd{width:11px;height:11px;border-radius:50%;border:2px solid var(--line2);background:var(--panel);flex:none;}
+  .ch .nd.run{border-color:var(--run);background:var(--run);} .ch .nd.block{border-color:var(--block);background:var(--block);} .ch .nd.done{border-color:var(--ok);background:var(--ok);}
+  .ch .nd.gate{border-radius:3px;transform:rotate(45deg);border-color:var(--ink2);}
+  .ch .cn{font-size:14px;font-weight:600;letter-spacing:-.01em;} .ch .role{font-size:12px;color:var(--sub);}
+  .ch .bd{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--sub);background:var(--col);border:1px solid var(--line);border-radius:20px;padding:1px 8px;}
+  .kc{background:var(--panel);border:1px solid var(--line);border-radius:13px;box-shadow:var(--sh-sm);padding:13px 15px;}
+  .kc.sel{border-color:var(--block);box-shadow:0 0 0 3px var(--block-weak);}
+  .kc .t{font-size:14.5px;font-weight:500;margin-bottom:10px;letter-spacing:-.01em;}
+  .kc .f{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--sub);}
+  .kc .f .sd{width:7px;height:7px;border-radius:50%;} .kc .f .sd.run{background:var(--run);} .kc .f .sd.block{background:var(--block);}
+  .kc .f .bl{color:var(--block);font-weight:500;} .kc .f .tm{margin-left:auto;font-family:var(--mono);color:var(--faint);}
+  .cempty{border:1px dashed var(--line2);border-radius:13px;padding:14px;text-align:center;font-size:12.5px;color:var(--faint);}
+
+  /* detail */
+  .det{width:376px;flex:none;border-left:1px solid var(--line);background:var(--panel);padding:22px;overflow-y:auto;}
+  .det .flag{display:inline-flex;align-items:center;gap:8px;margin-bottom:11px;}
+  .det .flag .d{width:8px;height:8px;border-radius:50%;background:var(--block);box-shadow:0 0 0 4px var(--block-weak);}
+  .det .flag .t{font-size:11.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--block);}
+  .det h2{font-size:22px;font-weight:600;letter-spacing:-.022em;line-height:1.2;}
+  .det .m{font-size:13px;color:var(--sub);margin-top:7px;}
+  .dc{background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:14px 15px;margin-top:14px;}
+  .dc .l{font-size:11px;font-weight:600;letter-spacing:.07em;text-transform:uppercase;color:var(--sub);margin-bottom:8px;}
+  .dc p{font-size:14px;line-height:1.5;} .dc p .reset{color:var(--run);font-weight:500;} .dc p .mono{font-family:var(--mono);font-size:12.5px;font-weight:500;}
+  .ds{display:grid;grid-template-columns:1fr 1fr 1fr;gap:1px;background:var(--line);border:1px solid var(--line);border-radius:12px;overflow:hidden;margin-top:14px;}
+  .ds .s{background:var(--bg);padding:13px 8px;text-align:center;}
+  .ds .s .n{font-family:var(--mono);font-size:22px;font-weight:500;} .ds .s.z .n{color:var(--faint);} .ds .s .u{font-size:10.5px;color:var(--sub);margin-top:6px;}
+  .db{width:100%;height:48px;border-radius:12px;font-family:var(--sans);font-size:15px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:8px;border:1px solid transparent;margin-top:16px;}
+  .db.p{background:var(--ink);color:#fdfcfa;} .db.p svg{width:17px;height:17px;}
+  .db.g{background:transparent;color:var(--ink2);border-color:var(--line2);margin-top:9px;}
+  .df{display:flex;align-items:center;justify-content:center;gap:6px;margin-top:16px;color:var(--faint);font-size:11.5px;} .df svg{width:12px;height:12px;}
+</style>
+</head>
+<body>
+  <div class="sbar"><span>9:41</span><span class="r"><svg width="18" height="12" viewBox="0 0 18 12"><rect x="0" y="7" width="3" height="5" rx="1" fill="#282623"/><rect x="5" y="4" width="3" height="8" rx="1" fill="#282623"/><rect x="10" y="1.5" width="3" height="10.5" rx="1" fill="#282623"/><rect x="15" y="0" width="3" height="12" rx="1" fill="#282623"/></svg><svg width="24" height="12" viewBox="0 0 25 13"><rect x="1" y="1" width="21" height="11" rx="3" stroke="#282623" stroke-opacity=".4" fill="none"/><rect x="2.5" y="2.5" width="18" height="8" rx="1.6" fill="#282623"/><rect x="23" y="4.5" width="1.6" height="4" rx=".8" fill="#282623" fill-opacity=".4"/></svg></span></div>
+
+  <div class="stage-wrap">
+    <!-- sidebar -->
+    <aside class="side">
+      <div class="brand"><div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="#fdfcfa" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h5a7 7 0 0 1 7 5"/><path d="M4 12h14"/><path d="M4 17h5a7 7 0 0 0 7-5"/><path d="m15 9 3 3-3 3"/></svg></div><span class="wm">RunTeams</span></div>
+      <div class="ri"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V20a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9.5"/></svg>概览</div>
+      <div class="ri"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg>活动<span class="tb">1</span></div>
+      <div class="rl">流水线</div>
+      <div class="ri on"><span class="dot" style="background:var(--run)"></span>App 工厂<span class="cnt">2</span></div>
+      <div class="ri"><span class="dot" style="background:var(--line2)"></span>内容工厂<span class="cnt">3</span></div>
+      <div class="ri"><span class="dot" style="background:var(--line2)"></span>客服工厂<span class="cnt">0</span></div>
+      <div class="ri"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>新建流水线</div>
+      <div class="sp"></div>
+      <div class="acct"><div class="av">J</div><div><div class="nm">Joe</div><div class="pl">Team · 2 台在线</div></div></div>
+    </aside>
+
+    <!-- board -->
+    <main class="main">
+      <div class="th"><h1>App 工厂</h1><span class="snap mono">snapshot 4482</span><span class="runchip"><span class="d"></span>自动运行中</span><div class="sp"></div>
+        <div class="tbtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg></div>
+      </div>
+      <div class="boardrow">
+        <div class="board">
+          <div class="col"><div class="ch"><span class="nd"></span><span class="cn">收件箱</span><span class="bd">2</span></div><div class="kc"><div class="t">语音记账 App</div><div class="f"><span>待运行</span><span class="tm">3d</span></div></div><div class="kc"><div class="t">宠物健康档案</div><div class="f"><span>待运行</span><span class="tm">3d</span></div></div></div>
+          <div class="col"><div class="ch"><span class="nd block"></span><span class="cn">需求评审</span><span class="bd">1</span></div><div class="kc sel"><div class="t">潮汐钓鱼时机预测</div><div class="f"><span class="sd block"></span><span class="bl">需要你决定</span><span class="tm">1:04</span></div></div></div>
+          <div class="col"><div class="ch"><span class="nd run"></span><span class="cn">UI 设计师</span><span class="bd">1</span></div><div class="kc"><div class="t">独居老人用药提醒</div><div class="f"><span class="sd run"></span><span>出高保真稿</span><span class="tm">12m</span></div></div></div>
+          <div class="col"><div class="ch"><span class="nd"></span><span class="cn">软件工程师</span><span class="bd">0</span></div><div class="cempty">空闲</div></div>
+          <div class="col"><div class="ch"><span class="nd gate"></span><span class="cn">提审</span><span class="bd">1</span></div><div class="kc"><div class="t">城市骑行导航</div><div class="f"><span class="sd run"></span><span>等待提交</span><span class="tm">5m</span></div></div></div>
+        </div>
+
+        <aside class="det">
+          <div class="flag"><span class="d"></span><span class="t">需要你决定</span></div>
+          <h2>潮汐钓鱼时机预测</h2>
+          <div class="m">需求评审 · App 工厂</div>
+          <div class="dc"><div class="l">为什么停下</div><p>自动重试已达上限（<span class="mono">8</span> 次）。用量已达本周上限，将于<span class="reset"> 今天 16:00 </span>重置。</p></div>
+          <div class="ds"><div class="s"><div class="n">08</div><div class="u">已尝试</div></div><div class="s z"><div class="n">00</div><div class="u">已交付</div></div><div class="s"><div class="n">1:04</div><div class="u">已等待</div></div></div>
+          <button class="db p"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/></svg>立即重试</button>
+          <button class="db g">终止任务</button>
+          <div class="df"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>端到端加密 · 命令由本设备签名</div>
+        </aside>
+      </div>
+    </main>
+  </div>
+</body>
+</html>

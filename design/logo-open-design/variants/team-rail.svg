@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="260" height="48" viewBox="0 0 260 48" role="img" aria-label="RunTeams.ai — Team Rail">
+  <rect width="260" height="48" fill="none"/>
+  <g fill="none" stroke="#171716" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M2 12H12C16 12 18 14 20 18L24 24"/>
+    <path d="M2 24H24"/>
+    <path d="M2 36H12C16 36 18 34 20 30L24 24"/>
+    <path d="M24 24H34"/>
+  </g>
+  <circle cx="2" cy="12" r="2" fill="#171716"/>
+  <circle cx="2" cy="24" r="2" fill="#171716"/>
+  <circle cx="2" cy="36" r="2" fill="#171716"/>
+  <g fill="#171716" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="700" letter-spacing="-1.35">
+    <text x="48" y="35">RunTeams</text>
+  </g>
+  <text x="197" y="35" fill="#77736C" font-family="Arial, Helvetica, sans-serif" font-size="21" font-weight="500" letter-spacing="-0.7">.ai</text>
+</svg>

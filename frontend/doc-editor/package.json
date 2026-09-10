@@ -1,0 +1,17 @@
+{
+  "name": "@runteams/doc-editor",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "build": "esbuild src/main.js --bundle --minify --legal-comments=linked --format=iife --global-name=RunTeamsDocEditor --outfile=../../web/vendor/doc-editor.js"
+  },
+  "dependencies": {
+    "@codemirror/language-data": "^6.3.1",
+    "@codemirror/view": "^6.16.0",
+    "@milkdown/crepe": "7.22.1",
+    "lucide": "^1.43.0"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.9"
+  }
+}

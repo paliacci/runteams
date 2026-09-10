@@ -1,0 +1,38 @@
+<!DOCTYPE html><html lang="zh"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<link href="rt-desktop.css" rel="stylesheet" /></head><body>
+<aside class="side"><div class="brand">RunTeams</div>
+<div class="nav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>新对话</div>
+<div class="nav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2.4"/><circle cx="6" cy="18" r="2.4"/><circle cx="18" cy="12" r="2.4"/><path d="M8.4 6H13a3 3 0 0 1 3 3v.6M8.4 18H13a3 3 0 0 0 3-3v-.6"/></svg>新流水线</div>
+<div class="nav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.7l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.7l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5M12 22V12"/></svg>扩展</div>
+<div class="slabel">流水线</div><div class="item on"><span class="dot" style="background:var(--run)"></span><span class="t">App 工厂</span></div>
+<div class="item"><span class="dot" style="background:var(--line2)"></span><span class="t">移动端端到端验收</span></div>
+<div class="slabel">待你处理</div><div class="item"><span class="dot" style="background:var(--block)"></span><span class="t">城市骑行导航</span><span class="tm">1h</span></div>
+<div class="spacer"></div><div class="acct"><div class="av">P</div><div><div class="nm">paliacci</div><div class="pl">Pro · 个人账号</div></div></div></aside>
+<main class="main"><div class="topbar"><span class="pname">App 工厂</span>
+<div class="toggle"><div class="tg on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16M15 4v16"/></svg>看板</div>
+<div class="tg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><path d="M7 10v4a2 2 0 0 0 2 2h5"/><rect x="14" y="13" width="7" height="7" rx="1.5"/></svg>流程</div></div>
+<div class="tspacer"></div><span class="tmeta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span class="mono">0</span> Token</span><span class="runchip"><span class="d"></span>已就绪</span></div>
+<div style="flex:1;display:flex;min-height:0">
+<div style="flex:1;overflow:hidden"><div class="board">
+<div class="col"><div class="colhead"><span class="nd"></span><span class="cn">收件箱</span><span class="ct">2</span></div>
+<div class="kcard"><div class="t">给独居老人的用药提醒 App</div><div class="d">子女远程可见服药记录</div><div class="f"><span class="sd idle"></span><span>待处理</span><span class="tm">3d</span></div></div>
+<div class="newcard">＋ 新建卡</div></div>
+<div class="col"><div class="colhead"><span class="nd block" style="border-color:var(--block);background:var(--block)"></span><span class="cn">需求评审</span><span class="role">需求分析师</span><span class="ct">1</span></div>
+<div class="kcard sel"><div class="t">城市骑行导航</div><div class="d">按路况+坡度推荐骑行路线</div><div class="f"><span class="sd block"></span><span class="bl">需要你</span><span class="tm">1:04</span></div></div></div>
+<div class="col"><div class="colhead"><span class="nd run"></span><span class="cn">竞品深拆</span><span class="role">竞品分析师</span><span class="ct">1</span></div>
+<div class="kcard"><div class="t">语音记账 App</div><div class="d">一句话语音记账</div><div class="f"><span class="sd run"></span><span>拆解竞品定价</span><span class="tm">8m</span></div></div></div>
+<div class="col"><div class="colhead"><span class="nd gate"></span><span class="cn">提审</span><span class="role">人工审批</span><span class="ct">0</span></div><div class="newcard">＋ 新建卡</div></div>
+</div></div>
+<aside class="drawer">
+<div class="dh"><h2>城市骑行导航</h2><div class="xbtn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg></div></div>
+<div class="pillrow"><span class="dpill">需求分析师</span><span class="dpill ok">运行中</span><span class="dpill">App 工厂</span></div>
+<div class="dlabel">交付产物 · 3</div>
+<div class="artifact"><div class="ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="m3 15 5-4 4 3 5-5 4 3"/></svg></div><div><div class="an">高保真设计稿 · 6 屏</div><div class="am">design/*.png</div></div></div>
+<div class="artifact"><div class="ai"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg></div><div><div class="an">品牌单页</div><div class="am">brand.md</div></div></div>
+<div class="dlabel">工作记录</div>
+<div class="logi run"><span class="ln"></span><span class="lsp"></span><div class="lt">UI 设计师 · 出高保真稿</div><div class="lm">生成 6 屏 + 图标 · <span class="mono">运行中 12m</span></div></div>
+<div class="logi ok"><span class="ln"></span><span class="lsp"></span><div class="lt">品牌策划 · 已交付品牌单页</div><div class="lm">决定=推进 → UI 设计师 · <span class="mono">1h 前</span></div></div>
+<div class="logi ok"><span class="ln"></span><div class="lt">立项终审 · GO</div><div class="lm">决定=推进 → 品牌策划 · <span class="mono">2h 前</span></div></div>
+</aside></div></main></body></html>

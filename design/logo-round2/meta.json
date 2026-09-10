@@ -1,0 +1,11 @@
+{
+  "project_name": "RunTeams.ai Logo R2",
+  "project_id": "d3364597-ddef-4cb5-993d-980d1e0109c3",
+  "design_runtime": "Claude Design MCP via Claude Code CLI",
+  "created_at": "2026-08-21",
+  "files": [
+    "team-case.dc.html",
+    "shared-table.dc.html",
+    "company-stack.dc.html"
+  ]
+}

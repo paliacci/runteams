@@ -1,0 +1,45 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+node_modules/
+
+# Local runtime data
+*.db
+*.db-shm
+*.db-wal
+transcripts/
+*.log
+protocol-configs/
+task-seeds/
+
+# Build artifacts
+dist_build/
+dist_od/
+dist_side/
+desktop/*.app/
+desktop/*.dmg
+ios/build/
+*.spec
+
+# Generated local runtime payloads and previews
+runtime-dependencies/
+output/
+supabase/.temp/
+agent-builds/
+
+# Local comparison boards and superseded avatar experiments
+avatar-comparison.html
+web/avatar-comparison/
+web/avatars/
+
+# Local tooling / OS
+.DS_Store
+.env
+.env.*
+!.env.example
+.claude/
+.idea/
+.vscode/
+secrets.json

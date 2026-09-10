@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>RunTeams 桌面 · 看板</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<link href="rt-desktop.css" rel="stylesheet" />
+</head>
+<body>
+  <aside class="side">
+    <div class="brand">RunTeams</div>
+    <div class="nav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>新对话</div>
+    <div class="nav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2.4"/><circle cx="6" cy="18" r="2.4"/><circle cx="18" cy="12" r="2.4"/><path d="M8.4 6H13a3 3 0 0 1 3 3v.6M8.4 18H13a3 3 0 0 0 3-3v-.6"/></svg>新流水线</div>
+    <div class="nav"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.7l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.7l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5M12 22V12"/></svg>扩展</div>
+    <div class="slabel">对话</div>
+    <div class="item"><span class="t">创建员工 · App 工厂</span></div>
+    <div class="item"><span class="t">确认空调状态</span></div>
+    <div class="slabel">流水线</div>
+    <div class="item on"><span class="dot" style="background:var(--run)"></span><span class="t">App 工厂</span></div>
+    <div class="item"><span class="dot" style="background:var(--line2)"></span><span class="t">移动端端到端验收</span></div>
+    <div class="item"><span class="dot" style="background:var(--line2)"></span><span class="t">Live Activity 真机验收</span></div>
+    <div class="slabel">待你处理</div>
+    <div class="item"><span class="dot" style="background:var(--block)"></span><span class="t">Token 用量样式预览</span><span class="tm">9h</span></div>
+    <div class="spacer"></div>
+    <div class="acct"><div class="av">P</div><div><div class="nm">paliacci</div><div class="pl">Pro · 个人账号</div></div></div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <span class="pname">App 工厂</span>
+      <div class="toggle">
+        <div class="tg on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16M15 4v16"/></svg>看板</div>
+        <div class="tg"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><path d="M7 10v4a2 2 0 0 0 2 2h5"/><rect x="14" y="13" width="7" height="7" rx="1.5"/></svg>流程</div>
+      </div>
+      <div class="tspacer"></div>
+      <span class="tmeta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span class="mono">0</span> Token</span>
+      <span class="tmeta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9"/></svg>团队</span>
+      <span class="runchip"><span class="d"></span>已就绪</span>
+    </div>
+
+    <div class="board">
+      <div class="col">
+        <div class="colhead"><span class="nd"></span><span class="cn">收件箱</span><span class="ct">2</span></div>
+        <div class="kcard">
+          <div class="t">给独居老人的用药提醒 App</div>
+          <div class="d">子女远程可见服药记录，离线优先</div>
+          <div class="f"><span class="sd idle"></span><span>待处理</span><span class="tm">3d</span></div>
+        </div>
+        <div class="kcard">
+          <div class="t">潮汐钓鱼时机预测</div>
+          <div class="d">按地点+鱼种给最佳出钓时段，离线优先</div>
+          <div class="f"><span class="sd idle"></span><span>待处理</span><span class="tm">3d</span></div>
+        </div>
+        <div class="newcard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>新建卡</div>
+      </div>
+
+      <div class="col">
+        <div class="colhead"><span class="nd needs" style="border-color:var(--block);background:var(--block)"></span><span class="cn">需求评审</span><span class="role">需求分析师</span><span class="ct">1</span></div>
+        <div class="kcard sel">
+          <div class="t">城市骑行导航</div>
+          <div class="d">按路况+坡度推荐骑行路线</div>
+          <div class="f"><span class="sd block"></span><span class="bl">需要你</span><span class="tm">1:04</span></div>
+        </div>
+        <div class="newcard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>新建卡</div>
+      </div>
+
+      <div class="col">
+        <div class="colhead"><span class="nd run"></span><span class="cn">竞品深拆</span><span class="role">竞品分析师</span><span class="ct">1</span></div>
+        <div class="kcard">
+          <div class="t">语音记账 App</div>
+          <div class="d">一句话语音记账，通勤场景</div>
+          <div class="f"><span class="sd run"></span><span>拆解竞品定价</span><span class="tm">8m</span></div>
+        </div>
+        <div class="newcard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>新建卡</div>
+      </div>
+
+      <div class="col">
+        <div class="colhead"><span class="nd gate"></span><span class="cn">提审</span><span class="role">人工审批</span><span class="ct">0</span></div>
+        <div class="newcard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>新建卡</div>
+      </div>
+
+      <div class="col">
+        <div class="colhead"><span class="nd done"></span><span class="cn">已上架</span><span class="role">终态</span><span class="ct">12</span></div>
+        <div class="newcard" style="border-style:solid;color:var(--faint)">本月已上架 12 个</div>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

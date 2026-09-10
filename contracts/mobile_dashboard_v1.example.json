@@ -1,0 +1,149 @@
+{
+  "schema_version": 1,
+  "snapshot_version": 1001,
+  "account": { "name": "RunTeams 用户", "email": "", "plan": "local" },
+  "host": {
+    "name": "这台电脑",
+    "platform": "macOS",
+    "is_online": true,
+    "last_seen_at": "2026-08-02T09:00:00Z",
+    "version": "0.1.0"
+  },
+  "interventions": [
+    {
+      "id": "workflow:7",
+      "workflow_id": 7,
+      "pipeline_id": 1,
+      "target_type": "workflow",
+      "kind": "information",
+      "title": "员工需要你的回复",
+      "reason": "这份方案应该优先面向哪类用户？",
+      "context": "只同步经过筛选的上下文摘要。",
+      "recovery": "回复后会从当前岗位继续运行。",
+      "pipeline_name": "产品立项评审",
+      "position_name": "提审",
+      "task_title": "远程管理 AI 流水线",
+      "attempt_count": 1,
+      "artifact_count": 2,
+      "created_at": "2026-08-02 08:55:00",
+      "actions": [
+        { "id": "respond", "label": "回复并继续", "style": "primary" },
+        { "id": "terminate", "label": "终止任务", "style": "danger" }
+      ],
+      "documents": [
+        {
+          "id": "artifact:4101",
+          "name": "立项备忘录.md",
+          "kind": "文档",
+          "readable": true,
+          "size": 8420,
+          "position_name": "提审",
+          "employee_name": "需求分析师",
+          "revision": 2,
+          "revised_by_human": true,
+          "created_at": "2026-08-02 08:55:00"
+        },
+        {
+          "id": "artifact:4102",
+          "name": "竞品截图.png",
+          "kind": "图片",
+          "readable": false,
+          "size": 262144,
+          "position_name": "提审",
+          "employee_name": "需求分析师",
+          "revision": 1,
+          "revised_by_human": false,
+          "created_at": "2026-08-02 08:55:00"
+        }
+      ]
+    }
+  ],
+  "workflows": [
+    {
+      "id": "workflow:1",
+      "task_title": "移动端多列看板",
+      "pipeline_name": "产品立项评审",
+      "employee_name": "iOS 工程师",
+      "position_name": "工程开发",
+      "status": "running",
+      "progress": 0.68,
+      "recent_update": "运行中",
+      "started_at": "2026-08-02 08:40:00",
+      "finished_at": null,
+      "artifact_count": 1,
+      "events": [
+        {
+          "id": "run-mobile-1:running",
+          "title": "运行中",
+          "detail": "iOS 工程师 · 工程开发",
+          "timestamp": "2026-08-02 08:59:00",
+          "kind": "progress"
+        }
+      ]
+    }
+  ],
+  "pipelines": [
+    {
+      "id": "pipeline:1",
+      "name": "产品立项评审",
+      "revision": "snapshot-1001",
+      "access": "read_only",
+      "positions": [
+        {
+          "id": "position:1:engineering",
+          "name": "工程开发",
+          "employee_name": "iOS 工程师",
+          "summary": "由已分配岗位处理当前阶段",
+          "tasks": [
+            {
+              "id": "workflow:7",
+              "title": "移动端多列看板",
+              "summary": "详细任务说明仅保留在桌面端。",
+              "status": "running",
+              "progress": 0.68,
+              "updated_at": "2026-08-02 08:59:00",
+              "artifact_count": 1,
+              "records": [
+                {
+                  "id": "workflow:9",
+                  "position_name": "产品方案",
+                  "employee_name": "产品经理",
+                  "title": "提交结果：推进",
+                  "detail": "确定移动端继续使用多列看板。",
+                  "timestamp": "2026-08-02 08:35:00",
+                  "kind": "delivery",
+                  "artifact_count": 1
+                }
+              ],
+              "documents": [
+                {
+                  "id": "artifact:4101",
+                  "name": "立项备忘录.md",
+                  "kind": "文档",
+                  "readable": true,
+                  "size": 8420,
+                  "position_name": "工程开发",
+                  "employee_name": "iOS 工程师",
+                  "revision": 2,
+                  "revised_by_human": true,
+                  "created_at": "2026-08-02 08:59:00"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "activity": [
+    {
+      "id": "activity:9",
+      "title": "产品经理 · 已完成",
+      "detail": "移动端多列看板 · 产品方案",
+      "pipeline_name": "产品立项评审",
+      "timestamp": "2026-08-02 08:35:00",
+      "kind": "delivery"
+    }
+  ],
+  "synced_at": "2026-08-02T09:00:00Z"
+}

@@ -1,0 +1,28 @@
+{
+  "schema": "runteams.package-extension/v1",
+  "display_name": "交接简报验证",
+  "capabilities": [
+    {
+      "id": "validate-brief",
+      "name": "验证交接简报",
+      "description": "读取 JSON 交接简报，检查工作目标和上下文是否完整，并返回明确的通过或失败结果。",
+      "entry": "scripts/validate_brief.py",
+      "runtime": {
+        "version": 2,
+        "runner": "python",
+        "effect": "verifier",
+        "dependencies": [],
+        "healthcheck": {
+          "fixture_files": {
+            ".runteams-tests/valid.json": "{\"objective\":\"确认交接内容\",\"context\":{\"source\":\"upstream\"}}",
+            ".runteams-tests/invalid.json": "{\"objective\":\"\",\"context\":{}}"
+          },
+          "cases": [
+            {"arguments": [".runteams-tests/valid.json"], "expected": "passed"},
+            {"arguments": [".runteams-tests/invalid.json"], "expected": "failed"}
+          ]
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,45 @@
+{
+  "specVersion": "runteams-open-design/1",
+  "provenance": {
+    "repository": "https://github.com/nexu-io/open-design",
+    "commit": "30fc648f6f615fde5b162cbee1177f94ea2dba6c",
+    "workflow": ["discovery", "plan", "direction", "contract", "generate", "critique", "handoff"]
+  },
+  "project": {
+    "name": "RunTeams.ai website logo",
+    "platform": "web",
+    "sourceTruth": ["PROJECT_MEMORY.md", "design/logo-open-design/brief.md", "design/hero/21a_web_hero.png"]
+  },
+  "direction": {
+    "id": "team-rail",
+    "rationale": "The unboxed symbol-plus-wordmark lockup remains clear in a website header while three independent rails converging into one terminal directly express coordinated Agent Runtimes.",
+    "rejectedAlternatives": ["relay-cut", "rt-frame"],
+    "status": "approved-by-owner"
+  },
+  "system": {
+    "tokenSource": "design/logo-open-design/DESIGN.md",
+    "color": {"ink": "#171716", "canvas": "#F7F6F3", "muted": "#77736C", "reverse": "#FFFFFF"},
+    "typography": {"register": "neo-grotesque humanist sans", "reviewStack": "Arial, Helvetica, sans-serif", "primaryWeight": 700},
+    "spacing": {"primaryHeight": 28, "symbolGap": 10, "minimumClearSpace": "1 i-cap-height"},
+    "components": {"primary": "team-rail", "wordmarkAlternative": "relay-cut", "compactAlternative": "rt-frame"},
+    "modes": ["light", "dark"]
+  },
+  "artifacts": [
+    "design/logo-open-design/directions.html",
+    "design/logo-open-design/review-board.png",
+    "design/logo-open-design/variants/relay-cut.svg",
+    "design/logo-open-design/variants/team-rail.svg",
+    "design/logo-open-design/variants/rt-frame.svg",
+    "web/favicon.svg",
+    "web/index.html#brand-mark"
+  ],
+  "critique": {
+    "passes": 1,
+    "report": "design/logo-open-design/critique.md",
+    "resolved": [
+      "Moved the Relay Cut marker out of the n/T collision zone.",
+      "Promoted Team Rail after real header and reverse-size comparison.",
+      "Kept the primary mark unboxed and single-color capable."
+    ]
+  }
+}

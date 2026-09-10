@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>RunTeams · 锁屏 Live Activity</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" /><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --mono:"IBM Plex Mono",ui-monospace,monospace; --sans:"Hanken Grotesk","PingFang SC",system-ui,sans-serif;
+    --run:#d9a04a; --ok:#4bc383; --block:#ec7a70;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-font-smoothing:antialiased;}
+  body{font-family:var(--sans);width:402px;height:874px;
+    background:radial-gradient(120% 80% at 50% 0%, #2a2622 0%, #1a1817 55%, #100f0e 100%);
+    color:#f3efe9;position:relative;overflow:hidden;}
+  .lock-time{text-align:center;padding-top:64px;}
+  .lock-time .t{font-size:82px;font-weight:600;letter-spacing:-.03em;line-height:1;}
+  .lock-time .d{font-size:17px;color:#b9b2a7;margin-top:8px;font-weight:500;}
+
+  .la{position:absolute;left:16px;right:16px;top:250px;
+    background:rgba(48,44,40,.62);border:1px solid rgba(255,250,240,.09);border-radius:24px;
+    backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);padding:18px 18px 16px;
+    box-shadow:0 16px 50px rgba(0,0,0,.45);}
+  .la .h{display:flex;align-items:center;gap:10px;margin-bottom:16px;}
+  .la .mark{width:28px;height:28px;border-radius:8px;background:#f3efe9;display:flex;align-items:center;justify-content:center;flex:none;}
+  .la .mark svg{width:18px;height:18px;}
+  .la .hn{font-size:14.5px;font-weight:600;letter-spacing:-.01em;}
+  .la .hs{font-size:12px;color:#a49d92;margin-top:1px;}
+  .la .live{margin-left:auto;display:inline-flex;align-items:center;gap:6px;font-size:11px;color:#cdb98f;font-weight:500;}
+  .la .live .d{width:6px;height:6px;border-radius:50%;background:var(--run);}
+
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;}
+  .cell{background:rgba(255,250,240,.06);border:1px solid rgba(255,250,240,.06);border-radius:14px;padding:12px 13px;display:flex;align-items:center;gap:10px;}
+  .cell.alert{background:rgba(236,122,112,.14);border-color:rgba(236,122,112,.32);}
+  .cell .cd{width:8px;height:8px;border-radius:50%;flex:none;}
+  .cell .cd.run{background:var(--run);}
+  .cell .cd.block{background:var(--block);}
+  .cell .cn{font-size:13px;font-weight:500;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .cell .bg{font-family:var(--mono);font-size:12px;color:#cfc8bc;background:rgba(255,250,240,.08);border-radius:9px;min-width:22px;height:22px;display:flex;align-items:center;justify-content:center;padding:0 6px;flex:none;}
+  .cell.alert .bg{background:var(--block);color:#2a1513;}
+  .la .foot{display:flex;align-items:center;gap:8px;margin-top:14px;font-size:12.5px;color:#b9b2a7;}
+  .la .foot b{color:#ec9a92;font-weight:600;}
+  .la .foot .sep{color:#5c554c;}
+
+  .hint{position:absolute;bottom:34px;left:0;right:0;text-align:center;font-size:13px;color:#8a8379;}
+</style>
+</head>
+<body>
+  <div class="lock-time">
+    <div class="t">9:41</div>
+    <div class="d">8月3日 星期日</div>
+  </div>
+
+  <div class="la">
+    <div class="h">
+      <div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="#1a1817" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h5a7 7 0 0 1 7 5"/><path d="M4 12h14"/><path d="M4 17h5a7 7 0 0 0 7-5"/><path d="m15 9 3 3-3 3"/></svg></div>
+      <div><div class="hn">App 工厂</div><div class="hs">MacBook Pro</div></div>
+      <span class="live"><span class="d"></span>运行中</span>
+    </div>
+
+    <div class="grid">
+      <div class="cell alert"><span class="cd block"></span><span class="cn">需求评审</span><span class="bg">1</span></div>
+      <div class="cell"><span class="cd run"></span><span class="cn">UI 设计师</span><span class="bg">1</span></div>
+      <div class="cell"><span class="cd run"></span><span class="cn">ASO 专员</span><span class="bg">1</span></div>
+      <div class="cell"><span class="cd run"></span><span class="cn">提审</span><span class="bg">1</span></div>
+    </div>
+
+    <div class="foot"><b>1 项需要你</b><span class="sep">·</span><span>3 项进行中</span></div>
+  </div>
+
+  <div class="hint">轻点查看 · 需要你决定时会通知</div>
+</body>
+</html>

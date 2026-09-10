@@ -1,0 +1,5 @@
+<svg width="64" height="64" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <title>RunTeams.ai Team Rail</title>
+  <rect width="64" height="64" rx="15" fill="#1D1D1F"/>
+  <path d="M10 16H20C26 16 29 19 32 25L38 32M10 32H38M10 48H20C26 48 29 45 32 39L38 32M38 32H54" stroke="white" stroke-width="4.4" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

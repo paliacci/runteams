@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runteams.ai/contracts/mobile-envelope-v1.schema.json",
+  "title": "RunTeams Mobile Encrypted Snapshot Envelope v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "envelope_version", "algorithm", "device_id", "schema_version",
+    "snapshot_version", "nonce", "ciphertext", "generated_at"
+  ],
+  "properties": {
+    "envelope_version": { "const": 1 },
+    "algorithm": { "const": "AES-256-GCM" },
+    "device_id": { "type": "string", "pattern": "^[a-f0-9]{32}$" },
+    "schema_version": { "type": "integer", "minimum": 1 },
+    "snapshot_version": { "type": "integer", "minimum": 1 },
+    "nonce": { "type": "string", "minLength": 16, "maxLength": 16 },
+    "ciphertext": { "type": "string", "minLength": 22 },
+    "generated_at": { "type": "string", "format": "date-time" }
+  }
+}

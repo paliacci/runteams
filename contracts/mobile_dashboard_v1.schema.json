@@ -1,0 +1,363 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://runteams.ai/contracts/mobile_dashboard_v1.schema.json",
+  "title": "RunTeams Mobile Dashboard v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "snapshot_version",
+    "account",
+    "host",
+    "interventions",
+    "workflows",
+    "pipelines",
+    "activity",
+    "synced_at"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "snapshot_version": { "type": "integer", "minimum": 1 },
+    "account": { "$ref": "#/$defs/account" },
+    "host": { "$ref": "#/$defs/host" },
+    "interventions": {
+      "type": "array",
+      "maxItems": 100,
+      "items": { "$ref": "#/$defs/intervention" }
+    },
+    "workflows": {
+      "type": "array",
+      "maxItems": 100,
+      "items": { "$ref": "#/$defs/workflow" }
+    },
+    "pipelines": {
+      "type": "array",
+      "maxItems": 50,
+      "items": { "$ref": "#/$defs/pipeline" }
+    },
+    "activity": {
+      "type": "array",
+      "maxItems": 50,
+      "items": { "$ref": "#/$defs/activity" }
+    },
+    "synced_at": { "type": "string", "minLength": 1 }
+  },
+  "$defs": {
+    "account": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "email", "plan"],
+      "properties": {
+        "name": { "type": "string", "maxLength": 120 },
+        "email": { "type": "string", "maxLength": 200 },
+        "plan": { "type": "string", "maxLength": 40 },
+        "entitlements": { "$ref": "#/$defs/entitlements" }
+      }
+    },
+    "entitlements": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "revision",
+        "plan",
+        "granted_plan",
+        "display_name",
+        "status",
+        "source",
+        "is_active",
+        "starts_at",
+        "expires_at",
+        "updated_at",
+        "features",
+        "limits"
+      ],
+      "properties": {
+        "schema_version": { "type": "integer", "minimum": 1 },
+        "revision": { "type": "integer", "minimum": 0 },
+        "plan": { "type": "string", "maxLength": 20 },
+        "granted_plan": { "type": "string", "maxLength": 20 },
+        "display_name": { "type": "string", "maxLength": 40 },
+        "status": { "type": "string", "maxLength": 20 },
+        "source": { "type": "string", "maxLength": 20 },
+        "is_active": { "type": "boolean" },
+        "starts_at": {
+          "type": ["string", "null"]
+        },
+        "expires_at": {
+          "type": ["string", "null"]
+        },
+        "updated_at": { "type": "string", "minLength": 1 },
+        "features": {
+          "type": "object",
+          "additionalProperties": { "type": "boolean" }
+        },
+        "limits": {
+          "type": "object",
+          "additionalProperties": { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+    "host": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "platform", "is_online", "last_seen_at", "version"],
+      "properties": {
+        "name": { "type": "string", "maxLength": 120 },
+        "platform": { "type": "string", "maxLength": 40 },
+        "is_online": { "type": "boolean" },
+        "last_seen_at": { "type": "string", "minLength": 1 },
+        "version": { "type": "string", "maxLength": 40 }
+      }
+    },
+    "action": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "label", "style"],
+      "properties": {
+        "id": { "type": "string", "maxLength": 120 },
+        "label": { "type": "string", "maxLength": 80 },
+        "style": {
+          "enum": ["default", "primary", "danger"]
+        }
+      }
+    },
+    "intervention": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "target_type",
+        "kind",
+        "title",
+        "reason",
+        "context",
+        "recovery",
+        "pipeline_name",
+        "position_name",
+        "task_title",
+        "attempt_count",
+        "artifact_count",
+        "created_at",
+        "actions"
+      ],
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "automation_id": {
+          "type": ["integer", "null"]
+        },
+        "workflow_id": {
+          "type": ["integer", "null"]
+        },
+        "pipeline_id": {
+          "type": ["integer", "null"]
+        },
+        "target_type": {
+          "enum": ["workflow", "automation"]
+        },
+        "kind": { "type": "string", "maxLength": 80 },
+        "title": { "type": "string", "maxLength": 160 },
+        "reason": { "type": "string", "maxLength": 500 },
+        "context": { "type": "string", "maxLength": 800 },
+        "recovery": { "type": "string", "maxLength": 500 },
+        "pipeline_name": { "type": "string", "maxLength": 160 },
+        "position_name": { "type": "string", "maxLength": 120 },
+        "task_title": { "type": "string", "maxLength": 200 },
+        "attempt_count": {
+          "type": ["integer", "null"]
+        },
+        "artifact_count": { "type": "integer", "minimum": 0 },
+        "created_at": { "type": "string", "minLength": 1 },
+        "actions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/action" }
+        },
+        "documents": {
+          "type": "array",
+          "maxItems": 20,
+          "items": { "$ref": "#/$defs/task_document" }
+        }
+      }
+    },
+    "workflow_event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "detail", "timestamp", "kind"],
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "detail": { "type": "string" },
+        "timestamp": { "type": "string" },
+        "kind": { "type": "string" }
+      }
+    },
+    "workflow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "task_title",
+        "pipeline_name",
+        "employee_name",
+        "position_name",
+        "status",
+        "progress",
+        "recent_update",
+        "started_at",
+        "finished_at",
+        "artifact_count",
+        "events"
+      ],
+      "properties": {
+        "id": { "type": "string" },
+        "position_id": { "type": "string", "maxLength": 120 },
+        "task_title": { "type": "string", "maxLength": 200 },
+        "pipeline_name": { "type": "string", "maxLength": 160 },
+        "employee_name": { "type": "string", "maxLength": 120 },
+        "position_name": { "type": "string", "maxLength": 120 },
+        "status": { "type": "string", "maxLength": 40 },
+        "progress": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "recent_update": { "type": "string", "maxLength": 500 },
+        "started_at": { "type": "string", "minLength": 1 },
+        "finished_at": {
+          "type": ["string", "null"]
+        },
+        "artifact_count": { "type": "integer", "minimum": 0 },
+        "events": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/workflow_event" }
+        }
+      }
+    },
+    "work_record": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "position_name",
+        "employee_name",
+        "title",
+        "detail",
+        "timestamp",
+        "kind",
+        "artifact_count"
+      ],
+      "properties": {
+        "id": { "type": "string" },
+        "position_name": { "type": "string", "maxLength": 120 },
+        "employee_name": { "type": "string", "maxLength": 120 },
+        "title": { "type": "string", "maxLength": 160 },
+        "detail": { "type": "string", "maxLength": 500 },
+        "timestamp": { "type": "string", "minLength": 1 },
+        "kind": { "type": "string", "maxLength": 40 },
+        "artifact_count": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "workflow_task": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "summary", "status", "progress", "updated_at", "artifact_count", "records"],
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string", "maxLength": 200 },
+        "summary": { "type": "string", "maxLength": 500 },
+        "status": { "type": "string", "maxLength": 40 },
+        "progress": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "updated_at": { "type": "string", "minLength": 1 },
+        "artifact_count": { "type": "integer", "minimum": 0 },
+        "records": {
+          "type": "array",
+          "maxItems": 12,
+          "items": { "$ref": "#/$defs/work_record" }
+        },
+        "documents": {
+          "type": "array",
+          "maxItems": 20,
+          "items": { "$ref": "#/$defs/task_document" }
+        }
+      }
+    },
+    "position": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "employee_name", "summary", "tasks"],
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string", "maxLength": 120 },
+        "employee_name": { "type": "string", "maxLength": 120 },
+        "summary": { "type": "string", "maxLength": 200 },
+        "tasks": {
+          "type": "array",
+          "maxItems": 500,
+          "items": { "$ref": "#/$defs/workflow_task" }
+        }
+      }
+    },
+    "pipeline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "revision", "access", "positions"],
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string", "maxLength": 160 },
+        "revision": { "type": "string", "maxLength": 80 },
+        "access": { "const": "read_only" },
+        "positions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/position" }
+        }
+      }
+    },
+    "activity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "title", "detail", "pipeline_name", "timestamp", "kind"],
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string", "maxLength": 240 },
+        "detail": { "type": "string", "maxLength": 360 },
+        "pipeline_name": { "type": "string", "maxLength": 160 },
+        "timestamp": { "type": "string", "minLength": 1 },
+        "kind": { "type": "string", "maxLength": 40 }
+      }
+    },
+    "task_document": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "kind",
+        "readable",
+        "size",
+        "position_name",
+        "employee_name",
+        "revision",
+        "revised_by_human",
+        "created_at"
+      ],
+      "properties": {
+        "id": { "type": "string", "pattern": "^artifact:[0-9]+$" },
+        "name": { "type": "string", "maxLength": 200 },
+        "kind": { "type": "string", "maxLength": 40 },
+        "readable": { "type": "boolean" },
+        "size": { "type": "integer", "minimum": 0 },
+        "position_name": { "type": "string", "maxLength": 120 },
+        "employee_name": { "type": "string", "maxLength": 120 },
+        "revision": { "type": "integer", "minimum": 1 },
+        "revised_by_human": { "type": "boolean" },
+        "created_at": {
+          "type": ["string", "null"]
+        }
+      }
+    }
+  }
+}

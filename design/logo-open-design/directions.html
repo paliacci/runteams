@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RunTeams.ai — Open Design logo directions</title>
+<style>
+  :root{--canvas:#f7f6f3;--panel:#fff;--ink:#171716;--muted:#77736c;--line:#dedbd4;--soft:#efede8;--green:#267a4a}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--canvas);color:var(--ink);font-family:Arial,Helvetica,sans-serif;-webkit-font-smoothing:antialiased}
+  .board{width:1600px;min-height:1120px;margin:0 auto;padding:56px 64px 72px}
+  header{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:36px}
+  .eyebrow{font-size:12px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:12px}
+  h1{font-size:34px;line-height:1.05;letter-spacing:-.04em;margin:0}
+  header p{max-width:520px;margin:0;color:var(--muted);font-size:15px;line-height:1.55;text-align:right}
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:18px;overflow:hidden}
+  .card.selected{border-color:#a6a198;box-shadow:0 0 0 1px #a6a198 inset}
+  .hero{height:248px;display:grid;place-items:center;padding:44px;background:#fff}
+  .hero img{width:auto;max-width:100%;height:58px}
+  .meta{padding:22px 24px 24px;border-top:1px solid var(--line)}
+  .title-row{display:flex;align-items:center;gap:10px}
+  .index{font-size:12px;color:var(--muted);font-weight:700}
+  h2{font-size:18px;letter-spacing:-.02em;margin:0}
+  .picked{font-size:10px;font-weight:700;color:var(--green);border:1px solid #b9d6c5;background:#f2faf5;border-radius:999px;padding:4px 7px;text-transform:uppercase;letter-spacing:.08em}
+  .meta p{font-size:13px;line-height:1.55;color:var(--muted);margin:12px 0 0;min-height:42px}
+  .tests{display:grid;grid-template-columns:1fr 1fr;margin-top:18px;border:1px solid var(--line);border-radius:12px;overflow:hidden}
+  .test{height:84px;padding:13px;display:flex;flex-direction:column;justify-content:space-between;background:var(--canvas)}
+  .test+.test{border-left:1px solid var(--line);background:var(--ink)}
+  .test span{font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#9a958c}
+  .nav-logo{height:23px;width:auto;max-width:100%}
+  .dark .nav-logo{filter:brightness(0) invert(1)}
+  .favicon{display:flex;align-items:center;gap:12px}
+  .favicon img{width:20px;height:20px;object-fit:contain}
+  .dark .favicon img{filter:brightness(0) invert(1)}
+  .favicon b{font-size:11px;color:var(--muted);font-weight:600}
+  .dark .favicon b{color:#aaa69e}
+  .site-tests{margin-top:20px;display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  .site{height:190px;border:1px solid var(--line);border-radius:18px;background:#fff;overflow:hidden}
+  .site.dark{background:var(--ink);border-color:var(--ink)}
+  .nav{height:72px;padding:0 26px;display:flex;align-items:center;border-bottom:1px solid var(--line);gap:40px}
+  .dark .nav{border-bottom-color:#343432}
+  .nav img{height:28px;width:auto}.dark .nav img{filter:brightness(0) invert(1)}
+  .links{display:flex;gap:24px;font-size:13px;color:var(--muted)}
+  .dark .links{color:#a8a49c}
+  .cta{margin-left:auto;border-radius:9px;background:var(--ink);color:white;font-size:12px;font-weight:700;padding:10px 14px}
+  .dark .cta{background:#fff;color:var(--ink)}
+  .site-copy{padding:24px 26px;color:var(--muted);font-size:13px;line-height:1.55}
+  .site-copy b{display:block;color:var(--ink);font-size:17px;margin-bottom:5px}.dark .site-copy b{color:#fff}
+</style>
+</head>
+<body>
+<main class="board">
+  <header>
+    <div><div class="eyebrow">Open Design · website logo study</div><h1>RunTeams.ai</h1></div>
+    <p>Three architectures, one application contract. Shown at real navigation and fallback sizes; no app-icon presentation, gradients, or illustrative metaphors.</p>
+  </header>
+  <section class="grid">
+    <article class="card">
+      <div class="hero"><img src="variants/relay-cut.svg" alt="Relay Cut"></div>
+      <div class="meta"><div class="title-row"><span class="index">01</span><h2>Relay Cut</h2></div><p>Wordmark-first. A small handoff marker passes work from Run into Teams without adding a separate icon.</p><div class="tests"><div class="test"><span>nav · 28px</span><img class="nav-logo" src="variants/relay-cut.svg"></div><div class="test dark"><span>reverse</span><img class="nav-logo" src="variants/relay-cut.svg"></div></div></div>
+    </article>
+    <article class="card selected">
+      <div class="hero"><img src="variants/team-rail.svg" alt="Team Rail"></div>
+      <div class="meta"><div class="title-row"><span class="index">02</span><h2>Team Rail</h2><span class="picked">selected</span></div><p>Lockup. Three capable agents converge into one controlled output, with no app-icon container.</p><div class="tests"><div class="test"><span>nav · 28px</span><img class="nav-logo" src="variants/team-rail.svg"></div><div class="test dark"><span>reverse</span><img class="nav-logo" src="variants/team-rail.svg"></div></div></div>
+    </article>
+    <article class="card">
+      <div class="hero"><img src="variants/rt-frame.svg" alt="RT Frame"></div>
+      <div class="meta"><div class="title-row"><span class="index">03</span><h2>RT Frame</h2></div><p>Monogram lockup. Compact and product-like, with a shared R/T structure for sidebar, favicon, and installer contexts.</p><div class="tests"><div class="test"><span>nav · 28px</span><img class="nav-logo" src="variants/rt-frame.svg"></div><div class="test dark"><span>reverse</span><img class="nav-logo" src="variants/rt-frame.svg"></div></div></div>
+    </article>
+  </section>
+  <section class="site-tests">
+    <div class="site"><div class="nav"><img src="variants/team-rail.svg"><div class="links"><span>功能</span><span>工作方式</span><span>文档</span></div><span class="cta">免费开始</span></div><div class="site-copy"><b>Primary website test</b>The identity stays quieter than the CTA and product screenshot, while the name remains immediately readable.</div></div>
+    <div class="site dark"><div class="nav"><img src="variants/team-rail.svg"><div class="links"><span>Features</span><span>How it works</span><span>Docs</span></div><span class="cta">Get started</span></div><div class="site-copy"><b>Reverse test</b>Pure white reproduction preserves the mark without relying on the gray suffix or any color effect.</div></div>
+  </section>
+</main>
+</body>
+</html>
