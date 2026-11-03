@@ -92,7 +92,7 @@
  async function resource(frame,target,data){
   const account=workspaceAccountCacheToken(),state=target.state;
   try{
-   if(!/^[a-zA-Z0-9-]{1,80}$/.test(data.request_id||'')||target.doc.content_model!=='rich-document'||S.activeOrganization)throw Error('当前文档不支持这项操作。');
+   if(!/^[a-zA-Z0-9-]{1,80}$/.test(data.request_id||'')||target.doc.content_model!=='rich-document'||RunTeamsHost.session.workspace(S))throw Error('当前文档不支持这项操作。');
    const operation=data.operation,reading=['asset-read','asset-download','export-download'].includes(operation);
    if((target.embedded||!target.doc.editable||target.doc.is_current_revision===false)&&!reading)throw Error('这份文档当前只可阅读。');
    const base='/api/device/work/documents/'+Number(target.doc.id);let response;
@@ -114,7 +114,7 @@
  function loaded(frame){if(readyFrames.has(frame))return;setTimeout(()=>{if(!frame.isConnected||readyFrames.has(frame))return;const label=frame.closest('.rich-frame-shell')?.querySelector('.rich-frame-loading');if(label){label.classList.add('is-error');label.setAttribute('role','alert');label.innerHTML='<span>内容界面暂时未能打开，已保存的文档仍保留。</span><button type="button" class="btn" onclick="RunTeamsRichDocuments.retry(this)">重试</button>';}},15000);}
  function retry(button){const shell=button.closest('.rich-frame-shell'),frame=shell?.querySelector('iframe');if(!frame)return;readyFrames.delete(frame);const label=shell.querySelector('.rich-frame-loading');label.classList.remove('is-error');label.removeAttribute('role');label.innerHTML=documentReaderSkeletonMarkup(true);frame.src=frame.src;}
  async function create(){
-  if(S.activeOrganization)return;
+  if(RunTeamsHost.session.workspace(S))return;
   if(S._richDocumentCreating)return;S._richDocumentCreating=true;
   try{if(!await flushDocument())return;const doc=await api('/api/device/work/documents','POST',{name:'未命名文档',content_model:'rich-document',base_revision:0,document_key:'document-'+crypto.randomUUID(),document:{schema:'runteams.rich-document/1',blocks:[{id:crypto.randomUUID(),type:'paragraph',props:{},content:[],children:[]}],sources:{}}});if(doc.error)throw Error(doc.error);await openDocumentReader({...doc,rich_new_document:true});}
   catch(error){toast(error.message||'文档创建失败，请重试。','err');}finally{S._richDocumentCreating=false;}
@@ -123,7 +123,7 @@
   const data=event.data;if(event.origin!==location.origin||data?.channel!==channel)return;
   const frame=currentFrame(data.token);if(!frame||event.source!==frame.contentWindow)return;
   const target=resolve(data.token);if(!target)return;
-  if(data.type==='ready'){if(target.state)target.state.richProtocol=data.protocol===2?2:1;if(data.render_ack!==true){readyFrames.add(frame);frame.closest('.rich-frame-shell')?.querySelector('.rich-frame-loading')?.remove();}let document_url='';try{document_url=new URL(documentInternalLinkHref(target.state?.workspaceDocumentId||target.doc.id),location.origin).href;}catch{}post(frame,'open',{payload:{doc:{...target.doc,host_protocol:2,header_in_host:!target.embedded,outline_enabled:!target.embedded,resources_available:!S.activeOrganization,document_url,initial_block:target.state?.anchor||''},embedded:target.embedded,theme:theme()}});return;}
+  if(data.type==='ready'){if(target.state)target.state.richProtocol=data.protocol===2?2:1;if(data.render_ack!==true){readyFrames.add(frame);frame.closest('.rich-frame-shell')?.querySelector('.rich-frame-loading')?.remove();}let document_url='';try{document_url=new URL(documentInternalLinkHref(target.state?.workspaceDocumentId||target.doc.id),location.origin).href;}catch{}post(frame,'open',{payload:{doc:{...target.doc,host_protocol:2,header_in_host:!target.embedded,outline_enabled:!target.embedded,resources_available:!RunTeamsHost.session.workspace(S),document_url,initial_block:target.state?.anchor||''},embedded:target.embedded,theme:theme()}});return;}
   if(data.type==='rendered'){readyFrames.add(frame);frame.closest('.rich-frame-shell')?.querySelector('.rich-frame-loading')?.remove();return;}
   if(data.type==='height'&&target.embedded){const height=Number(data.height);if(Number.isFinite(height))frame.style.height=Math.max(160,Math.min(15000,height))+'px';return;}
   if(data.type==='resource'){void resource(frame,target,data);return;}

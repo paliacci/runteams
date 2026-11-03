@@ -7,7 +7,7 @@
   const pipelineSlots=new Map();
   const pending=new Map();
   const recovery=new Map();
-  const uid=()=>crypto.randomUUID(),token=()=>workspaceAccountCacheToken(),workspace=()=>String(S.activeOrganization||'');
+  const uid=()=>crypto.randomUUID(),token=()=>workspaceAccountCacheToken(),workspace=()=>String(RunTeamsHost.session.workspace(S)||'');
   const bridge=()=>window.RunTeamsWorkHost;
   const call=async value=>{if(!bridge())throw Error('当前窗口无法打开工作内容');return bridge().postMessage(value);};
   const key=id=>token()+':'+String(id),get=id=>pending.get(key(id));
@@ -44,7 +44,7 @@
     const p=context(),next=token(),nextContext=contextIdentity(p);
     if(scope!==next||chat!==(p?.id||null)||workContext!==nextContext){
       const old=active;if(old?.id)void call({action:'visibility',id:old.id,chat_id:old.chat,visible:false}).catch(()=>{});
-      const nextScope=next+':'+String(S.localLibrary?.cache_scope||S.account?.device_data_scope||'');
+      const nextScope=next+':'+String(S.localLibrary?.cache_scope||RunTeamsHost.session.deviceScope(S)||'');
       // Only pipeline pages are retained; independent employees keep their lifecycle.
       if(old?.pipelineWindow&&scope===next&&old.slotScope===nextScope&&(!isPipeline(p)||old.pipelineWindow!==RunTeamsSourcePipelines.key(p.context.source_pipeline_workspace)||workContext===nextContext)){
         pipelineSlots.set(old.slotKey,{active:old,items,lastRead,readError});
@@ -68,7 +68,7 @@
       try{await window.RunTeamsSourcePipelines?.ensureWorkContext();}catch(e){return;}
     }
     const p=refreshContext();
-    if(!p||(!S.localLibrary&&!S.account?.signed_in)||!bridge()||p.kind==='employee_design')return;
+    if(!p||(!S.localLibrary&&!RunTeamsHost.session.ready(S))||!bridge()||p.kind==='employee_design')return;
     if(!employeePanel(p)&&!active?.id&&!needsRecovery(Number(p.id)))return;
     const epoch=generation;
     if(isPipeline(p)&&active?.recheck){
@@ -95,7 +95,7 @@
       // every actual mount/tool still use the original complete verification.
       let observed='';
       if(isPipeline(p)||items.some(item=>item.mcp)){
-        const hint=await employeeMCPRequest({chat:Number(p.id),pipeline:isPipeline(p),scope:_employeeBusinessScopeSequence,deviceScope:S.localLibrary?.cache_scope||S.account.device_data_scope},null,true);
+        const hint=await employeeMCPRequest({chat:Number(p.id),pipeline:isPipeline(p),scope:_employeeBusinessScopeSequence,deviceScope:S.localLibrary?.cache_scope||RunTeamsHost.session.deviceScope(S)},null,true);
         if(refreshContext()!==p||epoch!==generation||token()!==scope)return;
         if(hint.schema!=='runteams.mcp-observation/1'||hint.chat_id!==Number(p.id)||hint.owner!==(isPipeline(p)?'pipeline':'employee')||typeof hint.version!=='string')throw Error('工作引用已变化。');
         observed=hint.version;
@@ -163,7 +163,7 @@
     const p=context();if(!p||isPipeline(p)||String(p.id)!==String(chat)||!bridge())return [];
     return items.flatMap(work=>work.views.map(view=>({installation_id:work.installation_id,view:view.id,chat_id:Number(p.id),title:String(view.title||'工作内容').slice(0,120)})));
   }
-  function pinCurrent(){const row=sidebarChoices().find(row=>row.installation_id===active?.installation&&row.view===active?.view);if(row)return RunTeamsSidebarViews.pin(row);}
+  function pinCurrent(){const row=sidebarChoices().find(row=>row.installation_id===active?.installation&&row.view===active?.view);if(row)return RunTeamsHost.shell.pinView?.(row);}
   async function openShortcut(row,current){
     const p=refreshContext();if(!bridge())throw Error('当前窗口无法打开工作界面');
     if(!p||Number(p.id)!==row.chat_id||!current())return;
@@ -177,7 +177,7 @@
   async function open(work,view){
     const p=refreshContext();if(!p||opening)return;
     if(get(p.id))return toast('请先核对上一条消息的发送状态','info');
-    const epoch=generation;opening=true;const previous=active;const retention=isPipeline(p)?{pipelineWindow:RunTeamsSourcePipelines.key(p.context.source_pipeline_workspace),slotKey:scope+':'+String(S.localLibrary?.cache_scope||S.account?.device_data_scope||'')+':'+workContext,slotScope:scope+':'+String(S.localLibrary?.cache_scope||S.account?.device_data_scope||'')}:{};active={...retention,title:view.title||'工作内容',chat:Number(p.id),mcp:!!work.mcp,installation:work.installation_id,view:view.id,loading:true};
+    const epoch=generation;opening=true;const previous=active;const retention=isPipeline(p)?{pipelineWindow:RunTeamsSourcePipelines.key(p.context.source_pipeline_workspace),slotKey:scope+':'+String(S.localLibrary?.cache_scope||RunTeamsHost.session.deviceScope(S)||'')+':'+workContext,slotScope:scope+':'+String(S.localLibrary?.cache_scope||RunTeamsHost.session.deviceScope(S)||'')}:{};active={...retention,title:view.title||'工作内容',chat:Number(p.id),mcp:!!work.mcp,installation:work.installation_id,view:view.id,loading:true};
     const openingEntry=active;selectDetailWorkspace({type:'creator-work',id:p.id});const selection=S.sel,sequence=_detailOpenSequence;
     const currentIntent=()=>S.sel===selection&&sequence===_detailOpenSequence;repaint();
     try{
@@ -196,8 +196,8 @@
         try{await call({action:'visibility',id:mounted.id,chat_id:mounted.chat,visible:false});}
         catch(error){await release(mounted);throw error;}
         const cached=pipelineSlots.get(retention.slotKey);
-        if(cached?.active===openingEntry&&cached.active.slotScope===token()+':'+String(S.localLibrary?.cache_scope||S.account?.device_data_scope||''))cached.active=mounted;
-        else if(active===openingEntry&&isPipeline(context())&&retention.slotScope===token()+':'+String(S.localLibrary?.cache_scope||S.account?.device_data_scope||'')){active=mounted;lastFrame='';repaint();void layout();}
+        if(cached?.active===openingEntry&&cached.active.slotScope===token()+':'+String(S.localLibrary?.cache_scope||RunTeamsHost.session.deviceScope(S)||''))cached.active=mounted;
+        else if(active===openingEntry&&isPipeline(context())&&retention.slotScope===token()+':'+String(S.localLibrary?.cache_scope||RunTeamsHost.session.deviceScope(S)||'')){active=mounted;lastFrame='';repaint();void layout();}
         else await release(mounted);
         return;
       }
@@ -249,7 +249,7 @@
   // Called only in the trusted platform document by the native mounted host.
   // Author display data is plain text/descriptors; it supplies no DOM or URL.
   function applyDisplay(id,epoch,state,expires){
-    const retained=[...pipelineSlots.values()].find(saved=>saved.active.id===id&&saved.active.slotScope===token()+':'+String(S.localLibrary?.cache_scope||S.account?.device_data_scope||''));
+    const retained=[...pipelineSlots.values()].find(saved=>saved.active.id===id&&saved.active.slotScope===token()+':'+String(S.localLibrary?.cache_scope||RunTeamsHost.session.deviceScope(S)||''));
     const entry=active?.id===id&&context()?active:retained?.active;
     if(!entry||scope!==token()||Date.now()>=expires||!window.RunTeamsUIComponents)throw Error('display_unavailable');
     if(entry.displayEpoch&&entry.displayEpoch!==epoch)throw Error('display_stale');

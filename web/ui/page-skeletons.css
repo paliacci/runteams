@@ -3,7 +3,6 @@
 .route-skeleton,.route-sk-region{pointer-events:none}
 .route-sk-page{height:100%;overflow:auto;box-sizing:border-box}
 .route-sk-content{max-width:1080px;margin:0 auto;padding:48px 40px 80px;box-sizing:border-box}
-.route-sk-page-marketplace .route-sk-content{max-width:1160px;padding-top:24px}
 .route-sk-heading{display:flex;justify-content:space-between;align-items:center;gap:24px;margin-bottom:36px}
 .route-sk-heading>div,.route-sk-copy-group{min-width:0;flex:1;display:flex;flex-direction:column;gap:10px}
 .route-sk-title{width:150px;height:30px;max-width:80%}
@@ -34,13 +33,6 @@
 .route-sk-search{display:flex;gap:16px;align-items:center;margin-bottom:32px;min-width:0}
 .route-sk-search>.route-sk-field{flex:1;min-width:0}
 .route-sk-search>.route-sk-tabs{margin:0;flex:0 0 auto}
-.route-sk-market-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px 15px}
-.route-sk-market-cards>.route-sk-card{height:166px;box-sizing:border-box;padding:13px 15px;gap:9px;overflow:hidden}
-.route-sk-market-cards .route-sk-copy-group{gap:6px}
-.route-sk-market-cards .route-sk-identity .route-sk-short,.route-sk-market-cards .route-sk-card>.route-sk-short{display:none}
-.route-sk-market-cards .route-sk-card-foot{margin-top:auto}
-.route-sk-page-marketplace .route-sk-search>.route-sk-field,.route-sk-page-marketplace .route-sk-search>.route-sk-action,[data-skeleton-region="market-catalog"] .route-sk-search>.skeleton-block{height:44px}
-.route-sk-page-marketplace .route-sk-search,[data-skeleton-region="market-catalog"] .route-sk-search{gap:12px;margin-bottom:24px}
 .route-sk-table{width:100%;overflow:hidden}
 .route-sk-table-head,.route-sk-table-row{display:grid;grid-template-columns:minmax(140px,2fr) repeat(calc(var(--skeleton-columns) - 1),minmax(54px,1fr));align-items:center;gap:20px;min-height:82px;border-bottom:1px solid var(--border-default)}
 .route-sk-table-head{min-height:44px}
@@ -78,9 +70,9 @@
 .route-sk-amount{width:220px;height:44px;max-width:85%}
 .route-sk-region .route-sk-paragraph:last-child{margin-bottom:0}
 .route-sk-history-row{display:flex;flex-direction:column;gap:10px;padding:16px 0;border-bottom:1px solid var(--border-default)}
-@media(max-width:1100px){.route-sk-market-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.route-sk-detail-columns{grid-template-columns:minmax(0,1fr) 220px;gap:24px}.route-sk-split{grid-template-columns:minmax(0,1fr) 320px}.route-sk-mail>div:last-child{display:none}}
+@media(max-width:1100px){.route-sk-detail-columns{grid-template-columns:minmax(0,1fr) 220px;gap:24px}.route-sk-split{grid-template-columns:minmax(0,1fr) 320px}.route-sk-mail>div:last-child{display:none}}
 @media(max-width:1050px){.route-sk-split,.route-sk-author{grid-template-columns:minmax(0,1fr)}.route-sk-split>.route-sk-page,.route-sk-split>.route-sk-chat,.route-sk-author>.route-sk-side{display:none}.route-sk-split>.route-sk-side{border-left:0}.route-sk-table-head,.route-sk-table-row{grid-template-columns:minmax(100px,2fr) repeat(2,minmax(54px,1fr));gap:16px}.route-sk-table-head>*:nth-child(n+4),.route-sk-table-row>*:nth-child(n+4){display:none}}
-@media(max-width:760px){.route-sk-content{padding:28px 24px 60px}.route-sk-heading{gap:16px}.route-sk-market-hero{grid-template-columns:1fr;gap:24px;padding:24px;min-height:200px}.route-sk-market-hero>div{gap:24px}.route-sk-hero-art{display:none}.route-sk-market-cards,.route-sk-detail-columns{grid-template-columns:minmax(0,1fr)}.route-sk-split,.route-sk-author{grid-template-columns:minmax(0,1fr)}.route-sk-split>.route-sk-page,.route-sk-split>.route-sk-chat{display:none}.route-sk-side{border-left:0}.route-sk-author>.route-sk-side{display:none}.route-sk-chat{padding:20px}.route-sk-table-head,.route-sk-table-row{grid-template-columns:minmax(100px,2fr) minmax(54px,1fr);gap:16px}.route-sk-table-head>*:nth-child(n+3),.route-sk-table-row>*:nth-child(n+3){display:none}.route-sk-search{flex-wrap:wrap}.route-sk-search>.route-sk-tabs{width:100%;gap:20px}.route-sk-mail>div:first-child{display:none}}
+@media(max-width:760px){.route-sk-content{padding:28px 24px 60px}.route-sk-heading{gap:16px}.route-sk-market-hero{grid-template-columns:1fr;gap:24px;padding:24px;min-height:200px}.route-sk-market-hero>div{gap:24px}.route-sk-hero-art{display:none}.route-sk-detail-columns{grid-template-columns:minmax(0,1fr)}.route-sk-split,.route-sk-author{grid-template-columns:minmax(0,1fr)}.route-sk-split>.route-sk-page,.route-sk-split>.route-sk-chat{display:none}.route-sk-side{border-left:0}.route-sk-author>.route-sk-side{display:none}.route-sk-chat{padding:20px}.route-sk-table-head,.route-sk-table-row{grid-template-columns:minmax(100px,2fr) minmax(54px,1fr);gap:16px}.route-sk-table-head>*:nth-child(n+3),.route-sk-table-row>*:nth-child(n+3){display:none}.route-sk-search{flex-wrap:wrap}.route-sk-search>.route-sk-tabs{width:100%;gap:20px}.route-sk-mail>div:first-child{display:none}}
 /* Static chrome stays interactive; only request-owned regions shimmer. */
 .pending-page{height:100%;min-height:0;min-width:0;overflow:auto;box-sizing:border-box}
 .pending-page-full{height:100%;min-height:0;display:flex;flex-direction:column}
@@ -90,10 +82,7 @@
 .pending-page-side>.environment-content{padding:28px 24px}
 .pending-page .page-transition-state{min-height:220px;justify-content:center;display:flex;flex-direction:column;align-items:center;gap:12px}
 .pending-page .route-sk-region{min-width:0}
-.pending-page .account-billing-tabs>a{display:inline-flex;align-items:center;justify-content:center;padding:12px 0;color:var(--text-secondary);text-decoration:none;border-bottom:3px solid transparent}
-.pending-page .account-billing-tabs>a[aria-selected="true"]{color:var(--text-primary);border-bottom-color:var(--text-primary)}
 .pending-page .skills-create{display:inline-flex;align-items:center;text-decoration:none}
-.pending-page .marketplace-publish-back{text-decoration:none}
 .pending-pipeline{display:flex;flex-direction:column}
 .pending-pipeline>[data-pending-data]{flex:1;min-height:0;overflow:hidden}
 .pending-pipeline .board{height:100%}
@@ -113,27 +102,15 @@
 
 /* Shared loading contract. Pure placeholders never accept input. Keep known
    controls outside these scopes; aria-busy alone does not disable a surface. */
-:is(.skeleton-block,.route-sk-region,.route-sk-shapes,[data-skeleton-list],[data-skeleton-row],[data-settings-skeleton],.rail-list-skeleton,.rail-recent-skeleton),
-:is(.route-sk-region,.route-sk-shapes,[data-skeleton-list],[data-skeleton-row],[data-settings-skeleton],.rail-list-skeleton,.rail-recent-skeleton) *{pointer-events:none!important;user-select:none;cursor:default!important}
+:is(.skeleton-block,.route-sk-region,.route-sk-shapes,[data-skeleton-list],[data-skeleton-row],[data-settings-skeleton],.rail-list-skeleton,.rail-recent-skeleton),:is(.route-sk-region,.route-sk-shapes,[data-skeleton-list],[data-skeleton-row],[data-settings-skeleton],.rail-list-skeleton,.rail-recent-skeleton) *{pointer-events:none!important;user-select:none;cursor:default!important}
 
 /* Explicit list/row scopes also cover table cells and future custom list rows.
    Transparent borders preserve dimensions; card and panel frames stay intact. */
-:is([data-skeleton-list],[data-skeleton-row]):is([data-skeleton-list],[data-skeleton-row]),
-:is([data-skeleton-list],[data-skeleton-row]):is([data-skeleton-list],[data-skeleton-row]) :not(.skeleton-block){border-top-color:transparent!important;border-bottom-color:transparent!important;background:transparent!important;box-shadow:none!important;transform:none!important}
-:is([data-skeleton-list],[data-skeleton-row]):is([data-skeleton-list],[data-skeleton-row])::before,
-:is([data-skeleton-list],[data-skeleton-row]):is([data-skeleton-list],[data-skeleton-row])::after,
-:is([data-skeleton-list],[data-skeleton-row]):is([data-skeleton-list],[data-skeleton-row]) *::before,
-:is([data-skeleton-list],[data-skeleton-row]):is([data-skeleton-list],[data-skeleton-row]) *::after{content:none!important}
+:is([data-skeleton-list],[data-skeleton-row]):is([data-skeleton-list],[data-skeleton-row]),:is([data-skeleton-list],[data-skeleton-row]):is([data-skeleton-list],[data-skeleton-row]) :not(.skeleton-block){border-top-color:transparent!important;border-bottom-color:transparent!important;background:transparent!important;box-shadow:none!important;transform:none!important}
+:is([data-skeleton-list],[data-skeleton-row]):is([data-skeleton-list],[data-skeleton-row])::before,:is([data-skeleton-list],[data-skeleton-row]):is([data-skeleton-list],[data-skeleton-row])::after,:is([data-skeleton-list],[data-skeleton-row]):is([data-skeleton-list],[data-skeleton-row]) *::before,:is([data-skeleton-list],[data-skeleton-row]):is([data-skeleton-list],[data-skeleton-row]) *::after{content:none!important}
 
 /* Partially loaded rows retain their confirmed buttons. Only the row's chrome
    and the boundary touching an unknown row are suppressed, not sibling actions. */
-:is([data-skeleton-partial],.settings-row,.channel-card,.account-device-row,.settings-tool-row,.tools-mcp-row):has(.skeleton-block){border-top-color:transparent!important;border-bottom-color:transparent!important;background:transparent!important;box-shadow:none!important;cursor:default;transform:none!important}
-:is([data-skeleton-partial],.settings-row,.channel-card,.account-device-row,.settings-tool-row,.tools-mcp-row):has(.skeleton-block)::before,
-:is([data-skeleton-partial],.settings-row,.channel-card,.account-device-row,.settings-tool-row,.tools-mcp-row):has(.skeleton-block)::after,
-:is([data-skeleton-partial],.settings-row,.channel-card,.account-device-row,.settings-tool-row,.tools-mcp-row):has(.skeleton-block)+*::before,
-:is([data-skeleton-partial],.settings-row,.channel-card,.account-device-row,.settings-tool-row,.tools-mcp-row):has(+ :is([data-skeleton-partial],.settings-row,.channel-card,.account-device-row,.settings-tool-row,.tools-mcp-row) .skeleton-block)::after{content:none!important}
-:is([data-skeleton-partial],.settings-row,.channel-card,.account-device-row,.settings-tool-row,.tools-mcp-row):has(.skeleton-block)+*{border-top-color:transparent!important}
-:is([data-skeleton-partial],.settings-row,.channel-card,.account-device-row,.settings-tool-row,.tools-mcp-row):has(+ :is([data-skeleton-partial],.settings-row,.channel-card,.account-device-row,.settings-tool-row,.tools-mcp-row) .skeleton-block){border-bottom-color:transparent!important}
 /* Pure legacy page headings use the same boundary rule as their loading rows. */
 :is(.docs-table:has(.skeleton-docs-row)>.docs-thead,.skeleton-trash-page .trash-list-columns){border-top-color:transparent!important;border-bottom-color:transparent!important}
 

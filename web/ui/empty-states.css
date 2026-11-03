@@ -29,7 +29,7 @@
 .core-pipeline-board:has(>.rt-empty-state:not([hidden]))>.cols{flex:0 0 auto;height:auto;min-height:0}
 
 /* Batch 6: successful searches without matches. Input and original actions stay. */
-#skills_search_empty[hidden],.marketplace-search-state[hidden]{display:none!important}
+#skills_search_empty[hidden]{display:none!important}
 .rail-command-empty>.rt-empty-state--globalSearch{gap:12px}
 .rt-empty-state--globalSearch .rt-empty-state-art{width:112px}
 .rt-empty-state--globalSearch .rt-empty-state-copy{gap:6px}
@@ -58,18 +58,9 @@
 /* Empty regions own the available content space. Headers, filters and actions
    remain siblings; only the successful empty branch establishes this layout.
    New bounded content containers can opt in with .rt-empty-region. */
-.rt-empty-region,
-:where(.docs-body,.trash-empty-state,.market-creator-list-body,#market_creator_list_results,#skills_search_empty,.marketplace-search-state,.settings-finance-empty,.account-wallet-funds,.account-rental-list,#account_billing_records):has(>.rt-empty-state:not([hidden])){display:flex;flex-direction:column;flex:1 0 auto;min-width:0;min-height:0}
-:where(.docs-page,.trash-page,.market-creator-page,.marketplace-main-page):has(.rt-empty-state:not([hidden])){display:flex;flex-direction:column}
-:where(.docs-content,.trash-content,.market-creator-content,.marketplace-main-content):has(.rt-empty-state:not([hidden])){display:flex;flex-direction:column;flex:1 0 auto;min-height:100%}
-:where(.market-creator-list-body,#market_catalog,.marketplace-search-results):has(.rt-empty-state:not([hidden])){display:flex;flex-direction:column;flex:1 0 auto;min-height:0}
-.wallet-page:has(.account-wallet-funds>.rt-empty-state),.billing-page:has([data-billing-panel]:not([hidden]) .rt-empty-state){display:flex;flex-direction:column}
-.account-page-content:has(>.account-wallet-records>.account-wallet-funds>.rt-empty-state),.account-page-content:has(>.account-billing-content>[data-billing-panel]:not([hidden]) .rt-empty-state){display:flex;flex-direction:column;flex:1 0 auto;min-height:100%}
-.account-wallet-records:has(>.account-wallet-funds>.rt-empty-state),.account-billing-content:has(>[data-billing-panel]:not([hidden]) .rt-empty-state),[data-billing-panel]:not([hidden]):has(.rt-empty-state){display:flex;flex-direction:column;flex:1 0 auto;min-height:0}
-:where(.account-wallet-funds,.account-rental-list,#account_billing_records):has(>.rt-empty-state){max-height:none;overflow:visible;scrollbar-gutter:auto}
+.rt-empty-region{display:flex;flex-direction:column;flex:1 0 auto;min-width:0;min-height:0}
 :where(.creator-work-viewport,.employee-automation-body,.result-evidence-preview-content.is-archive):has(>.rt-empty-state:not([hidden])){display:flex;flex-direction:column;overflow:auto}
 :where(.creator-work-viewport,.employee-automation-body):has(>.rt-empty-state:not([hidden])){flex:1 1 0}
-.settings-finance-empty:has(>.rt-empty-state){min-height:256px}
 .rt-empty-state-copy>span:empty{display:none}
 
 /* All current and future shared artwork follows the effective theme, including
@@ -86,5 +77,4 @@
 }
 
 /* Decorative guides stay out of illustrations in both themes; meaningful flow/placeholder dashes remain. */
-.rt-empty-state-art path[stroke-dasharray]:is([stroke="var(--border-default)"],[stroke="var(--border-control)"]),
-.rt-empty-state--responsibilities .rt-empty-state-art path[stroke-dasharray]{stroke:none}
+.rt-empty-state-art path[stroke-dasharray]:is([stroke="var(--border-default)"],[stroke="var(--border-control)"]),.rt-empty-state--responsibilities .rt-empty-state-art path[stroke-dasharray]{stroke:none}

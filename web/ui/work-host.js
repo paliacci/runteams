@@ -3,7 +3,7 @@
   'use strict';
   const native=()=>window.webkit?.messageHandlers?.runteamsCreatorWork;
   const works=new Map();let client=null,registration=null,identity=null,disposed=false;
-  const account=()=>workspaceAccountCacheToken(),workspace=()=>String(S.activeOrganization||'');
+  const account=()=>workspaceAccountCacheToken(),workspace=()=>String(RunTeamsHost.session.workspace(S)||'');
   async function http(value,own=client){
     const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),value.action==='message'?120000:30000);
     try{

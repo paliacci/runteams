@@ -45,6 +45,12 @@
       "description": "Check the maintained standalone source/module boundary without starting work."
     },
     {
+      "path": "runteams_core/devtools/check_ui_boundary.py",
+      "module": "runteams_core.devtools.check_ui_boundary",
+      "command": true,
+      "description": "Reject product-specific host implementations in public source and wheels."
+    },
+    {
       "path": "runteams_core/devtools/ci.py",
       "module": "runteams_core.devtools.ci",
       "command": true,

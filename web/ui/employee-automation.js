@@ -9,10 +9,10 @@
  const scope=()=>`${_workspaceBusinessGeneration}:${workspaceAccountCacheToken()}`;
  const operationKey=target=>'runteams.employee-schedule-operation:'+workspaceDeviceStorageScope()+':'+target.key;
  function eligible(panel=S.conversationPanel){
-  if(pipelineOwner()?.data&&!S.activeOrganization&&(S.localLibrary||S.account?.signed_in))return true;
+  if(pipelineOwner()?.data&&!RunTeamsHost.session.workspace(S)&&(S.localLibrary||RunTeamsHost.session.ready(S)))return true;
   const reference=window.RunTeamsEmployeeDirectory?.panelReference(panel);
   if(S.localLibrary&&reference&&(reference.schema!=='runteams.local-employee-reference/1'||reference.storage_kind!=='local'||reference.library_id!==S.localLibrary.library_id))return false;
-  return !!panel&&!S.activeOrganization&&!panel.loading&&!panel.error&&!panel.debug_preview&&!!(S.localLibrary||S.account?.signed_in)&&!!window.RunTeamsEmployeeDirectory&&(RunTeamsEmployeeDirectory.employeePanel(panel)||panel.kind==='employee_design'&&!!panel.context?.creator_local_source_id);
+  return !!panel&&!RunTeamsHost.session.workspace(S)&&!panel.loading&&!panel.error&&!panel.debug_preview&&!!(S.localLibrary||RunTeamsHost.session.ready(S))&&!!window.RunTeamsEmployeeDirectory&&(RunTeamsEmployeeDirectory.employeePanel(panel)||panel.kind==='employee_design'&&!!panel.context?.creator_local_source_id);
  }
  function identity(panel=S.conversationPanel){const owner=pipelineOwner();if(owner)return JSON.stringify(['pipeline',owner.reference]);const c=panel?.context||{};return JSON.stringify([panel?.id,panel?.kind,RunTeamsEmployeeDirectory.referenceKey(RunTeamsEmployeeDirectory.panelReference(panel)),c.creator_local_source_id,c.creator_employee_source]);}
  function target(panel=S.conversationPanel){

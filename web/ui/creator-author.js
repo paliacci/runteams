@@ -3,7 +3,7 @@
 'use strict';
 let state=null,operationOwner=null,operationMarkup='',mountedPreview=null;
 const scope=()=>workspaceAccountCacheToken();
-const deviceScope=()=>S.localLibrary?JSON.stringify([S.localLibrary.library_id,S.localLibrary.generation]):S.account?.device_data_scope;
+const deviceScope=()=>S.localLibrary?JSON.stringify([S.localLibrary.library_id,S.localLibrary.generation]):RunTeamsHost.session.deviceScope(S);
 let sourceActions=null;
 const extension=()=>sourceActions?.enabled()?sourceActions:null;
 function attachSourceActions(create){if(sourceActions||typeof create!=='function')throw Error('Source actions already composed');sourceActions=create({current,valid,busy,repaint,localCall,closeHistory,openOperation,syncOperationDialog,buildLocal,sync});}
@@ -77,7 +77,7 @@ async function openEmployee(id,{onBack=null}={}){
  state={standalone:true,assetRecordId:id,employeeSource:local?.path,session:selection,scope:scope(),deviceScope:deviceScope(),library:S.localLibrary?{library_id:S.localLibrary.library_id,generation:S.localLibrary.generation}:null,files:[],resourceFolders:[],activeFile:'',file:null,error:'',loading:true,localSession:true,configurationReturn:onBack};
  const s=state;selectDetailWorkspace({type:'creator-assets',id:selection});repaint();
  if(local){extension()?.source(s,local);s.loading=false;return openLocal(local.id);}
- try{const result=await RunTeamsNativeAssets.authoring(id,draftRuntimeConfig());if(!valid(s))return;
+ try{const result=await RunTeamsHost.assets.authoring(id,draftRuntimeConfig());if(!valid(s))return;
   const c=result.session?.context;if(!c?.creator_local_source_id)throw Error('这名员工的资源暂时无法读取。');
   extension()?.source(s,{context:c});s.employeeSource=c.creator_employee_source;s.loading=false;await openLocal(c.creator_local_source_id);
  }catch(error){if(valid(s)){s.loading=false;s.error=error.message;repaint();}}

@@ -192,8 +192,6 @@ class LocalApplication:
             record = self.assets.get(**data)
             return {'name': record['name'], 'source_text': json.dumps(record['source'],
                 ensure_ascii=False, sort_keys=True, indent=2, allow_nan=False)}
-        if path.startswith(('/api/account/', '/api/billing', '/api/core/marketplace', '/api/organizations', '/api/market')):
-            raise KeyError('官方接口不在本机版提供。')
         if path.startswith(('/api/employee-', '/api/core/', '/api/device/', '/api/channels',
                             '/api/environment', '/api/model-', '/api/chats', '/api/chat/',
                             '/api/conversations', '/api/pipeline-work/', '/api/app/')):

@@ -4,7 +4,7 @@
 let active=null,painting=false;
 const sessions=new Map();
 const scope=()=>workspaceAccountCacheToken();
-const deviceScope=()=>S.localLibrary?.cache_scope||S.account?.device_data_scope;
+const deviceScope=()=>S.localLibrary?.cache_scope||RunTeamsHost.session.deviceScope(S);
 const owned=s=>s&&s.scope===scope()&&s.deviceScope===deviceScope()&&sessions.get(s.cacheKey)===s&&(!s.entry.chat_id||workTarget()?.key===s.entry.key);
 const current=()=>owned(active)&&S.sel?.type==='employee-configuration'&&S.sel.id===active.entry.key?active:null;
 const publicFields=()=>RunTeamsConfigurationFields.create({icon:ICON,singleSelect:csel});
@@ -17,7 +17,7 @@ function workTarget(panel=S.conversationPanel){
  const binding=panel?.employee_binding,reference=binding?.reference;
  if(panel!==S.conversationPanel||panel?.kind!=='general'||panel.loading||panel.error||panel.employee_error||panel.debug_preview||!Number.isSafeInteger(panel.id)||panel.id<=0||panel.context?.pipeline_work||panel.context?.source_pipeline_workspace)return null;
  if(binding?.schema!=='runteams.bound-employee/v1'||!['runteams.acquired-employee-reference/1','runteams.rented-employee-reference/1'].includes(reference?.schema)||!/^r-[a-f0-9]{64}$/.test(binding.source_revision||''))return null;
- const owner=window.RunTeamsEmployeeWindows?.identity(panel,S.account,S.activeOrganization,null,S.localLibrary);
+ const owner=window.RunTeamsEmployeeWindows?.identity(panel,S,null);
  if(!owner)return null;
  return {key:JSON.stringify(['work-settings',panel.id,owner.key,binding.source_revision]),chat_id:panel.id,reference:structuredClone(owner.reference),definition_revision:binding.source_revision,record:{name:binding.name,avatar:binding.avatar}};
 }

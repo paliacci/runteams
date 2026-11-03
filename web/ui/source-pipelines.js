@@ -32,7 +32,7 @@
   return reply;
  }
  async function refreshCatalog(){
-  if((!S.localLibrary&&!S.account?.signed_in)||S.activeOrganization){rows=[];catalogScope='';catalogError='';catalogErrorScope='';return;}
+  if((!S.localLibrary&&!RunTeamsHost.session.ready(S))||RunTeamsHost.session.workspace(S)){rows=[];catalogScope='';catalogError='';catalogErrorScope='';return;}
   const token=scope();
   try{const reply=await request('catalog');if(token!==scope())return;rows=reply.items;catalogScope=token;catalogError=reply.errors.map(row=>row.error).join('；');catalogErrorScope=token;}
   catch(error){if(token===scope()){catalogError=error.message;catalogErrorScope=token;}}
@@ -156,8 +156,8 @@
  }
  async function boot(accountRead,measurement){
   try{
-   await accountRead;if(S.accountSessionError||!S.account?.signed_in)throw Error(S.accountSessionError||'请先登录。');
-   S.deviceSessionActor=String(S.account.user_id);S.workspaceWindows=loadWorkspaceWindows();S.conversationPanelDrafts=loadConversationPanelDrafts();
+   await accountRead;if(S.accountSessionError||!RunTeamsHost.session.ready(S))throw Error(S.accountSessionError||'请先登录。');
+   S.deviceSessionActor=String(RunTeamsHost.session.actor(S));S.workspaceWindows=loadWorkspaceWindows();S.conversationPanelDrafts=loadConversationPanelDrafts();
    S.booting=false;S.bootError=null;S.workspaceStartup=null;restoreModelCatalogDisplay();if(RunTeamsRoutes.preview(location.href).kind==='source-pipeline'){const target=new URL(location.href);for(const name of [...target.searchParams.keys()])if(!['results','delivery'].includes(name))target.searchParams.delete(name);await setAppUrl(target.pathname+target.search,true);}
    void refreshDeviceDirectory().catch(()=>{});void refreshWorkspaceNavigation().catch(()=>{});
    const token=scope();

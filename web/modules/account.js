@@ -6,12 +6,12 @@
 async function refreshChannelUsage(force=false){
   const context=workspaceAccountCacheToken(),mutation=S.channelMutationVersion||0,
    previousAvailability=JSON.stringify(S.channels.map(c=>[String(c.id),modelChannelAvailable(c)]));
-  S.channelUsageLoading=true;globalThis.RunTeamsOfficialUI?.renderUsage();if(document.getElementById("channel_list")||document.getElementById("model_channel_guide_list"))renderChannels(false);
+  S.channelUsageLoading=true;RunTeamsHost.settings.usage();if(document.getElementById("channel_list")||document.getElementById("model_channel_guide_list"))renderChannels(false);
   try{const result=await modelChannelData().usage(force);if(!result||context!==workspaceAccountCacheToken()||mutation!==(S.channelMutationVersion||0))return S.channelUsage;
    if(result.error)throw Error(result.error);if(S.channelUsage===result)return result;
    S.channelUsage=result;S.channelUsageUpdatedAt=Date.now();applyChannelUsageAvailability(previousAvailability);return result;
   }catch(error){if(context===workspaceAccountCacheToken()&&mutation===(S.channelMutationVersion||0)){S.channelUsage={channels:[],error:error.message||''};S.channelUsageUpdatedAt=Date.now();}return S.channelUsage;}
-  finally{if(context===workspaceAccountCacheToken()){S.channelUsageLoading=false;globalThis.RunTeamsOfficialUI?.renderUsage();if(document.getElementById("channel_list")||document.getElementById("model_channel_guide_list"))renderChannels(false);}}
+  finally{if(context===workspaceAccountCacheToken()){S.channelUsageLoading=false;RunTeamsHost.settings.usage();if(document.getElementById("channel_list")||document.getElementById("model_channel_guide_list"))renderChannels(false);}}
 }
 
 /* module-function:refreshAccountPanel */
@@ -99,7 +99,8 @@ function accountGeneralRetryDisplay(){
 }
 
 /* module-function:normalizeSettingsTab */
-function normalizeSettingsTab(tab){return ['general','appearance','notifications','devices','channels','tools','organization','subscription','wallet','help','about'].includes(tab)&&(globalThis.RunTeamsApplication?.settingsAllowed(tab)!==false)&&(!['devices','organization','subscription','wallet','help'].includes(tab)||!!globalThis.RunTeamsOfficialUI?.settingsPanels?.[tab])?tab:'general';}
+function settingsPanels(){return {general:generalSettingsPanel,appearance:accountAppearanceSettings,notifications:accountNotificationSettings,channels:modelChannelsSettingsPanel,tools:accountToolsSettings,about:accountAboutSettings,...RunTeamsHost.settings.panels};}
+function normalizeSettingsTab(tab){const panels=settingsPanels();return Object.hasOwn(panels,tab)&&typeof panels[tab]==='function'?tab:'general';}
 
 /* module-function:settingsPanel */
 function settingsChannelContents(loading=false,idPrefix="settingsChannel"){
@@ -109,20 +110,20 @@ function settingsChannelContents(loading=false,idPrefix="settingsChannel"){
  return '<div class="empty">还没有可用的模型渠道</div>';
 }
 function channelListMarkup(id='channel_list',{appearance='grouped'}={}){return `<div class="settings-channels channel-list${appearance==='plain'?' channel-list-plain':''}" id="${esc(id)}">${settingsChannelContents(false,id==='channel_list'?'settingsChannel':'guideChannel')}</div>`;}
-function modelChannelsSettingsPanel(){return `${settingsPageHead('模型渠道','')}${accountSettingsGroup('渠道账户',channelListMarkup(),'','settingsChannelConnections')}${accountSettingsGroup('新对话默认值',(S.localLibrary||S.account.signed_in?accountSettingsNotice():globalThis.RunTeamsOfficialUI?.signedOutSettingsNotice()||'')+accountModelDefaults(),'','settingsModelDefaults')}`;}
-function settingsPanel(){const panels={general:generalSettingsPanel,appearance:accountAppearanceSettings,notifications:accountNotificationSettings,channels:modelChannelsSettingsPanel,tools:accountToolsSettings,about:accountAboutSettings,...globalThis.RunTeamsOfficialUI?.settingsPanels};return panels[normalizeSettingsTab(S.settingsTab)]();}
+function modelChannelsSettingsPanel(){return `${settingsPageHead('模型渠道','')}${accountSettingsGroup('渠道账户',channelListMarkup(),'','settingsChannelConnections')}${accountSettingsGroup('新对话默认值',(RunTeamsHost.session.ready(S)?accountSettingsNotice():RunTeamsHost.settings.notice()||'')+accountModelDefaults(),'','settingsModelDefaults')}`;}
+function settingsPanel(){return settingsPanels()[normalizeSettingsTab(S.settingsTab)]();}
 
 
 /* module-function:openSettingsPage */
 function openSettingsPage(tab,options={}){
- if(globalThis.RunTeamsOfficialUI?.guardSettings())return;
- globalThis.RunTeamsOfficialUI?.closeMenu();closePop();
+ if(RunTeamsHost.settings.guard())return;
+ RunTeamsHost.settings.closeMenu();closePop();
  const existing=document.getElementById('settingsWorkspace');
  if(!existing){S.settingsReturnFocus=options.returnFocus||document.activeElement;S.settingsScroll={};if(document.getElementById('modalHost'))closeModal();}
  const nextTab=normalizeSettingsTab(tab||'general');
  if(existing){switchSettingsTab(nextTab,{route:options.route});return;}
  S.settingsTab=nextTab;
- const root=document.createElement('section');root.id='settingsWorkspace';root.className='account-settings-page';root.setAttribute('aria-label','设置');const returnUrl=new URL(location.href);returnUrl.searchParams.delete('settings');returnUrl.searchParams.delete('subscription_list');root._returnRoute=returnUrl.pathname+returnUrl.search+returnUrl.hash;root._hasWorkspace=!!document.getElementById('rgMid')&&!S.booting;
+ const root=document.createElement('section');root.id='settingsWorkspace';root.className='account-settings-page';root.setAttribute('aria-label','设置');const returnUrl=new URL(location.href);returnUrl.searchParams.delete('settings');RunTeamsHost.settings.cleanRoute?.(returnUrl);root._returnRoute=returnUrl.pathname+returnUrl.search+returnUrl.hash;root._hasWorkspace=!!document.getElementById('rgMid')&&!S.booting;
  root.innerHTML=`${RunTeamsShell.settingsToolbar(ICON)}<aside class="settings-sidebar"><div class="settings-sidebar-title">设置</div><nav aria-label="设置分类">${accountSettingsNavigation()}</nav></aside><section class="settings-main"><main class="account-panel" id="settingsPanel">${settingsPanel()}</main></section>`;
  document.body.appendChild(root);document.getElementById('app')?.setAttribute('inert','');
  if(options.route!==false)accountSettingsSetRoute(S.settingsTab,false);
@@ -132,11 +133,11 @@ function openSettingsPage(tab,options={}){
 
 /* module-function:switchSettingsTab */
 function switchSettingsTab(tab,options={}){
- globalThis.RunTeamsOfficialUI?.captureFinance();const panel=document.getElementById('settingsPanel');S.settingsScroll=S.settingsScroll||{};
+ RunTeamsHost.settings.capture();const panel=document.getElementById('settingsPanel');S.settingsScroll=S.settingsScroll||{};
  if(panel)S.settingsScroll[S.settingsTab]=panel.scrollTop;
  S.settingsTab=normalizeSettingsTab(tab);closePop();if(document.querySelector('[data-settings-extension-dialog],[data-settings-tools-resource]'))closeChildDialog();
  document.querySelectorAll('[data-settings-tab]').forEach(button=>{const current=button.dataset.settingsTab===S.settingsTab;button.classList.toggle('on',current);button.setAttribute('aria-current',current?'page':'false');});
- if(panel){panel.innerHTML=settingsPanel();panel.scrollTop=S.settingsScroll[S.settingsTab]||0;globalThis.RunTeamsOfficialUI?.restoreFinance();}
+ if(panel){panel.innerHTML=settingsPanel();panel.scrollTop=S.settingsScroll[S.settingsTab]||0;RunTeamsHost.settings.restore();}
  if(options.route!==false)accountSettingsSetRoute(S.settingsTab,true);
  accountSettingsLoadTab();
 }
@@ -150,30 +151,30 @@ if(typeof window!=='undefined')window.addEventListener?.('keydown',accountSettin
 
 
 // Organization management uses the existing dialog, field, button and menu controls.
-function accountTeamContext(){return `${S.accountReadEpoch||0}:${S.localLibrary?.library_id||S.account?.user_id||''}`;}
+function settingsContext(){return workspaceAccountCacheToken();}
 
 
 /* module-function:accountSettingsWorkspace */
 function accountSettingsNavigation(){
  const common=[['应用',[['general','settings','通用'],['appearance','moon','外观'],['notifications','bell','通知']]],['模型与工具',[['channels','plug','模型渠道'],['tools','package','技能与工具']]],['支持',[['about','info','关于']]]];
- const groups=globalThis.RunTeamsOfficialUI?globalThis.RunTeamsOfficialUI.settingsNavigation(common):common;
- return groups.map(([title,items])=>[title,items.filter(item=>globalThis.RunTeamsApplication?.settingsAllowed(item[0])!==false)]).filter(([,items])=>items.length).map(([title,items])=>`<div class="settings-nav-group"><div class="settings-nav-label">${title}</div>${items.map(item=>settingsNavButton(...item)).join('')}</div>`).join('');
+ const groups=RunTeamsHost.settings.navigation(common);
+ return groups.map(([title,items])=>[title,items.filter(item=>typeof settingsPanels()[item[0]]==='function')]).filter(([,items])=>items.length).map(([title,items])=>`<div class="settings-nav-group"><div class="settings-nav-label">${title}</div>${items.map(item=>settingsNavButton(...item)).join('')}</div>`).join('');
 }
-function accountSettingsSetRoute(tab,replace){const url=new URL(location.href);url.searchParams.set('settings',tab);if(tab==='subscription'&&S.settingsFinanceTab==='records')url.searchParams.set('subscription_list','records');else url.searchParams.delete('subscription_list');const target=url.pathname+url.search+url.hash;if(target!==location.pathname+location.search+location.hash){history[replace?'replaceState':'pushState']({...history.state},'',target);if(!replace)RunTeamsShell.recordNavigation(false);}RunTeamsShell.syncHistoryControls();}
-function accountSettingsRestoreRoute(){S.settingsFinanceTab=globalThis.RunTeamsOfficialUI?.financeTab(new URLSearchParams(location.search).get('subscription_list'));const tab=new URLSearchParams(location.search).get('settings');if(tab){const normalized=normalizeSettingsTab(tab);if(normalized!==tab)accountSettingsSetRoute(normalized,true);openSettingsPage(normalized,{route:false});return true;}const root=document.getElementById('settingsWorkspace'),restore=!!root?._hasWorkspace&&root._returnRoute===location.pathname+location.search+location.hash;accountSettingsUnmount();return restore;}
+function accountSettingsSetRoute(tab,replace){const url=new URL(location.href);url.searchParams.set('settings',tab);RunTeamsHost.settings.updateRoute(url,tab);const target=url.pathname+url.search+url.hash;if(target!==location.pathname+location.search+location.hash){history[replace?'replaceState':'pushState']({...history.state},'',target);if(!replace)RunTeamsShell.recordNavigation(false);}RunTeamsShell.syncHistoryControls();}
+function accountSettingsRestoreRoute(){RunTeamsHost.settings.restoreRoute();const tab=new URLSearchParams(location.search).get('settings');if(tab){const normalized=normalizeSettingsTab(tab);if(normalized!==tab)accountSettingsSetRoute(normalized,true);openSettingsPage(normalized,{route:false});return true;}const root=document.getElementById('settingsWorkspace'),restore=!!root?._hasWorkspace&&root._returnRoute===location.pathname+location.search+location.hash;accountSettingsUnmount();return restore;}
 function accountSettingsUnmount(){if(document.querySelector('[data-settings-extension-dialog],[data-settings-tools-resource]'))closeChildDialog();const root=document.getElementById('settingsWorkspace');if(!root)return;closePop();S.settingsScroll=S.settingsScroll||{};S.settingsScroll[S.settingsTab]=document.getElementById('settingsPanel')?.scrollTop||0;root.remove();document.getElementById('app')?.removeAttribute('inert');S.settingsReturnFocus?.focus?.();S.settingsReturnFocus=null;clearAgentSetupContinuation();}
-function accountSettingsClose(){accountSettingsUnmount();const url=new URL(location.href);url.searchParams.delete('settings');url.searchParams.delete('subscription_list');history.replaceState(history.state,'',url.pathname+url.search+url.hash);RunTeamsShell.syncHistoryControls();}
+function accountSettingsClose(){accountSettingsUnmount();const url=new URL(location.href);url.searchParams.delete('settings');RunTeamsHost.settings.cleanRoute?.(url);history.replaceState(history.state,'',url.pathname+url.search+url.hash);RunTeamsShell.syncHistoryControls();}
 function accountSettingsPaint(){
  const panel=document.getElementById('settingsPanel');if(!panel||!document.getElementById('settingsWorkspace'))return;
- globalThis.RunTeamsOfficialUI?.captureFinance();const scroll=panel.scrollTop,active=document.activeElement,id=panel.contains(active)?active.id:'',action=panel.contains(active)?active.getAttribute('onclick'):null;
+ RunTeamsHost.settings.capture();const scroll=panel.scrollTop,active=document.activeElement,id=panel.contains(active)?active.id:'',action=panel.contains(active)?active.getAttribute('onclick'):null;
  const focus=id||((!active||active===document.body)?panel._settingsFocusId:'');
  const pending=S.settingsPreferencePending||S.nativeSettingsSaving||S.nativeSettingsLoading;
  panel._settingsFocusId=pending?(id||panel._settingsFocusId):'';
  const html=settingsPanel();if(!accountSettingsPatchControls(panel,html))panel.innerHTML=html;
- panel.scrollTop=scroll;globalThis.RunTeamsOfficialUI?.restoreFinance();
+ panel.scrollTop=scroll;RunTeamsHost.settings.restore();
  if(focus)document.getElementById(focus)?.focus({preventScroll:true});
  else if(action)[...panel.querySelectorAll('button')].find(button=>button.getAttribute('onclick')===action)?.focus({preventScroll:true});
- globalThis.RunTeamsOfficialUI?.paintSettings(S.settingsTab);
+ RunTeamsHost.settings.paint(S.settingsTab);
 }
 /* module-function:accountSettingsPatchControls */
 function accountSettingsPatchControls(panel,html){
@@ -201,7 +202,7 @@ function accountSettingsPatchControls(panel,html){
 function accountSettingsKeepPendingAppearance(node,value){
  const key=node.id.replace(/^settings_/,''),native=['launch_at_login','prevent_sleep','close_action'].includes(key);
  const personal=['send_mode','allow_supplement','notification_timing','confirmation','information','failure','completion','sound'].includes(key);
- const pending=native?!!S.nativeSettings&&!S.nativeSettingsError&&(S.nativeSettingsSaving||S.nativeSettingsLoading):personal&&S.account?.signed_in&&S.settingsPreferencesState==='ready'&&S.settingsPreferencePending&&!S.settingsPreferenceError&&!S.settingsPreferenceRetry?.readOnly;
+ const pending=native?!!S.nativeSettings&&!S.nativeSettingsError&&(S.nativeSettingsSaving||S.nativeSettingsLoading):personal&&RunTeamsHost.session.ready(S)&&S.settingsPreferencesState==='ready'&&S.settingsPreferencePending&&!S.settingsPreferenceError&&!S.settingsPreferenceRetry?.readOnly;
  if(!pending||!value.hasAttribute('disabled')||node.hasAttribute('disabled'))return;
  // Keep the existing appearance and keyboard focus. The original save guards
  // and dropdown configuration still reject input until the acknowledgement.
@@ -214,9 +215,9 @@ function accountSettingsControlSkeleton(kind='select',label='设置'){
  return `<span class="skeleton-block settings-control-skeleton settings-control-skeleton-${kind}" data-settings-skeleton role="status" aria-busy="true" aria-label="正在读取${esc(label)}" inert></span>`;
 }
 function accountSettingsFieldSkeleton(key,kind){
- if(S.settingsTab==='subscription')return '';
+
  const native=['launch_at_login','prevent_sleep','close_action'].includes(key),personal=['send_mode','allow_supplement','notification_timing','confirmation','information','failure','completion','sound','default_model','default_effort'].includes(key);
- const pending=native?typeof accountNativeSettingsBridge==='function'&&!!accountNativeSettingsBridge()&&!S.nativeSettings&&(S.nativeSettingsLoading||!S.nativeSettingsError):personal&&S.account?.signed_in&&!S.settingsPreferences&&!['ready','error'].includes(S.settingsPreferencesState);
+ const pending=native?typeof accountNativeSettingsBridge==='function'&&!!accountNativeSettingsBridge()&&!S.nativeSettings&&(S.nativeSettingsLoading||!S.nativeSettingsError):personal&&RunTeamsHost.session.ready(S)&&!S.settingsPreferences&&!['ready','error'].includes(S.settingsPreferencesState);
  const label=({send_mode:'发送方式',allow_supplement:'补充要求设置',launch_at_login:'启动设置',prevent_sleep:'休眠设置',close_action:'关闭窗口设置',notification_timing:'提醒时机',confirmation:'确认提醒',information:'信息提醒',failure:'失败提醒',completion:'完成提醒',sound:'提示音',default_model:'默认模型',default_effort:'思考深度'})[key]||'设置';
  return pending?accountSettingsControlSkeleton(kind,label):'';
 }
@@ -226,10 +227,10 @@ function accountSettingsLabels(){return {send_mode:'发送方式',allow_suppleme
 function accountSettingsSelect(key,items,value,disabled=false){const skeleton=accountSettingsFieldSkeleton(key,'select');if(skeleton)return skeleton;return csel('settings_'+key,items,value,next=>accountSettingsSave(key,next),{disabled,menuVariant:'settingsSelect',menuAlign:'right'}).replace('aria-haspopup="menu"',`${key==='send_mode'?`title="${value==='meta-enter'?'Enter 换行':'Shift+Enter 换行'}" `:''}aria-label="${esc((['send_mode','close_action'].includes(key)?globalThis.RunTeamsLocale?.t('general.'+key,{},accountSettingsLabels()[key]||'关闭窗口后'):null)||accountSettingsLabels()[key]||({interface_font_size:'界面字号',code_font_size:'代码字号',default_model:'默认模型',default_effort:'思考深度',notification_timing:'提醒时机',close_action:'关闭窗口后'}[key])||key)}" aria-haspopup="menu" onkeydown="accountSettingsSelectKey(event,'settings_${key}')"`);}
 function accountSettingsSelectKey(event,id){if(event.isComposing)return;if(document.getElementById('popmenu')&&_popAnchor===event.currentTarget)return;if(['ArrowDown','ArrowUp','Enter',' '].includes(event.key)&&!event.currentTarget.disabled){event.preventDefault();event.stopPropagation();cselOpen(event,id);}}
 function accountSettingsPrefs(){return {send_mode:'enter',allow_supplement:true,notification_timing:'background',confirmation:true,information:true,failure:true,completion:true,sound:true,...S.settingsPreferences};}
-function accountSettingsEditable(){return !!(S.localLibrary||S.account.signed_in)&&S.settingsPreferencesState==='ready'&&!S.settingsPreferencePending&&!S.settingsPreferenceRetry?.readOnly;}
+function accountSettingsEditable(){return !!(RunTeamsHost.session.ready(S))&&S.settingsPreferencesState==='ready'&&!S.settingsPreferencePending&&!S.settingsPreferenceRetry?.readOnly;}
 function accountSettingsNotice(){
  const general=S.settingsTab==='general',notifications=S.settingsTab==='notifications',channels=S.settingsTab==='channels';
- if(!S.localLibrary&&!S.account.signed_in)return globalThis.RunTeamsOfficialUI?.signedOutSettingsNotice()||'';
+ if(!S.localLibrary&&!RunTeamsHost.session.ready(S))return RunTeamsHost.settings.notice()||'';
  const subject=general?'账户设置':S.settingsTab==='notifications'?'提醒设置':S.settingsTab==='channels'?'新对话默认值':'设置';
  if(S.settingsPreferencesState==='error')return `<div class="settings-inline-error" role="alert"><span>${subject}暂时无法读取${general?'<br>请重新加载后，再修改发送方式和补充要求。':notifications||channels?'<br>请重新加载后再修改。':''}</span><button class="btn" onclick="accountSettingsReadPreferences(true)">重新加载</button></div>`;
  if(S.settingsPreferenceError){const unknown=!!S.settingsPreferenceRetry?.readOnly,message=channels?(unknown?'默认值保存结果待确认<br>请先重新加载，核对是否已更新。':'默认值未能保存<br>仍显示上次确认的值。请重新加载后再修改。'):(general||notifications)&&unknown?`${subject}保存结果待确认<br>请先重新加载，核对设置是否已更新。`:esc(notifications?S.settingsPreferenceError.replace('设置未能保存','提醒设置未能保存'):S.settingsPreferenceError);return `<div class="settings-inline-error" role="alert"><span>${message}</span><button class="btn" onclick="accountSettingsRetrySave(${channels?'true':''})">${unknown||channels?'重新加载':'重试'}</button></div>`;}
@@ -239,23 +240,23 @@ function accountSettingsNotice(){
 }
 /* module-function:accountSettingsReadPreferences */
 async function accountSettingsReadPreferences(force=false){
- if(!S.localLibrary&&!S.account.signed_in)return;const context=accountTeamContext();if(S.settingsPreferencesRead?.context===context)return S.settingsPreferencesRead.promise;if(!force&&S.settingsPreferencesState==='ready')return;
+ if(!S.localLibrary&&!RunTeamsHost.session.ready(S))return;const context=settingsContext();if(S.settingsPreferencesRead?.context===context)return S.settingsPreferencesRead.promise;if(!force&&S.settingsPreferencesState==='ready')return;
  const read={context};S.settingsPreferencesRead=read;S.settingsPreferencesState='loading';accountSettingsPaint();
- read.promise=(async()=>{try{const local=!!S.localLibrary,result=local?await RunTeamsApplication.readSettings():await RunTeamsOfficialUI.readSettings();if(context!==accountTeamContext()||S.settingsPreferencesRead!==read)return;if(result.error||(!result.settings||typeof result.settings!=='object'||Array.isArray(result.settings)))throw Error('设置读取失败');const value=result.settings;if(!value||typeof value!=='object'||Array.isArray(value))throw Error('设置格式无效');S.settingsPreferences=value;S.settingsPreferencesState='ready';accountSettingsSyncInteraction();}catch(error){if(context===accountTeamContext()&&S.settingsPreferencesRead===read)S.settingsPreferencesState='error';}finally{if(S.settingsPreferencesRead===read)S.settingsPreferencesRead=null;if(context===accountTeamContext()){accountSettingsStartRuntimeMonitor();accountSettingsPaint();}}})();return read.promise;
+ read.promise=(async()=>{try{const result=await RunTeamsHost.settings.read();if(context!==settingsContext()||S.settingsPreferencesRead!==read)return;if(result.error||(!result.settings||typeof result.settings!=='object'||Array.isArray(result.settings)))throw Error('设置读取失败');const value=result.settings;if(!value||typeof value!=='object'||Array.isArray(value))throw Error('设置格式无效');S.settingsPreferences=value;S.settingsPreferencesState='ready';accountSettingsSyncInteraction();}catch(error){if(context===settingsContext()&&S.settingsPreferencesRead===read)S.settingsPreferencesState='error';}finally{if(S.settingsPreferencesRead===read)S.settingsPreferencesRead=null;if(context===settingsContext()){accountSettingsStartRuntimeMonitor();accountSettingsPaint();}}})();return read.promise;
 }
 
 function accountSettingsToggle(key){if(['launch_at_login','prevent_sleep'].includes(key)){accountSaveNativeSetting(key,!S.nativeSettings?.[key]);return;}const device=key==='restore_windows';accountSettingsSave(key,!(device?accountDeviceDisplayPrefs()[key]:accountSettingsPrefs()[key]));}
 async function accountSettingsSave(key,value){
  if(key==='close_action'){await accountSaveNativeSetting(key,value);return;}
  if(['interface_font_size','code_font_size','restore_windows'].includes(key)){if(key==='restore_windows'&&S.appearanceSaveFailures?.restore_windows?.readOnly)return;accountSaveDisplaySetting(key,value);return;}
- if(!accountSettingsEditable())return;const context=accountTeamContext(),previous=accountSettingsPrefs(),next={...previous,[key]:value};
+ if(!accountSettingsEditable())return;const context=settingsContext(),previous=accountSettingsPrefs(),next={...previous,[key]:value};
  if(key==='default_model'&&value){const [channel,model]=String(value).split('::'),c=S.channels.find(item=>String(item.id)===channel);if(!c||!modelChannelAvailable(c)||!channelCatalog(c).models.some(item=>item.value===model))return;next.default_effort=defaultEffort(c,model);}
  if(key==='default_effort'){const [id,model]=String(previous.default_model||'').split('::'),channel=S.channels.find(c=>String(c.id)===id),item=channel&&channelCatalog(channel).models.find(row=>row.value===model);if(!channel||!modelChannelAvailable(channel)||!item||!((item.efforts||[]).length?(item.efforts||[]).includes(value):value===''))return;}
  const patch={[key]:value};if(key==='default_model')patch.default_effort=value?next.default_effort:'';
  S.settingsPreferencePending=true;S.settingsPreferenceError='';S.settingsPreferenceRetry={key,value};accountSettingsPaint();
- try{const result=S.localLibrary?await RunTeamsApplication.saveSettings(patch):await RunTeamsOfficialUI.saveSettings(patch);if(context!==accountTeamContext())return;if(result.error)throw Object.assign(Error(result.error),{code:result.code});if(result.ok!==true||!result.settings||typeof result.settings!=='object'||Array.isArray(result.settings)||Object.entries(patch).some(([field,expected])=>result.settings[field]!==expected))throw Error('设置未能保存');S.settingsPreferences=result.settings;S.settingsPreferenceRetry=null;accountSettingsSyncInteraction();if(['notification_timing','confirmation','information','failure','completion','sound'].includes(key)&&typeof accountNotifyPreferencesChanged==='function')accountNotifyPreferencesChanged();}
- catch(error){if(context===accountTeamContext()){if(error.code==='mutation_outcome_unknown'){S.settingsPreferenceRetry={key,value,patch,readOnly:true};S.settingsPreferenceError='保存结果尚未确认，请重新读取。';}else S.settingsPreferenceError='设置未能保存，仍使用上次确认的值。';}}
- finally{if(context===accountTeamContext()){S.settingsPreferencePending=false;accountSettingsPaint();}}
+ try{const result=await RunTeamsHost.settings.save(patch);if(context!==settingsContext())return;if(result.error)throw Object.assign(Error(result.error),{code:result.code});if(result.ok!==true||!result.settings||typeof result.settings!=='object'||Array.isArray(result.settings)||Object.entries(patch).some(([field,expected])=>result.settings[field]!==expected))throw Error('设置未能保存');S.settingsPreferences=result.settings;S.settingsPreferenceRetry=null;accountSettingsSyncInteraction();if(['notification_timing','confirmation','information','failure','completion','sound'].includes(key)&&typeof accountNotifyPreferencesChanged==='function')accountNotifyPreferencesChanged();}
+ catch(error){if(context===settingsContext()){if(error.code==='mutation_outcome_unknown'){S.settingsPreferenceRetry={key,value,patch,readOnly:true};S.settingsPreferenceError='保存结果尚未确认，请重新读取。';}else S.settingsPreferenceError='设置未能保存，仍使用上次确认的值。';}}
+ finally{if(context===settingsContext()){S.settingsPreferencePending=false;accountSettingsPaint();}}
 }
 function accountSettingsSyncInteraction(){if(typeof conversationSyncSendState==='function')for(const surface of ['chat','panel','skills'])conversationSyncSendState(surface);}
 function accountNativeSettingsNotice(){
@@ -275,7 +276,7 @@ function accountNativeSettingsNotice(){
  return `<div class="settings-inline-error" role="alert">${esc(error)} <button class="btn" onclick="accountRetryNativeSetting()">重试</button></div>`;
 }
 function accountRetryNativeSetting(){if(S.nativeSettingsError)return accountReadNativeSettings();const retry=S.nativeSettingsRetry;if(retry)return accountSaveNativeSetting(retry.key,retry.value);return accountReadNativeSettings();}
-async function accountSettingsRetrySave(forceRead=false){const pending=S.settingsPreferenceRetry;if(!pending)return;if(!pending.readOnly&&!forceRead){accountSettingsSave(pending.key,pending.value);return;}const context=accountTeamContext();await accountSettingsReadPreferences(true);if(context!==accountTeamContext())return;if(S.settingsPreferencesState==='ready'&&(S.settingsTab==='general'||!pending.readOnly||Object.entries(pending.patch||{[pending.key]:pending.value}).every(([key,value])=>S.settingsPreferences?.[key]===value))){S.settingsPreferenceError='';S.settingsPreferenceRetry=null;accountNotifyPreferencesChanged();}else S.settingsPreferenceError='保存结果尚未确认，请稍后重新读取。';accountSettingsPaint();}
+async function accountSettingsRetrySave(forceRead=false){const pending=S.settingsPreferenceRetry;if(!pending)return;if(!pending.readOnly&&!forceRead){accountSettingsSave(pending.key,pending.value);return;}const context=settingsContext();await accountSettingsReadPreferences(true);if(context!==settingsContext())return;if(S.settingsPreferencesState==='ready'&&(S.settingsTab==='general'||!pending.readOnly||Object.entries(pending.patch||{[pending.key]:pending.value}).every(([key,value])=>S.settingsPreferences?.[key]===value))){S.settingsPreferenceError='';S.settingsPreferenceRetry=null;accountNotifyPreferencesChanged();}else S.settingsPreferenceError='保存结果尚未确认，请稍后重新读取。';accountSettingsPaint();}
 function accountDeviceDisplayPrefs(){let value={};S.appearanceDisplayReadFailed=false;try{value=JSON.parse(localStorage.getItem('runteams_device_display_v1')||'{}')||{};}catch(error){S.appearanceDisplayReadFailed=true;}return {interface_font_size:[12,13,14,16,18].includes(value.interface_font_size)?value.interface_font_size:14,code_font_size:[11,12,13,14,16,18].includes(value.code_font_size)?value.code_font_size:13,restore_windows:value.restore_windows!==false};}
 function accountApplyDisplayPrefs(){const prefs=accountDeviceDisplayPrefs();if(S.appearanceDisplayReadFailed)return;document.documentElement.style.setProperty('--interface-font-size',prefs.interface_font_size+'px');document.documentElement.style.setProperty('--interface-font-scale',String(prefs.interface_font_size/14));document.documentElement.style.setProperty('--code-font-size',prefs.code_font_size+'px');}
 function accountSaveDisplaySetting(key,value){
@@ -329,20 +330,10 @@ async function accountSettingsNotificationPermission(){
 async function accountSettingsOpenNotificationSystem(){
  S.notificationPermissionError='';S.notificationPermissionRetry='';try{const bridge=accountNativeSettingsBridge();if(!bridge){S.notificationPermissionError='请在浏览器的网站设置中允许通知。';return;}const result=await bridge.postMessage({action:'notification_settings'});if(result?.ok!==true)throw Error('系统设置未打开');}catch(error){S.notificationPermissionError='未能打开系统通知设置，请从系统设置中打开 RunTeams 的通知选项。';S.notificationPermissionRetry='settings';}finally{accountSettingsPaint();}
 }
-function accountSettingsRetryNotifications(){if(S.notificationPermissionRetry==='read'){accountReadNativeSettings();return;}if(S.notificationPermissionRetry==='permission'){accountSettingsNotificationPermission();return;}if(S.notificationPermissionRetry==='settings'){accountSettingsOpenNotificationSystem();return;}S.notificationPermissionError='';accountReadNativeSettings();accountNotifyPreferencesChanged();if(!accountNativeSettingsBridge())accountPollWorkSettings();accountSettingsPaint();}
+function accountSettingsRetryNotifications(){if(S.notificationPermissionRetry==='read'){accountReadNativeSettings();return;}if(S.notificationPermissionRetry==='permission'){accountSettingsNotificationPermission();return;}if(S.notificationPermissionRetry==='settings'){accountSettingsOpenNotificationSystem();return;}S.notificationPermissionError='';accountReadNativeSettings();accountNotifyPreferencesChanged();if(!accountNativeSettingsBridge())RunTeamsHost.lifecycle.pollNotifications();accountSettingsPaint();}
 function accountNotifyPreferencesChanged(clear=false){const bridge=accountNativeSettingsBridge();if(bridge)bridge.postMessage({action:'notifications_changed',clear}).catch(()=>{S.notificationPermissionError='工作提醒暂时不可用，请重新读取服务状态。';accountSettingsPaint();});}
-function accountNotifyNativeReady(){
- if(S.booting||!S.accountSessionReady||!S.account.signed_in||S.workspaceStartup?.pending)return;
- const context=String(S.account.user_id)+':'+(S.activeOrganization||'');if(S.notificationsReadyContext===context)return;S.notificationsReadyContext=context;
- const bridge=accountNativeSettingsBridge();bridge?.postMessage({action:'notifications_ready'}).catch(()=>{});
- try{const raw=sessionStorage.getItem('runteams_notification_target');if(raw){sessionStorage.removeItem('runteams_notification_target');accountOpenWorkNotification(JSON.parse(raw));}}catch(error){}
-}
-function accountOpenWorkNotification(target){
- if(S.booting||!S.accountSessionReady||S.workspaceStartup?.pending)return false;
- if(!S.account.signed_in||target?.actor!==String(S.account.user_id)){toast('这条通知属于其他账户，请切回原账户查看。','info');return true;}
- if(!['chat','workflow','automation','employee'].includes(target.kind)||!Number.isSafeInteger(target.id)||target.id<=0||typeof target.workspace!=='string')return true;
- (async()=>{try{if(target.workspace!==(S.activeOrganization||'')){await RunTeamsOfficialUI.switchWorkspace(target.workspace,{notificationTarget:target});return;}accountSettingsClose();if(target.kind==='chat')await openRailConversationSession(target.id,{forceWorkspace:true});else if(target.kind==='workflow')await workItemOpenTask(target.id,{storageScope:target.storage_scope});else if(target.kind==='automation')await openAutomationRunRecord(target.id);else if(target.kind==='employee')await openBotConversation(target.id);}catch(error){toast('这条通知暂时无法打开，请稍后重试。','err');}})();return true;
-}
+
+
 
 
 function accountModelDefaults(){
@@ -363,7 +354,7 @@ function accountSettingsExtensionStatus(item,key,env=S.settingsExtensions){
 }
 /* module-function:accountToolsSettings */
 function accountToolsView(){
- const context=accountTeamContext();if(S.settingsToolsView?.context!==context)S.settingsToolsView={context,tab:'plugins',catalog:false,queries:{},limit:50};return S.settingsToolsView;
+ const context=settingsContext();if(S.settingsToolsView?.context!==context)S.settingsToolsView={context,tab:'plugins',catalog:false,queries:{},limit:50};return S.settingsToolsView;
 }
 function accountToolsCategories(){return [['plugins','插件'],['mcp_servers','MCP'],['skills','技能']];}
 function accountToolsKey(){const view=accountToolsView();return view.catalog?'available_plugins':view.tab;}
@@ -418,22 +409,22 @@ function accountToolsPatch(panel,html){
  for(const selector of ['.settings-tools-tabs','#settingsToolsNotice','#settingsToolsList']){const a=current.querySelector(selector),b=tools.querySelector(selector);if(a&&b&&a.innerHTML!==b.innerHTML)a.innerHTML=b.innerHTML;}return true;
 }
 async function accountToolsBrowseFolder(button){
- if(S.settingsToolsPicking)return;const context=accountTeamContext();S.settingsToolsPicking=true;if(button){button.disabled=true;button.setAttribute('aria-busy','true');}
- try{const picked=await api('/api/environment/local/pick','POST',{});if(context!==accountTeamContext()||picked.cancelled)return;if(picked.error)throw Error(picked.error);if(!picked.token||!picked.channels?.length)throw Error('未找到可导入的内容。');
+ if(S.settingsToolsPicking)return;const context=settingsContext();S.settingsToolsPicking=true;if(button){button.disabled=true;button.setAttribute('aria-busy','true');}
+ try{const picked=await api('/api/environment/local/pick','POST',{});if(context!==settingsContext()||picked.cancelled)return;if(picked.error)throw Error(picked.error);if(!picked.token||!picked.channels?.length)throw Error('未找到可导入的内容。');
  const detail={key:'local-import',context,token:(S.settingsExtensionDialogSequence||0)+1,picked};S.settingsExtensionDialogSequence=detail.token;S.settingsExtensionDetail=detail;
  openChildDialog({manageFocus:true,className:'settings-extension-dialog',title:'导入'+(picked.kind==='skill'?'技能':'插件'),attrs:'role="dialog" aria-modal="true" data-settings-extension-dialog="'+detail.token+'" onkeydown="accountSettingsExtensionKeydown(event)"',body:`<p>${esc(picked.name)}</p><label class="tools-import-target">导入到<span class="tools-import-control"><select id="toolsImportChannel">${picked.channels.map(row=>`<option value="${esc(row.id)}">${esc(row.name)}</option>`).join('')}</select>${ICON('chev')}</span></label><p id="toolsImportStatus" role="status"></p>`,footer:`<button class="btn" onclick="closeChildDialog()">取消</button><button id="toolsImportConfirm" class="btn pri" onclick="accountToolsImportFolder(${detail.token})">导入</button>`});
- }catch(error){if(context===accountTeamContext())toast(error.message||'无法打开文件夹。','err');}finally{S.settingsToolsPicking=false;if(button?.isConnected){button.disabled=false;button.removeAttribute('aria-busy');}}
+ }catch(error){if(context===settingsContext())toast(error.message||'无法打开文件夹。','err');}finally{S.settingsToolsPicking=false;if(button?.isConnected){button.disabled=false;button.removeAttribute('aria-busy');}}
 }
 async function accountToolsImportFolder(token){
  const detail=accountSettingsExtensionDialogCurrent(token);if(!detail||detail.submitted)return;detail.submitted=true;const channel=document.getElementById('toolsImportChannel'),button=document.getElementById('toolsImportConfirm'),status=document.getElementById('toolsImportStatus');button.disabled=true;channel.disabled=true;status.textContent='正在导入…';
- try{const result=await api('/api/environment/local/import','POST',{token:detail.picked.token,channel_id:channel.value});if(result.error)throw Error(result.error);if(detail.context!==accountTeamContext())return;S.channelMutationVersion=(S.channelMutationVersion||0)+1;const view=accountToolsView();view.catalog=false;view.detail=null;view.tab=result.kind==='skill'?'skills':'plugins';view.queries[view.tab]='';if(accountSettingsExtensionDialogCurrent(token))closeChildDialog();await accountReadSettingsExtensions(true);toast('已导入 '+result.name,'ok');
+ try{const result=await api('/api/environment/local/import','POST',{token:detail.picked.token,channel_id:channel.value});if(result.error)throw Error(result.error);if(detail.context!==settingsContext())return;S.channelMutationVersion=(S.channelMutationVersion||0)+1;const view=accountToolsView();view.catalog=false;view.detail=null;view.tab=result.kind==='skill'?'skills':'plugins';view.queries[view.tab]='';if(accountSettingsExtensionDialogCurrent(token))closeChildDialog();await accountReadSettingsExtensions(true);toast('已导入 '+result.name,'ok');
  }catch(error){if(accountSettingsExtensionDialogCurrent(token)){status.textContent=error.code==='mutation_outcome_unknown'?'导入结果尚未确认，请关闭后重新读取清单。':error.message||'导入未完成，请重新读取清单。';button.textContent='已提交';}}
 }
 function accountToolsAddMenu(anchor){
  openMenu(anchor,[{label:'添加插件',fn:()=>accountToolsCatalog(true)},{label:'添加 MCP',fn:()=>accountToolsAddGuide('mcp')},{label:'添加技能',fn:()=>accountToolsAddGuide('skills')},{divider:true},{label:'重新读取',fn:()=>accountReadSettingsExtensions(true)}],{variant:'settingsSelect',align:'right'});
 }
 function accountToolsAddGuide(kind){
- const detail={key:'guide',context:accountTeamContext(),token:(S.settingsExtensionDialogSequence||0)+1,commands:[]};S.settingsExtensionDialogSequence=detail.token;S.settingsExtensionDetail=detail;
+ const detail={key:'guide',context:settingsContext(),token:(S.settingsExtensionDialogSequence||0)+1,commands:[]};S.settingsExtensionDialogSequence=detail.token;S.settingsExtensionDetail=detail;
  const sources=(S.settingsExtensions?.channels||[]).filter(row=>row.ready&&['codex','claude-code'].includes(row.provider));
  if(kind==='mcp')detail.commands=sources.map(row=>({label:row.name||providerDefinition(row.provider)?.label||row.provider,command:accountExtensionShellArgument(row.runtime?.executable||(row.provider==='codex'?'codex':'claude'))+' mcp add --help'}));
  const body=kind==='skills'?'<p>将技能添加到对应 Agent 的技能目录，完成后重新读取清单。</p><p>原生技能由 Agent 自动发现；插件附带的技能可通过插件目录添加。</p>':'<p>在对应 Agent 中添加 MCP 连接，完成后重新读取清单。</p>';
@@ -467,7 +458,7 @@ function accountToolsDetailPage(detail){
  const about=mcp?[['渠道',esc(item.channel_name||source.name||'来源待确认')],['状态',esc(status)],['连接类型',esc(item.transport||'未提供')]]:[['渠道',esc(item.channel_name||source.name||'来源待确认')],['状态',esc(status)],['类别',esc(item.category||'')],['开发者',esc(item.developer_name||'')],['版本',esc(item.version||'')],['网站',accountToolsSafeLink(item.homepage_url)],['隐私政策',accountToolsSafeLink(item.privacy_policy_url,'查看隐私政策')],['服务条款',accountToolsSafeLink(item.terms_url,'查看服务条款')]];
  return `<div class="settings-tools tools-detail-page" data-tools-detail="true">${breadcrumb}<div class="tools-detail-content"><div class="tools-detail-hero">${mcp?'':`<span class="settings-tool-icon tools-hero-icon">${accountToolsIcon(item,detail.key)}</span>`}<div class="tools-detail-title"><h2>${esc(name)}${mcp?' MCP':''}</h2><p>${esc(item.description||'')}</p></div><div class="tools-detail-actions">${!mcp&&item.homepage_url?accountToolsSafeLink(item.homepage_url,'查看详情'):''}<button class="btn" onclick="accountToolsManageCurrent()">管理方式</button></div></div>${!mcp&&skills.length?section('技能','<div class="tools-row-group">'+skillRows+'</div>'):''}${section(mcp?'连接配置':'关于',facts(about))}${mcp?'<p class="settings-footnote tools-config-note">完整配置请通过对应 Agent 查看和修改。</p>':''}${accountToolsNotice()}</div></div>`;
 }
-function accountToolsManageCurrent(){const page=accountToolsView().detail;if(!page)return;const detail={...page,context:accountTeamContext(),token:(S.settingsExtensionDialogSequence||0)+1};S.settingsExtensionDialogSequence=detail.token;S.settingsExtensionDetail=detail;accountPaintSettingsExtensionDetail(detail);}
+function accountToolsManageCurrent(){const page=accountToolsView().detail;if(!page)return;const detail={...page,context:settingsContext(),token:(S.settingsExtensionDialogSequence||0)+1};S.settingsExtensionDialogSequence=detail.token;S.settingsExtensionDetail=detail;accountPaintSettingsExtensionDetail(detail);}
 function accountToolsMarkdownSkeleton(){
  return '<div class="tools-markdown-skeleton" data-settings-skeleton role="status" aria-busy="true" aria-label="正在读取技能内容" inert>'+Array.from({length:6},()=>'<span class="skeleton-block"></span>').join('')+'</div>';
 }
@@ -498,9 +489,9 @@ function accountFilterSettingsExtensions(value,selection){
  return result;
 }
 async function accountReadSettingsExtensions(force=false){
- const context=accountTeamContext(),mutation=S.channelMutationVersion||0,selection=environmentConnectedChannelIds().join(','),scope=modelChannelData().identity('extensions');if(S.settingsExtensionsRead?.scope===scope)return S.settingsExtensionsRead.promise;if(!force&&S.settingsExtensionsScope===scope&&['ready','error'].includes(S.settingsExtensionsState))return S.settingsExtensionsState==='ready';
+ const context=settingsContext(),mutation=S.channelMutationVersion||0,selection=environmentConnectedChannelIds().join(','),scope=modelChannelData().identity('extensions');if(S.settingsExtensionsRead?.scope===scope)return S.settingsExtensionsRead.promise;if(!force&&S.settingsExtensionsScope===scope&&['ready','error'].includes(S.settingsExtensionsState))return S.settingsExtensionsState==='ready';
  const read={context,mutation,selection,scope};S.settingsExtensionsRead=read;S.settingsExtensionsScope=scope;S.settingsExtensions=accountFilterSettingsExtensions(S.settingsExtensions,selection);S.settingsExtensionsState='loading';accountSettingsPaint();
- read.promise=(async()=>{try{const result=await modelChannelData().extensions(force);if(!result){if(S.settingsExtensionsRead===read){S.settingsExtensionsState='error';S.settingsExtensionsScope='';}return false;}if(context!==accountTeamContext()||S.settingsExtensionsRead!==read)return false;if(result.error)throw Error(result.error);if(read.mutation!==(S.channelMutationVersion||0))throw Error('渠道已改变，请重新读取');const confirmedSelection=environmentConnectedChannelIds().join(',');S.settingsExtensions=accountMergeSettingsExtensions(accountFilterSettingsExtensions(result,confirmedSelection),S.settingsExtensions);S.settingsExtensionsScope=modelChannelData().identity('extensions');S.settingsExtensionsState='ready';S.settingsExtensionsConfirmedScope=S.settingsExtensionsScope;return true;}catch(error){if(context===accountTeamContext()&&S.settingsExtensionsRead===read)S.settingsExtensionsState='error';return false;}finally{if(S.settingsExtensionsRead===read)S.settingsExtensionsRead=null;if(context===accountTeamContext())accountSettingsPaint();}})();return read.promise;
+ read.promise=(async()=>{try{const result=await modelChannelData().extensions(force);if(!result){if(S.settingsExtensionsRead===read){S.settingsExtensionsState='error';S.settingsExtensionsScope='';}return false;}if(context!==settingsContext()||S.settingsExtensionsRead!==read)return false;if(result.error)throw Error(result.error);if(read.mutation!==(S.channelMutationVersion||0))throw Error('渠道已改变，请重新读取');const confirmedSelection=environmentConnectedChannelIds().join(',');S.settingsExtensions=accountMergeSettingsExtensions(accountFilterSettingsExtensions(result,confirmedSelection),S.settingsExtensions);S.settingsExtensionsScope=modelChannelData().identity('extensions');S.settingsExtensionsState='ready';S.settingsExtensionsConfirmedScope=S.settingsExtensionsScope;return true;}catch(error){if(context===settingsContext()&&S.settingsExtensionsRead===read)S.settingsExtensionsState='error';return false;}finally{if(S.settingsExtensionsRead===read)S.settingsExtensionsRead=null;if(context===settingsContext())accountSettingsPaint();}})();return read.promise;
 }
 function accountExtensionShellArgument(value){return "'"+String(value).replaceAll("'","'\"'\"'")+"'";}
 function accountSettingsExtensionCommands(item,key){
@@ -513,10 +504,10 @@ function accountSettingsExtensionCommands(item,key){
 }
 function accountSettingsExtensionIdentity(item){return JSON.stringify([String(item.channel_id),String(item.id||item.name),String(item.plugin_id||'')]);}
 function accountSettingsExtensionDetail(key,index){
- const item=S.settingsExtensions?.[key]?.[index];if(!item)return;if(key!=='skills'){const view=accountToolsView();view.listScroll=document.getElementById('settingsPanel')?.scrollTop||0;view.detail={key,identity:accountSettingsExtensionIdentity(item)};accountSettingsPaint();document.getElementById('settingsPanel').scrollTop=0;document.querySelector('.settings-tools-back')?.focus({preventScroll:true});return;}const detail={key,identity:accountSettingsExtensionIdentity(item),context:accountTeamContext(),token:(S.settingsExtensionDialogSequence||0)+1};S.settingsExtensionDialogSequence=detail.token;S.settingsExtensionDetail=detail;accountPaintSettingsExtensionDetail(detail);
+ const item=S.settingsExtensions?.[key]?.[index];if(!item)return;if(key!=='skills'){const view=accountToolsView();view.listScroll=document.getElementById('settingsPanel')?.scrollTop||0;view.detail={key,identity:accountSettingsExtensionIdentity(item)};accountSettingsPaint();document.getElementById('settingsPanel').scrollTop=0;document.querySelector('.settings-tools-back')?.focus({preventScroll:true});return;}const detail={key,identity:accountSettingsExtensionIdentity(item),context:settingsContext(),token:(S.settingsExtensionDialogSequence||0)+1};S.settingsExtensionDialogSequence=detail.token;S.settingsExtensionDetail=detail;accountPaintSettingsExtensionDetail(detail);
 }
 function accountPaintSettingsExtensionDetail(detail){
- if(S.settingsExtensionDetail!==detail||detail.context!==accountTeamContext())return;
+ if(S.settingsExtensionDetail!==detail||detail.context!==settingsContext())return;
  if(detail.key==='skills'){accountToolsSkillDialog(detail);return;}
  const item=S.settingsExtensions?.[detail.key]?.find(row=>accountSettingsExtensionIdentity(row)===detail.identity),source=item&&accountSettingsExtensionSource(item),status=item&&(['error','loading'].includes(S.settingsExtensionsState)||item._settingsStale?'未更新':detail.key==='available_plugins'?'待安装':accountSettingsExtensionStatus(item,detail.key)),commands=item?accountSettingsExtensionCommands(item,detail.key):[];detail.commands=commands;
  const parent=item?.plugin_id&&(S.settingsExtensions?.plugins||[]).find(row=>String(row.channel_id)===String(item.channel_id)&&row.id===item.plugin_id);detail.resource=detail.key==='plugins'?item:parent;
@@ -528,7 +519,7 @@ function accountPaintSettingsExtensionDetail(detail){
 }
 function accountSettingsExtensionKeydown(event){if(event.key==='Escape'&&!event.isComposing){event.preventDefault();event.stopPropagation();if(document.getElementById('popmenu'))closePop();else closeChildDialog();}}
 function accountSettingsExtensionDocumentKeydown(event){if(document.querySelector('[data-settings-extension-dialog]'))accountSettingsExtensionKeydown(event);}
-function accountSettingsExtensionDialogCurrent(token){const detail=S.settingsExtensionDetail;return detail?.token===token&&detail.context===accountTeamContext()&&!!document.querySelector('[data-settings-extension-dialog="'+token+'"]')?detail:null;}
+function accountSettingsExtensionDialogCurrent(token){const detail=S.settingsExtensionDetail;return detail?.token===token&&detail.context===settingsContext()&&!!document.querySelector('[data-settings-extension-dialog="'+token+'"]')?detail:null;}
 async function accountCopySettingsExtensionCommand(token,index){const detail=accountSettingsExtensionDialogCurrent(token),command=detail?.commands?.[index]?.command;if(!command)return;try{await navigator.clipboard.writeText(command);if(accountSettingsExtensionDialogCurrent(token)){const status=document.getElementById('settingsExtensionCopyStatus');if(status)status.textContent='命令已复制';}}catch(error){if(accountSettingsExtensionDialogCurrent(token)){const status=document.getElementById('settingsExtensionCopyStatus');if(status)status.textContent='管理命令未能复制。请手动选择并复制原命令。';}}}
 async function accountRecheckSettingsExtension(token){const detail=accountSettingsExtensionDialogCurrent(token);if(!detail)return;const pending=accountReadSettingsExtensions(true);accountPaintSettingsExtensionDetail(detail);await pending;if(accountSettingsExtensionDialogCurrent(token))accountPaintSettingsExtensionDetail(detail);}
 function accountSettingsExtensionResources(token){const detail=accountSettingsExtensionDialogCurrent(token),item=detail?.resource;if(!item?.has_resources)return;S.environment=S.settingsExtensions;openInstalledPluginResources(item.channel_id,item.id);document.querySelector('.core-package-resources-modal')?.setAttribute('data-settings-tools-resource','');}
@@ -544,27 +535,13 @@ function accountSettingsReadAppInfo(){
   finally{S.settingsAppInfoRead=null;if(S.settingsTab==='about')accountSettingsPaint();}
  })();return S.settingsAppInfoRead;
 }
-function accountSettingsLoadTab(){const tab=S.settingsTab;if(tab==='about')accountSettingsReadAppInfo();if(tab==='channels')refreshSettingsChannels();if(tab==='tools')accountReadSettingsExtensions();globalThis.RunTeamsOfficialUI?.loadSettingsTab(tab);}
+function accountSettingsLoadTab(){const tab=S.settingsTab;if(tab==='about')accountSettingsReadAppInfo();if(tab==='channels')refreshSettingsChannels();if(tab==='tools')accountReadSettingsExtensions();RunTeamsHost.settings.load(tab);}
 function accountNativeSettingsBridge(){return window.webkit?.messageHandlers?.runteamsSettings;}
 function accountNativeNotificationStatus(value){if(!value||!['default','granted','denied'].includes(value.notification_permission)||typeof value.notification_alerts!=='boolean'||typeof value.notification_sound!=='boolean')return;S.nativeSettings={...S.nativeSettings,...value};if(['granted','denied'].includes(value.notification_permission)){S.notificationPermissionError='';S.notificationPermissionRetry='';}if(S.settingsTab==='notifications')accountSettingsPaint();}
-async function accountReadNativeSettings(){const bridge=accountNativeSettingsBridge();if(!bridge||S.nativeSettingsLoading||S.nativeSettingsSaving)return;S.nativeSettingsLoading=true;accountSettingsPaint();try{const value=await bridge.postMessage({action:'get',workspace:S.activeOrganization||''});if(!value||typeof value.prevent_sleep!=='boolean'||typeof value.launch_at_login!=='boolean'||!['background','quit'].includes(value.close_action))throw Error('本机设置未确认');S.nativeSettings=value;S.nativeSettingsError='';S.nativeSettingsRetry=null;if(['default','granted','denied'].includes(value.notification_permission)){S.notificationPermissionError='';S.notificationPermissionRetry='';}}catch(error){S.nativeSettingsError='本机设置暂时无法读取';}finally{S.nativeSettingsLoading=false;accountSettingsStartRuntimeMonitor();accountSettingsPaint();}}
+async function accountReadNativeSettings(){const bridge=accountNativeSettingsBridge();if(!bridge||S.nativeSettingsLoading||S.nativeSettingsSaving)return;S.nativeSettingsLoading=true;accountSettingsPaint();try{const value=await bridge.postMessage({action:'get',workspace:RunTeamsHost.session.workspace(S)});if(!value||typeof value.prevent_sleep!=='boolean'||typeof value.launch_at_login!=='boolean'||!['background','quit'].includes(value.close_action))throw Error('本机设置未确认');S.nativeSettings=value;S.nativeSettingsError='';S.nativeSettingsRetry=null;if(['default','granted','denied'].includes(value.notification_permission)){S.notificationPermissionError='';S.notificationPermissionRetry='';}}catch(error){S.nativeSettingsError='本机设置暂时无法读取';}finally{S.nativeSettingsLoading=false;accountSettingsStartRuntimeMonitor();accountSettingsPaint();}}
 async function accountSaveNativeSetting(key,value){const bridge=accountNativeSettingsBridge();if(!bridge||S.nativeSettingsSaving||S.nativeSettingsLoading||S.nativeSettingsError)return;S.nativeSettingsSaving=true;S.nativeSettingsError='';S.nativeSettingsRetry={key,value};accountSettingsPaint();try{const result=await bridge.postMessage({action:'set',key,value});if(!result||typeof result.prevent_sleep!=='boolean'||typeof result.launch_at_login!=='boolean'||!['background','quit'].includes(result.close_action)||result[key]!==value)throw Error('设置未确认');S.nativeSettings=result;S.nativeSettingsRetry=null;}catch(error){S.nativeSettingsError='本机设置未能保存，请重试。';}finally{S.nativeSettingsSaving=false;accountSettingsStartRuntimeMonitor();accountSettingsPaint();}}
-function accountSettingsStartRuntimeMonitor(){if(accountNativeSettingsBridge()){accountNotifyNativeReady();return;}if(S.settingsRuntimeTimer)return;S.settingsRuntimeTimer=setInterval(accountPollWorkSettings,5000);accountPollWorkSettings();}
-async function accountPollWorkSettings(){
- if(accountNativeSettingsBridge()||S.settingsRuntimeReading||!S.account.signed_in||S.settingsPreferencesState!=='ready')return;
- if(typeof Notification==='undefined'||Notification.permission!=='granted'){S.notificationCursor=null;return;}
- const context=accountTeamContext()+':'+(S.activeOrganization||'');S.settingsRuntimeReading=true;
- try{const suffix=S.notificationCursor?'?cursor='+encodeURIComponent(JSON.stringify(S.notificationCursor)):'';const value=await api('/api/desktop/notifications'+suffix);
-  if(context!==accountTeamContext()+':'+(S.activeOrganization||''))return;
-  if(value.error||value.schema!==1||value.actor!==String(S.account.user_id)||!value.cursor||!value.preferences||!Array.isArray(value.events))throw Error('提醒读取失败');
-  const prefs=value.preferences;S.browserNotificationSeen=S.browserNotificationSeen||new Set();
-  for(const event of value.events){if(S.browserNotificationSeen.has(event.id)||prefs.notification_timing==='never'||prefs.notification_timing==='background'&&!document.hidden||!prefs[event.kind])continue;
-   const notification=new Notification(event.title,{body:'打开 RunTeams.ai 查看并处理。',tag:event.id,silent:!prefs.sound});notification.onclick=()=>{window.focus();accountOpenWorkNotification(event.target);notification.close();};S.browserNotificationSeen.add(event.id);
-  }
-  S.notificationCursor=value.cursor;S.notificationDeliveryError='';if(S.browserNotificationSeen.size>2000)S.browserNotificationSeen.clear();
- }catch(error){S.notificationDeliveryError='工作提醒暂时不可用，请重试。';}
- finally{S.settingsRuntimeReading=false;if(S.settingsTab==='notifications')accountSettingsPaint();}
-}
+function accountSettingsStartRuntimeMonitor(){if(accountNativeSettingsBridge()){RunTeamsHost.lifecycle.notificationsReady?.();return;}if(S.settingsRuntimeTimer)return;S.settingsRuntimeTimer=setInterval(RunTeamsHost.lifecycle.pollNotifications,5000);RunTeamsHost.lifecycle.pollNotifications();}
+
 
 
 function accountSettingsChannelInstall(id,mode='install'){
@@ -580,7 +557,7 @@ function accountChannelDiagnostic(label,detail,id,kind='status'){
  return `<details class="channel-diagnostic" data-channel-detail="${esc(String(id)+'-'+kind)}"><summary>${esc(label)}${ICON('chev')}</summary><p>${esc(detail)}</p></details>`;
 }
 
-// Subscription payments use cloud receipts; no browser state grants access.
+
 
 
 if(typeof window!=='undefined')window.addEventListener?.('focus',()=>{if(S.settingsTab==='notifications'&&document.getElementById('settingsWorkspace'))accountReadNativeSettings();});
@@ -595,7 +572,7 @@ function accountChannelIdentity(channel){const parts=String(channel?.probe?.acco
 function accountChannelMenu(event,id){
  event.preventDefault();event.stopPropagation();const channel=S.channels.find(row=>Number(row.id)===Number(id)),anchor=event.currentTarget;
  if(!channel||anchor.disabled||channel.probe?.status==='missing')return;
- const connected=accountChannelConnected(channel),identity=accountChannelIdentity(channel),context=accountTeamContext(),current=()=>context===accountTeamContext()&&S.channels.includes(channel);
+ const connected=accountChannelConnected(channel),identity=accountChannelIdentity(channel),context=settingsContext(),current=()=>context===settingsContext()&&S.channels.includes(channel);
  const items=[];
  if(connected){if(identity.email||identity.plan){items.push({head:true,account:true,label:identity.email,plan:identity.plan},{divider:true});}items.push({label:'断开',icon:'unlink',danger:true,fn:()=>{if(current()&&channel.enabled)removeChannel(id);}});}
  items.push({label:'更新 CLI',icon:'refresh',fn:()=>{if(current())accountSettingsChannelInstall(id,'update');}});
@@ -642,4 +619,4 @@ function accountAboutSettings(){
  return `${settingsPageHead('关于')}${version}${accountSettingsGroup('法律与隐私',accountSettingsLink('隐私政策','/privacy')+accountSettingsLink('服务条款','/terms'))}`;
 }
 
-function accountWorkspaceReadOnly(){const value=S.account?.active_workspace;return !!S.activeOrganization&&value?.id===S.activeOrganization&&(value.readonly===true||value.authority_unknown===true);}
+function accountWorkspaceReadOnly(){return RunTeamsHost.session.readOnly(S);}

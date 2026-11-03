@@ -29,7 +29,7 @@
  const scope=()=>`${_workspaceBusinessGeneration}:${workspaceAccountCacheToken()}`;
  const owner=surface=>surface==='panel'?S.conversationPanel:S.chatCfg;
  const chatId=surface=>surface==='panel'?S.conversationPanel?.id:S.chatId;
- function supported(surface){const p=owner(surface);return !!p&&!S.activeOrganization&&(S.localLibrary?.library_id||S.account?.signed_in)&&p.kind!=='employee_design'&&(surface!=='panel'||p.kind==='general')&&!p.scope_pipeline_id&&!p.scope_run_id&&!['pipeline-create','employee-design'].includes(S.chatMode)&&!p.context?.creator_authoring;}
+ function supported(surface){const p=owner(surface);return !!p&&!RunTeamsHost.session.workspace(S)&&(S.localLibrary?.library_id||RunTeamsHost.session.ready(S))&&p.kind!=='employee_design'&&(surface!=='panel'||p.kind==='general')&&!p.scope_pipeline_id&&!p.scope_run_id&&!['pipeline-create','employee-design'].includes(S.chatMode)&&!p.context?.creator_authoring;}
  function state(surface){const p=owner(surface);if(!p||!supported(surface))return null;let s=states.get(p);if(!s||s.scope!==scope()){s={scope:scope(),folder:null,pending:null,picking:false,error:'',version:0};states.set(p,s);}return s;}
  function current(surface,s,p){return scope()===s.scope&&owner(surface)===p&&states.get(p)===s;}
  function validate(folder){if(!folder||typeof folder.id!=='string'||typeof folder.path!=='string'||typeof folder.display_path!=='string'||typeof folder.available!=='boolean')throw Error('工作文件夹未能读取，请重试。');return folder;}

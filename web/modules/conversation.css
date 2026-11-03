@@ -1174,7 +1174,6 @@
   padding-bottom:4px!important;
 }
 /* module-rule:647 */
-.conversation-marketplace-status{margin-left:10px;height:23px;padding:0 8px;font-size:calc(10px * var(--interface-font-scale,1))}
 /* module-rule:649 */
 .conversation-results-trigger{width:auto!important;display:inline-flex!important;flex-direction:row!important;align-items:center;gap:5px;padding:0 8px!important;font-size:calc(12px * var(--interface-font-scale,1))}
 /* module-rule:650 */
@@ -1526,8 +1525,7 @@
 .menu.chat-add-menu .menu-empty { align-self:stretch; }
 
 .ccomposer .cattachments,.ccomposer .cinline-capability,.menu.chat-add-menu { letter-spacing:0; }
-.ccomposer .cfoot-left>.cattachments :is(b,span)[lang="zh"],.ccomposer .cinline-capability b[lang="zh"],
-.menu.chat-add-menu .menu-copy [lang="zh"],.menu.chat-add-menu .menuhead[lang="zh"] { font-family:"PingFang SC",var(--ui); }
+.ccomposer .cfoot-left>.cattachments :is(b,span)[lang="zh"],.ccomposer .cinline-capability b[lang="zh"],.menu.chat-add-menu .menu-copy [lang="zh"],.menu.chat-add-menu .menuhead[lang="zh"] { font-family:"PingFang SC",var(--ui); }
 
 /* Unified new-conversation surface approved 2026-10-14. Context is data;
    employee guidance and skill authoring use the same visual component. */
@@ -1831,8 +1829,7 @@ html[data-theme="dark"] .agent-question-docked { background:var(--surface-hover)
 .conversation-main :is(.conversation-provider-busy,.conversation-provider-quota) { font-size:var(--conversation-body-size); color:var(--conversation-body-ink); }
 .conversation-main .conversation-provider-quota>strong { font-size:var(--conversation-body-size); }
 .conversation-main .conversation-provider-quota>span { font-size:var(--conversation-meta-size); color:var(--conversation-meta-ink); }
-.conversation-main .conversation-code-toolbar :is(button,span),
-.conversation-main .conversation-code-expand { font-size:var(--conversation-meta-size); color:var(--conversation-meta-ink); }
+.conversation-main .conversation-code-toolbar :is(button,span),.conversation-main .conversation-code-expand { font-size:var(--conversation-meta-size); color:var(--conversation-meta-ink); }
 
 /* Respect the existing independent code-font preference. */
 .conversation-messages :is(.cmessage-markdown,.agent-work-text) :is(pre,code) { font-size:var(--code-font-size,13px); color:var(--conversation-body-ink); }

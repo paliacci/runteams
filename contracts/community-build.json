@@ -356,6 +356,7 @@
     "web/ui/employee-windows.js",
     "web/ui/empty-states.css",
     "web/ui/empty-states.js",
+    "web/ui/host.js",
     "web/ui/icons/sidebar-next.svg",
     "web/ui/icons/sidebar-upgrade.svg",
     "web/ui/illustrations.css",
@@ -375,7 +376,6 @@
     "web/ui/locale.js",
     "web/ui/metrics.js",
     "web/ui/model-channels.js",
-    "web/ui/native-assets.js",
     "web/ui/page-routes.js",
     "web/ui/page-skeletons.css",
     "web/ui/page-skeletons.js",
@@ -391,7 +391,6 @@
     "web/ui/shell.css",
     "web/ui/shell.js",
     "web/ui/sidebar-account.js",
-    "web/ui/sidebar-views.js",
     "web/ui/source-pipeline-panels.js",
     "web/ui/source-pipelines.css",
     "web/ui/source-pipelines.js",
@@ -644,7 +643,8 @@
     "web/fonts/jetbrains-mono-LICENSE.txt",
     "web/rich-document/licenses/KaTeX-LICENSE",
     "web/vendor/licenses/DOMPURIFY-LICENSE",
-    "web/vendor/licenses/MARKED-LICENSE.md"
+    "web/vendor/licenses/MARKED-LICENSE.md",
+    "runteams_core/devtools/check_ui_boundary.py"
   ],
   "notices": [
     "LICENSE",

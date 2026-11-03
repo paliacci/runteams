@@ -34,6 +34,8 @@ def package_symbols(root, module):
 
 def check(root=ROOT):
     root = Path(root)
+    from .check_ui_boundary import check as check_ui
+    ui = check_ui(root)
     findings = []
     files = []
     internal_names = {path.stem for path in (root / 'runteams_core').rglob('*.py') if path.name != '__init__.py'}
@@ -74,7 +76,7 @@ def check(root=ROOT):
         findings.append({'product_entries': config['project']['scripts']})
     if findings:
         raise ValueError(json.dumps(findings, ensure_ascii=False))
-    return {'python_sources': len(files), 'private_imports': 0, 'old_script_entries': 0}
+    return {'python_sources': len(files), 'private_imports': 0, 'old_script_entries': 0, 'ui_boundary': ui}
 
 
 if __name__ == '__main__':

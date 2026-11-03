@@ -73,7 +73,7 @@ function skillsResourceRevealPath(state,path){
   state.resourceFolders=[...open];state.resourceFocus=path;state.resourceReveal=true;
 }
 function skillsResourceTreeMarkup(files,state={},scope='creator',id=0){
-  const provider=scope==='creator'?{label:'作品文件与目录',select:encoded=>`RunTeamsCreatorAuthor.select(decodeURIComponent('${encoded}'))`}:globalThis.RunTeamsOfficialUI?.resourceTree?.(scope,id);
+  const provider=scope==='creator'?{label:'作品文件与目录',select:encoded=>`RunTeamsCreatorAuthor.select(decodeURIComponent('${encoded}'))`}:RunTeamsHost.resources.tree(scope,id);
   const roots=skillsResourceTreeModel(files),open=new Set(state.resourceFolders||[]),visible=[];
   const collect=nodes=>{for(const node of nodes){visible.push(node);if(node.children&&open.has(node.path))collect(node.children);}};collect(roots);
   const focus=visible.find(node=>node.path===state.resourceFocus)?.path||visible.find(node=>node.path===state.activeFile)?.path||visible[0]?.path;
@@ -84,7 +84,7 @@ function skillsResourceTreeMarkup(files,state={},scope='creator',id=0){
 }
 function skillsResourceTreeContext(scope,id){
   if(scope==='creator'){const state=window.RunTeamsCreatorAuthor?.current();return state?{state,files:state.files,selector:'.creator-asset-tree'}:null;}
-  return globalThis.RunTeamsOfficialUI?.resourceTree?.(scope,id)||null;
+  return RunTeamsHost.resources.tree(scope,id)||null;
 }
 function skillsResourceTreeFocus(event,scope,id){
   const row=event.target.closest('[role="treeitem"]'),context=skillsResourceTreeContext(scope,id);if(!row||!context)return;

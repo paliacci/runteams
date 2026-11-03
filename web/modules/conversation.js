@@ -551,14 +551,7 @@ async function copyConversationMessage(surface,index,button){const message=_conv
 /* module-function:editConversationMessage */
 function editConversationMessage(surface,index){const message=_conversationMsg(surface,index);if(!message)return;const panel=surface==="panel"?S.conversationPanel:null;if(surface==="chat"?S.chatBusy:panel?.busy)return toast("助手完成当前工作后再编辑","info");if(!message.id)return toast("这条消息尚未保存，暂时不能回退","info");confirmModal("从这条消息重新开始？","重新发送后，此消息及后续对话会被替换；已经执行的任务、流水线和文件改动会保留。",()=>{const capabilities=(message.capabilities||[]).map(item=>({...item})),draft=conversationDraftFromMessage(message.text||"",capabilities),attachments=(message.attachments||[]).map(item=>({...item,localId:`rewind-${surface}-${item.id}`,reuseId:item.id}));clearConversationAttachments(surface);setConversationAttachments(surface,attachments);setConversationCapabilities(surface,capabilities);setConversationDraftValue(surface,draft);if(surface==="panel"){panel.messages=panel.messages.slice(0,index);panel.editRewind={messageId:message.id};}else{S.chatMsgs=S.chatMsgs.slice(0,index);S.chatRewind={messageId:message.id};}render();toast("修改后重新发送，即可从这里继续","info");requestAnimationFrame(()=>{const box=conversationInputElement(surface);if(box){setConversationInputValue(box,draft,capabilities);box.focus();restoreConversationSelection(surface,draft.length);}});});}
 
-const conversationFeedbackSyncScopes=new Set();
-function conversationResumeFeedbackCases(){
-  if(S.activeOrganization||!S.account?.signed_in||!S.account?.device_data_scope)return;
-  const scope=workspaceAccountCacheToken()+':'+_workspaceBusinessGeneration;
-  if(conversationFeedbackSyncScopes.has(scope))return;
-  conversationFeedbackSyncScopes.add(scope);
-  void api('/api/reply-feedback/sync','POST',{}).then(result=>{if(result.error||result.pending>0)conversationFeedbackSyncScopes.delete(scope);}).catch(()=>{conversationFeedbackSyncScopes.delete(scope);});
-}
+
 const conversationFeedbackWrites=new Set();
 function conversationFeedbackValue(message){return ['up','down'].includes(message?.metadata?.response_feedback)?message.metadata.response_feedback:null;}
 function conversationReplyFeedback(event,surface,index,messageId){

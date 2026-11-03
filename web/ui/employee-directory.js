@@ -11,7 +11,7 @@
   if(!Array.isArray(rows)||rows.some(row=>typeof row.key!=='string'||!row.record?.name||!row.open))throw Error('员工目录回执无效');
   if(new Set(rows.map(row=>row.key)).size!==rows.length)throw Error('员工目录身份重复');
   items=rows;scope=expected;
-  for(const row of rows)if(row.asset?.reference)RunTeamsNativeAssets.remember(row.asset.reference);
+  for(const row of rows)if(row.asset?.reference)RunTeamsHost.assets.remember(row.asset.reference);
   return true;
  }
  async function refresh(options={}){
@@ -22,13 +22,13 @@
    if(expected!==token()||own!==sequence)return;
    if(reply.error||reply.schema!=='runteams.employee-directory/v1')throw Error(reply.error||'员工目录没有载入');
    install(reply.items,expected);error=Object.values(reply.errors||{}).map(value=>value.error).filter(Boolean).join('；');
-   S.coreTeamLoaded=true;S.coreTeamError=error;S.deviceSessionActor=String(S.localLibrary?.library_id||S.account?.user_id||'');
+   S.coreTeamLoaded=true;S.coreTeamError=error;S.deviceSessionActor=String(S.localLibrary?.library_id||RunTeamsHost.session.actor(S)||'');
    return {employees:assets(),items:current(),errors:reply.errors};
   })();pending={scope:expected,promise};
   try{return await promise;}finally{if(pending?.promise===promise)pending=null;}
  }
  function accept(entry){
-  if(!entry||(!S.localLibrary&&!S.account?.signed_in)||S.activeOrganization)return;
+  if(!entry||(!S.localLibrary&&!RunTeamsHost.session.ready(S))||RunTeamsHost.session.workspace(S))return;
   // A confirmed creation carries the backend's exact directory projection.
   // It does not derive employee identity from a conversation title or chat ID.
   const rows=current(),same=(a,b)=>{const identity=referenceKey(a);return !!identity&&identity===referenceKey(b);},prior=rows.find(row=>row.key===entry.key||same(row.reference,entry.reference));sequence++;
@@ -58,7 +58,7 @@
   if(openings.has(requestKey))return openings.get(requestKey);
   const own=++activationSequence,drawerSequence=typeof _detailOpenSequence==='undefined'?null:_detailOpenSequence;
   const task=(async()=>{
-   const receiptScope=S.localLibrary?workspaceAccountCacheToken():S.account?.device_data_scope;
+   const receiptScope=S.localLibrary?workspaceAccountCacheToken():RunTeamsHost.session.deviceScope(S);
    if(newSession&&!receiptScope)throw Error('员工所在工作区未就绪，请重新打开');
    const receiptKey='runteams.employee-session-open:'+receiptScope+':'+key;
    let operation;

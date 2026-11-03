@@ -2,9 +2,9 @@
 (function(root,factory){const value=factory(root);if(typeof module==='object'&&module.exports)module.exports=value;root.RunTeamsChatActivity=value;})(typeof window==='object'?window:globalThis,function(root){
  'use strict';
  const clients=new WeakMap(),number=value=>Number.isSafeInteger(Number(value))&&Number(value)>0?Number(value):0;
- function identity(state){const account=state.account||{};return account.signed_in&&account.user_id?JSON.stringify([account.auth_issuer||'',account.user_id,account.device_data_scope||'',state.activeOrganization||'']):'';}
- function context(state){return JSON.stringify([identity(state),state.accountReadEpoch||0]);}
- function key(state){const scope=identity(state);return scope&&/^[a-f0-9]{64}$/.test(state.account?.device_data_scope||'')?'runteams.device.chat-read.v1:'+encodeURIComponent(scope):'';}
+ function identity(state){return root.RunTeamsHost.session.activityIdentity(state);}
+ function context(state){return JSON.stringify([identity(state),root.RunTeamsHost.session.epoch(state)]);}
+ function key(state){return root.RunTeamsHost.session.activityKey(state);}
  function stored(storageKey){try{const value=storageKey&&JSON.parse(root.localStorage?.getItem(storageKey)||'null');if(value?.version!==1||!value.read||typeof value.read!=='object'||Array.isArray(value.read))return new Map();return new Map(Object.entries(value.read).filter(([id,seen])=>number(id)&&Number.isSafeInteger(seen)&&seen>=0).map(([id,seen])=>[String(number(id)),seen]));}catch(error){return new Map();}}
  function client(state){const scope=context(state);let value=clients.get(state);if(!value||value.scope!==scope){value={scope,key:key(state),read:stored(key(state)),panels:new Map(),interactions:new Map(),reads:new Map()};clients.set(state,value);}return value;}
  function save(value){if(!value.key)return;try{for(const [id,seen] of stored(value.key))value.read.set(id,Math.max(seen,value.read.get(id)||0));root.localStorage?.setItem(value.key,JSON.stringify({version:1,read:Object.fromEntries(value.read)}));}catch(error){}}

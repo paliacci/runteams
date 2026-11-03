@@ -80,7 +80,7 @@
   if(!model||!row.models.some(item=>same(item.value,model)))return {reason:'model',channel,provider,model};
   return null;
  }
- function displayScope(state){if(state.localLibrary?.library_id)return JSON.stringify(['library',state.localLibrary.library_id]);return state.account?.signed_in&&state.account.user_id?JSON.stringify([state.account.user_id,state.account.auth_issuer||'',state.account.device_data_scope||'',state.activeOrganization||'']):null;}
+ function displayScope(state){return globalThis.RunTeamsHost.session.displayScope(state);}
  function definitionsKey(channels){return JSON.stringify((channels||[]).map(c=>[String(c.id),c.provider,!!c.enabled,c.executable||'',c.config_dir||'']).sort((a,b)=>a[0].localeCompare(b[0])));}
  function displaySnapshot(state,channels){
   const scope=displayScope(state);if(!scope)return null;

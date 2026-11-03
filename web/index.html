@@ -1,6 +1,8 @@
 <!DOCTYPE html>
 <html lang="zh">
 <head>
+<script src="/ui/host.js"></script>
+<!-- runteams-host-prelude -->
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta name="robots" content="noindex, nofollow" />
@@ -26,37 +28,37 @@
 <link rel="stylesheet" href="/modules/conversation.css?v=route-first-paint-20261102-1" />
 <link rel="stylesheet" href="/modules/skills.css?v=retired-pages-20261022" />
 <link rel="stylesheet" href="/modules/account.css?v=input-state-uniform-20261028-1" />
-<link rel="stylesheet" href="/ui/pricing.css?v=pricing-first-paint-20261027-1" />
-<link rel="stylesheet" href="/ui/dot-field.css?v=pricing-dot-field-20261022" />
+
+
 <link rel="stylesheet" href="/ui/shell.css?v=document-engine-retired-20261031" />
-<link rel="stylesheet" href="/ui/market.css?v=legacy-convergence-20261026-1-empty-center-20261028" />
-<link rel="stylesheet" href="/ui/market-browse.css?v=input-state-uniform-20261028-1" />
-<link rel="stylesheet" href="/ui/market-publisher.css?v=input-state-uniform-20261028-1" />
-<script src="/ui/market-publisher.js?v=drawer-coordinator-20261028-1"></script>
+
+
+
+
 <link rel="stylesheet" href="/ui/page-skeletons.css?v=automation-panel-20261028-1" />
 <script src="/ui/page-routes-contract.js?v=sdk-only-panels-20261024"></script>
 <script src="/ui/page-routes.js?v=route-first-paint-20261102-1-sdk-only-panels-20261024"></script>
 <script src="/ui/page-skeletons.js?v=document-engine-retired-20261031"></script>
 <link rel="stylesheet" href="/ui/load-failure.css?v=sidebar-read-recovery-20261026" />
 <script src="/ui/load-failure.js?v=shared-failure-20261016"></script>
-  <script src="/ui/analytics.js?v=20261029-product-only"></script>
-  <script src="/ui/analytics-navigation.js?v=20261029-public-layer-audit2"></script>
-  <script src="/ui/analytics-auth.js?v=20261029-public-layer"></script>
-  <script defer src="/ui/analytics-desktop.js?v=20261029-foundation-public-analytics-20261029"></script>
+  
+  
+  
+  
   <script src="/ui/work-module-icons.js"></script>
-<script src="/modules/market_views.js?v=community-task-schema-20261101-1"></script>
-  <script src="/ui/market-catalog.js?v=page-state-contract-20261028"></script>
-<script src="/ui/dot-field.js?v=pricing-dot-field-20261022"></script>
+
+  
+
 <script src="/ui/static-pages.js?v=document-engine-retired-20261031"></script>
 <script src="/ui/requests.js?v=edition-request-policy-20261103-2"></script>
 <script src="/ui/metrics.js?v=shell-1"></script>
 <script src="/ui/shell.js?v=feedback-entry-20261029-3-employee-single-window-20261028-1-tab-hit-area-20261029-1"></script>
 <script src="/ui/sidebar-account.js?v=workspace-fixed-sections-20261028-silent-loading-1"></script>
 <script src="/ui/chat-activity.js?v=sidebar-chat-activity-20261027-question-3-background-1"></script>
-<script src="/ui/sidebar-views.js?v=workspace-fixed-sections-20261028-silent-loading-1"></script>
-<link rel="stylesheet" href="/ui/message-center.css?v=feedback-close-20261029-13" />
-<script defer src="/ui/message-center.js?v=feedback-close-20261029-13"></script>
-<script defer src="/ui/support.js?v=feedback-close-20261029-3"></script>
+
+
+
+
 <script src="/ui/panel-motion.js?v=panel-motion-1"></script>
 <script src="/ui/controls.js?v=employee-model-default-20261026-1-add-paging-20261027-2-channel-guide-20261027-composer-runtime-20261027-1-no-chat-command-20261028-at-skill-search-20261028"></script>
 <link rel="stylesheet" href="/ui/search-fields.css?v=input-state-uniform-20261028-1" />
@@ -90,12 +92,12 @@
 <script src="/ui/model-channels.js?v=channel-read-isolation-20261027-1-add-paging-20261027-2-composer-runtime-20261027-1"></script>
 <script src="/modules/skills.js?v=resource-tree-provider-20261101-1"></script>
 <script src="/modules/account.js?v=edition-ui-split-20261031"></script>
-<script src="/ui/desktop-login.js?v=message-center-20261029-1-logout-entry-20261026"></script>
-<script src="/ui/native-assets.js?v=unified-employees-20261026-2"></script>
+
+
 <link rel="stylesheet" href="/ui/source-pipelines.css?v=pipeline-r07-20261031-1">
 <script src="/ui/source-pipelines.js?v=pipeline-recovery-matrix-20261101-1"></script>
 <script src="/ui/source-pipeline-panels.js?v=work-preparation-20261101-1"></script>
-<script src="/ui/pipeline-market.js?v=pipeline-r08-20261031"></script>
+
 <script src="/ui/employee-directory.js?v=employee-current-work-20261028-employee-single-window-20261028-1-session-menu-rows-20261028-1-session-menu-compact-20261028-1-configuration-20261029-1"></script>
 <script src="/modules/employee.js?v=private-work-entry-20261101-1"></script>
 <link rel="stylesheet" href="/ui/configuration-fields.css?v=configuration-copy-trim-20261029-1">
@@ -235,6 +237,7 @@
 </defs></svg>
 
 <div class="app" id="app"></div>
+<!-- runteams-host-components -->
 <script>
 window.RunTeamsBoot=(()=>{
   const WORKSPACE_WINDOWS_BOOT_KEY="runteams_workspace_windows_v1";
@@ -267,14 +270,13 @@ window.RunTeamsBoot=(()=>{
     if(kind==="docs")return '<div class="page-skeleton environment-page docs-page list-page skeleton-environment-page"><div class="environment-content docs-content list-page-content"><div class="environment-title environment-extension-header docs-head list-page-header list-page-header--controls skeleton-page-heading"><div class="environment-extension-heading list-page-heading"><div class="skeleton-extension-title-row">'+line("sk-page-title")+'</div>'+line("sk-page-subtitle")+'</div><div class="environment-catalog-actions docs-actions list-page-controls">'+line("sk-search-control")+'</div></div><div class="docs-body"><div class="docs-table"><div class="docs-thead"><span class="docs-cell docs-cell-title">'+line("sk-doc-heading")+'</span><span class="docs-cell docs-cell-editor">'+line("sk-doc-heading short")+'</span><span class="docs-cell docs-cell-time">'+line("sk-doc-heading short")+'</span><span></span></div>'+Array.from({length:4},docsRow).join("")+'</div></div></div></div>';
     if(kind==="automations")return '<div class="page-skeleton environment-page automation-page skeleton-environment-page"><div class="environment-content">'+heading(line("sk-page-action"))+'<div class="automation-toolbar">'+line("sk-automation-search")+'<div class="skeleton-automation-filters">'+line("sk-filter")+line("sk-filter short")+line("sk-filter short")+'</div></div><div class="automation-list">'+Array.from({length:4},automationRow).join("")+'</div></div></div>';
     if(kind==="trash")return '<div class="page-skeleton environment-page trash-page list-page skeleton-trash-page skeleton-environment-page"><div class="environment-content trash-content"><div class="environment-title trash-skeleton-head list-page-header skeleton-page-heading"><div class="environment-extension-heading trash-head-copy">'+line("sk-page-title")+line("sk-page-subtitle")+'</div></div><div class="trash-toolbar">'+line("sk-meta")+'</div><section class="trash-list-wrap"><div class="trash-list-columns"><span>'+line("sk-doc-heading")+'</span><span>'+line("sk-doc-heading short")+'</span><span>'+line("sk-doc-heading short")+'</span></div><div class="trash-list">'+Array.from({length:4},trashRow).join("")+'</div></section></div></div>';
-    if(kind==="billing")return '<div class="page-skeleton environment-page billing-page skeleton-environment-page"><div class="environment-content"><div class="environment-title environment-extension-header billing-head skeleton-page-heading"><div class="environment-extension-heading"><div class="skeleton-extension-title-row">'+line("sk-page-title")+'</div>'+line("sk-page-subtitle")+'</div><div class="environment-catalog-actions">'+line("sk-meta")+line("sk-button")+'</div></div><div class="billing-toolbar">'+line("sk-filter")+line("sk-button")+'</div><div class="billing-list"><div class="billing-record">'+line("sk-copy wide")+line("sk-meta")+'</div>'.repeat(4)+'</div></div></div>';
     return '<div class="page-skeleton pipeline-skeleton"><div class="vhead skeleton-pipeline-head">'+line("sk-pipeline-title")+'<span class="grow"></span>'+line("sk-run")+line("sk-button")+line("sk-button")+line("sk-button")+'</div><div class="board skeleton-board"><div class="cols">'+Array.from({length:4},(_,index)=>pipelineColumn(index)).join("")+'</div></div></div>';
   }
   function railSkeleton(navTab="team"){
     const botRows=(count)=>Array.from({length:count},()=>'<div class="bot-list-row boot-bot-row" data-skeleton-row inert><span class="boot-bot-avatar">'+line("sk-bot-avatar")+'</span><span class="bot-list-copy skeleton-card-copy"><span class="bot-list-head">'+line("sk-name")+line("sk-bot-time")+'</span>'+line("sk-copy wide")+'</span></div>').join("");
-    const kind=kindFromLocation(),selected=kind==='conversation-new'?'新对话':['docs','document-reader'].includes(kind)?'文档':kind.startsWith('marketplace')?'市场':['pipeline','pipeline-new'].includes(kind)?'流水线':kind==='trash'?'垃圾箱':'';
+    const kind=kindFromLocation(),selected=kind==='conversation-new'?'新对话':['docs','document-reader'].includes(kind)?'文档':['pipeline','pipeline-new'].includes(kind)?'流水线':kind==='trash'?'垃圾箱':'';
     const link=(label,href,icon)=>'<a class="rail-primary-action'+(label===selected?' on':'')+'" aria-current="'+(label===selected?'page':'false')+'" href="'+href.replace(/[&<>"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[char]))+'"><svg class="i" aria-hidden="true"><use href="#i-'+icon+'"></use></svg><span>'+label+'</span></a>';
-    const teamBody='<div class="rail-actions">'+link('新对话','/chats/new','message-circle-plus')+'</div><div class="railmid-shell"><div class="railmid boot-rail-mid"><div class="rail-nav-primary">'+link('文档','/documents','doc')+(globalThis.RunTeamsApplication?.has('market')===false?'':link('市场','/marketplace','store'))+link('流水线','/pipelines/new','flow')+'</div><section class="rail-section pipeline-sec boot-rail-section" aria-label="流水线与会话" aria-busy="true"></section><nav class="rail-trash-navigation" aria-label="垃圾箱">'+link('垃圾箱','/trash','trash')+'</nav></div></div>';
+    const teamBody='<div class="rail-actions">'+link('新对话','/chats/new','message-circle-plus')+'</div><div class="railmid-shell"><div class="railmid boot-rail-mid"><div class="rail-nav-primary">'+link('文档','/documents','doc')+RunTeamsHost.shell.navigation('boot').map(item=>link(item.label,item.href,item.icon)).join('')+link('流水线','/pipelines/new','flow')+'</div><section class="rail-section pipeline-sec boot-rail-section" aria-label="流水线与会话" aria-busy="true"></section><nav class="rail-trash-navigation" aria-label="垃圾箱">'+link('垃圾箱','/trash','trash')+'</nav></div></div>';
     const botsBody='<div class="bot-list-shell boot-bot-list-shell"><label class="bot-list-search rt-search-field rt-search-field--compact"><svg class="i" aria-hidden="true"><use href="#i-search"></use></svg><input type="search" aria-label="搜索全部员工" placeholder="搜索员工" disabled></label><div class="bot-list" role="status" aria-label="正在读取员工列表" aria-busy="true"><div aria-hidden="true">'+botRows(6)+'</div></div></div>';
     const body=navTab==="bots"?botsBody:teamBody;
     const icon=name=>'<svg class="i" aria-hidden="true"><use href="#i-'+name+'"></use></svg>';
@@ -294,36 +296,23 @@ window.RunTeamsBoot=(()=>{
     next.querySelector(`[data-rail-tab="${tab}"]`)?.focus({preventScroll:true});
   }
 
-  function savedWindowScope(){
-    if(globalThis.RunTeamsApplication?.edition==='community'){
-      const id=document.querySelector?.('meta[name="runteams-library-id"]')?.content;
-      return /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(id||'')?id:null;
-    }
-    try{const local=window.RunTeamsDeviceDisplay;if(local?.schema==='runteams.device-display/v1'&&/^[0-9a-f]{64}$/.test(local.scope)&&!sessionStorage.getItem('runteams_selected_organization'))return local.scope;}catch(error){}
-    try{const scope=localStorage.getItem('runteams.business.last-scope.v2');return /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}:[0-9a-f]{64}$/.test(scope||'')?scope:null;}catch(error){return null;}
-  }
+  function savedWindowScope(){const supplied=RunTeamsHost.workspace.savedScope();if(supplied!==undefined)return supplied;const id=document.querySelector?.('meta[name="runteams-library-id"]')?.content;return /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(id||'')?id:null;}
   function savedWorkspaceWindows(scope=savedWindowScope()){
-    try{if(JSON.parse(localStorage.getItem('runteams_device_display_v1')||'{}')?.restore_windows===false)return [];}catch(error){}
-    const library=globalThis.RunTeamsApplication?.edition==='community'&&/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(scope||''),device=/^[0-9a-f]{64}$/.test(scope||'');
-    if(!library&&!device&&!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}:[0-9a-f]{64}$/.test(scope||''))return [];
-    try{
-      const raw=localStorage.getItem(library?`runteams.library.v1:${scope}:${WORKSPACE_WINDOWS_BOOT_KEY}`:device?`runteams.device.v1:${scope}:personal:${WORKSPACE_WINDOWS_BOOT_KEY}`:`runteams.business.v2:${scope}:${WORKSPACE_WINDOWS_BOOT_KEY}`);
-      if(!raw||raw.length>65536)return [];
-      const rows=JSON.parse(raw),seen=new Set(),origin=location.origin||'http://localhost';
-      return (Array.isArray(rows)?rows:[]).filter(row=>{
-        if(!row||typeof row.key!=='string'||row.key.length>160||seen.has(row.key)||['team','mail','billing','wallet'].includes(row.key)||typeof row.route!=='string'||row.route.length>2048||!row.route.startsWith('/')||row.route.startsWith('//'))return false;
-        const url=new URL(row.route,origin);if(url.origin!==origin||url.pathname==='/team'||url.pathname.startsWith('/mail'))return false;
-        seen.add(row.key);return true;
-      }).map(row=>({key:row.key,route:row.route,title:typeof row.title==='string'?row.title.slice(0,160):'',iconImage:typeof row.iconImage==='string'?row.iconImage:''}));
+    const supplied=RunTeamsHost.workspace.savedWindows(scope);if(supplied!==undefined)return supplied;
+    if(!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(scope||''))return [];
+    try{if(JSON.parse(localStorage.getItem('runteams_device_display_v1')||'{}')?.restore_windows===false)return [];
+      const raw=localStorage.getItem(`runteams.library.v1:${scope}:${WORKSPACE_WINDOWS_BOOT_KEY}`);if(!raw||raw.length>65536)return [];
+      const seen=new Set();return (JSON.parse(raw)||[]).filter(row=>{if(!row||typeof row.key!=='string'||row.key.length>160||seen.has(row.key)||typeof row.route!=='string'||row.route.length>2048||!row.route.startsWith('/')||row.route.startsWith('//'))return false;
+       const url=new URL(row.route,location.origin);if(url.origin!==location.origin)return false;seen.add(row.key);return true;});
     }catch(error){return [];}
   }
-  function windowDisplay(key){
+  function windowDisplay(key){const supplied=RunTeamsHost.shell.windowDisplay(key);if(supplied)return supplied;
     if(key.startsWith('worker:'))return {title:'员工对话',icon:'user'};
     
     if(key.startsWith('pipeline:')||key.startsWith('pipeline-local:'))return {title:key==='pipeline:draft'?'新建流水线':'流水线',icon:'flow'};
     if(key.startsWith('document:')||key==='docs:list')return {title:'文档',icon:'doc'};
     if(key.startsWith('chat:'))return {title:key.startsWith('chat:new')?'新对话':'对话',icon:'square-pen'};
-    return ({'marketplace:store':{title:'市场',icon:'store'},billing:{title:'账单',icon:'receipt'},subscription:{title:'升级计划',icon:'sliders'},wallet:{title:'钱包',icon:'card'},trash:{title:'垃圾箱',icon:'trash'},'design-system':{title:'设计系统',icon:'spark'}})[key]||{title:'工作区',icon:'square-pen'};
+    return ({trash:{title:'垃圾箱',icon:'trash'},'design-system':{title:'设计系统',icon:'spark'}})[key]||{title:'工作区',icon:'square-pen'};
   }
   function revealPendingTab(){
     const tab=document.querySelector?.('#rgWorkspaceTabs .workspace-tab.on'),scroller=tab?.closest('.workspace-tabs-scroll');if(!scroller)return;
@@ -335,11 +324,11 @@ window.RunTeamsBoot=(()=>{
     navigationWindows=[];
     const kind=kindFromLocation(),origin=location.origin||'http://localhost',current=new URL(location.href||location.pathname+(location.search||''),origin);
     const scope=Object.prototype.hasOwnProperty.call(options,'scope')?options.scope:savedWindowScope();
-    const device=/^[0-9a-f]{64}$/.test(scope||''),library=globalThis.RunTeamsApplication?.edition==='community'&&/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(scope||'');
+    const device=/^[0-9a-f]{64}$/.test(scope||''),library=/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(scope||'');
     if(kind==='conversation'&&!device&&!library)return '<div class="workspace-tabs" aria-hidden="true"></div>';
     let rows=savedWorkspaceWindows(scope);navigationWindows=rows;
     const sameRoute=row=>{const url=new URL(RunTeamsRoutes.unmount(row.route),origin);url.searchParams.sort();const target=new URL(RunTeamsRoutes.unmount(current.href),origin);target.searchParams.sort();return url.pathname===target.pathname&&url.search===target.search;};
-    const currentKey=kind==='conversation-new'&&current.searchParams.get('purpose')==='create-employee'?'chat:new:create-employee':({'pipeline-new':'pipeline:draft','conversation-new':'chat:new',docs:'docs:list',marketplace:'marketplace:store',wallet:'wallet',trash:'trash','billing-subscription':'subscription','billing-rentals':'billing','billing-records':'billing','design-system':'design-system'})[kind];
+    const currentKey=RunTeamsHost.shell.windowKey(kind)??(kind==='conversation-new'&&current.searchParams.get('purpose')==='create-employee'?'chat:new:create-employee':({'pipeline-new':'pipeline:draft','conversation-new':'chat:new',docs:'docs:list',trash:'trash','design-system':'design-system'})[kind]);
     let active=rows.find(row=>row.key===currentKey)||rows.find(sameRoute),added=false;
     if(!active){added=true;active={key:currentKey||'boot:'+current.pathname+current.search,route:current.pathname+current.search,title:RunTeamsStaticPages.title(kind)};rows=[...rows.slice(-7),active];}
     rows=rows.map(row=>({...row,...windowDisplay(row.key),title:(library||device||options.verified)&&row.title?row.title:row===active&&added&&!currentKey?RunTeamsStaticPages.title(kind):windowDisplay(row.key).title}));
@@ -355,25 +344,19 @@ window.RunTeamsBoot=(()=>{
     try{return JSON.parse(localStorage.getItem("runteams_sidebar_layout_v1")||"{}").navTab==="bots"?"bots":"team";}catch(error){return "team";}
   }
   function render(){
-    if(typeof RunTeamsDesktopLogin!=='undefined'&&RunTeamsDesktopLogin.initial())return;
+    if(RunTeamsHost.lifecycle.initial())return;
     let layout={};try{layout=JSON.parse(localStorage.getItem('runteams_sidebar_layout_v1')||'{}')||{};}catch(error){}
     const collapsed=!!layout.collapsed,width=collapsed?0:RunTeamsLayout["rail-width"];
     const navTab=layout.navTab==='bots'?'bots':'team';
-    const kind=kindFromLocation(),content=kind==='marketplace'?marketplaceStartupMain():pagePending(kind),tabs=tabsSkeleton();
+    const kind=kindFromLocation(),content=pagePending(kind),tabs=tabsSkeleton();
     const app=document.getElementById("app"),composer=RunTeamsStaticPages.captureComposer(app);
     app.innerHTML='<div class="body product-shell boot-body '+(collapsed?'rail-collapsed ':'')+(kind==='conversation'?'conversation-chrome-pending':'')+'" data-workspace-tabs-empty="false" style="grid-template-columns:'+width+'px 1fr 0">'+railSkeleton(navTab)+tabs+'<div class="mid" id="rgMid">'+content+'</div><div id="rgDrawer"></div></div>';
     RunTeamsStaticPages.restoreComposer(composer,app);
   }
   function pagePending(value,options={}){return RunTeamsStaticPages.page(value||kindFromLocation(),{...options,desktop:true});}
-  return {normalizeKind,kindFromLocation,pageSkeleton,pagePending,pageSkeletonMarkup,railSkeleton,selectRailTab,render,guidanceSkeleton,tabsSkeleton,pendingTabsMarkup,savedWorkspaceWindows,railNavTab,
-    marketplaceQuery:'',marketplaceReady:false,
-    marketplaceInput(input){this.marketplaceQuery=String(input?.value||'');if(this.marketplaceReady)marketplaceSearchInput(input);},
-    marketplaceSearch(){if(this.marketplaceReady)return marketplaceListApply();}};
+  return {normalizeKind,kindFromLocation,pageSkeleton,pagePending,pageSkeletonMarkup,railSkeleton,selectRailTab,render,guidanceSkeleton,tabsSkeleton,pendingTabsMarkup,savedWorkspaceWindows,railNavTab};
 })();
-/* module:market_views:marketplaceHero */
-/* module:market_views:marketplaceToolbar */
-/* module:market_views:marketplacePageFrame */
-function marketplaceStartupMain(){const query=RunTeamsBoot.marketplaceQuery||new URLSearchParams(location.search).get('q')||'';return marketplacePageFrame(RunTeamsSkeletons.region('market-cards'),query).replace('<main ','<main data-marketplace-startup="true" ');}
+
 
 function designSystemMain(){
   const theme=document.documentElement.dataset.theme||"system";
@@ -385,6 +368,7 @@ function designSystemMain(){
   </main>`;
 }
 
+RunTeamsHost.lifecycle.bootReady?.(RunTeamsBoot);
 RunTeamsBoot.render();
 </script>
 
@@ -417,9 +401,6 @@ const RIGHT_DETAIL_LAYOUT_KEY="runteams_right_detail_layout_v2";
 const RAIL_COLLAPSE_SNAP=RAIL_DEFAULT_WIDTH/2,RAIL_CHAT_SNAP=(RAIL_DEFAULT_WIDTH+RAIL_COMFORTABLE_WIDTH)/2;
 const CHANNEL_STATE_STALE_MS=5*60*1000;
 const APP_RELEASE_VERSION="0.1.0";
-const PUBLIC_BETA=true;
-const BILLING_UI_ENABLED=!PUBLIC_BETA;
-const ACCOUNT_DEFAULT={signed_in:false,user_id:"",name:"未登录",email:"",plan:"Free",entitlements:null,is_admin:false,theme:"system"};
 function loadAccountPrefs(){try{const theme=localStorage.getItem("runteams_device_theme");return {theme:['light','dark','system'].includes(theme)?theme:'system'};}catch(error){return {theme:"system"};}}
 function saveAccountPrefs(){let written=false;try{const theme=S.account.theme||"system";localStorage.setItem("runteams_device_theme",theme);written=true;if(localStorage.getItem("runteams_device_theme")!==theme)throw Error("主题未确认");if(S.appearanceSaveFailures)delete S.appearanceSaveFailures.theme;return true;}catch(error){const message="主题已应用，保存结果待确认。重启后可能恢复上次主题，请重新选择并确认。";S.appearanceSaveFailures={...S.appearanceSaveFailures,theme:{value:S.account.theme,readOnly:written,message}};if(typeof document==='undefined'||!document.getElementById?.('appearanceSaveNotice'))toast(message,"err");return false;}}
 function loadEnvironmentSnapshot(){try{const value=JSON.parse(localStorage.getItem(ENVIRONMENT_SNAPSHOT_KEY)||"null");return value&&Array.isArray(value.channels)?value:null;}catch(e){return null;}}
@@ -436,59 +417,25 @@ function loadRailPinnedChats(){try{const value=JSON.parse(workspaceBusinessStora
 
 function loadRailLayout(){try{const value=JSON.parse(localStorage.getItem(RAIL_LAYOUT_KEY)||"{}");return {collapsed:!!value.collapsed,navTab:value.navTab==="bots"?"bots":"team"};}catch(e){return {collapsed:false,navTab:"team"};}}
 function loadRightDetailWidth(){try{const value=Number(JSON.parse(localStorage.getItem(RIGHT_DETAIL_LAYOUT_KEY)||"{}").width);return Number.isFinite(value)?value:RIGHT_DETAIL_WIDTH;}catch(e){return RIGHT_DETAIL_WIDTH;}}
-let _workspaceBusinessProfile=null,_workspaceBusinessGeneration=0,_workspaceProfileRead=null,_workspaceProfileAccountToken='';
-function workspaceAccountCacheToken(){return JSON.stringify([S.localLibrary?[S.localLibrary.library_id,S.localLibrary.generation]:String(S.account?.user_id||''),S.accountReadEpoch||0,S.activeOrganization||'']);}
-function workspaceDeviceStorageScope(){
-  return JSON.stringify(S.localLibrary?['library',S.localLibrary.library_id]:['account',String(S.account?.user_id||''),S.account?.device_data_scope||'',S.activeOrganization||'']);
-}
-function workspaceBusinessStorageKey(key){
-  if(S.localLibrary)return `runteams.library.v1:${S.localLibrary.library_id}:${key}`;
-  if(S.account?.signed_in&&[WORKSPACE_WINDOWS_KEY,CONVERSATION_DRAFTS_KEY].includes(key))return `runteams.device.v1:${encodeURIComponent(String(S.account.device_data_scope||S.account.user_id))}:${S.activeOrganization||'personal'}:${key}`;
-  const profile=_workspaceBusinessProfile;
-  return profile?`runteams.business.v2:${profile.data_epoch}:${profile.actor_scope}:${key}`:null;
-}
-const workspaceBusinessStorage={
-  cloudKeys:new Set(['runteams_sidebar_pinned_pipelines_v1','runteams_sidebar_pipeline_order_v1','runteams_sidebar_pinned_chats_v1','runteams_core_board_column_order_v1','runteams_core_board_group_prefs_v1','runteams_sidebar_views_v1']),
-  cloudValues:{},preferencesVerified:false,writes:Promise.resolve(),
-  saveCloud(key,value,isCurrent=null){
-    if(key==='runteams_sidebar_pinned_chats_v1'&&!S.activeOrganization){
-      if(!S.account?.signed_in)throw new Error('请先登录，再保存个人聊天置顶。');
-      const requested=JSON.parse(value||'[]');
-      localStorage.setItem(`runteams.device.pinned-chats:${S.account.device_data_scope||encodeURIComponent((S.account.auth_issuer||'')+'\n'+S.account.user_id)}`,JSON.stringify(requested));
-      return;
-    }
-    if(!_workspaceBusinessProfile)throw new Error('账户尚未确认，请先登录。');
-    const generation=_workspaceBusinessGeneration;
-    this.writes=this.writes.catch(()=>{}).then(async()=>{
-      if(generation!==_workspaceBusinessGeneration||(isCurrent&&!isCurrent()))throw new Error('账户已变化，请重新保存。');
-      const receipt=await RunTeamsOfficialUI.saveWorkspacePreference(key,value);
-      if(receipt?.ok!==true)throw new Error(receipt?.error||'偏好保存尚未确认，请重新读取。');
-      if(generation===_workspaceBusinessGeneration&&(!isCurrent||isCurrent())){
-        if(value===null)delete this.cloudValues[key];else this.cloudValues[key]=value;
-      }
-    }).catch(error=>{toast('偏好未保存：'+error.message);throw error;});
-    this.writes.catch(()=>{});
-  },
-  getItem(key){if(key==='runteams_sidebar_pinned_chats_v1'&&!S.activeOrganization&&S.account?.signed_in)return localStorage.getItem(`runteams.device.pinned-chats:${S.account.device_data_scope||encodeURIComponent((S.account.auth_issuer||'')+'\n'+S.account.user_id)}`)||'[]';if(this.cloudKeys.has(key))return this.cloudValues[key]??null;const scoped=workspaceBusinessStorageKey(key);return scoped?localStorage.getItem(scoped):null;},
-  setItem(key,value){if(this.cloudKeys.has(key)){this.saveCloud(key,value);return;}const scoped=workspaceBusinessStorageKey(key);if(scoped)localStorage.setItem(scoped,value);},
-  removeItem(key){if(this.cloudKeys.has(key)){this.saveCloud(key,null);return;}const scoped=workspaceBusinessStorageKey(key);if(scoped)localStorage.removeItem(scoped);},
-  key:workspaceBusinessStorageKey,
-  generation:()=>_workspaceBusinessGeneration,
+let _workspaceBusinessGeneration=0;
+function workspaceAccountCacheToken(){return RunTeamsHost.session.cacheToken(S);}
+function workspaceDeviceStorageScope(){return RunTeamsHost.session.storageScope(S);}
+
+const workspaceBusinessStorage=RunTeamsHost.workspace.storage()||{
+ key:key=>S.localLibrary?`runteams.library.v1:${S.localLibrary.library_id}:${key}`:null,
+ getItem(key){const scoped=this.key(key);return scoped?localStorage.getItem(scoped):null;},
+ setItem(key,value){const scoped=this.key(key);if(scoped)localStorage.setItem(scoped,value);},
+ removeItem(key){const scoped=this.key(key);if(scoped)localStorage.removeItem(scoped);},
+ generation:()=>_workspaceBusinessGeneration,
 };
 window.RunTeamsBusinessStorage=workspaceBusinessStorage;
-function workspaceProfileDomain(profile){
-  if(!profile||Object.keys(profile).sort().join(',')!=='actor_scope,data_epoch,product_model_version,schema'||
-    profile.schema!=='runteams.workspace-profile/v2'||profile.product_model_version!==2||
-    !/^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/.test(profile.data_epoch)||!/^[0-9a-f]{64}$/.test(profile.actor_scope))
-    throw new Error('工作区身份尚未确认，请重新加载。');
-  return profile.data_epoch+':'+profile.actor_scope;
-}
+
 function resetWorkspaceBusinessState(){
   resetDetailWorkspace();
   if(S.workspaceSwitchPending)workspaceFinishSwitchPending();
   S.workspaceStartup=null;
-  ++_marketplaceLoadSequence;_chatDirectoryNextAt=0;++_railDocumentSearchSequence;clearTimeout(_railDocumentSearchTimer);S.railDocumentSearch=null;
-  Object.assign(S,{documentsPage:null,documentsAppendLoading:false,documentsAppendError:'',marketplacePage:null,marketplaceAppendLoading:false,marketplaceAppendError:'',navigationLoading:false,navigationError:'',chatDirectoryError:''});
+  RunTeamsHost.workspace.reset();_chatDirectoryNextAt=0;++_railDocumentSearchSequence;clearTimeout(_railDocumentSearchTimer);S.railDocumentSearch=null;
+  Object.assign(S,{documentsPage:null,documentsAppendLoading:false,documentsAppendError:'',navigationLoading:false,navigationError:'',chatDirectoryError:''});
   ++_documentsLoadSequence;clearTimeout(_docsSearchTimer);_docsSearchTimer=null;
   ++_trashRefreshSequence;_trashNextAt=0;++_resultEvidenceLoadSequence;
   ++_routeSequence;++_conversationPanelLoadSequence;++_workspaceSwitchSequence;++_detailOpenSequence;++_documentOpenSequence;
@@ -498,95 +445,22 @@ function resetWorkspaceBusinessState(){
   clearTimeout(_documentTableAutosaveTimer);_documentTableAutosaveTimer=null;
   _pipelineExecutionPending.clear();
   closeModal();teardownDocumentReader();
-  Object.assign(S,{deviceWorkflows:[],deviceWorkScope:"",deviceWorkError:"",coreTeamLoaded:false,coreTeamLoading:false,coreTeamError:"",navigationLoading:false,navigationError:"",coreWorkflows:[],corePackages:[],coreExecutor:null,chats:[],chatId:null,chatMsgs:[],chatDraft:'',chatAttachments:[],chatCapabilities:[],conversationPanel:null,conversationPanelsByWorkspace:{},conversationPanelsByChat:{},chatMessageQueues:{},chatDirectoryLoaded:false,railRecentExpanded:false,documents:[],documentsLoading:false,documentsPage:null,documentSources:null,documentsAppendLoading:false,documentsAppendError:"",documentsError:"",docReader:null,docReaderStack:[],docReaderOrigin:null,automations:[],activity:[],interventions:[],opportunities:[],opportunityDetail:null,workItems:[],workItemDetails:{},workItemSelected:'',trashItems:[],trashSources:null,trashLoading:false,trashLoaded:false,trashError:'',marketplaceDetail:null,marketplaceListings:[],marketplacePage:null,marketplaceAppendLoading:false,marketplaceAppendError:"",marketplaceReviews:[],marketplaceRental:null,marketplaceInstallReceipts:{},marketplaceInstallReadErrors:{},marketplacePublishDraft:null,activeWorkspaceKey:'',surface:'team',railMode:'navigation'});
-}
-function retireWorkspaceSession(){
-  ++_workspaceBusinessGeneration;_workspaceBusinessProfile=null;_workspaceProfileAccountToken='';_workspaceProfileRead=null;
-  workspaceBusinessStorage.cloudValues={};workspaceBusinessStorage.preferencesVerified=false;
-  resetWorkspaceBusinessState();RunTeamsRoutes.clear();
-}
-function discardRetiredWalletOperationCache(){
-  try{for(let index=localStorage.length-1;index>=0;index--){const key=localStorage.key(index);
-    if(key?.startsWith('runteams-wallet-operation:'))localStorage.removeItem(key);
-  }}catch(error){}
-}
-function acceptWorkspaceBusinessProfile(profile){
-  const domain=workspaceProfileDomain(profile),prior=_workspaceBusinessProfile?workspaceProfileDomain(_workspaceBusinessProfile):null;
-  const startup=!prior&&S.workspaceStartup?.pending&&S.workspaceStartup.panel===S.conversationPanel?S.workspaceStartup:null;
-  _workspaceProfileAccountToken=workspaceAccountCacheToken();
-  if(prior===domain)return false;
-  let coldReset=false;
-  if(!prior)try{
-    const last=localStorage.getItem('runteams.business.last-scope.v2');
-    coldReset=!!last&&last!==domain||!!localStorage.getItem(WORKSPACE_WINDOWS_KEY)||!!localStorage.getItem(CONVERSATION_DRAFTS_KEY);
-  }catch(error){}
-  if(prior)window.dispatchEvent(new Event('runteams:business-scope-will-change'));
-  const deviceArrival=!prior&&S.deviceSessionActor===String(S.account?.user_id||'')&&!S.activeOrganization;
-  if(!deviceArrival)++_workspaceBusinessGeneration;
-  if(prior||coldReset&&!deviceArrival)resetWorkspaceBusinessState();
-  _workspaceBusinessProfile=profile;
-  if(typeof workspaceBusinessStorage!=='undefined'){workspaceBusinessStorage.cloudValues={};workspaceBusinessStorage.preferencesVerified=false;}
-  try{localStorage.setItem('runteams.business.last-scope.v2',domain);}catch(error){}
-  // Retired unscoped business keys are discarded, never converted to a new model.
-  for(const key of [WORKSPACE_WINDOWS_KEY,CONVERSATION_DRAFTS_KEY,RAIL_EXPANDED_PIPELINES_KEY,RAIL_PINNED_PIPELINES_KEY,
-      RAIL_PIPELINE_ORDER_KEY,RAIL_PINNED_CHATS_KEY,CORE_BOARD_COLUMN_ORDER_KEY,CORE_BOARD_GROUP_PREFS_KEY])
-    try{localStorage.removeItem(key);}catch(error){}
-  try{sessionStorage.removeItem('runteams.marketplaceHire');}catch(error){}
-  discardRetiredWalletOperationCache();
-  Object.assign(S,{workspaceWindows:deviceArrival?S.workspaceWindows:loadWorkspaceWindows(),conversationPanelDrafts:deviceArrival?S.conversationPanelDrafts:loadConversationPanelDrafts(),railPinnedChats:loadRailPinnedChats()});
-  if(!deviceArrival)window.dispatchEvent(new Event('runteams:business-scope-changed'));
-  _workspaceProfileAccountToken=workspaceAccountCacheToken();
-  if(prior){setAppUrl('/',true);S.booting=true;queueMicrotask(()=>boot());}
-  else if(coldReset&&!deviceArrival&&startup){
-    S.workspaceStartup=startup;S.conversationPanel=startup.panel;S.railMode='assistant';S.surface='team';S.railRouteHydrating=false;
-  }else if(coldReset&&!deviceArrival){setAppUrl('/',true);S.bootRoute=parseAppRoute();}
-  return true;
-}
-async function refreshWorkspaceBusinessProfile(options={}){
-  if(options.retryAccountChanges===true){
-    for(let attempt=0;attempt<3;attempt++){
-      try{return await refreshWorkspaceBusinessProfile({...options,retryAccountChanges:false});}
-      catch(error){if(error.code!=="workspace_account_changed"||attempt===2)throw error;}
-    }
-  }
-  const bundled=Object.prototype.hasOwnProperty.call(options,'bootstrap');
-  if(!bundled&&_workspaceProfileRead)return _workspaceProfileRead;
-  const epoch=S.accountReadEpoch||0,actor=String(S.account?.user_id||''),profileGeneration=_workspaceBusinessGeneration;
-  let nativeSession=null;
-  const read=bundled?Promise.resolve().then(()=>{
-    const value=options.bootstrap;
-    if(!value||value.workspace_error)throw Object.assign(new Error(value?.workspace_error?.message||'工作区身份尚未确认，请重试。'),{code:value?.workspace_error?.code||'workspace_bootstrap_invalid'});
-    if(value.workspace_account_id!==actor||String(value.user_id||'')!==actor)throw Object.assign(new Error('账户已改变，请重新读取工作区。'),{code:'workspace_account_changed'});
-    if(value.workspace_native_profile)nativeSession={profile:value.workspace_native_profile,workspace_profile:value.workspace_profile};
-    return value.workspace_profile;
-  }):RunTeamsNativeAssets.session().then(value=>{nativeSession=value;return value.workspace_profile;});
-  const request=read.then(async profile=>{
-    if(!profile)throw new Error('工作区身份尚未确认，请重试。');
-    if(profile.error)throw Object.assign(new Error(profile.error),{code:profile.code});
-    if(epoch!==(S.accountReadEpoch||0)||actor!==String(S.account?.user_id||''))throw Object.assign(new Error('账户已改变，请重新读取工作区。'),{code:"workspace_account_changed"});
-    if(profileGeneration!==_workspaceBusinessGeneration)throw Object.assign(new Error('云端数据范围已改变，请重新读取。'),{code:'workspace_scope_changed'});
-    const changed=acceptWorkspaceBusinessProfile(profile);
-    if(nativeSession){await RunTeamsNativeAssets.hydrate(nativeSession);if(epoch!==(S.accountReadEpoch||0)||actor!==String(S.account?.user_id||''))throw Object.assign(new Error('账户已改变，请重新读取工作区。'),{code:'workspace_account_changed'});}
-    if(bundled&&options.bootRead)Object.assign(options.bootRead,{generation:_workspaceBusinessGeneration,token:workspaceAccountCacheToken(),expires:Date.now()+30000,paths:new Set(['/api/interventions','/api/core/board-overview'])});
-    if(options.preferences!==false&&S.account?.signed_in&&(changed||workspaceBusinessStorage.preferencesVerified!==true||options.preferences===true))void refreshWorkspacePreferences().catch(error=>{if(epoch===(S.accountReadEpoch||0)&&actor===String(S.account?.user_id||''))S.workspacePreferencesError=error.message;});
-    return profile;
-  }).finally(()=>{if(_workspaceProfileRead===request)_workspaceProfileRead=null;});
-  _workspaceProfileRead=request;return request;
+  Object.assign(S,{deviceWorkflows:[],deviceWorkScope:"",deviceWorkError:"",coreTeamLoaded:false,coreTeamLoading:false,coreTeamError:"",navigationLoading:false,navigationError:"",coreWorkflows:[],corePackages:[],coreExecutor:null,chats:[],chatId:null,chatMsgs:[],chatDraft:'',chatAttachments:[],chatCapabilities:[],conversationPanel:null,conversationPanelsByWorkspace:{},conversationPanelsByChat:{},chatMessageQueues:{},chatDirectoryLoaded:false,railRecentExpanded:false,documents:[],documentsLoading:false,documentsPage:null,documentSources:null,documentsAppendLoading:false,documentsAppendError:"",documentsError:"",docReader:null,docReaderStack:[],docReaderOrigin:null,automations:[],activity:[],interventions:[],opportunities:[],opportunityDetail:null,workItems:[],workItemDetails:{},workItemSelected:'',trashItems:[],trashSources:null,trashLoading:false,trashLoaded:false,trashError:'',activeWorkspaceKey:'',surface:'team',railMode:'navigation'});
 }
 
-function workspaceStartupNotice(){
-  const state=S.workspaceStartup;
-  if(!state?.pending||!state.error||state.errorStage!=='profile')return '';
-  return `<div class="conversation-startup-status conversation-startup-error" role="alert"><span>暂时无法确认云端数据，尚不能发送。</span>${RunTeamsLoadFailure.button({variant:'local',compact:true,retry:'boot()'})}${!S.account?.signed_in?'<button class="btn btn-sm" type="button" onclick="RunTeamsOfficialUI.openLogin()">登录</button>':''}</div>`;
-}
+
+
+
+
+
 function deviceConversationVisible(){
- if(S.localLibrary)return !S.activeOrganization&&S.railMode==='assistant';
- return !S.activeOrganization&&S.account?.signed_in&&S.deviceSessionActor===String(S.account.user_id)&&
+ if(S.localLibrary)return !RunTeamsHost.session.workspace(S)&&S.railMode==='assistant';
+ return !RunTeamsHost.session.workspace(S)&&RunTeamsHost.session.ready(S)&&S.deviceSessionActor===String(RunTeamsHost.session.actor(S))&&
   (S.workspaceStartup?.pending||S.conversationPanel?.storage_scope==='device'||!S.conversationPanel?.id&&S.railMode==='assistant');
 }
 async function refreshDeviceDirectory(options={}){
- const generation=_workspaceBusinessGeneration,token=workspaceAccountCacheToken(),actor=S.localLibrary?.library_id||String(S.account?.user_id||'');
- const current=()=>generation===_workspaceBusinessGeneration&&token===workspaceAccountCacheToken()&&!S.activeOrganization;
+ const generation=_workspaceBusinessGeneration,token=workspaceAccountCacheToken(),actor=S.localLibrary?.library_id||String(RunTeamsHost.session.actor(S)||'');
+ const current=()=>generation===_workspaceBusinessGeneration&&token===workspaceAccountCacheToken()&&!RunTeamsHost.session.workspace(S);
  if(!options.identityReady){
   const value=await api('/api/device/page-ids');if(!current())return;
   if(value.error||(S.localLibrary?value.library_id:value.account_id)!==actor)throw Error(value.error||'本机资料库身份不匹配。');
@@ -600,17 +474,17 @@ async function refreshDeviceDirectory(options={}){
 
 
 function mergeDeviceWorkflows(workflows){
- if(S.activeOrganization||S.deviceWorkScope!==`${workspaceAccountCacheToken()}:${_workspaceBusinessGeneration}`)return workflows;
+ if(RunTeamsHost.session.workspace(S)||S.deviceWorkScope!==`${workspaceAccountCacheToken()}:${_workspaceBusinessGeneration}`)return workflows;
  const details=new Map((S.coreWorkflows||[]).filter(row=>row.storage_scope==='device'&&!row.summary_only).map(row=>[Number(row.id),row]));
  const local=(S.deviceWorkflows||[]).map(row=>{const detail=details.get(Number(row.id));return detail&&String(detail.updated_at||'')===String(row.updated_at||'')?detail:row;});
  const ids=new Set(local.map(row=>Number(row.id)));
  return [...workflows.filter(row=>!ids.has(Number(row.id))),...local];
 }
 async function refreshDeviceWorkDirectory(options={}){
- if(S.activeOrganization)return;
+ if(RunTeamsHost.session.workspace(S))return;
  const scope=`${workspaceAccountCacheToken()}:${_workspaceBusinessGeneration}`;
  const result=await api(options.board?'/api/device/work/board':'/api/device/work/workflows');
- if(S.activeOrganization||scope!==`${workspaceAccountCacheToken()}:${_workspaceBusinessGeneration}`)return;
+ if(RunTeamsHost.session.workspace(S)||scope!==`${workspaceAccountCacheToken()}:${_workspaceBusinessGeneration}`)return;
  if(result.error||result.storage_scope!=='device'||!Array.isArray(result.workflows))throw new Error(result.error||'本机工作暂时无法读取。');
  if(options.board)S.coreExecutor=result.executor;
  S.deviceWorkError='';S.deviceWorkScope=scope;S.deviceWorkflows=result.workflows.map(row=>({...row,storage_scope:'device'}));
@@ -619,135 +493,17 @@ async function refreshDeviceWorkDirectory(options={}){
 }
 
 function deviceWorkDetailActive(){
- return !S.activeOrganization&&['core-workflow','core-employee-run'].includes(S.sel?.type)&&S.sel.workflow?.storage_scope==='device';
+ return !RunTeamsHost.session.workspace(S)&&['core-workflow','core-employee-run'].includes(S.sel?.type)&&S.sel.workflow?.storage_scope==='device';
 }
-function loadCloudWorkspaceInBackground(options={}){
- const token=workspaceAccountCacheToken();
- const employeeRead=refreshCoreTeam();
- void refreshWorkspaceBusinessProfile({preferences:false}).then(()=>{
-  if(token!==workspaceAccountCacheToken())return;
-  // The employee read above already owns that domain. Conversation startup
-  // also owns its local chat read; cloud readiness must not request it again.
-  const navigation=refreshWorkspaceNavigation({...options,employees:false});
-  void Promise.allSettled([refreshPageIds({force:true}),navigation,refreshWorkspacePreferences(),refreshInterventions()]);
- }).catch(error=>{if(token===workspaceAccountCacheToken()){S.navigationLoading=false;S.navigationError=error.message||'云端内容暂时无法加载';render();}});
- void employeeRead.catch(()=>{});return employeeRead;
-}
-async function bootNewConversation(accountRead,measurement,existing=false){
- const panel=newRailConversationPanel(RunTeamsRoutes.preview(location.href).purpose);panel.rail_hosted=true;
- const state={pending:true,error:'',panel,existing,deferChrome:existing,chromeReady:false,accountPending:true,channelsPending:true,profilePending:false};
- S.workspaceStartup=state;Object.assign(S,{booting:existing,bootError:null,surface:'team',railMode:'assistant',railRouteHydrating:false,chatId:null,chatMsgs:[],conversationPanel:panel,navigationLoading:true,navigationError:''});
- const current=()=>S.workspaceStartup===state;
- render();
- try{
-  await accountRead;if(!current())return;
-  state.accountPending=false;
-  if(S.accountSessionError||!S.account?.signed_in)throw new Error(S.accountSessionError||'请先登录，再使用本机对话。');
-  state.identityReady=true;
-  if(_workspaceBusinessProfile&&_workspaceProfileAccountToken!==workspaceAccountCacheToken()){
-   _workspaceBusinessProfile=null;_workspaceProfileAccountToken='';++_workspaceBusinessGeneration;resetWorkspaceBusinessState();RunTeamsRoutes.clear();
-   S.workspaceStartup=state;S.conversationPanel=panel;S.railMode='assistant';S.surface='team';S.booting=false;
-  }
-  S.deviceSessionActor=String(S.account.user_id);
-  restoreModelCatalogDisplay();
-  // Device windows and drafts depend only on this verified account. Restore
-  // them before any route render, independently from cloud/model discovery.
-  S.workspaceWindows=loadWorkspaceWindows();S.conversationPanelDrafts=loadConversationPanelDrafts();
-  if(!existing)restoreConversationPanelDraft(panel);
-  const savedActive=S.workspaceWindows.find(row=>RunTeamsRoutes.unmount(row.route)===RunTeamsRoutes.unmount(location.pathname+location.search));
-  if(savedActive)S.activeWorkspaceKey=savedActive.key;
-  render();
-  // The employee rail has no dependency on CLI/model discovery. Start its
-  // authenticated cloud reads even while the conversation controls load.
-  const cloudEmployeeRead=loadCloudWorkspaceInBackground({chats:false});
-  const token=workspaceAccountCacheToken(),generation=_workspaceBusinessGeneration;
-  const active=()=>current()&&token===workspaceAccountCacheToken()&&generation===_workspaceBusinessGeneration;
-  const contentCurrent=()=>active()&&!state.navigationDetached;
-  const contentRead=(async()=>{
-   if(existing){
-    await refreshDeviceDirectory({identityOnly:true});if(!contentCurrent())return;
-    S.booting=false;S.bootRoute=parseAppRoute();await applyAppRoute({initial:true});if(!contentCurrent())return;
-    state.panel=S.conversationPanel;state.existing=false;
-   }
-   state.contentReady=true;
-   // Saved text is already readable. Only the header waits for its own worker
-   // identity; models, unrelated cloud reads and work history never hold this reveal.
-   const directoryRead=refreshDeviceDirectory({identityReady:existing});
-   if(state.deferChrome){
-    const context=state.panel?.context||{};
-    if(context.context_type==='worker'&&!RunTeamsEmployeeDirectory.forPanel(state.panel)&&!state.panel?.employee_binding){
-     render();
-     try{
-      await Promise.any([directoryRead,cloudEmployeeRead].map(async read=>{
-       await read;if(!contentCurrent())return;
-       if(!RunTeamsEmployeeDirectory.forPanel(state.panel)&&!state.panel?.employee_binding)throw new Error('这段对话的员工信息暂时无法读取。');
-      }));
-     }catch(error){if(contentCurrent())state.chromeError='这段对话的员工信息暂时无法读取。';}
-     if(!contentCurrent())return;
-    }
-   }
-   void directoryRead.catch(error=>{if(contentCurrent()){S.chatDirectoryError=error.message||'本机对话列表暂时无法读取。';render();}});
-   if(!contentCurrent())return;
-   if(state.deferChrome&&!state.chromeError&&typeof Image!=='undefined'){
-    const worker=RunTeamsEmployeeDirectory.forPanel(state.panel)?.record||state.panel?.employee_binding;
-    if(worker){
-     const image=new Image();image.src=workerAvatarSrc(worker.avatar||DEFAULT_EMPLOYEE_AVATAR,worker);
-     try{await image.decode();}catch(error){/* A failed avatar must not hide readable content. */}
-     if(!contentCurrent())return;
-    }
-   }
-   state.chromeReady=true;render();
-  })();
-  // Observe both tasks immediately: model failure must neither hide a saved
-  // transcript nor leave an unhandled rejection while its local identity loads.
-  const reconcileRuntime=()=>{
-   if(!active())return;
-   const cfg=S.conversationPanel,prefsReady=S.settingsPreferencesState==='ready',preferred=cfg?.channel_id||String(S.settingsPreferences?.default_model||'').split('::')[0]||S.modelDisplaySnapshot?.selection?.channel_id;
-   const row=(S.modelCatalog||[]).find(r=>String(r.channel_id)===String(preferred));
-   if(prefsReady&&(!preferred||row?.status==='ready')){if(initializeNewConversationModel()&&!state.navigationDetached)state.panel=S.conversationPanel;}
-   const shown=RunTeamsModelChannels.composer(S,S.conversationPanel||{});
-   if(shown.status&&shown.status!=='pending'||!shown.selected&&S.modelCatalogReady&&prefsReady&&!preferred){state.channelsPending=false;if(state.contentReady||state.navigationDetached)state.pending=false;}
-   if(S.settingsPreferencesState==='error'&&!cfg?.model){state.channelsPending=false;state.pending=false;}
-   if(S.modelCatalogReady&&prefsReady)saveModelCatalogSnapshot(S.modelCatalog);
-   render();
-  };
-  const preferencesRead=accountSettingsReadPreferences().then(reconcileRuntime);
-  void contentRead.then(reconcileRuntime).catch(()=>{});
-  const runtimeRead=(async()=>{
-   const channels=await modelChannelData().configuration(true,{progressive:true,onCatalog:reconcileRuntime});
-   if(!active())return;
-   if(!channels||channels.error)throw new Error(channels?.error||'模型渠道未能载入');
-   await preferencesRead;if(!active())return;
-   if(S.settingsPreferencesState!=='ready'&&!S.conversationPanel?.model)throw new Error('对话偏好暂时无法读取，请重试。');
-   reconcileRuntime();state.channelsPending=false;
-   // Quota is independent of the model/effort metadata used by the composer.
-   void refreshChannelUsage(false).catch(()=>{});
-  })();
-  void contentRead.catch(error=>{if(contentCurrent()){state.errorStage='content';state.error=error.message;S.booting=true;S.bootError=error;renderBootShell(S.bootRoute,error);}});
-  void runtimeRead.catch(error=>{if(active()){state.channelsPending=false;state.channelsError=error.message;state.error=error.message;if(state.navigationDetached)state.pending=false;if(state.contentReady||state.navigationDetached||!existing)render();}});
-  const settled=await Promise.allSettled([contentRead,runtimeRead]);if(!active())return;
-  if(settled[0].status==='rejected'&&!state.navigationDetached){
-   state.errorStage='content';throw settled[0].reason;
-  }
-  if(settled[1].status==='rejected')throw settled[1].reason;
-  state.pending=false;S.bootError=null;S.booting=false;
-  if(!existing){restoreConversationPanelDraft();if(typeof accountSettingsRestoreRoute==='function')accountSettingsRestoreRoute();}
-  render();
-  document.documentElement.dataset.firstInputMs=String(Math.round(performance.now()));
- }catch(error){
-  if(!current())return;
-  state.accountPending=false;state.channelsPending=false;state.errorStage=state.errorStage==='content'?'content':state.identityReady?'channels':'account';state.error=error.message;
-  if(state.errorStage==='account')state.accountError=error.message;else if(state.errorStage==='channels')state.channelsError=error.message;
-  if(existing&&!state.navigationDetached&&state.errorStage!=='channels'){S.booting=true;S.bootError=error;renderBootShell(S.bootRoute,error);}else render();
- }finally{RunTeamsRequests.finishPage(measurement,state.error?'error':state.pending?'incomplete':'settled');}
-}
+
+
 
 function workspaceBusinessRequest(path){
   return /^\/api\/(?:core\/|workspace\/|chat(?:s|\/)|bots(?:\/|\?|$)|conversations(?:\/|\?|$)|interventions(?:\/|\?|$)|work-items(?:\/|\?|$)|documents(?:\/|\?|$)|work-modules(?:\/|\?|$)|automation(?:s|-attention|-run|\/)|trash(?:\/|\?|$)|attachments(?:\/|\?|$)|local-asset-grants(?:\/|\?|$)|local-references(?:\/|\?|$))/.test(path)&&
     !['/api/core/profile','/api/core/contracts','/api/work-modules/catalog'].includes(path);
 }
 function loadConversationPanelDrafts(){try{const value=JSON.parse(workspaceBusinessStorage.getItem(CONVERSATION_DRAFTS_KEY)||"{}"),now=Date.now();if(!value||typeof value!=="object"||Array.isArray(value))return {};return Object.fromEntries(Object.entries(value).filter(([,draft])=>draft&&typeof draft==="object"&&(!draft.saved_at||now-Number(draft.saved_at)<CONVERSATION_DRAFT_TTL)));}catch(e){return {};}}
-function normalizeWorkspaceWindows(rows){const seen=new Set(),valid=/^(?:chat:(?:new(?::create-employee)?|[0-9]+)|pipeline:[A-Za-z0-9_-]+|pipeline-local:[a-f0-9]{64}:[A-Za-z0-9_-]{1,1280}|document:[A-Za-z0-9_-]+|docs:list|marketplace:store|automations|trash|design-system|subscription)$/;return (Array.isArray(rows)?rows:[]).filter(item=>item&&typeof item.key==="string"&&valid.test(item.key)&&typeof item.route==="string"&&item.route).filter(item=>{if(seen.has(item.key))return false;seen.add(item.key);return true;});}
+function normalizeWorkspaceWindows(rows){const seen=new Set(),valid=/^(?:chat:(?:new(?::create-employee)?|[0-9]+)|pipeline:[A-Za-z0-9_-]+|pipeline-local:[a-f0-9]{64}:[A-Za-z0-9_-]{1,1280}|document:[A-Za-z0-9_-]+|docs:list|automations|trash|design-system)$/;return (Array.isArray(rows)?rows:[]).filter(item=>item&&typeof item.key==="string"&&(valid.test(item.key)||RunTeamsHost.shell.validWindowKey?.(item.key)===true)&&typeof item.route==="string"&&item.route).filter(item=>{if(seen.has(item.key))return false;seen.add(item.key);return true;});}
 function loadWorkspaceWindows(){try{if(typeof accountDeviceDisplayPrefs==='function'&&!accountDeviceDisplayPrefs().restore_windows)return [];const value=JSON.parse(workspaceBusinessStorage.getItem(WORKSPACE_WINDOWS_KEY)||"[]");return normalizeWorkspaceWindows(value);}catch(e){return [];}}
 function saveWorkspaceWindows(){try{workspaceBusinessStorage.setItem(WORKSPACE_WINDOWS_KEY,JSON.stringify((S.workspaceWindows||[]).map(row=>{
  const {key,route,title,lastActiveAt}=row,image=workspaceWindowIconImage(key),employee=workspaceEmployeeWindowIdentity(key);
@@ -757,22 +513,22 @@ function saveWorkspaceWindows(){try{workspaceBusinessStorage.setItem(WORKSPACE_W
 const RAIL_LAYOUT=loadRailLayout();
 let _rightDetailWidth=loadRightDetailWidth();
 const MODEL_CATALOG_SNAPSHOT=loadModelCatalogSnapshot();
-function accountInitial(){return String((S.account&&S.account.name)||"用").trim().slice(0,1)||"用";}
-function accountSubtitle(){return S.account.signed_in?(S.account.email||"已登录"):"使用邮箱登录";}
-const S = {booting:true,bootRoute:null,bootError:null,deviceWorkflows:[],deviceWorkScope:"",deviceWorkError:"",coreTeamLoaded:false,coreTeamLoading:false,coreTeamError:"",navigationLoading:false,navigationError:"",coreWorkflows:[],coreExecutor:null,corePackages:[],channels:[],providerCatalog:window.RunTeamsModelProviders||[],channelUsage:null,channelUsageLoading:false,channelUsageUpdatedAt:0,modelCatalog:MODEL_CATALOG_SNAPSHOT,modelCatalogReady:false,automations:[],automationLoading:false,documents:[],documentsLoading:false,documentsPage:null,documentsAppendLoading:false,documentsAppendError:"",opportunities:[],opportunitiesLoading:false,workItems:[],workItemsLoading:false,workItemDetails:{},workItemSelected:"",workItemsShowClosed:false,workItemsError:"",docsMode:"documents",docsQuery:"",opportunityDetail:null,docReader:null,docReaderStack:[],docsSort:"created_at",docsSortDesc:true,docOutlineCollapsed:loadDocOutlineCollapsed(),docVersionsOpen:loadDocVersionsOpen(),docImageActual:loadDocImageScalePref(),surface:"team",pageTransition:null,sel:null,chats:[],chatId:null,chatMode:"",chatMsgs:[],chatBusy:false,chatStopping:false,chatStopRequested:false,chatActivity:"",chatDraft:"",chatCfg:null,chatModelPrefs:loadChatModelPrefs(),chatAttachments:[],chatCapabilities:[],chatRewind:null,conversationPanel:null,conversationDebugType:"",conversationFocus:false,conversationPanelsByWorkspace:{},conversationPanelsByChat:{},conversationPanelDrafts:loadConversationPanelDrafts(),workspaceWindows:loadWorkspaceWindows(),activeWorkspaceKey:"",activity:[],activityTotal:0,interventions:[],environment:loadEnvironmentSnapshot(),environmentLoading:false,account:{...ACCOUNT_DEFAULT,...loadAccountPrefs()},accountOtpEmail:"",accountOtpDebug:false,accountBusy:false,billing:{loading:false,configured:false,can_checkout:false,can_manage:false},marketplaceListings:[],marketplacePage:null,marketplaceAppendLoading:false,marketplaceAppendError:"",marketplaceReviews:[],marketplaceRating:null,marketplaceMyRating:null,marketplaceCanRate:false,marketplaceReviewsLoading:false,marketplaceReviewsError:"",marketplaceIsAdmin:false,marketplaceRental:null,marketplaceRentals:[],billingListTab:"rentals",marketplaceLoading:false,marketplaceQuery:RunTeamsBoot.marketplaceQuery||"",marketplaceFilter:"all",marketplacePublishDraft:null,settingsTab:"general",appInfo:null,appUpdate:{state:"idle"},railSections:{pipelines:true,favorites:false,pending:false,recent:false},railRecentExpanded:false,chatDirectoryLoaded:false,railSearchOpen:false,railQuery:"",railSearchIndex:0,railSearchComposing:false,railPinnedChats:loadRailPinnedChats(),railMode:"navigation",railNavScrollTop:0,railNavTab:RAIL_LAYOUT.navTab,railCollapsed:RAIL_LAYOUT.collapsed,railRouteHydrating:false,_railLocatedKey:"",_selKey:"",_mainViewKey:"",_conversationViewKey:"",_renderedRailMode:""};
+function accountInitial(){return String(RunTeamsHost.session.displayName(S)||'用').trim().slice(0,1)||"用";}
+
+const S = {booting:true,bootRoute:null,bootError:null,deviceWorkflows:[],deviceWorkScope:"",deviceWorkError:"",coreTeamLoaded:false,coreTeamLoading:false,coreTeamError:"",navigationLoading:false,navigationError:"",coreWorkflows:[],coreExecutor:null,corePackages:[],channels:[],providerCatalog:window.RunTeamsModelProviders||[],channelUsage:null,channelUsageLoading:false,channelUsageUpdatedAt:0,modelCatalog:MODEL_CATALOG_SNAPSHOT,modelCatalogReady:false,automations:[],automationLoading:false,documents:[],documentsLoading:false,documentsPage:null,documentsAppendLoading:false,documentsAppendError:"",opportunities:[],opportunitiesLoading:false,workItems:[],workItemsLoading:false,workItemDetails:{},workItemSelected:"",workItemsShowClosed:false,workItemsError:"",docsMode:"documents",docsQuery:"",opportunityDetail:null,docReader:null,docReaderStack:[],docsSort:"created_at",docsSortDesc:true,docOutlineCollapsed:loadDocOutlineCollapsed(),docVersionsOpen:loadDocVersionsOpen(),docImageActual:loadDocImageScalePref(),surface:"team",pageTransition:null,sel:null,chats:[],chatId:null,chatMode:"",chatMsgs:[],chatBusy:false,chatStopping:false,chatStopRequested:false,chatActivity:"",chatDraft:"",chatCfg:null,chatModelPrefs:loadChatModelPrefs(),chatAttachments:[],chatCapabilities:[],chatRewind:null,conversationPanel:null,conversationDebugType:"",conversationFocus:false,conversationPanelsByWorkspace:{},conversationPanelsByChat:{},conversationPanelDrafts:loadConversationPanelDrafts(),workspaceWindows:loadWorkspaceWindows(),activeWorkspaceKey:"",activity:[],activityTotal:0,interventions:[],environment:loadEnvironmentSnapshot(),environmentLoading:false,account:loadAccountPrefs(),settingsTab:"general",appInfo:null,railSections:{pipelines:true,favorites:false,pending:false,recent:false},railRecentExpanded:false,chatDirectoryLoaded:false,railSearchOpen:false,railQuery:"",railSearchIndex:0,railSearchComposing:false,railPinnedChats:loadRailPinnedChats(),railMode:"navigation",railNavScrollTop:0,railNavTab:RAIL_LAYOUT.navTab,railCollapsed:RAIL_LAYOUT.collapsed,railRouteHydrating:false,_railLocatedKey:"",_selKey:"",_mainViewKey:"",_conversationViewKey:"",_renderedRailMode:"",...RunTeamsHost.lifecycle.initialState()};
 RunTeamsBoot.railTabChanged=tab=>{S.railNavTab=tab;};
 RunTeamsLoadFailure.connect(()=>JSON.stringify([_workspaceBusinessGeneration,workspaceAccountCacheToken()]));
-RunTeamsBoot.marketplaceReady=true;
+
 function adoptStaticPageInputs(){
  const v=RunTeamsStaticPages.values;
  if(Object.hasOwn(v,'docs'))S.docsQuery=v.docs;
- if(v.interval)S.subscriptionChoice={interval:v.interval==='year'?'year':'month'};
+ RunTeamsHost.lifecycle.adoptInputs?.(v);
 }
 const staticPageInputChanged=(name,value)=>{
  if(S.booting||S.workspaceSwitchPending){adoptStaticPageInputs();return;}
  if(name==='docs')docsSearchInput({value});
  else if(name==='published')MarketPublisher.search(value);
- else if(name==='interval')RunTeamsOfficialUI.subscriptionChoice(name,value);
+ else RunTeamsHost.lifecycle.inputChanged?.(name,value);
 };
 RunTeamsStaticPages.connect(staticPageInputChanged);
 
@@ -780,9 +536,9 @@ let _sidebarWorkOpenSequence=0;
 async function openSidebarWork(id,options={}){
   if(requestDetailWorkspaceLeave(()=>openSidebarWork(id,options)))return;
   const sequence=++_sidebarWorkOpenSequence,scope=workspaceAccountCacheToken(),generation=_workspaceBusinessGeneration,source=location.href;
-  const current=()=>sequence===_sidebarWorkOpenSequence&&scope===workspaceAccountCacheToken()&&generation===_workspaceBusinessGeneration&&S.account.signed_in;
+  const current=()=>sequence===_sidebarWorkOpenSequence&&scope===workspaceAccountCacheToken()&&generation===_workspaceBusinessGeneration&&RunTeamsHost.session.ready(S);
   try{
-    if(options.storage_scope==='device'&&S.activeOrganization)throw Error('请在个人工作区查看这项本机工作。');
+    if(options.storage_scope==='device'&&RunTeamsHost.session.workspace(S))throw Error('请在个人工作区查看这项本机工作。');
     const workflow=await api(`/api/${options.storage_scope==='device'?'device/work':'core'}/workflows/${Number(id)}`);
     if(!current()||location.href!==source)return;
     if(workflow.error||Number(workflow.id)!==Number(id)||workflow.task?.trashed_at)throw Error(workflow.error||'任务已不可用');
@@ -805,18 +561,9 @@ async function openSidebarWork(id,options={}){
 }
 
 RunTeamsSidebar.connect({
-  context:()=>{
-    const generation=typeof _workspaceBusinessGeneration==='number'?_workspaceBusinessGeneration:0;
-    const scope=`${S.accountReadEpoch||0}:${S.account.user_id||''}:${generation}`;
-    return {signedIn:!!S.account.signed_in&&!S.account.debug_local&&!S.accountSessionError&&!S.workspaceStartup?.accountPending&&!S.workspaceStartup?.accountError,
-      ready:!!_workspaceBusinessProfile&&_workspaceProfileAccountToken===workspaceAccountCacheToken(),
-      localReady:!S.activeOrganization&&S.deviceSessionActor===String(S.account.user_id||''),
-      deviceWorkOnly:!S.activeOrganization,cloudWorkUnavailable:!!S.activeOrganization,
-      scope:`${scope}:${S.activeOrganization||''}`,organization:S.activeOrganization||'',plan:(globalThis.RunTeamsOfficialUI?.workspacePlan()||''),
-      entitlements:S.activeOrganization?S.account.active_workspace?.entitlements:S.subscriptionScope===scope?S.subscription:S.account.entitlements};
-  },
+  context:()=>RunTeamsHost.sidebar.context(),
   sectionOpen:()=>S.railSections.pending===true,setSectionOpen:open=>toggleRailSection('pending',open),
-  request:path=>api(path),localWork:()=>api('/api/device/work/attention'),authority:value=>globalThis.RunTeamsOfficialUI?.acceptSidebarAuthority(value),authorityFailed:()=>globalThis.RunTeamsOfficialUI?.sidebarAuthorityFailed(),upgrade:()=>globalThis.RunTeamsOfficialUI?.openBillingPage(false,{tab:'subscription'}),openWork:openSidebarWork,
+  request:path=>api(path),localWork:()=>api('/api/device/work/attention'),authority:value=>RunTeamsHost.sidebar.authority(value),authorityFailed:()=>RunTeamsHost.sidebar.authorityFailed(),openWork:openSidebarWork,
   icon:name=>ICON(name), attention:()=>S.interventions||[],openAttention:openIntervention,
   showAll:body=>{const dialog=openDialog({title:'待处理',body:`<div class="rail-pending-all">${body}</div>`,closeAction:'RunTeamsSidebar.closeAll()'});dialog.querySelector('button')?.focus();},closeAll:()=>{closeModal();document.querySelector('.rail-pending-more')?.focus({preventScroll:true});}
 });
@@ -858,7 +605,7 @@ function workspaceRouteFromLocation(){
   // 对话在冷启动或快照缺失时都退回同一条流水线，恢复时就会串到别的窗口。
   const preserveAssistantRoute=S.railMode==="assistant"||url.searchParams.has("chat");
   if(!preserveAssistantRoute)["chat","intent","view"].forEach(key=>url.searchParams.delete(key));
-  const route=parseAppRoute(),allowed=route.kind==="docs"?["document","item"]:route.kind==="design-system"?["theme"]:route.kind==="marketplace-publish"?["source"]:route.kind==="marketplace-publisher"?["tab"]:[];
+  const route=parseAppRoute(),allowed=route.kind==="docs"?["document","item"]:route.kind==="design-system"?["theme"]:RunTeamsHost.shell.routeQuery(route);
   if(route.kind==="chat-new")allowed.push("purpose");
   if(preserveAssistantRoute)allowed.push("chat","intent","view");
   [...url.searchParams.keys()].forEach(key=>{if(!allowed.includes(key))url.searchParams.delete(key);});
@@ -875,11 +622,7 @@ function workspaceKeyFromRoute(route){
   if(kind==="source-pipeline-new")return "pipeline:draft";
 
   if(kind==="docs")return value.documentId?`document:${value.documentId}`:"docs:list";
-  if(kind==="marketplace")return `marketplace:${value.section||"store"}`;
-  if(kind==="marketplace-detail")return "marketplace:store";
-  if(kind==="marketplace-publish"||kind==="marketplace-publisher")return "marketplace:store";
-  if(kind==="billing")return value.tab==='subscription'?"subscription":null;
-  if(kind==="wallet")return null;
+  const contributed=RunTeamsHost.shell.windowKey(value);if(contributed!==undefined)return contributed;
   if(["automations","trash","design-system"].includes(kind))return kind;
   return null;
 }
@@ -896,14 +639,14 @@ function workspaceEmployeeWindowIdentity(key){
  const panels=[S.conversationPanel,S.conversationPanelsByChat?.[id],_workspaceStateByKey.get(key)?.conversationPanel,(S.chats||[]).find(row=>String(row.id)===id)];
  for(const panel of panels){
   if(!panel||String(panel.id)!==id)continue;
-  const identity=RunTeamsEmployeeWindows.identity(panel,S.account,S.activeOrganization,directory?.forPanel?.(panel)?.record,S.localLibrary);
+  const identity=RunTeamsEmployeeWindows.identity(panel,S,directory?.forPanel?.(panel)?.record);
   if(identity)return identity;
   if(panel===S.conversationPanel&&!panel.loading&&!panel.error&&panel.kind)return null;
  }
  const saved=(S.workspaceWindows||[]).find(row=>row.key===key);
  if(!saved?.employeeReference)return null;
  const panel={kind:'general',employee_binding:{reference:saved.employeeReference,name:saved.employeeName}};
- return RunTeamsEmployeeWindows.identity(panel,S.account,S.activeOrganization,directory?.forPanel?.(panel)?.record,S.localLibrary);
+ return RunTeamsEmployeeWindows.identity(panel,S,directory?.forPanel?.(panel)?.record);
 }
 function workspaceUpsertWindow(descriptor){
  const panel=S.conversationPanel;
@@ -914,7 +657,7 @@ function workspaceUpsertWindow(descriptor){
  const next=index<0?[...rows,descriptor]:rows.map((row,i)=>i===index?descriptor:row);
  S.workspaceWindows=RunTeamsEmployeeWindows.coalesce(next,descriptor.key,row=>workspaceEmployeeWindowIdentity(row.key));
 }
-function workspaceTitleForKey(key){
+function workspaceTitleForKey(key){const contributed=RunTeamsHost.shell.windowDisplay(key);if(contributed)return contributed.title;
   const text=String(key||""),title=value=>typeof value==='string'&&value.trim()?value:'',saved=title((S.workspaceWindows||[]).find(row=>row.key===text)?.title);
   if(text.startsWith("chat:new")){const panel=S.conversationPanel;return panel?.id==null&&!panel?.loading&&!panel?.error?title(panel?.title)||saved||"新对话":saved||"新对话";}
   if(/^chat:\d+$/.test(text)){
@@ -930,7 +673,7 @@ function workspaceTitleForKey(key){
   if(text.startsWith("pipeline-local:"))return S.sourcePipelineWorkspace&&RunTeamsSourcePipelines.key(S.sourcePipelineWorkspace.reference||{})===text?S.sourcePipelineWorkspace.data?.name||saved||"流水线":saved||"流水线";
   
   if(text.startsWith("document:")){const id=text.slice(9),row=docsById(id),reader=S.docReader,loaded=String(reader?.workspaceDocumentId??reader?.doc?.id??"")===id?reader?.doc:null;return title(row?.title)||title(row?.name)||title(loaded?.title)||title(loaded?.name)||saved||"文档";}
-  return ({"docs:list":"文档","automations":"旧自动化","trash":"垃圾箱","design-system":"设计系统","billing":"账单","subscription":"升级计划","wallet":"钱包","marketplace:store":"市场"}[text]||"工作区");
+  return ({"docs:list":"文档","automations":"旧自动化","trash":"垃圾箱","design-system":"设计系统",}[text]||"工作区");
 }
 function synchronizeWorkspaceWindowIdentities(){
  if(!Array.isArray(S.workspaceWindows))return false;
@@ -938,13 +681,12 @@ function synchronizeWorkspaceWindowIdentities(){
  if(JSON.stringify(rows)===JSON.stringify(S.workspaceWindows))return false;
  S.workspaceWindows=rows;saveWorkspaceWindows();return true;
 }
-function workspaceIconForKey(key){
+function workspaceIconForKey(key){const contributed=RunTeamsHost.shell.windowDisplay(key);if(contributed)return contributed.icon;
   const text=String(key||"");
 
   if(text.startsWith("pipeline:")||text.startsWith("pipeline-local:"))return "flow";
   if(text.startsWith("document:")||text==="docs:list")return "doc";
-  if(text.startsWith("marketplace:"))return ({"marketplace:store":"store"}[text]||"globe");
-  return ({automations:"clock",trash:"trash","design-system":"spark",billing:"receipt",subscription:"sliders",wallet:"card"}[text]||"square-pen");
+  return ({automations:"clock",trash:"trash","design-system":"spark"}[text]||"square-pen");
 }
 function workspaceWindowEmployee(key){
  const match=String(key||'').match(/^chat:(\d+)$/);if(!match)return null;
@@ -957,10 +699,7 @@ function workspaceWindowEmployee(key){
  for(const panel of panels){
   const binding=panel.employee_binding,ref=binding?.reference;
   if(binding?.schema!=='runteams.bound-employee/v1'||!binding.name||!RunTeamsEmployeeDirectory.referenceKey(ref))continue;
-  if(ref.storage_kind==='local'){if(ref.library_id===(S.localLibrary?.library_id||(S.account?.signed_in?S.account.device_library_id:null))&&!S.activeOrganization)return binding;continue;}
-  if(S.localLibrary||ref.deployment_id!==S.account?.auth_issuer)continue;
-  const sameScope=ref.schema==='runteams.local-employee-reference/1'?ref.account_id===S.account?.user_id&&!S.activeOrganization:ref.schema==='runteams.business-reference/v1'&&ref.workspace_id===(S.activeOrganization||S.account?.user_id);
-  if(sameScope)return binding;
+  if(RunTeamsEmployeeWindows.identity(panel,S,binding))return binding;
  }
  return null;
 }
@@ -975,7 +714,7 @@ function workspaceIconMarkupForKey(key){
  const image=workspaceWindowIconImage(key,employee);
  return image?`<span class="av has-image"><img src="${esc(image)}" alt="" onerror="workerAvatarLoadFailed(this)"></span>`:ICON(workspaceIconForKey(key));
 }
-function workspaceSnapshot(){return {surface:S.surface,sourcePipelineWorkspace:S.sourcePipelineWorkspace,billingListTab:S.billingListTab,sel:S.sel,opportunityDetail:S.opportunityDetail,docReader:S.docReader,docReaderStack:S.docReaderStack,docReaderOrigin:S.docReaderOrigin,docsMode:S.docsMode,docsQuery:S.docsQuery,docsSort:S.docsSort,docsSortDesc:S.docsSortDesc,chatId:S.chatId,chatMode:S.chatMode,conversationPanel:S.conversationPanel,railMode:S.railMode,route:workspaceRouteFromLocation()};}
+function workspaceSnapshot(){return {surface:S.surface,sourcePipelineWorkspace:S.sourcePipelineWorkspace,...RunTeamsHost.shell.snapshot(),sel:S.sel,opportunityDetail:S.opportunityDetail,docReader:S.docReader,docReaderStack:S.docReaderStack,docReaderOrigin:S.docReaderOrigin,docsMode:S.docsMode,docsQuery:S.docsQuery,docsSort:S.docsSort,docsSortDesc:S.docsSortDesc,chatId:S.chatId,chatMode:S.chatMode,conversationPanel:S.conversationPanel,railMode:S.railMode,route:workspaceRouteFromLocation()};}
 function workspaceCaptureSnapshot(key){
   captureConversationReadingPosition();
   detailWorkspaceController().capture();
@@ -1027,9 +766,7 @@ function workspaceEnsureCurrent(){
   return true;
 }
 function workspaceTabsMarkup(){
-  const navigationReady=S.workspaceStartup?.identityReady&&S.account?.signed_in&&!S.accountSessionError&&S.account.device_data_scope&&!S.activeOrganization;
-  if(!navigationReady&&S.workspaceStartup?.deferChrome&&!S.workspaceStartup.chromeReady&&!S.workspaceStartup.navigationDetached)return RunTeamsBoot.pendingTabsMarkup(S.accountSessionReady&&!S.accountSessionError&&!S.account?.signed_in?{scope:null}:S.account?.signed_in&&S.account.device_data_scope&&!S.activeOrganization?{scope:S.account.device_data_scope}:{});
-  if(!navigationReady&&typeof _workspaceBusinessProfile!=='undefined'&&!_workspaceBusinessProfile&&S.workspaceStartup?.pending&&!S.workspaceStartup.chromeReady&&!S.workspaceStartup.navigationDetached)return RunTeamsBoot.pendingTabsMarkup(S.accountSessionReady&&!S.accountSessionError&&!S.account?.signed_in?{scope:null}:{});
+  const chrome=RunTeamsHost.shell.tabsState?.()||{},navigationReady=!!chrome.navigationReady;if(chrome.markup!==undefined)return chrome.markup;
   const rows=S.workspaceWindows||[];if(!rows.length)return "";
   return RunTeamsShell.windowTabs(rows.map(row=>{const employee=workspaceEmployeeWindowIdentity(row.key);return {...row,displayKey:employee?'employee:'+employee.key:row.key,title:employee?.name||row.title||workspaceTitleForKey(row.key),icon:workspaceIconForKey(row.key)};}),S.activeWorkspaceKey,ICON,row=>workspaceIconMarkupForKey(row.key),{pending:!!(navigationReady&&S.workspaceStartup?.deferChrome&&!S.workspaceStartup.chromeReady&&!S.workspaceStartup.navigationDetached),navigationReady:!!navigationReady});
 }
@@ -1165,7 +902,7 @@ function workspacePaintSwitch(pending){
   if(app._sig)app._sig.workspaceTabs=`<div id="rgWorkspaceTabs">${markup}</div>`;
   if(pending.painted)return;
   pending.painted=true;
-  const navigationClass=pending.key==="docs:list"||pending.key.startsWith("document:")?"rail-docs":pending.key.startsWith("marketplace:")?"rail-marketplace":pending.key.startsWith("pipeline:")?"rail-pipelines":pending.key==="trash"?"rail-trash":"";
+  const navigationClass=pending.key==="docs:list"||pending.key.startsWith("document:")?"rail-docs":(RunTeamsHost.shell.windowDisplay(pending.key)?.navigationClass||(pending.key.startsWith("pipeline:")?"rail-pipelines":pending.key==="trash"?"rail-trash":""));
   for(const button of document.querySelectorAll('#rgRail .rail-primary-action[aria-current]')){const selected=!!navigationClass&&button.classList.contains(navigationClass);button.classList.toggle("on",selected);button.setAttribute("aria-current",selected?"page":"false");}
   if(app._sig)app._sig.rail="";
   for(const id of ["rgMid","rgPipelineHead","rgDrawer"]){const node=document.getElementById(id);if(node)node.inert=!pending.cold;}
@@ -1202,7 +939,7 @@ function activateWorkspaceWindow(key){
   if(S.activeWorkspaceKey)workspaceCaptureCurrent();
   // Verified window identities can navigate while startup content is pending.
   // Keep shared model reads alive; only the old viewport loses its commit right.
-  if(S.workspaceStartup?.identityReady&&S.account?.signed_in&&!S.accountSessionError&&S.account.device_data_scope&&!S.activeOrganization){S.workspaceStartup.navigationDetached=true;S.booting=false;}
+  if(S.workspaceStartup?.identityReady&&RunTeamsHost.session.ready(S)&&!S.accountSessionError&&RunTeamsHost.session.deviceScope(S)&&!RunTeamsHost.session.workspace(S)){S.workspaceStartup.navigationDetached=true;S.booting=false;}
   const token=++_workspaceSwitchSequence;
   _workspaceSwitchTarget=key;
   // 让所有通过地址路由启动的旧异步流程失效，并取消旧页面的过渡动画。
@@ -1279,41 +1016,19 @@ function pageSkeleton(target){
 }
 function pageTransitionMain(){
   const state=S.pageTransition||{},route=parseAppRoute();
-  Object.assign(RunTeamsStaticPages.values,{docs:S.docsQuery||'',published:S.marketplacePublisherState?.query??RunTeamsStaticPages.values.published??''});
-  if(route.kind==='marketplace')return marketplacePageFrame(state.error?RunTeamsStaticPages.error({error:state.error}):RunTeamsSkeletons.region('market-cards'),S.marketplaceQuery||'');
+  Object.assign(RunTeamsStaticPages.values,{docs:S.docsQuery||''});
   const retryKey=route.kind==='docs'?'openDocs()':'';
   const pending=retryKey&&RunTeamsLoadFailure.pending(retryKey);
   return RunTeamsBoot.pagePending(route,{error:state.error,retryMarkup:pending});
 }
 let _pageIdsRead=null,_pageIdsReadAt=0,_pageUrlSequence=0;
-async function refreshPageIds(options={}){
-  const scope=`${_workspaceBusinessGeneration}:${workspaceAccountCacheToken()}`;
-  const route=RunTeamsRoutes.preview(location.href),resources=['employees'];
-  const readScope=scope+':'+resources.join(',');
-  if(_pageIdsRead&&_pageIdsRead.contextScope===scope){const pending=_pageIdsRead;await pending;if(!options.force&&pending.scope===readScope)return;}
-  if(!options.force&&RunTeamsRoutes.ready&&_pageIdsReadAt.scope===readScope&&Date.now()-_pageIdsReadAt.at<1000)return;
-  const generation=_workspaceBusinessGeneration,accountToken=workspaceAccountCacheToken();
-  const pending=(async()=>{
-    const response=await fetch('/api/assets/read/page-ids',{method:'POST',cache:'no-store',headers:{'Content-Type':'application/json'},body:JSON.stringify({resources})}),raw=await response.text();
-    if(generation!==_workspaceBusinessGeneration||accountToken!==workspaceAccountCacheToken())throw Object.assign(new Error('账户已改变，请重新打开链接。'),{code:'workspace_account_changed'});
-    const value=JSON.parse(raw);
-    if(response.status!==200||value.error)throw new Error(value.error||'页面链接没有载入，请重试。');
-    if(!Array.isArray(value.resources)||value.resources.join(',')!==resources.join(','))throw new Error('页面链接范围未确认，请重新读取。');
-    if(S.account?.user_id&&value.account_id!==S.account.user_id)throw new Error('页面链接的账户不匹配。');
-    if(value.workspace_profile)acceptWorkspaceBusinessProfile(value.workspace_profile);
-    if(generation!==_workspaceBusinessGeneration||accountToken!==workspaceAccountCacheToken())throw Object.assign(new Error('工作区已改变，请重新打开链接。'),{code:'workspace_scope_changed'});
-    RunTeamsRoutes.install(value,`${generation}:${accountToken}`);
-    for(const item of value.items)if(item.reference)RunTeamsNativeAssets.remember(item.reference);
-    _pageIdsReadAt={scope:readScope,at:Date.now()};
-  })();
-  pending.scope=readScope;pending.contextScope=scope;_pageIdsRead=pending;try{await pending;}finally{if(_pageIdsRead===pending)_pageIdsRead=null;}
-}
+
 async function restoreDeviceChatRoute(){
-  if(S.activeOrganization||!/^local-[a-f0-9]{32}$/.test(new URL(location.href).searchParams.get('chat')||''))return;
+  if(RunTeamsHost.session.workspace(S)||!/^local-[a-f0-9]{32}$/.test(new URL(location.href).searchParams.get('chat')||''))return;
   const scope=workspaceAccountCacheToken(),generation=_workspaceBusinessGeneration;
   const value=await api('/api/device/page-ids');
-  if(scope!==workspaceAccountCacheToken()||generation!==_workspaceBusinessGeneration||S.activeOrganization)throw Object.assign(new Error('账户已改变，请重新打开链接。'),{code:'workspace_account_changed'});
-  if(value.error||(S.localLibrary?value.library_id!==S.localLibrary.library_id:!S.account?.signed_in||value.account_id!==S.account.user_id))throw new Error(value.error||'本机资料库身份不匹配。');
+  if(scope!==workspaceAccountCacheToken()||generation!==_workspaceBusinessGeneration||RunTeamsHost.session.workspace(S))throw Object.assign(new Error('账户已改变，请重新打开链接。'),{code:'workspace_account_changed'});
+  if(value.error||!RunTeamsHost.session.acceptsReceipt(S,value))throw new Error(value.error||'本机资料库身份不匹配。');
   RunTeamsRoutes.installDevice(value.items,scope);deviceChatRemember(value);
 }
 function appRouteLocation(){return RunTeamsRoutes.toInternal(location.href);}
@@ -1331,11 +1046,7 @@ function parseRailRoute(query){
   if(/^[a-z][a-z0-9]{7}$/.test(value))return {mode:"assistant",chat:value,navTab};
   return {mode:"navigation",chat:null,navTab};
 }
-function independentBusinessRoute(value=location.href){
- const target=new URL(RunTeamsRoutes.unmount(value),location.origin),route=RunTeamsRoutes.preview(value);
- return ['marketplace','wallet','billing'].includes(route.kind)&&
-  ![...target.searchParams].some(([key,value])=>['employee','workflow','source'].includes(key)||key==='chat'&&value!=='new');
-}
+
 function parseAppRoute(){
   try{return RunTeamsRoutes.resolve(location.href);}
   catch(error){return {kind:"invalid",error:error.message};}
@@ -1343,38 +1054,16 @@ function parseAppRoute(){
 
 function bootSkeletonKind(route){return RunTeamsBoot.normalizeKind(route);}
 function bootRailSkeleton(navTab){return RunTeamsBoot.railSkeleton(navTab||parseRailRoute(new URLSearchParams(location.search)).navTab);}
+
 function renderBootShell(route,error){
-  if(typeof RunTeamsDesktopLogin!=='undefined'&&RunTeamsDesktopLogin.guard(S))return;
-  const needsLogin=!!error&&!S.localLibrary&&!S.account?.signed_in&&!S.accountSessionError,app=document.getElementById('app'),market=route?.kind==='marketplace';
-  const profile=typeof _workspaceBusinessProfile==='undefined'?null:_workspaceBusinessProfile;
-  const tabOptions=S.localLibrary?{scope:S.localLibrary.library_id,verified:true}:S.accountSessionReady&&!S.accountSessionError&&!S.account?.signed_in?{scope:null}:S.account?.signed_in&&S.account.device_data_scope&&!S.activeOrganization?{scope:S.account.device_data_scope,verified:true}:profile?{scope:workspaceProfileDomain(profile),verified:true}:{};
-  const navigationReady=S.workspaceStartup?.identityReady&&S.account?.signed_in&&!S.accountSessionError&&S.account.device_data_scope&&!S.activeOrganization;
-  const tabsMarkup=navigationReady?`<div id="rgWorkspaceTabs">${workspaceTabsMarkup()}</div>`:RunTeamsBoot.tabsSkeleton(tabOptions),tabs=app.querySelector?.('#rgWorkspaceTabs');
-  if(tabs&&tabs._bootMarkup!==tabsMarkup){if(navigationReady){RunTeamsShell.patchWindowTabs(tabs,workspaceTabsMarkup());tabs._bootMarkup=tabsMarkup;}else{tabs.outerHTML=tabsMarkup;const next=app.querySelector('#rgWorkspaceTabs');if(next)next._bootMarkup=tabsMarkup;}}
-  const paintAccountFooter=()=>{const footer=S.accountSessionReady&&app.querySelector?.('.railfoot-wrap');if(footer)footer.outerHTML=RunTeamsShell.accountEntry({signedIn:!!S.account.signed_in,name:S.account.signed_in?S.account.name||S.account.email||'用户':'登录',initial:accountInitial(),plan:(globalThis.RunTeamsOfficialUI?.workspacePlan()||''),workspaceName:(globalThis.RunTeamsOfficialUI?.workspaceName()||'本机资料库'),icon:ICON,error:!!S.accountSessionError});};
-  paintAccountFooter();
-  const composer=RunTeamsStaticPages.captureComposer(app);
-  const errorBody=error?RunTeamsLoadFailure.markup({title:needsLogin?'登录以打开工作区':'暂时无法读取云端数据',note:needsLogin?'登录后继续使用你的云端数据。':'',error:needsLogin?'':error,label:needsLogin?'登录':undefined,retry:needsLogin?'RunTeamsOfficialUI.openLogin()':'boot()'}):'';
-  if(market){
-    const current=app.querySelector?.('.marketplace-main-page'),catalog=current?.querySelector('#market_catalog');
-    if(catalog){
-      if(error)catalog.innerHTML=errorBody;
-      else if(!current.hasAttribute('data-marketplace-startup')||catalog.querySelector('[role="alert"]'))catalog.innerHTML=RunTeamsSkeletons.region('market-cards');
-      current.setAttribute('data-marketplace-startup','true');return;
-    }
-  }
-  const kind=bootSkeletonKind(route),prior=app.querySelector?.(`[data-pending-page="${kind}"]`);
-  if(!market&&prior){
-    if(error){RunTeamsStaticPages.fail(app.querySelector('#rgMid'),{error,login:needsLogin,boot:true});}
-    else if(prior.querySelector('[role="alert"]')){const saved=RunTeamsStaticPages.capture();app.querySelector('#rgMid').innerHTML=RunTeamsBoot.pagePending(route);RunTeamsStaticPages.restoreComposer(composer,app);RunTeamsStaticPages.restore(saved);}
-    return;
-  }
-  const content=market?(error?marketplacePageFrame(errorBody,RunTeamsBoot.marketplaceQuery):marketplaceStartupMain()):RunTeamsBoot.pagePending(route,{error,login:needsLogin,boot:true});
-  const rail=parseRailRoute(new URLSearchParams(location.search)),width=S.railCollapsed?0:rail.mode==='assistant'?RAIL_COMFORTABLE_WIDTH:RAIL_DEFAULT_WIDTH;delete app._sig;
-  app.innerHTML=`<div class="body product-shell boot-body ${S.railCollapsed?'rail-collapsed ':''}${kind==='conversation'?'conversation-chrome-pending':''}" data-workspace-tabs-empty="false" style="grid-template-columns:${width}px 1fr 0">${bootRailSkeleton(rail.navTab)}${tabsMarkup}<div class="mid" id="rgMid">${content}</div><div id="rgDrawer"></div></div>`;
-  RunTeamsStaticPages.restoreComposer(composer,app);
-  paintAccountFooter();
+ if(RunTeamsHost.lifecycle.renderBootShell)return RunTeamsHost.lifecycle.renderBootShell(route,error);
+ const app=document.getElementById('app'),rail=parseRailRoute(new URLSearchParams(location.search)),width=S.railCollapsed?0:RAIL_DEFAULT_WIDTH;
+ const composer=RunTeamsStaticPages.captureComposer(app);delete app._sig;
+ app.innerHTML=`<div class="body product-shell boot-body ${S.railCollapsed?'rail-collapsed ':''}" data-workspace-tabs-empty="false" style="grid-template-columns:${width}px 1fr 0">${bootRailSkeleton(rail.navTab)}${RunTeamsBoot.tabsSkeleton({scope:S.localLibrary?.library_id,verified:true})}<div class="mid" id="rgMid">${RunTeamsBoot.pagePending(route,{error,boot:true})}</div><div id="rgDrawer"></div></div>`;
+ RunTeamsStaticPages.restoreComposer(composer,app);
 }
+async function boot(options={}){return RunTeamsHost.lifecycle.boot(options,{state:S,render,newConversation:newRailConversationPanel,restoreWorkspace:()=>{S.workspaceWindows=loadWorkspaceWindows();S.conversationPanelDrafts=loadConversationPanelDrafts();},restoreDraft:restoreConversationPanelDraft,restoreSettings:accountSettingsRestoreRoute,captureDraft:captureConversationPanelDraft,loadModels:()=>modelChannelData().configuration(true),loadChats:refreshDeviceDirectory,loadEmployees:refreshCoreTeam,loadPipelines:refreshPipelineAssets,remember:deviceChatRemember,normalize:()=>normalizeConversationModelConfig(S.conversationPanel),route:()=>RunTeamsRoutes.preview(location.href),openDocuments:()=>openDocs({route:false}),openTrash:()=>openTrash({route:false}),openRoute:()=>applyAppRoute({initial:true})});}
+
 function currentRailRouteValue(){if(activeRailMode()!=="assistant")return null;const panel=S.conversationPanel;return panel&&panel.id!=null?String(panel.id):"new";}
 function currentRailIntent(){const panel=S.conversationPanel;if(!panel||panel.id!=null)return "";return conversationIs(panel,"pipeline","create")?"pipeline-create":"";}
 function routeWithRailNavTab(url){const target=appRouteInput(url),botMatch=target.pathname.match(/^\/bots\/(\d+)$/);if(botMatch)return botRoute(Number(botMatch[1]),target.searchParams.get("chat")||"new");target.searchParams.delete("view");const query=target.searchParams.toString();return publicAppRoute(target.pathname+(query?`?${query}`:"")+target.hash);}
@@ -1412,8 +1101,8 @@ function setAppUrl(url,replace,options={}){
     // A freshly saved object may not yet be present in the disposable index.
     // Personal local links must reload the verified device index, not the
     // cloud asset index, which cannot supply local chats or documents.
-    const target=appRouteInput(url),localTarget=!S.activeOrganization&&(/^\/chat\/[1-9][0-9]*\/?$/.test(target.pathname)||/(?:^|\/)local-[a-f0-9]{32}(?:\/|$)/.test(target.pathname)||/^local-[a-f0-9]{32}$/.test(target.searchParams.get('chat')||''));
-    const read=localTarget?refreshDeviceDirectory({identityOnly:true}):refreshPageIds({force:true});
+    const target=appRouteInput(url),localTarget=!RunTeamsHost.session.workspace(S)&&(/^\/chat\/[1-9][0-9]*\/?$/.test(target.pathname)||/(?:^|\/)local-[a-f0-9]{32}(?:\/|$)/.test(target.pathname)||/^local-[a-f0-9]{32}$/.test(target.searchParams.get('chat')||''));
+    const read=localTarget?refreshDeviceDirectory({identityOnly:true}):RunTeamsHost.routes.readIndex?.({force:true});
     return Promise.resolve(read).then(commit).catch(problem=>{
       if(sequence===_pageUrlSequence&&generation===_workspaceBusinessGeneration){if(options.onError)options.onError(problem);else toast(problem.message||'页面链接暂时无法更新，请重试。','err');}
       return false;
@@ -1452,7 +1141,7 @@ async function applyAppRoute(options={}){
   const sequence=++_routeSequence,switchToken=Number(options.workspaceSwitchToken)||0,routeCurrent=()=>sequence===_routeSequence&&(!switchToken||switchToken===_workspaceSwitchSequence);
   if(!switchToken&&S.workspaceSwitchPending){++_workspaceSwitchSequence;_workspaceSwitchTarget="";workspaceFinishSwitchPending();}
   try{
-  try{if(!(RunTeamsRoutes.preview(location.href).kind==='source-pipeline'||independentBusinessRoute()||RunTeamsRoutes.ready&&(RunTeamsRoutes.isDeviceRoute?.(location.href)||!S.activeOrganization&&(RunTeamsRoutes.preview(location.href).kind==='chat-new'||RunTeamsRoutes.preview(location.href).kind==='docs'&&!RunTeamsRoutes.preview(location.href).documentId))))await refreshPageIds();if(!routeCurrent())return;await restoreDeviceChatRoute();if(!routeCurrent())return;appRouteLocation();}catch(error){if(!routeCurrent())return;if(S.workspaceSwitchPending){Object.assign(S.workspaceSwitchPending,{cold:true,painted:false,error});workspacePaintSwitch(S.workspaceSwitchPending);return;}const token=++_routeSequence;captureConversationPanelDraft();leaveConversationModeForPage();S.pageTransition={token,error:error.message};S.railRouteHydrating=false;render();return;}
+  try{if(!(RunTeamsRoutes.preview(location.href).kind==='source-pipeline'||RunTeamsHost.routes.independent(location.href)||RunTeamsRoutes.ready&&(RunTeamsRoutes.isDeviceRoute?.(location.href)||!RunTeamsHost.session.workspace(S)&&(RunTeamsRoutes.preview(location.href).kind==='chat-new'||RunTeamsRoutes.preview(location.href).kind==='docs'&&!RunTeamsRoutes.preview(location.href).documentId))))await RunTeamsHost.routes.readIndex?.();if(!routeCurrent())return;await restoreDeviceChatRoute();if(!routeCurrent())return;appRouteLocation();}catch(error){if(!routeCurrent())return;if(S.workspaceSwitchPending){Object.assign(S.workspaceSwitchPending,{cold:true,painted:false,error});workspacePaintSwitch(S.workspaceSwitchPending);return;}const token=++_routeSequence;captureConversationPanelDraft();leaveConversationModeForPage();S.pageTransition={token,error:error.message};S.railRouteHydrating=false;render();return;}
   if(S.workspaceSwitchPending)workspaceFinishSwitchPending();
   const route=parseAppRoute(),query=appRouteLocation().searchParams,rail=parseRailRoute(query);if(route.kind==="bot"){rail.mode="assistant";rail.chat=route.chatId;rail.botId=route.employeeId;}if(!routeCurrent())return;if(route.assistant&&rail.mode!=="assistant"){rail.mode="assistant";rail.chat="new";}const initialRailHydration=options.initial===true&&rail.mode==="assistant";S.railRouteHydrating=initialRailHydration;
   if(route.canonical)setAppUrl(route.canonical,true);
@@ -1460,11 +1149,7 @@ async function applyAppRoute(options={}){
   const targetWorkspaceKey=workspaceKeyFromRoute(route);
   if(!options.initial&&!query.has("results")&&targetWorkspaceKey&&targetWorkspaceKey!==S.activeWorkspaceKey&&_workspaceStateByKey.has(targetWorkspaceKey)){
     workspaceCaptureCurrent({beforeRoute:true});workspaceRestoreSnapshot(targetWorkspaceKey,{switchToken});if(!routeCurrent())return;
-    if(route.kind==="billing"){
-      if(S.surface!=="billing")await globalThis.RunTeamsOfficialUI?.openBillingPage(true,{tab:route.tab,route:false});
-      else{S.billingListTab=globalThis.RunTeamsOfficialUI?.normalizeBillingTab(route.tab);render();if(S.billingListTab==='subscription')await globalThis.RunTeamsOfficialUI?.accountRefreshSubscription();}
-      if(!routeCurrent())return;
-    }
+    await RunTeamsHost.routes.restored(route,routeCurrent);if(!routeCurrent())return;
     if(route.kind==='source-pipeline')return;
     await applyRailRouteState(rail,{focus:false,initial:initialRailHydration,workspaceSwitchToken:switchToken});if(!routeCurrent())return;return;
   }
@@ -1485,27 +1170,7 @@ async function applyAppRoute(options={}){
   if(route.kind==="source-pipeline-new"){
     await RunTeamsSourcePipelines.newPipeline();return;
   }
-  if(route.kind==="marketplace"){
-    S.marketplaceQuery=RunTeamsMarketCatalog.fromSearch(location.search).query;
-    await openMarketplaceSection(route.section||"store",{route:false});if(routeCurrent())await applyRailRouteState(rail,{focus:false,initial:initialRailHydration,workspaceSwitchToken:switchToken});if(!routeCurrent())return;return;
-  }
-  if(route.kind==="marketplace-detail"){
-    await openMarketplace({route:false,detailId:route.listingId});if(routeCurrent())await applyRailRouteState(rail,{focus:false,initial:initialRailHydration,workspaceSwitchToken:switchToken});if(!routeCurrent())return;return;
-  }
-  if(route.kind==="marketplace-publisher"){
-    if(route.section==="mine")await MarketPublisher.openList({route:false});
-    else await MarketPublisher.openManage(route.listingId,{route:false,tab:route.tab,edit:route.section==="edit",update:route.section==="update"});
-    if(routeCurrent())await applyRailRouteState(rail,{focus:false,initial:initialRailHydration,workspaceSwitchToken:switchToken});return;
-  }
-  if(route.kind==="marketplace-publish"){
-    await openMarketplacePublish({route:false,sourceType:route.sourceType,sourceId:route.sourceId});if(routeCurrent())await applyRailRouteState(rail,{focus:false,initial:initialRailHydration,workspaceSwitchToken:switchToken});if(!routeCurrent())return;return;
-  }
-  if(route.kind==="billing"){
-    await globalThis.RunTeamsOfficialUI?.openBillingPage(true,{tab:route.tab,route:false});if(routeCurrent())await applyRailRouteState(rail,{focus:false,initial:initialRailHydration,workspaceSwitchToken:switchToken});if(!routeCurrent())return;return;
-  }
-  if(route.kind==="wallet"){
-    await globalThis.RunTeamsOfficialUI?.openWalletPage({route:false});if(routeCurrent())await applyRailRouteState(rail,{focus:false,initial:initialRailHydration,workspaceSwitchToken:switchToken});return;
-  }
+  if(await RunTeamsHost.routes.apply(route,{rail,routeCurrent,initialRailHydration,switchToken}))return;
   if(route.kind==="automations"){
     await openAutomations({route:false});if(routeCurrent())await applyRailRouteState(rail,{focus:false,initial:initialRailHydration,workspaceSwitchToken:switchToken});if(!routeCurrent())return;return;
   }
@@ -1547,8 +1212,8 @@ function applyAccountTheme(theme){if(theme&&theme!=="system")document.documentEl
 applyAccountTheme(S.account.theme);
 
 const ICON = (n)=>`<svg class="i"><use href="#i-${n}"></use></svg>`;
-// Central marketplace icon mapping: change this one function when the visual language evolves.
-const marketplaceIcon = ()=>ICON(workspaceIconForKey("marketplace:store"));
+
+
 const DEFAULT_EMPLOYEE_AVATAR = "preset:bottts:nova";
 const KNOWN_WORKER_AVATAR_PRESETS = new Set(["ada","alan","aso-specialist","atlas","commercial-manager","cora","echo","grace","juno","localization-specialist","market-analyst","nova","product-manager","qa-engineer","software-architect","user-operations"]);
 /* 岗位名：「第 N 岗」只是新建时的占位，不当真名显示——退回员工名。 */
@@ -1706,7 +1371,7 @@ function revealRailItemWithinList(row){
   if(Math.abs(next-mid.scrollTop)>1){mid.scrollTop=Math.max(0,next);S.railNavScrollTop=mid.scrollTop;}
 }
 function locateRailActiveItem(){if(S.railCollapsed||S.railSearchOpen||activeRailMode()==="assistant")return;const id=S.chatId!=null&&S.chatId!=="new"?S.chatId:S.conversationPanel?.id,key=id?`chat:${id}`:"";if(!key||key===S._railLocatedKey)return;S._railLocatedKey=key;requestAnimationFrame(()=>revealRailItemWithinList(document.querySelector(`#rgRail [data-chat-id="${CSS.escape(String(id))}"]`)));}
-document.addEventListener("keydown",event=>{if(typeof RunTeamsDesktopLogin!=='undefined'&&RunTeamsDesktopLogin.blocked(S))return;if((event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==="k"){event.preventDefault();S.railSearchOpen?document.getElementById("rail_search_input")?.focus():openRailSearch();}else if((event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==="n"&&S.railSearchOpen){event.preventDefault();railSearchNewChat();}});
+document.addEventListener("keydown",event=>{if(RunTeamsHost.lifecycle.blocked(S))return;if((event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==="k"){event.preventDefault();S.railSearchOpen?document.getElementById("rail_search_input")?.focus():openRailSearch();}else if((event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==="n"&&S.railSearchOpen){event.preventDefault();railSearchNewChat();}});
 
 function syncRailScrollState(mid){
   if(!mid)return;
@@ -1721,7 +1386,7 @@ function syncRailScrollState(mid){
 function deviceChatKnown(id){
  const scope=`${_workspaceBusinessGeneration}:${workspaceAccountCacheToken()}`;
  if(deviceChatKnown.scope!==scope){deviceChatKnown.scope=scope;deviceChatKnown.ids=new Set();deviceChatKnown.workIds=new Set();}
- return !S.activeOrganization&&(deviceChatKnown.ids.has(Number(id))||
+ return !RunTeamsHost.session.workspace(S)&&(deviceChatKnown.ids.has(Number(id))||
   (S.chats||[]).some(row=>Number(row.id)===Number(id)&&row.storage_scope==='device')||
   Number(S.conversationPanel?.id)===Number(id)&&S.conversationPanel?.storage_scope==='device');
 }
@@ -1731,7 +1396,7 @@ function deviceChatRemember(value){
  if(Array.isArray(value?.device_page_ids)){RunTeamsRoutes.installDevice(value.device_page_ids);for(const row of value.device_page_ids)deviceChatKnown.workIds.add(row.resource+':'+row.id);}
 }
 function deviceWorkPath(path){
- deviceChatKnown(0);if(S.activeOrganization)return path;
+ deviceChatKnown(0);if(RunTeamsHost.session.workspace(S))return path;
  const match=path.match(/^\/api\/core\/(workflows|artifacts|documents)\/(\d+)(.*)$/);
  if(match&&match[1]==='artifacts'&&/^\/(open|export)$/.test(match[3]))return path;
  if(match&&deviceChatKnown.workIds.has((match[1]==='documents'?'artifacts':match[1])+':'+match[2]))return '/api/device/work/'+match[1]+'/'+match[2]+match[3];
@@ -1753,8 +1418,8 @@ function conversationEmployeeAssetMissing(panel=S.conversationPanel){
 }
 function deviceEmployeeWorkRead(employeeId){
  const id=Number(employeeId),panel=S.conversationPanel;
- return id>0&&!S.activeOrganization&&S.account?.signed_in&&!S.account.debug_local&&
-  S.deviceSessionActor===String(S.account.user_id||'')&&(RunTeamsEmployeeDirectory.downloaded().some(row=>Number(row.id)===id)||
+ return id>0&&!RunTeamsHost.session.workspace(S)&&RunTeamsHost.session.ready(S)&&true&&
+  S.deviceSessionActor===String(RunTeamsHost.session.actor(S)||'')&&(RunTeamsEmployeeDirectory.downloaded().some(row=>Number(row.id)===id)||
    panel?.work_storage_scope==='device'&&Number(panel.employee_id||panel.context?.target_employee_id)===id);
 }
 async function conversationChatDirectory(chatId=null){
@@ -1765,8 +1430,7 @@ async function conversationChatDirectory(chatId=null){
  return {...result,chats:[...(result.chats||[]),...(S.chats||[]).filter(row=>row.storage_scope!=='device'&&!ids.has(Number(row.id)))].sort((a,b)=>String(b.updated_at||'').localeCompare(String(a.updated_at||''))||b.id-a.id)};
 }
 async function api(path, method, body, options={}){
-  if(globalThis.RunTeamsApplication?.edition==='community'){const value=await RunTeamsApplication.request(path,method,body,options);deviceChatRemember(value);return value;}
-  const provider=globalThis.RunTeamsOfficialUI;if(!provider?.request)throw Error('应用入口尚未就绪，请重新打开。');
+  const provider=RunTeamsHost.lifecycle;
   return provider.request(path,method,body,options);
 }
 async function streamApi(path,body,onEvent){
@@ -1774,8 +1438,7 @@ async function streamApi(path,body,onEvent){
   let accepted=false;
   const deliver=event=>{if(event.type==='accepted')accepted=true;onEvent(event);};
   try{
-    if(globalThis.RunTeamsApplication?.edition==='community')return await RunTeamsApplication.stream(path,body,event=>{deviceChatRemember(event);deliver(event);});
-    const provider=globalThis.RunTeamsOfficialUI;if(!provider?.stream)throw Error('应用入口尚未就绪，请重新打开。');
+    const provider=RunTeamsHost.lifecycle;
     return await provider.stream(path,body,deliver);
   }catch(error){
     const chat=path.match(/^\/api\/chat\/([1-9][0-9]*)\/stream$/)?.[1],current=owner!==null&&owner===workspaceAccountCacheToken()&&generation===(typeof _workspaceBusinessGeneration==='undefined'?null:_workspaceBusinessGeneration);
@@ -1818,147 +1481,18 @@ function deviceDocumentBootKind(value){
   const target=new URL(RunTeamsRoutes.unmount(value),location.origin);
   return target.pathname==='/documents'?'list':/^\/documents\/local-[a-f0-9]{32}$/.test(target.pathname)?'existing':'';
 }
-async function bootDeviceDocuments(accountRead,measurement){
-  const state={pending:true,accountPending:true};S.workspaceStartup=state;
-  try{
-    await accountRead;if(S.workspaceStartup!==state)return;
-    if(S.accountSessionError||!S.account?.signed_in)throw Error(S.accountSessionError||'请先登录，再查看本机工作。');
-    if(_workspaceBusinessProfile&&_workspaceProfileAccountToken!==workspaceAccountCacheToken()){
-      _workspaceBusinessProfile=null;_workspaceProfileAccountToken='';++_workspaceBusinessGeneration;resetWorkspaceBusinessState();RunTeamsRoutes.clear();S.workspaceStartup=state;
-    }
-    S.deviceSessionActor=String(S.account.user_id);
-    const links=await api('/api/device/work/page-ids');if(S.workspaceStartup!==state)return;
-    if(links.error)throw Error(links.error);
-    if(new URL(location.href).searchParams.has('chat')){await refreshDeviceDirectory();state.chatDirectoryRead=true;}
-    deviceChatRemember(links);
-    if(S.workspaceStartup!==state)return;
-    S.bootRoute=parseAppRoute();if(S.bootRoute.kind!=='docs')throw Error(S.bootRoute.error||'文档链接暂时无法打开。');
-    S.workspaceWindows=loadWorkspaceWindows();S.conversationPanelDrafts=loadConversationPanelDrafts();
-    state.pending=false;state.accountPending=false;S.booting=false;S.bootError=null;
-    adoptStaticPageInputs();await applyAppRoute({initial:true});
-    if(S.workspaceStartup===state)loadCloudWorkspaceInBackground({chats:!state.chatDirectoryRead});
-  }catch(error){
-    if(S.workspaceStartup!==state)return;
-    state.pending=false;state.accountPending=false;S.booting=true;S.bootError=error;renderBootShell(S.bootRoute,error);
-  }finally{RunTeamsRequests.finishPage(measurement,S.bootError?'error':state.pending?'incomplete':'settled');}
-}
-async function bootDeviceTrash(accountRead,measurement){
-  const state={pending:true,accountPending:true};S.workspaceStartup=state;
-  try{
-    await accountRead;if(S.workspaceStartup!==state)return;
-    if(S.accountSessionError||!S.account?.signed_in)throw Error(S.accountSessionError||'请先登录，再查看本机工作。');
-    if(_workspaceBusinessProfile&&_workspaceProfileAccountToken!==workspaceAccountCacheToken()){
-      _workspaceBusinessProfile=null;_workspaceProfileAccountToken='';++_workspaceBusinessGeneration;resetWorkspaceBusinessState();RunTeamsRoutes.clear();S.workspaceStartup=state;
-    }
-    S.deviceSessionActor=String(S.account.user_id);state.pending=false;state.accountPending=false;
-    S.booting=false;S.bootError=null;S.bootRoute=parseAppRoute();
-    await openTrash({route:false,source:'device'});if(S.workspaceStartup!==state)return;
-    loadCloudWorkspaceInBackground();void refreshTrash({source:'platform'});
-  }catch(error){
-    if(S.workspaceStartup!==state)return;
-    state.pending=false;state.accountPending=false;S.booting=true;S.bootError=error;renderBootShell(S.bootRoute,error);
-  }finally{RunTeamsRequests.finishPage(measurement,S.bootError?'error':state.pending?'incomplete':'settled');}
-}
-async function boot(options={}){
-  if(globalThis.RunTeamsApplication?.edition==='community')return RunTeamsApplication.boot({state:S,render,newConversation:newRailConversationPanel,restoreWorkspace:()=>{S.workspaceWindows=loadWorkspaceWindows();S.conversationPanelDrafts=loadConversationPanelDrafts();},restoreDraft:restoreConversationPanelDraft,restoreSettings:accountSettingsRestoreRoute,captureDraft:captureConversationPanelDraft,loadModels:()=>modelChannelData().configuration(true),loadChats:refreshDeviceDirectory,loadEmployees:refreshCoreTeam,loadPipelines:refreshPipelineAssets,remember:deviceChatRemember,normalize:()=>normalizeConversationModelConfig(S.conversationPanel),route:()=>RunTeamsRoutes.preview(location.href),openDocuments:()=>openDocs({route:false}),openTrash:()=>openTrash({route:false}),openRoute:()=>applyAppRoute({initial:true})});
-  if(typeof captureConversationPanelDraft==='function')captureConversationPanelDraft();
-  const workspacePath=()=>{const query=new URLSearchParams(location.search);query.delete('settings');return location.pathname+(query.size?'?'+query:'')+(location.hash||'');};
-  const billingReturn=new URLSearchParams(location.search).get('billing');
-  const initialRail=parseRailRoute(new URLSearchParams(location.search));
-  S.booting=true;S.bootError=null;S.accountSessionReady=false;S.bootRoute=parseAppRoute();S.railMode=initialRail.mode;S.railNavTab=initialRail.navTab;if(initialRail.mode==="assistant"&&S.bootRoute.kind!=='source-pipeline'&&deviceConversationBootKind(location.href)!=='existing')S.railCollapsed=false;renderBootShell(S.bootRoute);
-  const bootMeasurement=RunTeamsRequests.startPage({kind:'cold:'+S.bootRoute.kind});
-  if(new URLSearchParams(location.search).get('settings')==='appearance')accountSettingsRestoreRoute();
-  const localEntry=deviceConversationBootKind(location.href),localExisting=localEntry==='existing';
-  const localHome=S.bootRoute.kind==='home'&&!initialRail.chat;
-  const localNew=localEntry==='new';
-  const deviceTrash=!S.activeOrganization&&S.bootRoute.kind==='trash';
-  const deviceDocuments=!S.activeOrganization&&deviceDocumentBootKind(location.href);
-  const sourceBoot=!S.activeOrganization&&['source-pipeline','source-pipeline-new'].includes(S.bootRoute.kind);
-  const deviceBoot=!S.activeOrganization&&(localExisting||localHome||localNew||deviceTrash||deviceDocuments||sourceBoot);
-  if(deviceBoot&&localHome)setAppUrl('/chat/new',true);
-  const accountRead=refreshAccountSession(true,deviceBoot?{device:true}:{workspace:true});
-  if(typeof RunTeamsDesktopLogin!=='undefined'){
-    await accountRead;
-    if(RunTeamsDesktopLogin.blocked(S)){S.booting=false;RunTeamsDesktopLogin.guard(S);RunTeamsRequests.finishPage(bootMeasurement,S.accountSessionError?'error':'settled');return;}
-  }
-  if(sourceBoot)return RunTeamsSourcePipelines.boot(accountRead,bootMeasurement);
-  if(deviceDocuments)return bootDeviceDocuments(accountRead,bootMeasurement);
-  if(deviceTrash)return bootDeviceTrash(accountRead,bootMeasurement);
-  if(deviceBoot)return bootNewConversation(accountRead,bootMeasurement,localExisting);
-  const retryState={route:_routeSequence,panelSequence:_conversationPanelLoadSequence,panel:S.conversationPanel,path:workspacePath()};
-  try{
-    const bootstrap=await accountRead;
-    restoreModelCatalogDisplay();
-    if(S.accountSessionError)throw new Error(S.accountSessionError);
-    const bootRead={};
-    await refreshWorkspaceBusinessProfile({retryAccountChanges:true,bootstrap,bootRead});
-    Object.assign(retryState,{route:_routeSequence,panelSequence:_conversationPanelLoadSequence,panel:S.conversationPanel,path:workspacePath()});
-    const independent=independentBusinessRoute();
-    if(!independent)await refreshPageIds({force:true});await restoreDeviceChatRoute();S.bootRoute=parseAppRoute();
-    const plan=RunTeamsRequests.bootPlan(S.bootRoute,initialRail);
-    const channelGeneration=_workspaceBusinessGeneration,channelToken=workspaceAccountCacheToken();
-    const channelState=plan.channels?{pending:true,accountPending:false,channelsPending:true}:null;
-    if(channelState){S.workspaceStartup=channelState;S.modelCatalogReady=false;}
-    const channelCurrent=()=>channelGeneration===_workspaceBusinessGeneration&&channelToken===workspaceAccountCacheToken()&&(!channelState||S.workspaceStartup===channelState);
-    // Model controls own their readiness. Directory and existing work can
-    // render while channel discovery is unavailable or still in progress.
-    const channelsRead=modelChannelData().configuration(plan.channels).then(async(mc)=>{const catalog=mc?.catalog;
-      if(!channelCurrent())return;if(!mc||plan.channels&&!catalog)throw new Error('模型渠道已变化，请重新读取。');if(mc.error)throw new Error(mc.error);
-      if(channelState){
-        if(catalog.error||!Array.isArray(catalog.channels))throw new Error(catalog.error||'模型目录未能载入');
-        S.modelCatalog=catalog.channels;S.modelCatalogReady=true;saveModelCatalogSnapshot(S.modelCatalog);
-      }
-      S.channels=mc.channels||[];S.providerCatalog=mc.providers||[];syncChannelsFromEnvironment(S.environment);
-      if(plan.channels)void refreshChannelUsage(false).catch(()=>{});if(!channelCurrent())return;
-      if(S.conversationPanel&&!S.conversationPanel.id&&!S.conversationPanel.channel_id)Object.assign(S.conversationPanel,defaultChatConfig(null));
-      if(channelState){channelState.pending=false;channelState.channelsPending=false;}
-      if(catalog?.revalidating)refreshModelCatalogInBackground(catalog);
-    }).catch(error=>{if(channelCurrent()&&channelState){channelState.channelsPending=false;channelState.channelsError=error.message;}}).finally(()=>{if(channelCurrent()&&!S.booting)render();});
-    if(plan.board)await refreshCoreBoard({bootRead});
-    else if(plan.navigation)await refreshWorkspaceNavigation({strict:true,bootRead});
-    if(_routeSequence!==retryState.route||_conversationPanelLoadSequence!==retryState.panelSequence||S.conversationPanel!==retryState.panel||workspacePath()!==retryState.path){S.booting=false;return;}
-    syncChannelsFromEnvironment(S.environment);
-    S.chatId=null;S.chatMsgs=[];S.chatCfg=defaultChatConfig();
-    S.booting=false;S.bootError=null;
-    adoptStaticPageInputs();
-    if(S.bootRoute.kind==='marketplace'){S.surface='marketplace';S.marketplaceSection='store';S.marketplaceLoading=true;render();}
-    const initialRouteSequence=_routeSequence,initialPanelSequence=_conversationPanelLoadSequence,
-      initialPanel=S.conversationPanel,initialPath=workspacePath();
-    if(_routeSequence===initialRouteSequence&&_conversationPanelLoadSequence===initialPanelSequence&&
-       S.conversationPanel===initialPanel&&workspacePath()===initialPath)
-      await applyAppRoute({initial:true});
-    const supplemental=[
-      ...(plan.board||plan.navigation?[]:[refreshWorkspaceNavigation({bootRead})]),refreshInterventions({bootRead}),
-      channelsRead,...(independent?[refreshPageIds({force:true})]:[]),
-      api("/api/app-info").then(result=>{S.appInfo=result.error?{version:APP_RELEASE_VERSION}:{...result,version:displayAppVersion(result.version)};}).catch(()=>{S.appInfo={version:APP_RELEASE_VERSION};}),
-      globalThis.RunTeamsOfficialUI?.refreshUpdate(false),
-    ];
-    // Native CLI discovery and model catalogs load when their controls need them.
-    Promise.allSettled(supplemental).then(()=>{if(!S.booting)render();});
 
-  }catch(error){
-    if(error.code==="workspace_account_changed"){
-      const current=_routeSequence===retryState.route&&_conversationPanelLoadSequence===retryState.panelSequence&&S.conversationPanel===retryState.panel&&workspacePath()===retryState.path;
-      if(!current)return;
-      if((Number(options.accountRetry)||0)<2)return boot({accountRetry:(Number(options.accountRetry)||0)+1});
-    }
-    S.booting=true;S.bootError=error;renderBootShell(S.bootRoute,error);return;
-  }finally{RunTeamsRequests.finishPage(bootMeasurement,S.bootError?'error':S.booting?'incomplete':'settled');}
-  if(new URLSearchParams(location.search).get('market_payment')&&S.account.signed_in){await globalThis.RunTeamsOfficialUI?.accountMarketPaymentOpen(new URLSearchParams(location.search).get('market_payment'));}
-  if(new URLSearchParams(location.search).get('market_operation')&&S.account.signed_in){await completePendingMarketplaceHire();}
-  else if(billingReturn==='marketplace-success'){await completePendingMarketplaceHire();}
-  else if(billingReturn&&BILLING_UI_ENABLED&&S.account.signed_in){openSettingsPage('subscription');await globalThis.RunTeamsOfficialUI?.refreshBillingStatus();if(billingReturn==='success'||billingReturn.startsWith('subscription-')){await globalThis.RunTeamsOfficialUI?.refreshBillingAfterCheckout();}}
-  else if(billingReturn&&PUBLIC_BETA){openSettingsPage('general');toast('桌面版公测期间免费开放','info');}
-}
+
+
 let _navigationRefreshPromise=null,_pipelineNavigationRead=null;
 function updateWorkspaceNavigationError(){S.navigationError=S.chatDirectoryError||'';}
 async function refreshChatDirectory(options={}){
-  if(typeof conversationResumeFeedbackCases==='function')conversationResumeFeedbackCases();
+  RunTeamsHost.lifecycle.resumeFeedback?.();
  const generation=_workspaceBusinessGeneration,token=workspaceAccountCacheToken(),scope=`${generation}:${token}`;
  if(refreshChatDirectory.pending?.scope===scope)return refreshChatDirectory.pending;
  const current=()=>generation===_workspaceBusinessGeneration&&token===workspaceAccountCacheToken();
  const pending=(async()=>{try{
-  if(S.activeOrganization)throw new Error('组织会话暂时无法加载，请稍后重试。');
+  if(RunTeamsHost.session.workspace(S))throw new Error('当前工作区暂时无法加载会话，请稍后重试。');
   const result=await api('/api/chats?device=1',undefined,undefined,{readCurrent:true,readPriority:options.readPriority});
   if(!current())return;
   if(result.error||!Array.isArray(result.chats))throw new Error(result.error||'本机对话列表没有载入');
@@ -1995,7 +1529,7 @@ async function refreshInterventions(options={}){
  const generation=_workspaceBusinessGeneration,token=workspaceAccountCacheToken();
  if(_interventionsRefreshPromise?.scope===`${generation}:${token}`)return _interventionsRefreshPromise;
  const pending=(async()=>{try{
-  if(S.activeOrganization)throw new Error('组织待处理事项暂时无法加载，请稍后重试。');
+  if(RunTeamsHost.session.workspace(S))throw new Error('当前工作区暂时无法加载待处理事项，请稍后重试。');
   const value=await api('/api/device/work/interventions');
   if(generation!==_workspaceBusinessGeneration||token!==workspaceAccountCacheToken())return;
   if(value.error||value.storage_scope!=='device'||!Array.isArray(value.items))throw new Error(value.error||'本机待处理事项暂时无法读取。');
@@ -2009,24 +1543,18 @@ async function refreshInterventions(options={}){
 // 不再整页 teardown。好处:未变区域保留滚动、焦点和看板位置，
 // 也为实时刷新打底——后台轮询只会重绘变化的看板/动态流,代价极低。
 function render(){
-  if(typeof RunTeamsDesktopLogin!=='undefined'&&RunTeamsDesktopLogin.guard(S))return;
+  if(RunTeamsHost.lifecycle.blocked(S))return;
   detailWorkspaceController().reconcile();
   if(typeof RunTeamsCreatorWork!=='undefined')RunTeamsCreatorWork.beforeRender();
   const workspaceSwitching=!!(_workspaceSwitchRender||_workspaceSwitchTarget);
   const botListPosition=botListCaptureScroll();
   const staticInput=RunTeamsStaticPages.capture(),composerFrame=RunTeamsStaticPages.captureComposer();
-  const marketPage=S.surface==='marketplace'&&!S.pageTransition?document.querySelector('#rgMid .marketplace-main-page'):null;
-  const marketInput=marketPage?.querySelector('input[type="search"]'),marketFocused=!!marketInput&&document.activeElement===marketInput;
-  const marketSelection=marketFocused?[marketInput.selectionStart,marketInput.selectionEnd]:null;
+  const hostRenderState=RunTeamsHost.lifecycle.captureRender?.();
   const startupCandidate=S.workspaceStartup?.panel===S.conversationPanel?document.getElementById('conversation_box'):null;
   const startupEditor=startupCandidate&&startupCandidate.isContentEditable&&startupCandidate.getAttribute('data-placeholder')===conversationPanelPlaceholder(S.conversationPanel)&&conversationInputValue(startupCandidate)===String(S.conversationPanel?.input||'')?startupCandidate:null;
   const startupFocused=!!startupEditor&&document.activeElement===startupEditor;
   const startupSelection=startupFocused?conversationSelectionOffsets(startupEditor):null;
-  if(_workspaceBusinessProfile&&_workspaceProfileAccountToken!==workspaceAccountCacheToken()&&!deviceConversationVisible()){
-    renderBootShell(parseAppRoute());
-    if(!_workspaceProfileRead)refreshWorkspaceBusinessProfile({retryAccountChanges:true}).then(()=>render()).catch(error=>renderBootShell(parseAppRoute(),error));
-    return;
-  }
+  if(RunTeamsHost.lifecycle.beforeRender())return;
   if(S.workspaceSwitchPending){workspacePaintSwitch(S.workspaceSwitchPending);return;}
   // An uncached pipeline gets a short grace period before its skeleton appears.
   // Ignore unrelated background refreshes during that window so they cannot
@@ -2034,9 +1562,8 @@ function render(){
   if(_pipelineOpenTimer&&!S.pageTransition)return;
   if(S.booting){renderBootShell(S.bootRoute||parseAppRoute(),S.bootError);return;}
   if(!workspaceEnsureCurrent())return;
-  if(typeof accountNotifyNativeReady==='function')accountNotifyNativeReady();
+  if(typeof accountNotifyNativeReady==='function')RunTeamsHost.lifecycle.notificationsReady?.();
   const app=document.getElementById("app");
-  const inMarketplace = String(S.surface||"").startsWith("marketplace");
   const inAutomations = S.surface==="automations";
   const inTrash = S.surface==="trash";
   const inDocs = S.surface==="docs";
@@ -2060,7 +1587,7 @@ function render(){
   S._selKey = selKey;
   // 从文档页切去别的页面时先收掉阅读器：不收的话下面的重绘守卫会一直冻住主区，点什么都换不了页
   if(S.docReader&&!inDocs)teardownDocumentReader();
-  const content = sourcePipelineLayout&&S.sourcePipelineWorkspace?.view!=="conversation"?RunTeamsSourcePipelines.board():conversationMainActive?conversationWorkspaceMain({includeHeader:!conversationDrawerUnderHeader}):S.pageTransition?pageTransitionMain():inDesignSystem?designSystemMain():inMarketplace?(MarketPublisher.active()?MarketPublisher.page():marketplaceMain()):S.surface==="billing"?globalThis.RunTeamsOfficialUI?.billingPageMain():S.surface==="wallet"?globalThis.RunTeamsOfficialUI?.walletPageMain():inAutomations?automationsMain():inDocs?(S.docReader?documentReaderMain():docsMain()):inTrash?trashMain():conversationWorkspaceMain();
+  const content = sourcePipelineLayout&&S.sourcePipelineWorkspace?.view!=="conversation"?RunTeamsSourcePipelines.board():conversationMainActive?conversationWorkspaceMain({includeHeader:!conversationDrawerUnderHeader}):S.pageTransition?pageTransitionMain():inDesignSystem?designSystemMain():(RunTeamsHost.lifecycle.content?.()??(inAutomations?automationsMain():inDocs?(S.docReader?documentReaderMain():docsMain()):inTrash?trashMain():conversationWorkspaceMain()));
   const drawerContent = detailView?.content()||'';
   const drawerInner = showDrawer ? (anim ? drawerContent.replace('class="drawer"','class="drawer din"') : drawerContent) : "";
   const railH   = rail().replace('class="rail"','class="rail" id="rgRail"');
@@ -2071,7 +1598,7 @@ function render(){
   const workspaceTabsH=workspaceTabsMarkup();
   const workspaceTabsShell=`<div id="rgWorkspaceTabs">${workspaceTabsH}</div>`;
   const workspaceTabsVisible=!!workspaceTabsH;
-  let renderedContent=!conversationMainActive&&inMarketplace&&S.surface==="marketplace-detail"?marketplaceDetailPage(S.marketplaceDetail):content;
+  let renderedContent=!conversationMainActive?(RunTeamsHost.lifecycle.decorateContent?.(content)??content):content;
   const midH    = editingInPlace&&app._sig?.mid ? app._sig.mid : `<div class="mid" id="rgMid"><div id="rgWorkspaceContent">${renderedContent}</div></div>`;
   const detailHandleH=showDrawer?detailResizeHandle():"";
   const drawerH = `<div id="rgDrawer" data-conversation-chat="${conversationMainActive?esc(String(S.conversationPanel?.id??S.conversationPanel?.newDraftKey??'')):''}">${detailHandleH}${drawerInner}</div>`;
@@ -2119,21 +1646,12 @@ function render(){
     if(replacement&&replacement!==startupEditor)replacement.replaceWith(startupEditor);
     if(startupFocused){startupEditor.focus({preventScroll:true});if(startupSelection)restoreConversationSelection('panel',startupSelection.start,startupSelection.end);}
   }
-  if(marketPage&&S.surface==='marketplace'&&!S.pageTransition){
-    const replacement=document.querySelector('#rgMid .marketplace-main-page');
-    if(replacement&&replacement!==marketPage){
-      const prior=marketPage.querySelector('#market_catalog'),next=replacement.querySelector('#market_catalog');
-      if(prior&&next&&prior.innerHTML!==next.innerHTML)prior.replaceWith(next);
-      marketPage.removeAttribute('data-marketplace-startup');replacement.replaceWith(marketPage);
-      if(marketInput.value!==String(S.marketplaceQuery||''))marketInput.value=String(S.marketplaceQuery||'');
-      if(marketFocused){marketInput.focus({preventScroll:true});if(marketSelection)marketInput.setSelectionRange(...marketSelection);}
-    }
-  }
+  RunTeamsHost.lifecycle.restoreRender?.(hostRenderState);
   RunTeamsStaticPages.restore(staticInput);
   botListSyncScroll(botListPosition);
   RunTeamsShell.syncHistoryControls();
   RunTeamsPanelMotion.finish(panelMotion,app);
-  globalThis.RunTeamsOfficialUI?.applyWorkspaceReadOnly();
+  RunTeamsHost.lifecycle.afterRender();
   if(typeof RunTeamsEmployeeDrawerHeader!=='undefined')RunTeamsEmployeeDrawerHeader.decorate();
   if(typeof RunTeamsCreatorWork!=='undefined')RunTeamsCreatorWork.sync();
   scheduleAutoRefresh();
@@ -2183,7 +1701,7 @@ function scheduleAutoRefresh(){
   if(S.workspaceStartup?.pending)return;
   ensureConversationEmployeeGuidance();
   const panel=S.conversationPanel;if(panel?.kind==="general"&&(panel.id||conversationContextType(panel)==="worker")&&!panel.workRequested){panel.workRequested=true;queueMicrotask(()=>syncConversationWork(true));}
-  globalThis.RunTeamsOfficialUI?.startUpdateMonitor();
+  RunTeamsHost.lifecycle.startMonitor();
   if(!_chatSync)_chatSync=setInterval(syncChats,2000);
   if(!_attentionSync)_attentionSync=setInterval(syncInterventions,10000);
   if(S.surface==="automations"){if(!_automationSync)_automationSync=setInterval(async()=>{if(document.hidden||S.booting||S.surface!=="automations")return;try{await refreshAutomations();if(S.surface==="automations"&&!document.getElementById("modalHost"))render();}catch(e){}},30000);}
@@ -2193,7 +1711,7 @@ function scheduleAutoRefresh(){
 }
 let _chatDirectoryNextAt=0;
 async function syncRailQuestionActivity(){
- if(typeof RunTeamsChatActivity==='undefined'||S.activeOrganization)return;
+ if(typeof RunTeamsChatActivity==='undefined'||RunTeamsHost.session.workspace(S))return;
  const generation=_workspaceBusinessGeneration,token=workspaceAccountCacheToken();
  const changed=await RunTeamsChatActivity.refreshWaiting(S,path=>api(path,undefined,undefined,{readCurrent:true,readPriority:'background'}));
  if(changed&&generation===_workspaceBusinessGeneration&&token===workspaceAccountCacheToken()&&!S.booting)refreshRailChatActivity();
@@ -2238,7 +1756,7 @@ async function openTrash(options={}){
   
 
   if(options.route!==false)workspaceCaptureCurrent();
-  leaveConversationModeForPage();globalThis.RunTeamsOfficialUI?.closeMenu();clearConversationAttachments("chat");clearConversationCapabilities("chat");S.surface="trash";S.chatId=null;S.chatMode="";resetDetailWorkspace();
+  leaveConversationModeForPage();RunTeamsHost.settings.closeMenu();clearConversationAttachments("chat");clearConversationCapabilities("chat");S.surface="trash";S.chatId=null;S.chatMode="";resetDetailWorkspace();
   if(options.route!==false)setAppUrl(routeWithRailState("/trash"),!!options.replace);
   cancelPageTransition();const generation=_workspaceBusinessGeneration,pending=refreshTrash({source:options.source}),sequence=_trashRefreshSequence;render();
   try{await pending;}catch(error){}finally{if(generation===_workspaceBusinessGeneration&&sequence===_trashRefreshSequence&&S.surface==='trash')render();}
@@ -2313,9 +1831,9 @@ async function restoreTrashItem(kind,id,scope='platform'){
   const item=trashItem(kind,id,scope),binding=trashBinding();if(!item)return;
   try{
     const out=scope==='platform'&&kind==='employee'&&item.reference
-      ?await RunTeamsNativeAssets.restoreTrash(item,item.restore_operation_id||(item.restore_operation_id=crypto.randomUUID()))
+      ?await RunTeamsHost.assets.restoreTrash(item,item.restore_operation_id||(item.restore_operation_id=crypto.randomUUID()))
       :scope==='platform'&&kind==='pipeline'&&item.reference
-      ?await RunTeamsNativeAssets.pipelineAction(id,'restore',{reference:item.reference,expected_revision:item.revision,capabilities:item.capabilities})
+      ?await RunTeamsHost.assets.pipelineAction(id,'restore',{reference:item.reference,expected_revision:item.revision,capabilities:item.capabilities})
       :await api(trashActionPath(kind,id,'restore',scope),'POST');
     if(binding!==trashBinding())return;
     if(out.error)throw Error(out.error);
@@ -2331,7 +1849,7 @@ async function clearAllTrash(){
       for(const item of items){
         if(binding!==trashBinding())throw Error('账户已变化，请重新选择。');
         const kind=item.kind||item.type||'automation',scope=item.storage_scope==='device'?'device':'platform',documents=Number(item.document_count)||0;
-        const out=scope==='platform'&&kind==='employee'&&item.reference?await RunTeamsNativeAssets.purgeTrash(item):await api(trashActionPath(kind,Number(item.id),'delete',scope),'POST',documents?{acknowledged_documents:documents}:{});
+        const out=scope==='platform'&&kind==='employee'&&item.reference?await RunTeamsHost.assets.purgeTrash(item):await api(trashActionPath(kind,Number(item.id),'delete',scope),'POST',documents?{acknowledged_documents:documents}:{});
         if(out.error)throw Error(out.error);
       }
       await refreshTrash();if(S.localLibrary)await refreshDeviceDirectory({identityOnly:true});else await refreshCoreTeam();render();toast(!S.trashItems.length&&trashCanClearAll()?'垃圾箱已清空':'已清除选中的项目','ok');
@@ -2342,7 +1860,7 @@ function trashItemDocumentCount(kind,id,scope='platform'){return Number(trashIte
 async function runTrashDelete(kind,id,acknowledged,scope='platform',binding=trashBinding()){
   if(binding!==trashBinding()||!trashItem(kind,id,scope)){toast('列表已变化，请重新选择。','err');return;}
   try{
-    const item=trashItem(kind,id,scope);const out=scope==='platform'&&kind==='employee'&&item.reference?await RunTeamsNativeAssets.purgeTrash(item):await api(trashActionPath(kind,id,'delete',scope),'POST',acknowledged==null?{}:{acknowledged_documents:Number(acknowledged)});
+    const item=trashItem(kind,id,scope);const out=scope==='platform'&&kind==='employee'&&item.reference?await RunTeamsHost.assets.purgeTrash(item):await api(trashActionPath(kind,id,'delete',scope),'POST',acknowledged==null?{}:{acknowledged_documents:Number(acknowledged)});
     if(out.requires_confirmation){
       const documents=Number(out.documents)||0;
       confirmModal(`连同 ${documents} 份文档一起删除？`,
@@ -2392,8 +1910,8 @@ function docKindLabel(doc){if(docSuffix(doc)===".svg")return "矢量图源码";r
 function docContentUrl(doc){return doc?.task_input_url||`/api/core/artifacts/${Number(doc.id)}/content`;}
 
 let _documentsLoadSequence=0;
-function documentsBinding(){return `${workspaceAccountCacheToken()}:${_workspaceBusinessGeneration}:${S.activeOrganization||''}`;}
-function documentsLocalAvailable(){return !S.activeOrganization&&(!!S.localLibrary||S.account?.signed_in&&(S.accountSessionReady===true||S.deviceSessionActor===String(S.account.user_id||'')));}
+function documentsBinding(){return `${workspaceAccountCacheToken()}:${_workspaceBusinessGeneration}:${RunTeamsHost.session.workspace(S)||''}`;}
+function documentsLocalAvailable(){return !RunTeamsHost.session.workspace(S)&&(!!S.localLibrary||RunTeamsHost.session.ready(S)&&(S.accountSessionReady===true||S.deviceSessionActor===String(RunTeamsHost.session.actor(S)||'')));}
 function documentsReadKey(){return JSON.stringify([documentsBinding(),!!documentsLocalAvailable(),String(S.docsQuery||'').trim(),S.docsSort||'created_at',!!S.docsSortDesc]);}
 function documentsCompare(a,b){
   const key=S.docsSort||'created_at',dir=S.docsSortDesc?-1:1;
@@ -2521,7 +2039,7 @@ function docsSortBy(key){
 function docsSortMark(key){return S.docsSort===key?`<i class="docs-sort ${S.docsSortDesc?"desc":"asc"}" aria-hidden="true">${ICON("chev")}</i>`:"";}
 function docsLastEditor(doc){
   if(String(doc.last_editor_kind||"")==="human"){
-    const name=(S.account&&S.account.signed_in&&S.account.name)?S.account.name:"你";
+    const name=RunTeamsHost.session.displayName(S)||'你';
     return `<span class="me docs-user-avatar" aria-hidden="true">${esc(accountInitial())}</span><span title="${esc(name)}">${esc(name)}</span>`;
   }
   if(String(doc.source||"")==="agent_chat"){
@@ -2575,7 +2093,7 @@ function docsListMarkup(){
   return `<div class="docs-body" id="docs_list"><div class="docs-table" role="table"><div class="docs-thead" role="row"><button type="button" class="docs-cell docs-cell-title docs-sort-btn" role="columnheader" onclick="docsSortBy('name')">标题${docsSortMark("name")}</button><span class="docs-cell docs-cell-editor" role="columnheader">最后编辑者</span><button type="button" class="docs-cell docs-cell-time docs-sort-btn" role="columnheader" onclick="docsSortBy('created_at')">创建时间${docsSortMark("created_at")}</button><span class="docs-cell docs-cell-more" role="columnheader"></span></div>${items.map(docsRowMarkup).join("")}</div>${recovery}${!S.documentsLoading?readListMoreMarkup("documents",S.documentsPage,S.documentsAppendLoading,S.documentsAppendError,"loadMoreDocuments()"):""}</div>`;
 }
 function docsMain(){
-  return `<main class="environment-page docs-page list-page"><div class="environment-content docs-content list-page-content"><div class="environment-title environment-extension-header docs-head list-page-header list-page-header--controls"><div class="environment-extension-heading list-page-heading"><div class="environment-extension-title-row"><h1>文档</h1></div><p>查看和管理对话与员工交付的文档。</p></div><div class="environment-catalog-actions docs-actions list-page-controls">${!S.activeOrganization?`<button type="button" class="btn" onclick="RunTeamsRichDocuments.create()">${ICON("plus")}新建文档</button>`:""}<label class="environment-search rt-search-field">${ICON("search")}<input type="search" data-static-field="docs" id="docs_search" autocomplete="off" spellcheck="false" placeholder="搜索文档名和正文" aria-label="搜索文档名和正文" value="${esc(S.docsQuery||"")}" oninput="RunTeamsStaticPages.set('docs',this.value)"></label></div></div>${docsListMarkup()}</div></main>`;
+  return `<main class="environment-page docs-page list-page"><div class="environment-content docs-content list-page-content"><div class="environment-title environment-extension-header docs-head list-page-header list-page-header--controls"><div class="environment-extension-heading list-page-heading"><div class="environment-extension-title-row"><h1>文档</h1></div><p>查看和管理对话与员工交付的文档。</p></div><div class="environment-catalog-actions docs-actions list-page-controls">${!RunTeamsHost.session.workspace(S)?`<button type="button" class="btn" onclick="RunTeamsRichDocuments.create()">${ICON("plus")}新建文档</button>`:""}<label class="environment-search rt-search-field">${ICON("search")}<input type="search" data-static-field="docs" id="docs_search" autocomplete="off" spellcheck="false" placeholder="搜索文档名和正文" aria-label="搜索文档名和正文" value="${esc(S.docsQuery||"")}" oninput="RunTeamsStaticPages.set('docs',this.value)"></label></div></div>${docsListMarkup()}</div></main>`;
 }
 async function docsOpenRun(workflowId){return openCoreWorkflow(Number(workflowId));}
 
@@ -3921,7 +3439,7 @@ async function refreshCoreBoard(options={}){
  if(_coreBoardRefreshPromise?.scope===`${generation}:${token}`)return _coreBoardRefreshPromise;
  const pending=(async()=>{
   void refreshWorkspaceNavigation().catch(error=>{if(generation===_workspaceBusinessGeneration&&token===workspaceAccountCacheToken()){S.coreTeamError=error.message||'员工列表没有载入';if(!S.booting)render();}});
-  if(S.activeOrganization)throw new Error('组织工作记录暂时无法加载，请稍后重试。');
+  if(RunTeamsHost.session.workspace(S))throw new Error('当前工作区暂时无法加载工作记录，请稍后重试。');
   try{await refreshDeviceWorkDirectory({board:true});}
   catch(error){if(generation===_workspaceBusinessGeneration&&token===workspaceAccountCacheToken())S.deviceWorkError=error.message||'本机工作暂时无法读取。';throw error;}
   if(generation!==_workspaceBusinessGeneration||token!==workspaceAccountCacheToken())return;
@@ -4076,7 +3594,7 @@ window.addEventListener('runteams:business-scope-changed',()=>closeWorkerAvatarP
 function closeWorkerAvatarPicker(){if(_workerAvatarPosition){window.removeEventListener("resize",_workerAvatarPosition);window.removeEventListener("scroll",_workerAvatarPosition,true);_workerAvatarPosition=null;}if(_workerAvatarPicker)_workerAvatarPicker.remove();_workerAvatarPicker=null;if(_workerAvatarPickerOutside)document.removeEventListener("pointerdown",_workerAvatarPickerOutside,true);if(_workerAvatarPickerKey)document.removeEventListener("keydown",_workerAvatarPickerKey);_workerAvatarPickerOutside=null;_workerAvatarPickerKey=null;(_workerAvatarAnchor||document.getElementById("worker_avatar"))?.setAttribute("aria-expanded","false");_workerAvatarAnchor=null;_workerAvatarTarget=null;}
 function positionWorkerAvatarPicker(anchor,panel){if(!anchor?.isConnected||!panel)return;const rect=anchor.getBoundingClientRect(),margin=10,gap=7,width=panel.offsetWidth,height=panel.offsetHeight;let left=Math.max(margin,Math.min(rect.left,window.innerWidth-width-margin)),top=rect.bottom+gap;if(top+height>window.innerHeight-margin)top=Math.max(margin,rect.top-height-gap);panel.style.left=`${Math.round(left)}px`;panel.style.top=`${Math.round(top)}px`;}
 function workerAvatarEditableEntry(panel=S.conversationPanel){
-  if((!S.localLibrary&&!S.account?.signed_in)||!panel||panel.loading||panel.error||panel.debug_preview||S.activeOrganization)return null;
+  if((!S.localLibrary&&!RunTeamsHost.session.ready(S))||!panel||panel.loading||panel.error||panel.debug_preview||RunTeamsHost.session.workspace(S))return null;
   const entry=RunTeamsEmployeeDirectory.forPanel(panel);
   return entry&&(entry.source||employeeCanEdit(entry.record))?entry:null;
 }
@@ -4154,15 +3672,6 @@ function deskEmployees(){return inboxEmployees();}
 
 
 
-/* module:market_views:marketplaceRentalPlans */
-
-/* module:market_views:marketplaceRentalDateLabel */
-
-
-
-/* module:market_views:marketplaceRatingScore */
-/* module:market_views:marketplaceWorkJobs */
-/* module:market_views:marketplaceWorkView */
 
 
 
@@ -4196,14 +3705,11 @@ function deskEmployees(){return inboxEmployees();}
 
 
 
-/* module:market_views:marketplaceWorkItemMarkup */
 
-/* module:market_views:marketplacePortrait */
-/* module:market_views:marketplaceDisplayPrice */
-/* module:market_views:marketplaceDetailPage */
-/* module:market_views:marketplaceCompactCount */
-/* module:market_views:marketplaceCard */
-/* module:market_views:marketplaceCatalogBody */
+
+
+
+
 
 
 
@@ -4294,7 +3800,7 @@ function coreWorkflowCardClick(event,id){if(RunTeamsSourcePipelines.current())re
 
 
 
-function replaceCoreWorkflowLocal(workflow){if(workflow.storage_scope==='device'&&S.deviceWorkScope&&!S.activeOrganization&&S.deviceWorkScope===`${workspaceAccountCacheToken()}:${_workspaceBusinessGeneration}`){const known=(S.deviceWorkflows||[]).findIndex(row=>Number(row.id)===Number(workflow.id));if(known>=0)S.deviceWorkflows.splice(known,1,workflow);else S.deviceWorkflows=[workflow,...S.deviceWorkflows||[]];}const index=(S.coreWorkflows||[]).findIndex(item=>Number(item.id)===Number(workflow.id));if(index>=0)S.coreWorkflows.splice(index,1,workflow);else S.coreWorkflows=[workflow,...S.coreWorkflows||[]];if(S.sel?.type==="core-workflow"&&Number(S.sel.id)===Number(workflow.id))updateDetailWorkspace({...S.sel,workflow});else if(S.sel?.type==="core-employee-run"&&Number(S.sel.workflowId)===Number(workflow.id))updateDetailWorkspace({...S.sel,workflow,run:workflow.employee_runs?.find(item=>Number(item.id)===Number(S.sel.id))||S.sel.run});}
+function replaceCoreWorkflowLocal(workflow){if(workflow.storage_scope==='device'&&S.deviceWorkScope&&!RunTeamsHost.session.workspace(S)&&S.deviceWorkScope===`${workspaceAccountCacheToken()}:${_workspaceBusinessGeneration}`){const known=(S.deviceWorkflows||[]).findIndex(row=>Number(row.id)===Number(workflow.id));if(known>=0)S.deviceWorkflows.splice(known,1,workflow);else S.deviceWorkflows=[workflow,...S.deviceWorkflows||[]];}const index=(S.coreWorkflows||[]).findIndex(item=>Number(item.id)===Number(workflow.id));if(index>=0)S.coreWorkflows.splice(index,1,workflow);else S.coreWorkflows=[workflow,...S.coreWorkflows||[]];if(S.sel?.type==="core-workflow"&&Number(S.sel.id)===Number(workflow.id))updateDetailWorkspace({...S.sel,workflow});else if(S.sel?.type==="core-employee-run"&&Number(S.sel.workflowId)===Number(workflow.id))updateDetailWorkspace({...S.sel,workflow,run:workflow.employee_runs?.find(item=>Number(item.id)===Number(S.sel.id))||S.sel.run});}
 
 
 function coreWorkflowMenu(event,id){if(RunTeamsSourcePipelines.current()){event.preventDefault();return;}event.preventDefault();event.stopPropagation();if(accountWorkspaceReadOnly())return;const workflow=(S.coreWorkflows||[]).find(item=>Number(item.id)===Number(id));if(!workflow)return;if(workflow.snapshot_json?.schema==='runteams.employee-chat-work/v1'){const chat=Number(workflow.snapshot_json.work_chat_id||workflow.snapshot_json.source?.chat_id),items=[{label:'查看对话',icon:'message-circle-more',fn:()=>openRailConversationSession(chat,{forceWorkspace:true,device:true})}];if(['ready','running','waiting_retry'].includes(workflow.state))items.push({label:'停止任务',icon:'stop',fn:()=>cancelCoreWorkflow(id)});items.push({label:'移到垃圾箱',icon:'trash',fn:()=>trashCoreWorkflow(id)});return openMenu(event.currentTarget,items,{variant:'cardContext'});}const active=["ready","running","waiting_retry"].includes(workflow.state),retryable=["blocked","failed","canceled"].includes(workflow.state),items=[{label:"编辑",icon:"edit",fn:()=>openCoreWorkflowTaskEditor(id)}];if(!active)items.push({label:"移动到…",icon:"shuffle",submenu:true,keepOpen:true,hoverFn:item=>coreWorkflowMoveTargetMenu(item,id),fn:item=>coreWorkflowMoveTargetMenu(item,id)});if(event.type==="contextmenu"){if(active)items.push({label:"停止任务",icon:"stop",fn:()=>cancelCoreWorkflow(id)});else if(retryable)items.push({label:"重新运行",icon:"refresh",fn:()=>retryCoreWorkflow(id)});}items.push({label:"移到垃圾箱",icon:"trash",danger:true,fn:()=>trashCoreWorkflow(id)});const options=event.type==="contextmenu"?{at:{x:event.clientX,y:event.clientY}}:{};openMenu(event.currentTarget,items,{variant:"cardContext",...options});}
@@ -4918,8 +4424,8 @@ async function syncConversationWork(force=false){
   const panel=S.conversationPanel,employee=RunTeamsEmployeeDirectory.forPanel(panel),employeeKey=employee?.key||'';
   if(!panel||panel.loading||panel.error||panel.kind!=='general'||!panel.id||document.hidden&&!force||_conversationWorkSyncBusy.has(panel))return;
   if(panel.storage_scope==='device'&&panel.work_storage_scope!=='device'&&!employeeKey&&!(panel.work||[]).length&&!(panel.messages||[]).some(message=>(message.runCards||[]).length||(message.applied||[]).length))return;
-  const chatId=panel.id,actor=S.account?.user_id,epoch=S.accountReadEpoch||0;
-  const current=()=>panel.id===chatId&&S.conversationPanel===panel&&actor===S.account?.user_id&&epoch===(S.accountReadEpoch||0)&&employeeKey===(RunTeamsEmployeeDirectory.forPanel(panel)?.key||'');
+  const chatId=panel.id,actor=RunTeamsHost.session.actor(S),epoch=RunTeamsHost.session.epoch(S);
+  const current=()=>panel.id===chatId&&S.conversationPanel===panel&&actor===RunTeamsHost.session.actor(S)&&epoch===(RunTeamsHost.session.epoch(S))&&employeeKey===(RunTeamsEmployeeDirectory.forPanel(panel)?.key||'');
   _conversationWorkSyncBusy.add(panel);
   try{
     const endpoint=panel.storage_scope==='device'&&employeeKey||panel.work_storage_scope==='device'?`/api/device/work/chats/${chatId}`:`/api/chat/${chatId}/work`;
@@ -5522,7 +5028,7 @@ async function loadConversationPanelSession(id,options={}){
 function restoreConversationWorkspace(panel,snapshot=_workspaceStateByKey.get('chat:'+panel.id)){
  if(S.conversationPanel!==panel||panel.id==null)return;
  if(!snapshot||String(snapshot.conversationPanel?.id)!==String(panel.id))return;
- const before=RunTeamsEmployeeWindows.identity(snapshot.conversationPanel,S.account,S.activeOrganization,null,S.localLibrary),after=RunTeamsEmployeeWindows.identity(panel,S.account,S.activeOrganization,null,S.localLibrary);
+ const before=RunTeamsEmployeeWindows.identity(snapshot.conversationPanel,S,null),after=RunTeamsEmployeeWindows.identity(panel,S,null);
  if(before?.key!==after?.key)return;
  if(!panel.readingPosition&&snapshot.conversationPanel.readingPosition)panel.readingPosition={...snapshot.conversationPanel.readingPosition};
  detailWorkspaceController().restore(snapshot.sel);
@@ -5632,7 +5138,7 @@ async function sendConversationPanel(options={}){
     {live.applied=result.applied||[];live.runCards=result.run_cards||[];if(result.name||result.avatar)panel.identity={name:result.name||panel.identity?.name,avatar:result.avatar||panel.identity?.avatar};panel.status=result.status||"active";}refreshLiveAgentMessage(live,"panel",panel);
     if(result.session)adoptCreatedEmployeeConversation(panel,result.session,businessGenerationAtSend);
     try{await syncConversationWork(true);}catch(ignore){}
-    try{const chats=await conversationChatDirectory(panel.id);if(chats.error)throw new Error(chats.error);S.chats=chats.chats||[];panel.title=conversationPanelTitle(panel);if(!S.localLibrary&&(!deviceChatKnown(panel.id)||(result.applied||[]).length||(result.run_cards||[]).length))await refreshCoreTeam();if(result.session){try{await refreshPageIds({force:true});}catch(ignore){}adoptCreatedEmployeeConversation(panel,result.session,businessGenerationAtSend);}const pageStillMatches=currentConversationWorkspaceKey()===workspaceAtSend;if(pageStillMatches&&S.surface==="automations"){try{await refreshAutomations();}catch(ignore){}}
+    try{const chats=await conversationChatDirectory(panel.id);if(chats.error)throw new Error(chats.error);S.chats=chats.chats||[];panel.title=conversationPanelTitle(panel);if(!S.localLibrary&&(!deviceChatKnown(panel.id)||(result.applied||[]).length||(result.run_cards||[]).length))await refreshCoreTeam();if(result.session){try{await RunTeamsHost.routes.readIndex?.({force:true});}catch(ignore){}adoptCreatedEmployeeConversation(panel,result.session,businessGenerationAtSend);}const pageStillMatches=currentConversationWorkspaceKey()===workspaceAtSend;if(pageStillMatches&&S.surface==="automations"){try{await refreshAutomations();}catch(ignore){}}
     }catch(ignore){}
     }
   }catch(e){
@@ -5660,7 +5166,7 @@ async function openEmployeeSourceConversation(employeeId,options={}){
   S.railMode="assistant";S._pendingRailMode="";S.railCollapsed=false;saveRailLayout();
   S.conversationPanel={...conversationPanelLoadingState({pipelineId:null,kind:"employee_design",runtime,title:item?`调整 ${item.name}`:"员工源码",context:{context_type:"worker",intent:"edit",phase:"design",label:item?.name||"员工",creator_authoring:true},railHosted:true}),loading:true,retry:{kind:"employee-source",employeeId,runtime}};hostConversationInRail(S.conversationPanel);render();
   const openingPanel=S.conversationPanel,openingWindowKey=S.activeWorkspaceKey;
-  let result;try{result=await RunTeamsNativeAssets.authoring(employeeId,runtime);}catch(error){result={error:error.message||error};}
+  let result;try{result=await RunTeamsHost.assets.authoring(employeeId,runtime);}catch(error){result={error:error.message||error};}
   if(sequence!==_conversationPanelLoadSequence||nativeGeneration!==_workspaceBusinessGeneration||nativeToken!==workspaceAccountCacheToken()||S.conversationPanel!==openingPanel)return;
   if(result.error){S.conversationPanel={...S.conversationPanel,loading:false,error:result.error};rememberConversationPanel();render();handleAgentChannelError(result.error,{channelId:runtime.channel_id,model:runtime.model,continuation:()=>openEmployeeSourceConversation(employeeId,{...options,force:true})});return;}
   const session=result.session;deviceChatRemember(session);Object.assign(openingPanel,conversationPanelFromSession(session,{railHosted:true}),{loading:false,error:'',retry:null});
@@ -5693,10 +5199,10 @@ async function openBotConversation(employeeId=0,options={}){
   employeeId=Number(employeeId)||0;
   const employee=employeeWorkIdentity(employeeId);
   if(!employee)return toast("这个员工已不存在","err");
-  if(employee.schema==='runteams.native-employee-summary/v1'&&!S.activeOrganization){
+  if(employee.schema==='runteams.native-employee-summary/v1'&&!RunTeamsHost.session.workspace(S)){
     try{
       const generation=_workspaceBusinessGeneration,accountToken=workspaceAccountCacheToken();
-      const local=await RunTeamsNativeAssets.localWork(employee,RunTeamsEmployeeDirectory.downloaded());
+      const local=await RunTeamsHost.assets.localWork(employee,RunTeamsEmployeeDirectory.downloaded());
       if(generation!==_workspaceBusinessGeneration||accountToken!==workspaceAccountCacheToken()||!switchCurrent())return;
       if(local.acquired)await refreshCoreTeam();
       if(generation!==_workspaceBusinessGeneration||accountToken!==workspaceAccountCacheToken()||!switchCurrent())return;
@@ -5707,7 +5213,7 @@ async function openBotConversation(employeeId=0,options={}){
     if(options.forceNew||!employee.conversation_id)return toast("员工资产暂不可用，请先恢复资产再开始新对话。","err");
     await openRailConversationSession(employee.conversation_id,{forceWorkspace:true,replace:true,device:true});return;
   }
-  if(!S.activeOrganization&&RunTeamsEmployeeDirectory.downloaded().some(item=>Number(item.id)===employeeId)){
+  if(!RunTeamsHost.session.workspace(S)&&RunTeamsEmployeeDirectory.downloaded().some(item=>Number(item.id)===employeeId)){
     const recent=options.forceNew?null:(S.chats||[]).filter(row=>row.storage_scope==='device'&&RunTeamsEmployeeDirectory.matches(RunTeamsEmployeeDirectory.assetEntry(employeeId),row)).sort((a,b)=>String(b.updated_at||'').localeCompare(String(a.updated_at||'')))[0];
     if(recent){await openRailConversationSession(recent.id,{forceWorkspace:true,replace:true,device:true});return;}
     const result=await api('/api/conversations','POST',{kind:'general',employee_id:employeeId,
@@ -5723,7 +5229,7 @@ async function openBotConversation(employeeId=0,options={}){
 
 function setRailNavTab(tab){
   tab=tab==="bots"?"bots":"team";
-  if(tab==="bots"&&!S.coreTeamLoaded&&!RunTeamsEmployeeDirectory.isLoading()&&(S.localLibrary||S.account?.signed_in&&(S.activeOrganization||S.account.device_data_scope)))void refreshCoreTeam().catch(()=>{});
+  if(tab==="bots"&&!S.coreTeamLoaded&&!RunTeamsEmployeeDirectory.isLoading()&&RunTeamsHost.session.sourceReady(S))void refreshCoreTeam().catch(()=>{});
   if(S.railNavTab===tab){if(S.railCollapsed){expandRail();return;}return;}
   S.railNavTab=tab;saveRailLayout();S._railLocatedKey="";closeRailSearch();
   render();
@@ -5941,7 +5447,7 @@ function botListSearchKeydown(event){
 function botListDeskRow(entry){
  const item=entry.record,now=RunTeamsEmployeeDirectory.isOpening(entry.key)?{kind:'idle',text:'正在打开…'}:RunTeamsEmployeeDirectory.status(entry),name=item.name,selected=RunTeamsEmployeeDirectory.matches(entry,S.conversationPanel),preview=now.text;
  const argument=`decodeURIComponent('${encodeURIComponent(entry.key).replace(/'/g,'%27')}')`;
- return `<button type="button" class="bot-list-row ${selected?'on':''} is-${now.kind}" data-employee-key="${esc(entry.key)}" ${RunTeamsEmployeeDirectory.isOpening(entry.key)?'disabled aria-busy="true"':''} aria-label="${esc(name)}：${esc(preview)}" onclick="RunTeamsEmployeeDirectory.open(${argument}).catch(error=>toast(error.message,'err'))" oncontextmenu="RunTeamsEmployeeDirectory.rowMenu(event,${argument})" onkeydown="if(event.key==='ContextMenu'||(event.key==='F10'&&event.shiftKey))RunTeamsEmployeeDirectory.rowMenu(event,${argument})">${workerAvatarMarkup(item)}<span class="bot-list-copy"><span class="bot-list-head">${item.origin?.kind==='marketplace'?`<span class="bot-list-marketplace-icon" title="市场来源" aria-label="市场来源">${marketplaceIcon()}</span>`:''}<b>${esc(name)}</b></span><small class="bot-list-now" title="${esc(preview)}">${esc(preview)}</small></span></button>`;
+ return `<button type="button" class="bot-list-row ${selected?'on':''} is-${now.kind}" data-employee-key="${esc(entry.key)}" ${RunTeamsEmployeeDirectory.isOpening(entry.key)?'disabled aria-busy="true"':''} aria-label="${esc(name)}：${esc(preview)}" onclick="RunTeamsEmployeeDirectory.open(${argument}).catch(error=>toast(error.message,'err'))" oncontextmenu="RunTeamsEmployeeDirectory.rowMenu(event,${argument})" onkeydown="if(event.key==='ContextMenu'||(event.key==='F10'&&event.shiftKey))RunTeamsEmployeeDirectory.rowMenu(event,${argument})">${workerAvatarMarkup(item)}<span class="bot-list-copy"><span class="bot-list-head">${RunTeamsHost.resources.origin(item)}<b>${esc(name)}</b></span><small class="bot-list-now" title="${esc(preview)}">${esc(preview)}</small></span></button>`;
 }
 
 async function retryBotList(){if(S.workspaceStartup?.pending&&["account","profile"].includes(S.workspaceStartup.errorStage))return boot();const pending=refreshCoreTeam();refreshBotList();try{await pending;}catch(error){}finally{refreshBotList();}}
@@ -5988,7 +5494,7 @@ function toggleRailRecentSection(event){
   toggleRailSectionDetails(event,'recent');
 }
 function railRecentMarkup(){
-  if(!S.localLibrary&&!S.account?.signed_in)return '';
+  if(!S.localLibrary&&!RunTeamsHost.session.ready(S))return '';
   if(typeof syncRailChatActivity==='function')syncRailChatActivity();
   const chats=railRecentChats(),expanded=!!S.railRecentExpanded,shown=expanded?chats:chats.slice(0,RAIL_INITIAL_SIZE);
   // Keep the section present; the directory failure above still owns its retry.
@@ -6002,19 +5508,19 @@ function rail(){
   const pipelineTree=RunTeamsSourcePipelines.sidebar();
   const railSelectedSurface=activeRailMode()==="assistant"?"":S.surface;
   const mode=activeRailMode(),navTab=S.railNavTab||"team",modeSwitch=RunTeamsShell.modeTabs(navTab,ICON),botCreateAction=navTab==="bots"?`<button type="button" class="rail-bot-create" title="创建员工" aria-label="创建员工" onclick="newEmployeeConversation()">${ICON("plus")}</button>`:"";
-  const marketContext=String(railSelectedSurface||"").startsWith("marketplace"),marketCreator=marketContext&&S.marketplaceSection!=="store";
+
   const primaryNavigation=`<div class="rail-nav-primary">${[
     ["文档",ICON(workspaceIconForKey("docs:list")),"openDocs()","docs","rail-docs"],
-    ...(globalThis.RunTeamsApplication?.has('market')===false?[]:[["市场",marketplaceIcon(),"openMarketplace()","marketplace","rail-marketplace"]])
-  ].map(([label,icon,action,surface,className])=>RunTeamsShell.navigationItem({label,icon,action,selected:surface==="marketplace"?marketContext&&!marketCreator:railSelectedSurface===surface,className})).join("")}${marketContext?RunTeamsShell.navigationItem({label:"我发布的资产",icon:"",action:"MarketPublisher.openList()",selected:marketCreator,className:"rail-marketplace-published"}):""}<div class="rail-pipelines-navigation">${RunTeamsShell.navigationItem({label:"流水线",icon:ICON("flow"),action:"openRailPipelines()",selected:["source-pipeline"].includes(railSelectedSurface),className:"rail-pipelines",disabled:false})}<button class="rail-pipeline-add" type="button" title="新建流水线" aria-label="新建流水线" onclick="RunTeamsSourcePipelines.newPipeline()">${ICON("plus")}</button></div></div>`;
+    ...RunTeamsHost.shell.navigation(railSelectedSurface).map(item=>[item.label,item.markup,item.action,item.surface,item.className,item.selected])
+  ].map(([label,icon,action,surface,className,selected])=>RunTeamsShell.navigationItem({label,icon,action,selected:selected??railSelectedSurface===surface,className})).join("")}${RunTeamsHost.shell.secondaryNavigation?.(railSelectedSurface)||""}<div class="rail-pipelines-navigation">${RunTeamsShell.navigationItem({label:"流水线",icon:ICON("flow"),action:"openRailPipelines()",selected:["source-pipeline"].includes(railSelectedSurface),className:"rail-pipelines",disabled:false})}<button class="rail-pipeline-add" type="button" title="新建流水线" aria-label="新建流水线" onclick="RunTeamsSourcePipelines.newPipeline()">${ICON("plus")}</button></div></div>`;
   const navigationReadState=navTab!=="bots"?railNavigationFailure():"";
   const navigationBody=`<div class="railmid-shell"><div class="railmid" onscroll="syncRailScrollState(this)">
       ${primaryNavigation}
       <section class="rail-section pipeline-sec" aria-label="流水线与会话"><div id="rail-section-pipelines" class="rail-pipeline-tree">${navigationReadState}${pipelineTree}</div></section>
       ${RunTeamsShell.trashEntry({surface:railSelectedSurface,icon:ICON})}
-      <div class="rail-personal-sections">${RunTeamsSidebarViews.markup()}${RunTeamsSidebar.markup()}${railRecentMarkup()}</div>
+      <div class="rail-personal-sections">${RunTeamsHost.shell.shortcuts()}${RunTeamsSidebar.markup()}${railRecentMarkup()}</div>
     </div></div>`;
-  const accountFooter=RunTeamsShell.accountEntry({signedIn:S.account.signed_in,name:S.account.signed_in?S.account.name:"登录",initial:S.account.signed_in?accountInitial():"",plan:(globalThis.RunTeamsOfficialUI?.workspacePlan()||''),workspaceName:(globalThis.RunTeamsOfficialUI?.workspaceName()||'本机资料库'),update:globalThis.RunTeamsOfficialUI?.updateButton()||'',icon:ICON,loading:!!S.workspaceStartup?.accountPending,error:!!S.workspaceStartup?.accountError});
+  const accountFooter=RunTeamsShell.accountEntry({icon:ICON});
   const windowActions=RunTeamsShell.topActions(ICON,botCreateAction);
   const newConversationActive=mode==="assistant"&&S.conversationPanel?.kind==="general"&&conversationContextType(S.conversationPanel)==="general"&&!S.conversationPanel.id;
   const railActions=navTab==="team"?`<div class="rail-actions"><button class="rail-primary-action rail-new-chat ${newConversationActive?"on":""}" aria-current="${newConversationActive?"page":"false"}" onclick="newRailChat()">${ICON("message-circle-plus")}<span>新对话</span></button></div>`:"";
@@ -6106,13 +5612,13 @@ let _suppressCardClickUntil=0;
 // One right-hand workspace; switching replaces its content without stacking drawers.
 function detailWorkspaceContext(){
   const panel=S.conversationPanel,assistant=activeRailMode()==='assistant';
-  return JSON.stringify([workspaceAccountCacheToken(),S.activeOrganization||'',S.account?.device_data_scope,_workspaceBusinessGeneration,
+  return JSON.stringify([workspaceAccountCacheToken(),RunTeamsHost.session.workspace(S)||'',RunTeamsHost.session.deviceScope(S),_workspaceBusinessGeneration,
     assistant?'conversation':S.surface,S.surface==='source-pipeline'?RunTeamsSourcePipelines.key(S.sourcePipelineWorkspace?.reference||{}):'',assistant?[panel?.kind,panel?.id??panel?.newDraftKey??null,
       RunTeamsEmployeeDirectory.referenceKey(RunTeamsEmployeeDirectory.panelReference(panel)),
       panel?.context?.creator_local_source_id,panel?.context?.creator_employee_source]:null]);
 }
 function detailWorkspaceView(selection){
-  const official=globalThis.RunTeamsOfficialUI?.detailView?.(selection);if(official)return official;
+  const contributed=RunTeamsHost.resources.detail(selection);if(contributed)return contributed;
   if(selection.type==='source-pipeline'&&RunTeamsSourcePipelines.current())return {key:selection.type+':'+selection.id,content:()=>RunTeamsSourcePipelines.drawer()};
   const adapters={
     'creator-work':globalThis.RunTeamsCreatorWork,
@@ -6249,12 +5755,12 @@ async function openMarkdownLink(value){
     let known=false;try{RunTeamsRoutes.toInternal(documentInternalLinkHref(id));known=!!id;}catch(error){}
     if(!id||!known){
       const local=target.href.startsWith('runteams:')?'/docs?document='+id:RunTeamsRoutes.unmount(target.href);
-      if((/^\/documents\/local-/.test(local)||id)&&!S.activeOrganization){
+      if((/^\/documents\/local-/.test(local)||id)&&!RunTeamsHost.session.workspace(S)){
         const result=await api('/api/device/work/page-ids');
         if(!current()||location.href!==source)return false;
         if(result.error)throw new Error(result.error);
         deviceChatRemember(result);
-      }else await refreshPageIds({force:true});
+      }else await RunTeamsHost.routes.readIndex?.({force:true});
       if(!current()||location.href!==source)return false;
       id=documentInternalLinkId(target.href);
     }
@@ -6797,11 +6303,10 @@ function workerRouteValue(channelId,model){return channelId!=null?String(channel
 
 
 
-function marketplacePublicationLabel(item){const publication=item?.marketplace_publication||{};if(publication.status==="unlisted")return "已下架";if(publication.status==="update_available")return "有更新待发布";if(publication.status==="published")return "已发布";return "";}
 
-function marketplaceHeaderStatusMarkup(item){if(!globalThis.RunTeamsOfficialUI)return "";const publication=item?.marketplace_publication||{},label=marketplacePublicationLabel(item);if(!label)return "";return `<button type="button" class="marketplace-status-chip ${publication.status==="update_available"?"is-update":publication.status==="unlisted"?"is-unlisted":""}" onclick="${esc(`RunTeamsOfficialUI.openMarketplaceSourcePublication('pipeline',${Number(item?.id)||0})`)}" title="管理市场发布">${marketplaceIcon()}<span>${esc(label)}</span></button>`;}
 
-/* module:market_views:marketplaceFeaturedBadge */
+
+
 // 市场发布是应用内的完整工作页：发布后立即上架，系统只做自动校验。
 
 
@@ -6821,17 +6326,7 @@ window.addEventListener("focus",()=>{if(typeof RunTeamsChatActivity!=="undefined
 window.addEventListener("pagehide",()=>{captureConversationPanelDraft();workspaceCaptureCurrent();});
 document.addEventListener("visibilitychange",()=>{if(document.hidden)captureConversationPanelDraft();else{if(typeof RunTeamsChatActivity!=="undefined"&&!S.booting)render();refreshPendingChannelLogins();syncConversationWork(true);if(S.surface==="trash")syncTrash();}});
 S.bootRoute=parseAppRoute();renderBootShell(S.bootRoute);
-try{S.activeOrganization=sessionStorage.getItem('runteams_selected_organization')||'';}catch(e){S.activeOrganization='';}
-const _workspaceFetch=window.fetch.bind(window);
-window.fetch=function(resource,options={}){
-  const target=new URL(typeof resource==='string'?resource:resource.url,location.href);
-  if(target.origin===location.origin&&target.pathname.startsWith('/api/')){
-    const headers=new Headers(options.headers||{});
-    if(S.activeOrganization&&!headers.has('X-RunTeams-Workspace'))headers.set('X-RunTeams-Workspace',S.activeOrganization);
-    options={...options,headers};
-  }
-  return _workspaceFetch(resource,options);
-};
+RunTeamsHost.lifecycle.initialize();
 
 window.addEventListener("storage",accountSyncDeviceAppearance);
 accountApplyDisplayPrefs();

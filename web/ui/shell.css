@@ -189,33 +189,19 @@
 .product-shell .rail-view-remove .i { width:12px; height:12px; }
 .product-shell .rail-view-row:hover .rail-view-remove,.product-shell .rail-view-remove:focus-visible { opacity:1; }
 .product-shell :is(.rail-view-remove):hover { background:var(--surface-hover); color:var(--text-primary); }
-.product-shell :is(.rail-section-toggle,.rail-view-remove,.rail-view-link,.rail-pending-item,.rail-pending-more,.rail-account-tool):focus-visible { outline:2px solid var(--accent-default); outline-offset:-2px; }
 .rail-pending-all { max-height:60dvh; overflow:auto; }
 .product-shell .rail-pl-headrow>a.pl { padding-left:34px; }
 .product-shell .rail-bottom { flex:0 0 auto; min-width:0; display:flex; flex-direction:column; gap:0; padding:0; background:var(--canvas); }
 .product-shell .railmid>.rail-trash-navigation { min-width:0; height:34px; padding:0; }
 .product-shell .rail-trash-navigation .rail-primary-action { width:100%; }
-.product-shell .rail-account-card { min-width:0; border-radius:0; background:var(--canvas); border-top:1px solid var(--border-default); }
 .product-shell .rail-bottom .railfoot-wrap { height:63px; padding:0; border-radius:0; background:transparent; }
 .product-shell .rail-bottom .railfoot-wrap:before,.product-shell .rail-bottom .railfoot-wrap:after { display:none; }
 .product-shell .rail-bottom .railfoot-row { position:relative; height:100%; padding:0 16px; gap:10px; isolation:isolate; --rail-account-tools-width:28px; }
 .product-shell .rail-bottom .railfoot-row:has(.rail-download) { --rail-account-tools-width:60px; }
-.product-shell .rail-bottom .rail-account-actions { flex:1 1 auto; min-width:0; height:100%; border-radius:0; }
-.product-shell .rail-bottom .rail-account-actions:is(:hover,.is-menu-open,:focus-within) { background:transparent; box-shadow:none; }
 .product-shell .rail-bottom .railfoot { position:absolute; inset:0; width:100%; height:100%; min-height:0; padding:0 calc(26px + var(--rail-account-tools-width)) 0 16px; gap:10px; border-radius:0!important; }
 /* The shared menu-trigger rule includes an ID selector; this edge-to-edge target stays square. */
 #rgBody #rgRail .railfoot[aria-haspopup="menu"] { border-radius:0!important; }
-.product-shell .rail-bottom .rail-account-tools { display:flex; align-items:center; gap:4px; flex:0 0 auto; position:relative; z-index:1; }
-.product-shell .rail-account-tool { display:inline-flex; align-items:center; justify-content:center; flex:0 0 28px; width:28px; height:28px; padding:0; border:0; border-radius:6px; background:transparent; color:var(--text-secondary); }
-.product-shell .rail-account-tool:hover { color:var(--text-primary); }
-.product-shell .rail-account-tool:disabled { color:var(--text-muted); cursor:default; }
-.product-shell .rail-account-tool>.i { width:16px; height:16px; }
-.product-shell .rail-account-tool>.env-spinner { width:14px; height:14px; }
-.product-shell .rail-bottom .rail-account-actions .railfoot:focus-visible { outline:2px solid var(--accent-default); outline-offset:-2px; background:transparent; }
 .product-shell .rail-bottom .railfoot .me { width:30px; height:30px; flex:0 0 30px; border:0; background:var(--library-row); color:var(--text-secondary); font-size:calc(12px * var(--interface-font-scale,1)); font-weight:500; }
-.product-shell .rail-bottom .account-rail-copy { display:flex; flex-direction:column; align-items:flex-start; gap:2px; flex:1 1 auto; min-width:0; }
-.product-shell .rail-bottom .account-rail-copy b { max-width:100%; font-size:calc(13px * var(--interface-font-scale,1)); font-weight:400; line-height:18px; color:var(--text-primary); }
-.product-shell .rail-bottom .account-workspace-name { max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text-muted); font-size:calc(12px * var(--interface-font-scale,1)); line-height:18px; }
 .product-shell .rail-bottom .railfoot-wrap.rail-settings-entry { height:auto; padding:8px 11px 8px 12px; }
 .product-shell .rail-settings-entry .rail-settings-button:focus-visible { outline:2px solid var(--accent-default); outline-offset:-2px; }
 .product-shell .rail-trash-navigation .rail-primary-action:focus-visible { outline:2px solid var(--accent-default); outline-offset:2px; }
@@ -264,19 +250,6 @@
 .product-shell .conversation-panel-context-icon.bot .av { width:24px; height:24px; }
 
 .product-shell :is(button,a,input,[tabindex]):focus-visible { outline:1px solid var(--text-secondary); outline-offset:-1px; }
-.account-popover { background:var(--surface); border-color:var(--border-default); border-radius:10px; padding:8px; box-shadow:var(--floating-shadow); }
-.account-popover:has(.account-pop-head) { width:195px; max-width:calc(100vw - 16px); height:auto; padding:6px; display:flex; flex-direction:column; gap:5px; border-color:color-mix(in srgb,var(--border-default) 65%,transparent); box-shadow:0 6px 20px var(--effect-shadow),0 1px 4px var(--effect-shadow-soft); }
-.account-pop-head { height:57px; min-height:57px; flex:0 0 57px; padding:6px 8px 10px; gap:10px; border:0; }
-.account-pop-head .account-avatar { width:32px; height:32px; flex:0 0 32px; border:0; background:var(--surface-selected); color:var(--text-primary); font:500 calc(13px * var(--interface-font-scale,1))/calc(20px * var(--interface-font-scale,1)) var(--ui); }
-.account-pop-head>span:nth-child(2) { gap:2px; }
-.account-pop-head b { font-size:calc(14px * var(--interface-font-scale,1)); font-weight:500; line-height:calc(21px * var(--interface-font-scale,1)); }
-.account-pop-head small { font-size:calc(12px * var(--interface-font-scale,1)); line-height:calc(18px * var(--interface-font-scale,1)); color:var(--text-muted); }
-.account-pop-divider { height:1px; flex:0 0 1px; background:color-mix(in srgb,var(--border-default) 55%,transparent); }
-.account-pop-list>button { min-height:32px; padding:6px 8px; border-radius:6px; font-size:calc(13px * var(--interface-font-scale,1)); font-weight:400; }
-.account-popover:has(.account-pop-head) .account-pop-list { flex:0 0 auto; padding:0; border:0; gap:2px; }
-.account-popover:has(.account-pop-head) .account-pop-list>button { height:32px; min-height:32px; padding:0 10px; gap:10px; line-height:calc(20px * var(--interface-font-scale,1)); }
-.account-popover:has(.account-pop-head) .account-menu-icon { width:16px; height:16px; flex-basis:16px; }
-.account-popover:has(.account-pop-head) .i { width:16px; height:16px; }
 @media (prefers-reduced-motion:reduce) {
   .product-shell,.product-shell .rail-mode-switch button,.product-shell .workspace-tab { transition:none; }
 }
@@ -371,9 +344,6 @@ button.csel[data-menu-trigger]{height:36px;box-sizing:border-box;font-size:calc(
 .product-shell .employee-automation-drawer .employee-automation-row:focus-within{outline:none!important;}
 
 /* Market child shares the chat text inset and the parent navigation target width. */
-.product-shell .rail-primary-action.rail-marketplace-published{height:32px;min-height:32px;width:100%;padding:0 10px 0 34px;gap:0;font-size:calc(13px * var(--interface-font-scale,1));line-height:calc(21px * var(--interface-font-scale,1));border-radius:6px;}
-.product-shell .rail-marketplace-published:hover{background:var(--surface-hover);}
-.product-shell .rail-marketplace-published.on{background:var(--rail-active);}
 
 /* Approved Figma 616:59351 / Codex card 618:63971. Shared by every composer. */
 button.csel.runtime-csel,.product-shell .conversation-main .conversation-composer .copt.runtime button.runtime-csel {
@@ -441,13 +411,7 @@ html[data-theme="dark"] .runtime-slider-thumb { background:var(--text-primary); 
 .product-shell .conversation-main .conversation-composer .copt.runtime { flex:0 1 auto;max-width:calc(100% - 41px); }
 .runtime-csel .runtime-effort[hidden] { display:none; }
 
-/* Current plan comes only from the verified account/subscription read. */
-.account-plan-badge{display:inline-flex;align-items:center;flex:none;padding:1px 6px;border:1px solid var(--border-default);border-radius:4px;background:var(--surface-hover);color:var(--text-secondary);font:500 calc(11px * var(--interface-font-scale,1))/calc(16px * var(--interface-font-scale,1)) var(--ui)}
-.account-plan-badge[hidden]{display:none}
-.railfoot .account-rail-copy{display:flex;align-items:center;gap:8px;min-width:0}
-.railfoot .account-rail-copy b{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.account-pop-identity{display:flex;align-items:center;gap:8px;min-width:0}
-.account-pop-identity b{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
 
 /* Device display preferences; values are persisted only on this computer. */
 :root{--interface-font-size:14px;--interface-font-scale:1;--code-font-size:13px}
@@ -472,8 +436,7 @@ body{font-size:var(--interface-font-size)}
 :is(.conversation-main,.body.conversation-drawer-under-header>#rgPipelineHead) :is(.conversation-panel-heading,.conversation-panel-title-wrap){gap:4px!important}
 /* Keep the compact session glyph and preserve the name control padding. */
 :is(.conversation-main,.body.conversation-drawer-under-header>#rgPipelineHead) .conversation-panel-title-wrap>.conversation-employee-session{width:15px;min-width:15px;flex:0 0 15px;padding-inline:0;margin-left:0}
-:is(.conversation-main,.body.conversation-drawer-under-header>#rgPipelineHead) .conversation-panel-name.pipeline-title,
-:is(.conversation-main,.body.conversation-drawer-under-header>#rgPipelineHead) .conversation-panel-title-wrap>.pipeline-title-input{padding-inline:6px}
+:is(.conversation-main,.body.conversation-drawer-under-header>#rgPipelineHead) .conversation-panel-name.pipeline-title,:is(.conversation-main,.body.conversation-drawer-under-header>#rgPipelineHead) .conversation-panel-title-wrap>.pipeline-title-input{padding-inline:6px}
 /* Add 4px to the shared 4px gap for an 8px session-to-status separation. */
 :is(.conversation-main,.body.conversation-drawer-under-header>#rgPipelineHead) .conversation-employee-session+.employee-desk-now{margin-left:4px}
 

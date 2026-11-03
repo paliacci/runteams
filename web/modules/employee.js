@@ -15,14 +15,14 @@ if(typeof window!=='undefined')window.addEventListener?.('runteams:business-scop
 function employeeAssertBusinessScope(sequence){if(sequence!==_employeeBusinessScopeSequence){const error=new Error('工作区或账户已切换，请重新打开员工设置');error.code='business_scope_changed';throw error;}}
 
 /* module-function:employeeScopedApi */
-async function employeeScopedApi(path,method,body,sequence=_employeeBusinessScopeSequence){employeeAssertBusinessScope(sequence);try{let result;if(typeof RunTeamsNativeAssets!=='undefined'&&/^\/api\/core\/employees\/\d+(?:\/|$)/.test(path))result=await RunTeamsNativeAssets.employeeRequest(path,method||'GET',body);else if(typeof RunTeamsNativeAssets!=='undefined'&&path==='/api/core/packages')result=await RunTeamsNativeAssets.skillCatalog();else if(typeof RunTeamsNativeAssets!=='undefined'&&/^\/api\/core\/packages\//.test(path)){const ref=/^\/api\/core\/packages\/([^/]+)\/revisions\/(\d+)$/.exec(path);if(!ref)throw new Error('技能入口尚未接通。');result=await RunTeamsNativeAssets.skillRevision(decodeURIComponent(ref[1]),Number(ref[2]));}else result=await api(path,method,body);employeeAssertBusinessScope(sequence);return result;}catch(error){employeeAssertBusinessScope(sequence);throw error;}}
+async function employeeScopedApi(path,method,body,sequence=_employeeBusinessScopeSequence){employeeAssertBusinessScope(sequence);try{const result=await (RunTeamsHost.assets.request?RunTeamsHost.assets.request(path,method,body):api(path,method,body));employeeAssertBusinessScope(sequence);return result;}catch(error){employeeAssertBusinessScope(sequence);throw error;}}
 
 /* module-function:employeeCanEdit */
 function employeeCanEdit(item){return item?.editable===true;}
 function employeeUsesFolder(item){return item?.source_mode==='folder';}
 /* module-function:downloadedEmployeeSummary */
 function downloadedEmployeeSummary(id){
-  if(S.activeOrganization||!S.account?.signed_in||S.account.debug_local||S.deviceSessionActor!==String(S.account.user_id||''))return null;
+  if(RunTeamsHost.session.workspace(S)||!RunTeamsHost.session.ready(S)||false||S.deviceSessionActor!==String(RunTeamsHost.session.actor(S)||''))return null;
   const item=RunTeamsEmployeeDirectory.downloaded().find(row=>Number(row.id)===Number(id)&&row.schema==='runteams.downloaded-employee/v1');
   return item?{...item,editable:false}:null;
 }
@@ -32,7 +32,7 @@ function employeeSummary(id){const entry=RunTeamsEmployeeDirectory.entryFor(id);
 
 function employeeSettingsTargetId(id){
   id=Number(id);const local=downloadedEmployeeSummary(id),ref=local?.native_asset?.employee_reference;
-  if(!ref||S.activeOrganization)return id;
+  if(!ref||RunTeamsHost.session.workspace(S))return id;
   const fields=['schema','deployment_id','workspace_id','data_epoch','resource','id'];
   const owned=RunTeamsEmployeeDirectory.assets().find(row=>row.schema==='runteams.native-employee-summary/v1'&&row.editable===true&&fields.every(k=>row.reference?.[k]===ref[k]));
   return owned?Number(owned.id):id;
@@ -60,9 +60,9 @@ async function employeeWrite(value,change){
 }
 /* module-function:employeeWriteSource */
 async function employeeWriteSource(entry,change,sequence){
-  employeeAssertBusinessScope(sequence);const sourceHeaders=S.localLibrary?{'X-RunTeams-Library':S.localLibrary.library_id,'X-RunTeams-Library-Generation':S.localLibrary.generation}:{'X-RunTeams-Device-Scope':S.account?.device_data_scope};
+  employeeAssertBusinessScope(sequence);const sourceHeaders=RunTeamsHost.session.headers(S);
   const local=entry;
-  const opened=local?.source?{session:{employee:local,context:{creator_local_source_id:local.source.id,creator_employee_source:local.source.path}}}:await RunTeamsNativeAssets.authoring(entry.asset?.id||entry.work?.id,draftRuntimeConfig());employeeAssertBusinessScope(sequence);
+  const opened=local?.source?{session:{employee:local,context:{creator_local_source_id:local.source.id,creator_employee_source:local.source.path}}}:await RunTeamsHost.assets.authoring(entry.asset?.id||entry.work?.id,draftRuntimeConfig());employeeAssertBusinessScope(sequence);
   const context=opened.session?.context,source=context?.creator_local_source_id,path=context?.creator_employee_source;
   if(!source||!path)throw Error('员工缺少原 SDK 源码。');
   const root='/api/creator-source/drafts/'+source;
@@ -164,7 +164,7 @@ function employeeConnectionMarkup(d,s,index,row,prefix='employee_mcp_connection'
 /* Current employee version: local extension trust and official confirmations. */
 let _employeeMCPDialog=null,_employeeMCPPolling=false;
 function employeeMCPSection(item,id){
-  if(!item?.local_mcp||S.activeOrganization)return '';
+  if(!item?.local_mcp||RunTeamsHost.session.workspace(S))return '';
   const chat=employeeWorkChat(id);
   return `<section class="employee-sdk-section rt-section"><div class="rt-section-heading"><h3 class="rt-section-heading-label">本机功能</h3><button type="button" class="rt-button rt-section-action" onclick="${chat?`employeeMCPOpen(${id},this)`:`openBotConversation(${id})`}">${chat?'管理':'打开对话'}</button></div></section>`;
 }
@@ -185,9 +185,9 @@ function employeeMCPAssertPrivateWork(s){
 }
 async function employeeMCPOpen(id,trigger,pipelinePanel=null,privateWork=null){
   if(privateWork&&privateWork!==window.RunTeamsSourcePipelinePanels?.programContext())return;
-  const pipeline=pipelinePanel&&pipelinePanel===window.RunTeamsSourcePipelines?.workContext()&&!S.activeOrganization;
-  const panel=S.conversationPanel,chat=privateWork&&!S.activeOrganization?privateWork:pipeline?pipelinePanel:id==null&&RunTeamsEmployeeDirectory.employeePanel(panel)&&panel.identity?.local_mcp&&!S.activeOrganization?panel:employeeWorkChat(id);if(!chat)return;
-  const s={chat:chat.id,id,pipeline:!!pipeline,privateWork,scope:_employeeBusinessScopeSequence,deviceScope:S.account?.device_data_scope,trigger,loading:true,busy:false,error:'',data:null};
+  const pipeline=pipelinePanel&&pipelinePanel===window.RunTeamsSourcePipelines?.workContext()&&!RunTeamsHost.session.workspace(S);
+  const panel=S.conversationPanel,chat=privateWork&&!RunTeamsHost.session.workspace(S)?privateWork:pipeline?pipelinePanel:id==null&&RunTeamsEmployeeDirectory.employeePanel(panel)&&panel.identity?.local_mcp&&!RunTeamsHost.session.workspace(S)?panel:employeeWorkChat(id);if(!chat)return;
+  const s={chat:chat.id,id,pipeline:!!pipeline,privateWork,scope:_employeeBusinessScopeSequence,deviceScope:RunTeamsHost.session.deviceScope(S),trigger,loading:true,busy:false,error:'',data:null};
   _employeeMCPDialog=s;openDialog(employeeMCPOptions());await employeeMCPRead(s);
 }
 function employeeMCPOptions(){
@@ -265,7 +265,7 @@ function employeeMCPAnswer(decision){const row=_employeeMCPDialog?.data?.approva
 async function employeeMCPClose(){const s=_employeeMCPDialog;if(s?.busy)return;if(s?.data?.approvals?.length)await employeeMCPAnswer('cancel');if(_employeeMCPDialog!==s)return;_employeeMCPDialog=null;closeModal();if(s?.trigger?.isConnected)s.trigger.focus();}
 function employeeMCPKey(event){if(event.key==='Escape'){event.preventDefault();event.stopPropagation();void employeeMCPClose();return;}if(event.key==='Tab'){const nodes=[...document.querySelectorAll('.employee-sdk-setup button:not([disabled]),.employee-sdk-setup input:not([disabled]),.employee-sdk-setup select:not([disabled]),.employee-sdk-setup summary')].filter(n=>n.getClientRects().length),first=nodes[0],last=nodes.at(-1);if(event.shiftKey&&document.activeElement===first){event.preventDefault();last?.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first?.focus();}}}
 function employeeMCPContext(){
-  if(S.activeOrganization)return null;
+  if(RunTeamsHost.session.workspace(S))return null;
   const privateWork=window.RunTeamsSourcePipelinePanels?.programContext();
   if(privateWork)return {panel:privateWork,pipeline:false,privateWork};
   const own=window.RunTeamsSourcePipelines?.workContext();
@@ -288,7 +288,7 @@ if(typeof window!=='undefined'){
     _employeeMCPPolling=true;
     try{
       if(_employeeMCPDialog?.busy)return;
-      const s=_employeeMCPDialog||{chat:p.id,pipeline:current.pipeline,privateWork:current.privateWork,scope:_employeeBusinessScopeSequence,deviceScope:S.account?.device_data_scope};
+      const s=_employeeMCPDialog||{chat:p.id,pipeline:current.pipeline,privateWork:current.privateWork,scope:_employeeBusinessScopeSequence,deviceScope:RunTeamsHost.session.deviceScope(S)};
       if(s.chat!==p.id||s.pipeline!==current.pipeline)return;
       const d=await employeeMCPRequest(s,null,true),latest=employeeMCPContext();
       if(latest?.panel!==p||latest.pipeline!==current.pipeline||d.schema!=='runteams.mcp-observation/1'||d.chat_id!==p.id||d.owner!==(current.pipeline?'pipeline':'employee')||typeof d.version!=='string')return;

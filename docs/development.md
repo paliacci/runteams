@@ -15,6 +15,7 @@ npm ci --prefix tooling/js --ignore-scripts --no-audit --no-fund
 
 ```sh
 .venv/bin/python -B -m runteams_core.devtools.check_source
+.venv/bin/python -B -m runteams_core.devtools.check_ui_boundary
 .venv/bin/python -B -m runteams_core.devtools.check_repository --root . --namespace runteams_core
 ```
 
@@ -37,6 +38,8 @@ npm ci --prefix tooling/js --ignore-scripts --no-audit --no-fund
 ```
 
 统一入口覆盖源码边界、仓库卫生、可复现 wheel、独立安装主流程、PDF 附件及 SDK 消费者检查。GitHub 工作流运行相同入口。针对业务变更补充对应的定向测试；一次 CI 通过不表示所有平台、真实模型或长期运行均已验收。
+
+共享界面修改还会运行宿主接口测试与 wheel 内的 UI 边界检查。新增页面应按[宿主边界](ui-host-boundary.md)决定归属，不能把发行版分支或商业实现放在公共 UI 中再隐藏。
 
 ## SDK 开发包
 

@@ -21,6 +21,8 @@ def resource_inputs():
 
 class Build(build_py):
     def run(self):
+        from runteams_core.devtools.check_ui_boundary import check
+        check(ROOT)
         build = Path(self.build_lib)
         if build.exists():
             shutil.rmtree(build)

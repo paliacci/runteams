@@ -54,7 +54,7 @@ export async function boot(value){
  host=value;const {state:S}=host;
  try{
   const identity=await connect();
-  S.localLibrary=identity;S.activeOrganization='';S.accountSessionReady=true;S.accountSessionError='';
+  S.localLibrary=identity;S.accountSessionReady=true;S.accountSessionError='';
   host.restoreWorkspace();
   const route=host.route(),deferRoutePaint=!new URL(location.href).searchParams.has('settings')&&!['home','chat-new'].includes(route.kind);
   S.settingsPreferencesState='loading';

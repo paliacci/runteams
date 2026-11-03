@@ -108,24 +108,11 @@
     return `<div class="rail-bottom"><div class="rail-account-card">${account}</div></div>`;
   }
 
-  function accountEntry({signedIn = true, workspaceName='', name, initial, plan = '', update = '', icon, loading = false, error = false}) {
-    if(global.RunTeamsApplication?.edition==='community')return `<div class="railfoot-wrap rail-settings-entry">${navigationItem({label:'设置',icon:icon('settings'),action:"openSettingsPage('general',{returnFocus:this})",className:'rail-settings-button'})}</div>`;
-    if(!signedIn&&!loading&&!error)return '';
-    const tools = `<div class="rail-account-tools">${update}<button type="button" class="rail-account-tool" title="反馈" aria-label="反馈" onclick="RunTeamsSupport.open({compose:true})">${icon('bug')}<span class="message-unread-count"></span></button></div>`;
-    if (loading) return `<div class="railfoot-wrap"><div class="railfoot-row"><div class="rail-account-actions"><button class="railfoot" type="button" aria-busy="true" aria-label="正在载入账号信息，打开用户菜单" aria-haspopup="menu" aria-expanded="false" onclick="accountMenu(event)"><span class="skeleton-block sk-rail-avatar" aria-hidden="true"></span><span class="skeleton-block sk-rail-name" aria-hidden="true"></span></button></div>${tools}</div></div>`;
-    if (error) return `<div class="railfoot-wrap"><div class="railfoot-row"><div class="rail-account-actions" role="alert"><button class="railfoot rail-account-read-failure" type="button" aria-haspopup="menu" aria-expanded="false" onclick="accountMenu(event)"><span>账号暂时无法加载</span></button></div>${tools}</div></div>`;
+  
 
-    return `<div class="railfoot-wrap"><div class="railfoot-row"><div class="rail-account-actions"><button class="railfoot" title="${signedIn ? '打开账号菜单' : '登录与设置'}" aria-haspopup="menu" aria-expanded="false" onclick="accountMenu(event)"><span class="me">${signedIn?escape(initial):icon('user')}</span><span class="account-rail-copy"><b title="${escape(name)}">${escape(name)}</b>${workspaceName?`<small class="account-workspace-name">${escape(workspaceName)}</small>`:''}</span></button></div>${tools}</div></div>`;
-  }
+  
 
-  function planBadge(plan){const label=({free:'Free',pro:'Pro',max:'Max',team:'Team'})[plan]||'';return `<span class="account-plan-badge" data-account-plan title="当前计划" ${label?'':'hidden'}>${label}</span>`;}
-
-  function accountMenu({signedIn, name, email, initial, plan = '', icon, pending = false, error = false, logoutState = '', busy = false}) {
-    const item = (label, glyph, action, disabled = false) => `<button type="button" role="menuitem" onclick="${action}" ${disabled?'disabled':''}><span class="account-menu-icon">${icon(glyph)}</span><span class="account-menu-copy">${label}</span></button>`;
-    if ((pending || error) && logoutState!=='unknown') return `<div class="account-pop-list">${item('设置','settings','openRailSettings(event)')}${error?item('重新读取账号','refresh','closeAccountMenu();boot()'):''}</div>`;
-    if (!signedIn) return '';
-    return `<div class="account-pop-head"><span class="account-avatar">${escape(initial)}</span><span><span class="account-pop-identity"><b>${escape(name)}</b>${planBadge(plan)}</span><small>${escape(email)}</small></span></div><div class="account-pop-divider" role="separator"></div><div class="account-pop-list account-pop-finance">${item('消息中心','message-circle-more','closeAccountMenu();RunTeamsSupport.open()')}${item('设置','settings','openRailSettings(event)')}${plan==='team'?item('工作区与成员','users','accountTeamOpen()'):''}</div><div class="account-pop-divider" role="separator"></div><div class="account-pop-list account-pop-actions">${item(busy?(logoutState==='unknown'?'正在检查登录状态…':'正在退出登录…'):logoutState==='unknown'?'检查登录状态':'退出登录',logoutState==='unknown'?'refresh':'logout','accountLogout()',busy)}</div>`;
-  }
+  
 
   let tabsObserver, tabsScroller, tabsScrollState;
   function scrollWindowTabs(event) {
@@ -250,7 +237,8 @@
     return `<div class="body product-shell ${escape(classes)}" id="rgBody" data-drawer-width="${escape(drawerWidth)}" data-detail-open="${detailOpen}" style="grid-template-columns:${escape(columns)};--rail-edge-x:${escape(railEdge)}">${rail}${tabs}${head}${content}${drawer}${controls}</div>`;
   }
 
-  global.RunTeamsShell = Object.freeze({navigationItem, historyActions, settingsToolbar, modeTabs, moveMode, topActions, collapsedActions, syncHistoryControls, recordNavigation, goHistory, trashEntry, footer, accountEntry, accountMenu, windowTabs, patchWindowTabs, syncWindowTabs, scrollWindowTabs, pageHeader, frame});
+  function accountEntry({icon,...options}){return global.RunTeamsHost.shell.entry?.({icon,...options})||`<div class="railfoot-wrap rail-settings-entry">${navigationItem({label:'设置',icon:icon('settings'),action:"openSettingsPage('general',{returnFocus:this})",className:'rail-settings-button'})}</div>`;}
+  global.RunTeamsShell = Object.freeze({navigationItem, historyActions, settingsToolbar, modeTabs, moveMode, topActions, collapsedActions, syncHistoryControls, recordNavigation, goHistory, trashEntry, footer, accountEntry, windowTabs, patchWindowTabs, syncWindowTabs, scrollWindowTabs, pageHeader, frame});
   if (global.history && global.location) {
     navigationState();
     global.addEventListener('popstate', () => {

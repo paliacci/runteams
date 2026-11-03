@@ -65,66 +65,6 @@
       "kind": "docs"
     },
     {
-      "internal": "/marketplace/listings/{listing}",
-      "public": "/marketplace/listings/{listing}",
-      "kind": "marketplace-detail",
-      "refs": {
-        "listing": "listings"
-      }
-    },
-    {
-      "internal": "/marketplace/published/{listing}/{section}",
-      "public": "/marketplace/published/{listing}/{section}",
-      "kind": "marketplace-publisher",
-      "refs": {
-        "listing": "listings"
-      },
-      "keys": {
-        "section": "manage|edit|update"
-      }
-    },
-    {
-      "internal": "/marketplace/published/{listing}",
-      "public": "/marketplace/published/{listing}",
-      "kind": "marketplace-publisher",
-      "refs": {
-        "listing": "listings"
-      }
-    },
-    {
-      "internal": "/marketplace/published",
-      "public": "/marketplace/published",
-      "kind": "marketplace-publisher"
-    },
-    {
-      "internal": "/marketplace/publish",
-      "public": "/marketplace/publish",
-      "kind": "marketplace-publish"
-    },
-    {
-      "internal": "/marketplace",
-      "public": "/marketplace",
-      "kind": "marketplace"
-    },
-    {
-      "internal": "/wallet",
-      "public": "/wallet",
-      "kind": "wallet"
-    },
-    {
-      "internal": "/billing",
-      "public": "/billing",
-      "kind": "billing"
-    },
-    {
-      "internal": "/billing/{tab}",
-      "public": "/billing/{tab}",
-      "kind": "billing",
-      "keys": {
-        "tab": "subscription|records"
-      }
-    },
-    {
       "internal": "/trash",
       "public": "/trash",
       "kind": "trash"

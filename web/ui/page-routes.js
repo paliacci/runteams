@@ -31,7 +31,7 @@ function match(value,side){
   const names=[];
   const pattern=route[side].replace(/\{(\w+)\}/g,(_,name)=>{
    names.push(name);const resource=route.refs?.[name];
-   return '('+(resource?(side==='public'?publicPattern(resource):resource==='listings'?'[a-z][a-z0-9-]*':'[1-9][0-9]*'):route.keys[name])+')';
+   return '('+(resource?(side==='public'?publicPattern(resource):route.internal_keys?.[name]||'[1-9][0-9]*'):route.keys[name])+')';
   });
   const found=path.match(new RegExp('^'+pattern+'$'));
   if(found)return {route,params:Object.fromEntries(names.map((name,i)=>[name,found[i+1]]))};
@@ -101,12 +101,13 @@ function toPublic(value){
 function preview(value){
  const target=url(unmount(value)),found=match(target.pathname,'public');if(!found)return {kind:'invalid'};
  const kind=found.route.kind,q=target.searchParams;
+ const contributed=global.RunTeamsHost.routes.preview(found,target);if(contributed!==null)return contributed;
  if(kind==='source-pipeline')return {kind,sourceId:found.params.source,entry:found.params.entry};
  if(kind==='chat-new'&&q.get('chat')&&q.get('chat')!=='new')return {kind:'chat',pending:true};
  if(kind==='chat-new')return {kind,...(q.get('purpose')==='create-employee'?{purpose:'create-employee'}:{})};
  if(kind.startsWith('bot'))return {kind:'bot',settings:kind==='bot-settings',chatId:q.has('chat')&&q.get('chat')!=='new'?1:'new',pending:true};
  if(kind==='docs-detail')return {kind:'docs',documentId:1,pending:true};
- return {kind,listingId:found.params.listing,section:found.params.section,tab:found.params.tab||q.get('tab'),sourceType:q.get('source')?.split(':')[0],sourceId:q.has('source')?1:0,pending:true};
+ return {kind,pending:true};
 }
 function resolve(value){
  if(!loaded)return preview(value);
@@ -120,13 +121,7 @@ function resolve(value){
  if(kind==='chat-new')return {kind,...(q.get('purpose')==='create-employee'?{purpose:'create-employee'}:{})};
  if(kind==='source-pipeline')return {kind,sourceId:p.source,entry:p.entry};
  if(kind==='docs'||kind==='docs-detail')return {kind:'docs',documentId:Number(p.document)||0,anchor:decodeURIComponent(target.hash.slice(1))};
- if(kind==='marketplace')return {kind,section:'store'};
- if(kind==='marketplace-detail')return {kind,listingId:p.listing};
- if(kind==='marketplace-publisher')return {kind,section:p.listing?p.section||'manage':'mine',...(p.listing?{listingId:p.listing,tab:q.get('tab')||'overview'}:{})};
- if(kind==='marketplace-publish'){
-  const source=(q.get('source')||'').split(':');return {kind,sourceType:source[0]||'',sourceId:Number(source[1])||0};
- }
- if(kind==='billing')return {kind,tab:p.tab||'rentals'};
+ const contributed=global.RunTeamsHost.routes.resolve(found,target);if(contributed!==null)return contributed;
  if(kind==='design-system')return {kind,theme:['light','dark','system'].includes(q.get('theme'))?q.get('theme'):'system'};
  return {kind};
 }

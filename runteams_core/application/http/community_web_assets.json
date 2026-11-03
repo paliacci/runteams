@@ -155,6 +155,10 @@
     "web/ui/empty-states.js",
     "text/javascript; charset=utf-8"
   ],
+  "/ui/host.js": [
+    "web/ui/host.js",
+    "text/javascript; charset=utf-8"
+  ],
   "/ui/icons/sidebar-next.svg": [
     "web/ui/icons/sidebar-next.svg",
     "image/svg+xml"
@@ -231,10 +235,6 @@
     "web/ui/model-channels.js",
     "text/javascript; charset=utf-8"
   ],
-  "/ui/native-assets.js": [
-    "web/ui/native-assets.js",
-    "text/javascript; charset=utf-8"
-  ],
   "/ui/page-routes.js": [
     "web/ui/page-routes.js",
     "text/javascript; charset=utf-8"
@@ -293,10 +293,6 @@
   ],
   "/ui/sidebar-account.js": [
     "web/ui/sidebar-account.js",
-    "text/javascript; charset=utf-8"
-  ],
-  "/ui/sidebar-views.js": [
-    "web/ui/sidebar-views.js",
     "text/javascript; charset=utf-8"
   ],
   "/ui/source-pipeline-panels.js": [

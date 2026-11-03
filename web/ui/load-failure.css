@@ -39,7 +39,6 @@
 /* Host wrappers keep their layout. Only the failure's own space is composed. */
 .docs-body>.rt-load-failure--page{margin-top:44px}
 .skills-library-scroll .rt-load-failure--page{margin-top:20px}
-.marketplace-search-state>.rt-load-failure,.market-creator-list-body .rt-load-failure--page{margin-top:20px}
 .doc-reader-empty:has(>.rt-load-failure){display:block;padding:0}
 @keyframes rt-read-retry{to{transform:rotate(360deg)}}
 @media(prefers-reduced-motion:reduce){.rt-failure-retry[aria-busy=true] .rt-failure-retry-icon{animation:none}}
@@ -61,9 +60,6 @@
 
 .core-package-resource-viewer-host:has(>.rt-load-failure),.rt-resource-pane-body:has(>.rt-resource-read-failure){display:flex;align-items:center;justify-content:center}
 .result-evidence-preview-content.is-empty .rt-failure-copy>b{font-size:calc(16px * var(--interface-font-scale,1));line-height:calc(24px * var(--interface-font-scale,1));color:var(--text-primary);font-weight:500}
-.rail-account-read-failure>.rt-load-failure{flex-wrap:nowrap;padding:0}
-.rail-account-read-failure .rt-failure-copy>b{font-size:calc(12px * var(--interface-font-scale,1))}
-.rail-account-read-failure .rt-failure-retry{height:28px;width:80px;min-width:80px;max-width:80px}
 
 .channel-usage-inline>.rt-failure-retry{height:22px;width:70px;min-width:70px;max-width:70px;padding:0 5px;font-size:calc(11px * var(--interface-font-scale,1));background:transparent}
 .product-shell .conversation-main .conversation-composer .copt.runtime button.runtime-csel.rt-failure-retry{width:max-content;min-width:0;max-width:100%;height:auto;min-height:36px;padding:0 6px 0 8px;font-size:calc(12px * var(--interface-font-scale,1));white-space:normal}

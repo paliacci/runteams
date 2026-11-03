@@ -1,6 +1,6 @@
 # 架构与目录
 
-免费本机版的正式入口是 `runteams_core.community`，安装后命令为 `runteams-community`。HTTP 宿主、资料存储和同一套业务界面共同提供对话、员工、流水线与文档功能。
+免费本机版的正式入口是 `runteams_core.application.community`，安装后命令为 `runteams-community`。HTTP 宿主、资料存储和同一套业务界面共同提供对话、员工、流水线与文档功能。
 
 | 路径 | 职责 |
 | --- | --- |
@@ -26,6 +26,8 @@
 文档使用 React／BlockNote 编辑器、本机内容模型和不可变修订。编辑器前端在 `frontend/rich-document`，发布静态资源在 `web/rich-document`。
 
 共用业务与 UI 只在本仓库维护。官方账号、云服务与收费代码不进入免费源码依赖；私有工程通过精确固定的核心 wheel 组合官方扩展，不复制共用实现。
+
+共享 UI 通过通用宿主接口接入身份、设置和页面扩展，不判断发行版，也不内置隐藏的商业页面。代码归属、接口及源码／产物检查见[界面宿主边界](ui-host-boundary.md)。
 
 ## 仓库边界
 

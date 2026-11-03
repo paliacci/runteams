@@ -12,7 +12,6 @@ import sys
 
 ROOT=source_root()
 sys.path.insert(0,str(ROOT))
-from runteams_core.application.http.local_web import OFFICIAL_ASSETS
 
 
 def expected():
@@ -24,7 +23,7 @@ def expected():
         for path in sorted((ROOT/directory).rglob('*')):
             if not path.is_file() or path.is_symlink() or path.suffix not in types:continue
             url='/'+path.relative_to(ROOT/'web').as_posix()
-            if url not in OFFICIAL_ASSETS:result[url]=[path.relative_to(ROOT).as_posix(),types[path.suffix]]
+            result[url]=[path.relative_to(ROOT).as_posix(),types[path.suffix]]
     for path,mime in [('web/runteams.css','text/css; charset=utf-8'),('web/favicon.svg','image/svg+xml')]:result['/'+path.removeprefix('web/')]=[path,mime]
     for name in ('application.js','bootstrap.js','client.js','native.js'):result['/community/'+name]=['frontend/community/'+name,types['.js']]
     for path in ('/chat/new','/chats/new','/docs','/documents','/trash','/pipelines','/pipelines/new'):result[path]=result['/']
