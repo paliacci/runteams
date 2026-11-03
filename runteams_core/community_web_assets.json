@@ -455,6 +455,10 @@
     "web/modules/skills.js",
     "text/javascript; charset=utf-8"
   ],
+  "/vendor/licenses/RESOURCE_VIEWER_DEPENDENCIES.txt": [
+    "web/vendor/licenses/RESOURCE_VIEWER_DEPENDENCIES.txt",
+    "text/plain; charset=utf-8"
+  ],
   "/vendor/marked.js": [
     "web/vendor/marked.js",
     "text/javascript; charset=utf-8"
@@ -475,6 +479,14 @@
     "web/vendor/resource-viewer.js",
     "text/javascript; charset=utf-8"
   ],
+  "/vendor/resource-viewer.js.LEGAL.txt": [
+    "web/vendor/resource-viewer.js.LEGAL.txt",
+    "text/plain; charset=utf-8"
+  ],
+  "/fonts/hanken-grotesk-LICENSE.txt": [
+    "web/fonts/hanken-grotesk-LICENSE.txt",
+    "text/plain; charset=utf-8"
+  ],
   "/fonts/hanken-grotesk-latin.woff2": [
     "web/fonts/hanken-grotesk-latin.woff2",
     "font/woff2"
@@ -491,9 +503,21 @@
     "web/fonts/ibm-plex-mono-600.woff2",
     "font/woff2"
   ],
+  "/fonts/ibm-plex-mono-LICENSE.txt": [
+    "web/fonts/ibm-plex-mono-LICENSE.txt",
+    "text/plain; charset=utf-8"
+  ],
+  "/fonts/inter-LICENSE.txt": [
+    "web/fonts/inter-LICENSE.txt",
+    "text/plain; charset=utf-8"
+  ],
   "/fonts/inter-variable.woff2": [
     "web/fonts/inter-variable.woff2",
     "font/woff2"
+  ],
+  "/fonts/jetbrains-mono-LICENSE.txt": [
+    "web/fonts/jetbrains-mono-LICENSE.txt",
+    "text/plain; charset=utf-8"
   ],
   "/fonts/jetbrains-mono-regular.woff2": [
     "web/fonts/jetbrains-mono-regular.woff2",
@@ -694,6 +718,10 @@
   "/rich-document/dist/index.html": [
     "web/rich-document/dist/index.html",
     "text/html; charset=utf-8"
+  ],
+  "/rich-document/licenses/DEPENDENCIES.txt": [
+    "web/rich-document/licenses/DEPENDENCIES.txt",
+    "text/plain; charset=utf-8"
   ],
   "/runteams.css": [
     "web/runteams.css",

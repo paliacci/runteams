@@ -163,7 +163,7 @@ def build(output=None, build_python=None, data_directory=None, validate_only=Fal
         subprocess.run([str(python),'-I','-S','-B','-c',probe,str(core),str(packages)],env=env,check=True,capture_output=True,timeout=30)
         subprocess.run([str(python),'-E','-s','-B',str(core/'agent_python.py'),'--help'],env=env,check=True,capture_output=True,timeout=30)
         sdk_probe='import sys;sys.path.insert(0,sys.argv[1]);from runteams_core.creator_build_tools import load;from runteams_core.employee_mcp import platform_runtime;from runteams_core.creator_worker_process import WORKERS;from pathlib import Path;load();r=platform_runtime();r.verify();assert all((Path(sys.argv[1])/"runteams_core"/n).is_file() for n in WORKERS.values())'
-        subprocess.run([str(python),'-I','-B','-c',sdk_probe,str(core)],env=env,check=True,capture_output=True,timeout=30)
+        subprocess.run([str(python),'-I','-B','-c',sdk_probe,str(core)],env=env,check=True,timeout=30)
         executable=app/'Contents/MacOS/RunTeamsLocal';executable.parent.mkdir()
         subprocess.run(['/usr/bin/xcrun','swiftc','-swift-version','5','-target',
             ('arm64' if platform.machine()=='arm64' else 'x86_64')+'-apple-macosx12.0',
