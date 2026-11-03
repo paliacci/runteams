@@ -108,11 +108,11 @@
     return `<div class="rail-bottom"><div class="rail-account-card">${account}</div></div>`;
   }
 
-  
 
-  
 
-  
+
+
+
 
   let tabsObserver, tabsScroller, tabsScrollState;
   function scrollWindowTabs(event) {

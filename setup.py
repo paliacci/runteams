@@ -21,8 +21,14 @@ def resource_inputs():
 
 class Build(build_py):
     def run(self):
-        from runteams_core.devtools.check_ui_boundary import check
-        check(ROOT)
+        # Isolated build frontends do not put the source package on sys.path.
+        # Load this dependency-free build check from its declared source file.
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(
+            'public_ui_build_check', ROOT / 'runteams_core/devtools/check_ui_boundary.py')
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        module.check(ROOT)
         build = Path(self.build_lib)
         if build.exists():
             shutil.rmtree(build)

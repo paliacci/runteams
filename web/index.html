@@ -41,13 +41,13 @@
 <script src="/ui/page-skeletons.js?v=document-engine-retired-20261031"></script>
 <link rel="stylesheet" href="/ui/load-failure.css?v=sidebar-read-recovery-20261026" />
 <script src="/ui/load-failure.js?v=shared-failure-20261016"></script>
-  
-  
-  
-  
+
+
+
+
   <script src="/ui/work-module-icons.js"></script>
 
-  
+
 
 <script src="/ui/static-pages.js?v=document-engine-retired-20261031"></script>
 <script src="/ui/requests.js?v=edition-request-policy-20261103-2"></script>
@@ -283,7 +283,7 @@ window.RunTeamsBoot=(()=>{
     return '<aside class="rail boot-rail" id="rgRail" data-mode="navigation">'+RunTeamsShell.topActions(icon,'',{pending:true})+'<div class="rail-fixed"><div class="railtop rail-mode-top boot-mode-top">'+RunTeamsShell.modeTabs(navTab,icon,'RunTeamsBoot.selectRailTab')+'</div></div><div class="rail-content-viewport"><div class="rail-content-track"><div class="rail-mode-pane rail-navigation-pane">'+body+RunTeamsShell.footer({account:RunTeamsShell.accountEntry({loading:true,icon})})+'</div></div></div></aside>';
   }
 
-  
+
   function selectRailTab(value){
     const tab=value==='bots'?'bots':'team';
     try{const layout=JSON.parse(localStorage.getItem('runteams_sidebar_layout_v1')||'{}')||{};localStorage.setItem('runteams_sidebar_layout_v1',JSON.stringify({...layout,navTab:tab}));}catch(error){}
@@ -308,7 +308,7 @@ window.RunTeamsBoot=(()=>{
   }
   function windowDisplay(key){const supplied=RunTeamsHost.shell.windowDisplay(key);if(supplied)return supplied;
     if(key.startsWith('worker:'))return {title:'员工对话',icon:'user'};
-    
+
     if(key.startsWith('pipeline:')||key.startsWith('pipeline-local:'))return {title:key==='pipeline:draft'?'新建流水线':'流水线',icon:'flow'};
     if(key.startsWith('document:')||key==='docs:list')return {title:'文档',icon:'doc'};
     if(key.startsWith('chat:'))return {title:key.startsWith('chat:new')?'新对话':'对话',icon:'square-pen'};
@@ -616,7 +616,7 @@ function workspaceKeyFromRoute(route){
   if(kind==="home")return "home";
   if(kind==="chat-new")return conversationNewWindowKey(value.purpose);
   if(kind==="chat")return `chat:${value.id}`;
-  
+
   if(kind==="source-pipeline")return `pipeline-local:${value.sourceId}:${value.entry}`;
   if(false)return `pipeline:${value.id}`;
   if(kind==="source-pipeline-new")return "pipeline:draft";
@@ -671,7 +671,7 @@ function workspaceTitleForKey(key){const contributed=RunTeamsHost.shell.windowDi
   }
 
   if(text.startsWith("pipeline-local:"))return S.sourcePipelineWorkspace&&RunTeamsSourcePipelines.key(S.sourcePipelineWorkspace.reference||{})===text?S.sourcePipelineWorkspace.data?.name||saved||"流水线":saved||"流水线";
-  
+
   if(text.startsWith("document:")){const id=text.slice(9),row=docsById(id),reader=S.docReader,loaded=String(reader?.workspaceDocumentId??reader?.doc?.id??"")===id?reader?.doc:null;return title(row?.title)||title(row?.name)||title(loaded?.title)||title(loaded?.name)||saved||"文档";}
   return ({"docs:list":"文档","automations":"旧自动化","trash":"垃圾箱","design-system":"设计系统",}[text]||"工作区");
 }
@@ -870,7 +870,7 @@ function workspaceRestoreSnapshot(key,options={}){
   if(snap){if(S.workspaceSwitchPending)workspaceFinishSwitchPending();cancelPageTransition();const preservedRailNavTab=S.railNavTab;if(S.docReader&&key!==workspaceCurrentKey())teardownDocumentReader();const {sel:drawerSelection,...pane}=snap;Object.assign(S,{...pane,coreWorkflows:S.coreWorkflows});S.railNavTab=preservedRailNavTab;detailWorkspaceController().restore(drawerSelection);
 
     if(!switchCurrent())return false;
-    
+
     if(String(key).startsWith("document:")&&S.docReader){
       const row=docsById(String(key).slice(9));
       if(row)S.docReader={...S.docReader,doc:{...S.docReader.doc,...row}};
@@ -924,7 +924,7 @@ function workspaceFinishSwitchPending(){
   for(const id of ["rgMid","rgPipelineHead","rgDrawer"]){const node=document.getElementById(id);if(node)node.inert=false;}
 }
 function activateWorkspaceWindow(key){
-  
+
 
   if(!key||!(S.workspaceWindows||[]).some(item=>item.key===key))return;
   if(S.workspaceSwitchPending?.key===key&&!S.workspaceSwitchPending.error)return;
@@ -964,14 +964,14 @@ function activateWorkspaceWindow(key){
 function closeWorkspaceWindow(key){
   key=String(key||"");if(!(S.workspaceWindows||[]).some(item=>item.key===key))return;
   const remaining=S.workspaceWindows.filter(item=>item.key!==key);if(!remaining.length)return;
-  
+
   if(key===S.activeWorkspaceKey)workspaceCaptureCurrent();
   globalThis.RunTeamsCreatorWork?.closeWindow(key);_workspaceStateByKey.delete(key);_workspaceOverlayByKey.delete(key);S.workspaceWindows=remaining;saveWorkspaceWindows();
   if(key===S.activeWorkspaceKey){const next=remaining[0];S.activeWorkspaceKey="";activateWorkspaceWindow(next.key);}else render();
 }
 function closeWorkspaceWindowSet(keepKeys,preferredKey=""){
   const keep=new Set([...keepKeys].map(value=>String(value)));
-  
+
   workspaceCaptureCurrent();
   const rows=S.workspaceWindows||[],remaining=rows.filter(item=>keep.has(String(item.key)));
   if(!remaining.length)return;
@@ -1165,8 +1165,8 @@ async function applyAppRoute(options={}){
   if(route.kind==="source-pipeline"){
     await RunTeamsSourcePipelines.openRoute(route);return;
   }
-  
-  
+
+
   if(route.kind==="source-pipeline-new"){
     await RunTeamsSourcePipelines.newPipeline();return;
   }
@@ -1742,7 +1742,7 @@ async function openDefaultWorkspace(options={}){if(options.route!==false)workspa
 function openRailPipelines(){if(RunTeamsSourcePipelines.current())return RunTeamsSourcePipelines.boardView();const local=document.querySelector("[href^='/pipelines/local/']");return local?RunTeamsSourcePipelines.openFromLink(local.href):RunTeamsSourcePipelines.newPipeline();}
 function openRailSettings(event){const anchor=(_accountMenuAnchor?.isConnected===false?null:_accountMenuAnchor)||document.querySelector("#rgRail .railfoot")||event?.currentTarget;openSettingsPage('general',{returnFocus:anchor});}
 async function openAutomations(options={}){
-  
+
 
   if(options.route!==false)workspaceCaptureCurrent();
   leaveConversationModeForPage();clearConversationAttachments("chat");clearConversationCapabilities("chat");S.surface="automations";S.chatId=null;S.chatMode="";resetDetailWorkspace();
@@ -1753,7 +1753,7 @@ async function openAutomations(options={}){
   try{await refreshAutomations();if(!pageTransitionCurrent(token))return;completePageTransition(token);}catch(error){failPageTransition(token,error);}
 }
 async function openTrash(options={}){
-  
+
 
   if(options.route!==false)workspaceCaptureCurrent();
   leaveConversationModeForPage();RunTeamsHost.settings.closeMenu();clearConversationAttachments("chat");clearConversationCapabilities("chat");S.surface="trash";S.chatId=null;S.chatMode="";resetDetailWorkspace();
@@ -1973,7 +1973,7 @@ async function loadMoreDocuments(){
 }
 
 async function openDocs(options={}){
-  
+
 
   if(options.route!==false)workspaceCaptureCurrent();
   if(!options.keepReader){S.docReaderOrigin=null;S.docReaderStack=[];if(S.docReader)teardownDocumentReader();}
@@ -2121,7 +2121,7 @@ async function openDocumentReaderById(id,options={}){
   if(S.docReader&&!await flushDocument())return false;
   if(!requestCurrent()||location.href!==sourceRoute)return false;
   if(options.route!==false)workspaceCaptureCurrent();
-  
+
   teardownDocumentReader();
   leaveConversationModeForPage();
   if(options.route!==false)setAppUrl(routeWithRailState(documentInternalLinkHref(numericId,options.anchor||""),currentRailRouteValue()),options.replace===true);
@@ -2156,7 +2156,7 @@ async function openDocumentReader(doc,options={}){
   if(options.isCurrent&&!options.isCurrent())return false;
   const openSequence=++_documentOpenSequence;
   if(options.route!==false)workspaceCaptureCurrent();
-  
+
   leaveConversationModeForPage();
   if(!options.preserveStack)S.docReaderStack=[];
   // 先把页面切到文档区再挂阅读器：render() 见到「不在文档页却有阅读器」会主动收尾
@@ -3829,7 +3829,7 @@ function coreWorkflowFrozenParameters(contract){
   });
 }
 async function loadCoreWorkflowTaskInputs(id,root=document.getElementById("core_task_edit_parameters")){
-  
+
   if(!root||Number(root.dataset.workflowId)!==Number(id))return;
   const sequence=root._contractSequence=(root._contractSequence||0)+1;
   root.innerHTML=RunTeamsSkeletons.region('parameters');
@@ -3851,7 +3851,7 @@ async function loadCoreWorkflowTaskInputs(id,root=document.getElementById("core_
   }
 }
 function openCoreWorkflowTaskEditor(id){
-  
+
   const workflow=(S.coreWorkflows||[]).find(item=>Number(item.id)===Number(id));if(!workflow)return;
   const frozenTask=workflow.snapshot_json?.task||{},liveTask=workflow.task||{},payload=liveTask.payload_json||frozenTask.payload||{},definition=workflow.snapshot_json?.definition||{},
     direct=!!workflow.snapshot_json?.employee_id,parameters=coreTaskParameterDeclarations(definition,"user"),title=liveTask.title||frozenTask.title||"",
@@ -3862,7 +3862,7 @@ function openCoreWorkflowTaskEditor(id){
   if(direct)loadCoreWorkflowTaskInputs(id);
 }
 async function saveCoreWorkflowTask(id){
-  
+
   const titleInput=document.getElementById("core_task_edit_title"),objectiveInput=document.getElementById("core_task_edit_objective"),
     title=String(titleInput?.value||"").trim(),objective=String(objectiveInput?.value||"").trim(),
     parameterRoot=document.querySelector(".task-edit-parameters"),error=document.getElementById("core_task_edit_error"),button=document.getElementById("core_task_edit_save");
@@ -4112,7 +4112,7 @@ function coreEmployeeRunRaw(run){const events=run.events||[],rows=events.map((ev
 function employeeTaskConversationActive(){return conversationContextType(S.conversationPanel)==="worker"&&["chat","work"].includes(conversationIntent(S.conversationPanel));}
 function setCoreEmployeeRunDetailTab(tab){_runDetailTab=tab==="raw"?"raw":"progress";document.querySelectorAll(".core-run-detail-drawer .run-view-tabs button").forEach(button=>{const on=button.dataset.runView===_runDetailTab;button.classList.toggle("on",on);button.setAttribute("aria-selected",String(on));});document.querySelectorAll(".core-run-detail-drawer .run-event-panel").forEach(panel=>panel.hidden=panel.dataset.runView!==_runDetailTab);}
 async function openCoreEmployeeRun(workflowId,runId,options={}){
-  
+
 const sequence=_detailOpenSequence,selection=S.sel;let workflow=(S.coreWorkflows||[]).find(item=>Number(item.id)===Number(workflowId));if(!workflow||workflow.summary_only||(workflow.attribution===undefined&&workflow.storage_scope!=='device')){const result=await api(`/api/core/workflows/${Number(workflowId)}`);if(result.error)return toast(result.error,"err");workflow=result;replaceCoreWorkflowLocal(workflow);}if(sequence!==_detailOpenSequence||S.sel!==selection)return;const run=(workflow.employee_runs||[]).find(item=>Number(item.id)===Number(runId));if(!run)return toast("工作记录不存在","err");const returnTo=typeof S.sel?.returnTo==="string"?S.sel.returnTo:"";_runDetailTab="progress";selectDetailWorkspace({type:"core-employee-run",id:Number(runId),workflowId:Number(workflowId),workflow,run,...(returnTo?{returnTo}:{})});render();}
 function returnToCoreWorkflow(workflowId){const workflow=(S.coreWorkflows||[]).find(item=>Number(item.id)===Number(workflowId))||S.sel?.workflow;if(!workflow)return closeDetailWorkspace();const returnTo=S.sel?.returnTo||"";selectDetailWorkspace({type:"core-workflow",id:Number(workflowId),workflow,...(returnTo?{returnTo}:{})});render();}
 
@@ -4870,7 +4870,7 @@ async function newRailChat(options={}){
   if(S.conversationPanel?.loading)++_conversationPanelLoadSequence;
   captureConversationPanelDraft();rememberConversationPanel();closePop();
   const genericNew=!options.context||options.context.context_type==="general";
-  
+
   if(requestDetailWorkspaceLeave(()=>newRailChat(options)))return;
   if(genericNew&&S.surface==='source-pipeline'){workspaceCaptureCurrent({beforeRoute:true});S.surface='team';}
   if(genericNew&&S.surface==='docs'){
@@ -4879,7 +4879,7 @@ async function newRailChat(options={}){
   }
   resetDetailWorkspace();
   const panel=newRailConversationPanel();
-  
+
   panel.input=String(options.draft||"");panel.context=normalizedConversationContext({...panel,context:{...(panel.context||{}),...(options.context||{})}});S.conversationPanel=panel;if(options.restoreDraft)restoreConversationPanelDraft(panel);hostConversationInRail(panel);
   const newRoute=conversationNewRoute(panel.context.purpose);
   setAppUrl(genericNew?newRoute:routeWithRailState(location.pathname+location.search,"new"),!!options.replace);
@@ -5667,7 +5667,7 @@ function detailWorkspaceController(){
       if(previous?.type==='creator-work'&&next?.type!=='creator-work')globalThis.RunTeamsCreatorWork?.suspend();
       if(previous?.type==='core-employee-editor'&&next?.type!=='core-employee-editor')leaveCoreEmployeeEditor();
 
-      
+
     }
   }));
 }
@@ -5859,7 +5859,7 @@ function restoreRightWorkspacePosition(position){
 // ==== 流水线设置：管理这条流水线自身的任务字段 ====
 
 
-  
+
 function pipelineReleaseSemanticVersion(release){const explicit=String(release?.semantic_version||release?.version_label||"").trim().replace(/^v/i,"");if(/^\d+\.\d+\.\d+$/.test(explicit))return explicit;const ordinal=Math.max(1,Number(release?.version)||1);return `1.0.${ordinal-1}`;}
 
 
