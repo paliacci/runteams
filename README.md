@@ -1,40 +1,67 @@
-# RunTeams
+<h1 align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="web/ui/brand/wordmark-reverse.svg">
+    <img src="web/ui/brand/wordmark-primary.svg" width="240" alt="RunTeams">
+  </picture>
+</h1>
 
-本机运行的 AI 员工与流水线工作空间。文档、对话和工作资料保存在本机，模型厂商与 CLI 由你自行配置。
+<h3 align="center">Turn your AI agents into a working team.</h3>
 
-这个仓库包含免费本机版、共用业务 UI 和 SDK。免费版无需 RunTeams 账号或 Supabase，不包含官方市场、订阅和自动更新。
+<p align="center">
+  Give Codex CLI and Claude Code defined roles, connect their work in pipelines,<br>
+  and keep conversations and documents in a workspace on your computer.
+</p>
 
-## 从源码运行
+<p align="center">
+  <a href="#run-locally"><strong>Run locally</strong></a> ·
+  <a href="sdk/README.md">Explore the SDK</a> ·
+  <a href="https://runteams.ai/">RunTeams website</a>
+</p>
 
-需要 Python 3.12。在仓库根目录执行：
+<p align="center">
+  <a href="https://github.com/paliacci/runteams/actions/workflows/core.yml"><img alt="Core build and install checks" src="https://github.com/paliacci/runteams/actions/workflows/core.yml/badge.svg?branch=main"></a>
+</p>
+
+![RunTeams Local workspace showing a sample launch brief with a workflow and a review checklist](docs/images/local-workspace.png)
+
+*A sample launch brief open in the RunTeams Local workspace.*
+
+## Give repeatable work a home
+
+Imagine preparing a release brief every week. A researcher collects the changes, a writer turns them into a draft, and a reviewer checks the result. In RunTeams, those roles and handoffs can live in a pipeline you use again next week.
+
+- **Give an agent a role.** Define its responsibilities, instructions, and skills. RunTeams calls a reusable role an *employee*.
+- **Connect roles in a pipeline.** Pass work between steps and review results before they move on.
+- **Keep the work together.** Return to the conversations, documents, and work records behind a result in your local library.
+
+This repository contains **RunTeams Local**, the free, account-free edition, along with the shared UI and SDK. RunTeams saves your workspace on your computer. Your configured CLI and model provider handle model requests.
+
+## Run locally
+
+Use Python 3.12 and a browser.
 
 ```sh
+git clone https://github.com/paliacci/runteams.git
+cd runteams
 python3.12 -m venv .venv
 .venv/bin/python -m pip install .
 .venv/bin/runteams-community --port 8792 --open
 ```
 
-资料默认位于用户应用资料目录，独立于安装目录；可用 `--data-dir /absolute/path/to/library` 指定其他资料库。运行已安装的包不需要保留源码。修改源码后重新安装。
+RunTeams opens at `http://127.0.0.1:8792`. Open the model channels section in Settings and connect your installed Codex CLI or Claude Code. Start with one employee and a task you expect to do again.
 
-macOS ARM64 自包含安装包携带 Python 和运行依赖，最低系统 macOS 13.5。当前原生构建已完成本机验收，正式签名、公证和公开下载尚未发布。免费版通过手动下载安装包升级。
+RunTeams stores your library separately from the installation. Use `--data-dir /absolute/path/to/library` to choose a different library. Reinstall the package after editing the source. To build the standalone macOS app for Apple silicon, see the [desktop build guide](docs/releasing.md).
 
-## 开发与扩展
+## Build with RunTeams
 
-| 入口 | 内容 |
-| --- | --- |
-| [核心业务模块](docs/core-domains.md) | 应用、对话、文档、员工、流水线、资产与执行的代码归属 |
-| [架构与目录](docs/architecture.md) | 模块归属、源码与生成资源的边界 |
-| [开发指南](docs/development.md) | 环境、检查、SDK 开发包 |
-| [桌面构建与发布](docs/releasing.md) | 自包含构建、签名和发行范围 |
-| [SDK](sdk/README.md) | runtime、view、ui 与 MCP 宿主 |
-| [贡献指南](CONTRIBUTING.md) | 提交方式、测试与授权约定 |
-| [安全报告](SECURITY.md) | 私密漏洞报告渠道 |
-| [变更记录](CHANGELOG.md) | 源码版本与发行状态 |
+Use the SDK to add tools and interactive work views with MCP Apps, or package an employee or pipeline as a reusable project. The [SDK guide](sdk/README.md) explains the runtime and UI libraries. The [authoring guide](runteams_creator_dev/MCP_AUTHORING.md) covers checking, building, previewing, and packaging a project locally.
 
-开发工具统一位于 `runteams_core.devtools`，完整命令清单见 [tooling/commands.json](tooling/commands.json)。官方账号、订阅、市场、官网与云服务在独立私有工程维护。
+- [Architecture](docs/architecture.md) and [core module map](docs/core-domains.md) for navigating the source.
+- [Development guide](docs/development.md) and [tool inventory](tooling/commands.json) for running checks and preparing the SDK.
+- [Contributing](CONTRIBUTING.md), [security reporting](SECURITY.md), and [changelog](CHANGELOG.md) for working with the project.
 
-## 许可
+## License
 
-RunTeams 产品源码采用 [RunTeams Source Available License 1.0](LICENSE)：允许内部商用和用产品交付付费成果，商业再分发或作为托管产品提供须另行授权。这是源码可用许可，不是 OSI 开源许可。
+The local product source uses the [RunTeams Source Available License 1.0](LICENSE). You can use and modify it for internal work, including paid client work, and sell independently authored employees, pipelines, skills, or integrations. Commercial redistribution of RunTeams and offering it as a commercial hosted product require separate written permission.
 
-独立创作的员工、流水线、技能和成果可以商用。`sdk/runtime`、`sdk/view`、`sdk/ui` 保留 Apache-2.0；第三方材料保留各自许可。详情见 [许可说明](docs/legal/LICENSING.md) 和 [第三方声明](docs/legal/THIRD_PARTY_DOCUMENTS.md)。
+The `sdk/runtime`, `sdk/view`, and `sdk/ui` libraries use Apache-2.0. Third-party components retain their own licenses. See the [licensing guide](docs/legal/LICENSING.md) and [third-party notices](docs/legal/THIRD_PARTY_DOCUMENTS.md).
