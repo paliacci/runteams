@@ -17,3 +17,5 @@ aliases, forwarding modules or compatibility entry points.
 Use Python 3.12. Run runteams_core.devtools.ci for source/build/install/SDK checks;
 run runteams_core.devtools.ci_devkit on macOS ARM64 for the developer-kit mainline.
 Neither check is authorization to run real models, employee work or deployments.
+
+Repository layout and maintenance rules are in docs/architecture.md and docs/development.md. Run the tracked-file hygiene check before committing; keep experiment logs, local profiles and one-time repair scripts outside Git. Generated static UI resources and deterministic test inputs remain maintained source artifacts.

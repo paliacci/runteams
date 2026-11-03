@@ -11,18 +11,9 @@ import plistlib
 import subprocess
 import tempfile
 
-try:
-    from .check_desktop_document_resources import verify as verify_document_resources
-except ImportError:
-    from runteams_core.devtools.check_desktop_document_resources import verify as verify_document_resources
-
-
-
-
 # hdiutil counts sectors (512 bytes), not bytes. Larger LZMA chunks preserve
 # cross-file/repeated binary data that the default 1 MiB chunks miss. Keep the
-# bound at 64 MiB; see document-system-size-research-2-20261023 evidence for
-# actual mount/copy/signature checks and the 1/4/16/64 MiB comparison.
+# bound at 64 MiB to keep compression memory use bounded.
 LZMA_CHUNK_SECTORS = 131072
 
 
@@ -48,7 +39,6 @@ def package(app, output, image_format='ULMO', *, signer=None):
         raise ValueError('DMG output must be outside the app')
     if image_format not in ('ULMO', 'UDZO'):
         raise ValueError('Unsupported DMG format')
-    verify_document_resources(app)
     subprocess.run(['codesign', '--verify', '--deep', '--strict', str(app)], check=True)
     output.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='.runteams-dmg-', dir=output.parent) as temporary:

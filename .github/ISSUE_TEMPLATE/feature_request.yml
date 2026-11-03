@@ -1,0 +1,13 @@
+name: Feature request
+description: Describe a problem the product should solve.
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to accomplish?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior and alternatives considered

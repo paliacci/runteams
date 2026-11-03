@@ -6,6 +6,7 @@ import subprocess
 import sys
 from .build_wheel import ROOT, build
 from .check_source import check
+from .check_repository import check as check_repository
 
 
 def main():
@@ -18,7 +19,8 @@ def main():
     from .command_inventory import inventory
     if json.loads((ROOT / 'tooling/commands.json').read_text()) != inventory(ROOT, 'runteams_core'):
         raise ValueError('Canonical command inventory changed')
-    report = {'source': check(), 'core_build': build(output / 'wheels')}
+    report = {'repository': check_repository(ROOT, 'runteams_core'),
+              'source': check(), 'core_build': build(output / 'wheels')}
     interpreter = output / 'environment' / ('Scripts/python.exe' if sys.platform == 'win32' else 'bin/python')
     subprocess.run([sys.executable, '-m', 'venv', str(output / 'environment')], check=True)
     wheel = next((output / 'wheels').glob('runteams_core-*.whl'))
@@ -27,6 +29,9 @@ def main():
     subprocess.run([str(interpreter), '-I', '-B', '-m', 'unittest', 'discover', '-s',
                     str(ROOT / 'tests'), '-p', 'test_pdf_attachments.py'], cwd=output, check=True)
     report['pdf_attachment_tests'] = True
+    subprocess.run([str(interpreter), '-I', '-B', '-m', 'unittest', 'discover', '-s',
+                    str(ROOT / 'tests'), '-p', 'test_repository_hygiene.py'], cwd=output, check=True)
+    report['repository_hygiene_tests'] = True
     subprocess.run([sys.executable, '-B', '-m', 'runteams_core.devtools.build_creator_sdk', '--check'], cwd=ROOT, check=True)
     if args.sdk_tsc:
         subprocess.run([sys.executable, '-B', '-m', 'runteams_core.devtools.check_creator_sdk', '--output',

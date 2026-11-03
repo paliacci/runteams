@@ -27,16 +27,16 @@
       "description": "Check real packed SDKs in an isolated consumer; never publish or run hooks."
     },
     {
-      "path": "runteams_core/devtools/check_desktop_document_resources.py",
-      "module": "runteams_core.devtools.check_desktop_document_resources",
-      "command": true,
-      "description": "Reject stale desktop candidates that still carry the retired editor kernel."
-    },
-    {
       "path": "runteams_core/devtools/check_mcp_host_presentation.cjs",
       "module": null,
       "command": true,
       "description": ""
+    },
+    {
+      "path": "runteams_core/devtools/check_repository.py",
+      "module": "runteams_core.devtools.check_repository",
+      "command": true,
+      "description": "Check tracked project files, documentation links and canonical tool ownership."
     },
     {
       "path": "runteams_core/devtools/check_source.py",

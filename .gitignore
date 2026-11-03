@@ -17,3 +17,19 @@ device-data/
 *.dmg
 .DS_Store
 runteams_official/_resources/
+
+# Local tooling outputs and private service CLI state
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+coverage/
+playwright-report/
+test-results/
+*.tsbuildinfo
+*.log
+*.tmp
+*.swp
+.supabase/
+supabase/.temp/
+!.env.example
