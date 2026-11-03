@@ -78,9 +78,14 @@ def package(app, output, image_format='ULMO', *, signer=None):
     if app.suffix != '.app' or not (app / 'Contents/Info.plist').is_file():
         raise ValueError('Expected a built RunTeams application')
     info = plistlib.loads((app / 'Contents/Info.plist').read_bytes())
-    executable = {'ai.runteams.desktop': 'RunTeams', 'ai.runteams.community': 'RunTeamsLocal'}.get(info.get('CFBundleIdentifier'))
+    executable = {'ai.runteams.desktop': 'RunTeams', 'ai.runteams.desktop.local': 'RunTeams',
+                  'ai.runteams.community': 'RunTeamsLocal'}.get(info.get('CFBundleIdentifier'))
     if not executable or info.get('CFBundleExecutable') != executable or not (app / 'Contents/MacOS' / executable).is_file():
         raise ValueError('Expected a known RunTeams application identity')
+    if info.get('CFBundleIdentifier') == 'ai.runteams.desktop.local' and info.get('RunTeamsLocalBuild') is not True:
+        raise ValueError('The local official identity must be an explicit local build')
+    if signer is not None and info.get('RunTeamsLocalBuild') is True:
+        raise ValueError('Local acceptance applications cannot become signed distribution images')
     if output.suffix != '.dmg' or output.exists():
         raise ValueError('Choose a new .dmg output path')
     if app in output.parents:
