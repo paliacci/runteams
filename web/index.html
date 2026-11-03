@@ -6505,7 +6505,7 @@ let _utilityModalSequence=0;
 
 // --- 本地资产授权：设置 → 本地资产 -----------------------------------------
 // 只存在本机，和凭据保险箱同一类数据；这里只展示与管理授权本身，
-// 挂载、比对与清理都发生在运行时（见 runteams_core/local_assets.py）。
+// 挂载、比对与清理都发生在运行时（见 runteams_core/assets/local_assets.py）。
 async function refreshLocalAssetGrants(force=false){
   S.settingsLoad=S.settingsLoad||{};S.settingsErrors=S.settingsErrors||{};
   if(!S.localAssetGrants||force){S.settingsLoad.assets='loading';const panel=document.getElementById('settingsPanel');if(panel&&S.settingsTab==='assets')panel.innerHTML=assetGrantsSettingsPanel();}
