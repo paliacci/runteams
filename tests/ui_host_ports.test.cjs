@@ -3,11 +3,11 @@ const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),asse
 const root=path.resolve(__dirname,'..');
 function context(){
  const c={console,URL,URLSearchParams,Set,Map,Promise,Date,Object,location:new URL('http://fixture/'),
-  document:{querySelector:()=>null,querySelectorAll:()=>[],getElementById:()=>null},addEventListener(){},
+  document:{querySelector:()=>null,querySelectorAll:()=>[],getElementById:()=>null},addEventListener(){},matchMedia:()=>({addEventListener(){}}),
   S:{localLibrary:{library_id:'library',generation:1},account:{theme:'light'},settingsTab:'general',settingsPreferencesState:'ready',settingsPreferences:{}},
   ICON:()=>'',esc:String,workspaceAccountCacheToken(){return c.RunTeamsHost.session.cacheToken(c.S);}};
  c.window=c;c.globalThis=c;vm.createContext(c);
- for(const name of ['web/ui/host.js','web/modules/account.js'])vm.runInContext(fs.readFileSync(path.join(root,name),'utf8'),c,{filename:name});
+ for(const name of ['web/ui/host.js','web/ui/shell.js','web/modules/account.js'])vm.runInContext(fs.readFileSync(path.join(root,name),'utf8'),c,{filename:name});
  c.accountSettingsPaint=()=>{};c.accountSettingsStartRuntimeMonitor=()=>{};c.accountSettingsSyncInteraction=()=>{};
  return c;
 }
@@ -28,6 +28,9 @@ function context(){
  const atomic=context(),original=atomic.RunTeamsHost.settings.notice;
  assert.throws(()=>atomic.RunTeamsHost.configure({settings:{notice:()=> 'changed'},unknown:{}}),/Invalid/);
  assert.equal(atomic.RunTeamsHost.settings.notice,original);
+ const emptyEntry=context();emptyEntry.RunTeamsHost.configure({shell:{entry:()=>''}});
+ assert.equal(emptyEntry.RunTeamsShell.accountEntry({icon:()=>''}),'');
+ assert.match(local.RunTeamsShell.accountEntry({icon:()=>''}),/rail-settings-entry/);
  // A slow read from another library cannot overwrite the current settings.
  let finish;const stale=context();stale.RunTeamsHost.configure({settings:{read:()=>new Promise(resolve=>finish=resolve)}});
  const pending=stale.accountSettingsReadPreferences(true);stale.S.localLibrary={library_id:'different',generation:2};stale.S.settingsPreferences={allow_supplement:false};finish({settings:{send_mode:'stale'}});await pending;

@@ -237,7 +237,7 @@
     return `<div class="body product-shell ${escape(classes)}" id="rgBody" data-drawer-width="${escape(drawerWidth)}" data-detail-open="${detailOpen}" style="grid-template-columns:${escape(columns)};--rail-edge-x:${escape(railEdge)}">${rail}${tabs}${head}${content}${drawer}${controls}</div>`;
   }
 
-  function accountEntry({icon,...options}){return global.RunTeamsHost.shell.entry?.({icon,...options})||`<div class="railfoot-wrap rail-settings-entry">${navigationItem({label:'设置',icon:icon('settings'),action:"openSettingsPage('general',{returnFocus:this})",className:'rail-settings-button'})}</div>`;}
+  function accountEntry({icon,...options}){if(typeof global.RunTeamsHost.shell.entry==='function')return global.RunTeamsHost.shell.entry({icon,...options});return `<div class="railfoot-wrap rail-settings-entry">${navigationItem({label:'设置',icon:icon('settings'),action:"openSettingsPage('general',{returnFocus:this})",className:'rail-settings-button'})}</div>`;}
   global.RunTeamsShell = Object.freeze({navigationItem, historyActions, settingsToolbar, modeTabs, moveMode, topActions, collapsedActions, syncHistoryControls, recordNavigation, goHistory, trashEntry, footer, accountEntry, windowTabs, patchWindowTabs, syncWindowTabs, scrollWindowTabs, pageHeader, frame});
   if (global.history && global.location) {
     navigationState();
