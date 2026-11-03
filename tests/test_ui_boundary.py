@@ -43,7 +43,7 @@ class UIBoundaryTests(unittest.TestCase):
             wheel = Path(td) / 'core.whl'
             with zipfile.ZipFile(wheel, 'w') as archive:
                 archive.writestr('runteams_core/_resources/web/ui/host.js', 'const host={};')
-                archive.writestr('runteams_official/ui/extra.js', '')
+                archive.writestr('runteams_core/_resources/runteams_official/ui/extra.js', '')
             with self.assertRaises(ValueError):
                 check_wheel(wheel)
 

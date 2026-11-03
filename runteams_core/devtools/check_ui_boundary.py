@@ -79,7 +79,7 @@ def check_wheel(wheel):
     with zipfile.ZipFile(wheel) as archive:
         for info in archive.infolist():
             name = info.filename
-            if name.startswith('runteams_official/') or '/official-ui/' in name:
+            if {'runteams_official', 'official-ui'}.intersection(Path(name).parts):
                 findings.append({'path': name, 'rule': 'private-package-input'})
             if ('/_resources/web/' in name or '/_resources/frontend/community/' in name):
                 if Path(name).suffix in UI_SUFFIXES:

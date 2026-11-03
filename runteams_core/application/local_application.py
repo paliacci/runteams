@@ -10,10 +10,6 @@ from runteams_core.foundation.local_json import strict_json
 from runteams_core.configuration.library_settings import LibrarySettings
 
 
-class LocalFeatureUnavailable(RuntimeError):
-    pass
-
-
 class LocalApplication:
     def __init__(self, data_directory):
         directory = private_directory(Path(data_directory).expanduser()).resolve()
@@ -192,10 +188,6 @@ class LocalApplication:
             record = self.assets.get(**data)
             return {'name': record['name'], 'source_text': json.dumps(record['source'],
                 ensure_ascii=False, sort_keys=True, indent=2, allow_nan=False)}
-        if path.startswith(('/api/employee-', '/api/core/', '/api/device/', '/api/channels',
-                            '/api/environment', '/api/model-', '/api/chats', '/api/chat/',
-                            '/api/conversations', '/api/pipeline-work/', '/api/app/')):
-            raise LocalFeatureUnavailable('这项业务的本机接口尚未接通。')
         raise KeyError('本机接口不存在。')
 
 

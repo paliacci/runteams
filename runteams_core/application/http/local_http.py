@@ -14,7 +14,6 @@ from urllib.parse import parse_qs, urlsplit
 from runteams_core.assets.library_assets import AssetConflict, MAX_SOURCE_BYTES
 from runteams_core.application.http.local_web import ASSETS, CSP, read_asset
 from runteams_core.foundation.local_json import strict_json
-from runteams_core.application.local_application import LocalFeatureUnavailable
 from runteams_core.application.local_runtime import LocalInputError, RuntimeBusy
 from runteams_core.foundation.contracts import ContractError
 
@@ -271,8 +270,6 @@ class LocalHandler(BaseHTTPRequestHandler):
             return self._json(409, {'error': str(error)})
         except AssetConflict:
             return self._json(409, {'error': 'asset_conflict'})
-        except LocalFeatureUnavailable as error:
-            return self._json(503, {'error': str(error), 'code': 'local_feature_unavailable'})
         except RuntimeError as error:
             return self._json(503, {'error': str(error)})
         except PermissionError:
