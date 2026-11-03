@@ -19,8 +19,8 @@ import urllib.request
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
-import model_channels
-import plugin_brands
+from runteams_core import model_channels
+from runteams_core import plugin_brands
 
 
 SCHEMA_VERSION = 1
@@ -70,7 +70,7 @@ def invalidate_channel(channel):
 
 
 def _cache_key(channel, executable, workspace_root=""):
-    from cli_discovery import executable_stamp
+    from runteams_core.cli_discovery import executable_stamp
     stamp = executable_stamp(executable)
     return (channel.get("provider"), executable, stamp,
             model_channels.config_directory(channel),

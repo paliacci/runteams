@@ -224,7 +224,7 @@ def _rejected_completed_submission(core,connection,frozen):
     Missing/truncated/unknown turns and accepted results never authorize another
     send. Revalidate the original arguments; model prose is not a receipt.
     """
-    import product_store
+    from runteams_core import product_store
     if frozen.get('pipeline_submission') or frozen.get('pipeline_applied_result'):
         return None
     session=product_store.get_chat(frozen.get('work_chat_id')) or {}
@@ -519,7 +519,7 @@ def recover(core, identifier):
 
 def employee_call(arguments, context):
     from . import device_data
-    import product_store
+    from runteams_core import product_store
     from .device_work_services import current as device_work_service
     if not isinstance(arguments, dict) or set(arguments) - set(INPUT_SCHEMA['properties']):raise ContractError('岗位交接参数无效。')
     scope = device_data.identity()
@@ -593,7 +593,7 @@ def _prepared_recovery(core,request,active_ids,read_only):
     from .employee_context import current as employee_context
     from . import device_data
     verify_frozen(frozen,device_data.identity())
-    import product_store
+    from runteams_core import product_store
     verify_prepared_session(frozen,product_store.get_chat(frozen['work_chat_id'],include_messages=False),request['workflow_id'],row['task_id'])
     # Read readiness outside the work transaction. This neither grants a
     # service nor sends a model turn; execution rechecks before admission.

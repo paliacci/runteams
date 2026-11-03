@@ -322,7 +322,7 @@ class MemoryStore:
 
 def binding(chat_id, *, actor=None, library_id=None):
     from . import conversation_folders as folders, device_data
-    import product_store
+    from runteams_core import product_store
     scope = device_data.identity()
     if scope.get('storage_kind') == 'local':
         if library_id is not None and library_id != scope['library_id'] or actor is not None:
@@ -365,7 +365,7 @@ def prompt_context(chat_id, cwd):
 
 
 def tool(arguments, context):
-    import agent_tool_registry as registry
+    from runteams_core import agent_tool_registry as registry
     allowed = {'list': {'offset', 'limit'}, 'read': {'key'}, 'history': {'limit'}, 'operation': {'operation_id'},
                'save': {'expected_revision', 'operation_id', 'key', 'title', 'summary', 'body', 'kind', 'evidence'},
                'delete': {'expected_revision', 'operation_id', 'key', 'evidence'},

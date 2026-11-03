@@ -11,7 +11,7 @@ from .creator_local_source import current_store
 
 
 def _workspace(session):
-    import product_store as product
+    from runteams_core import product_store as product
     if (not session or not product.device_chat(session['id']) or session.get('kind') != 'general'
             or session.get('subject_type') != 'workspace' or session.get('scope_pipeline_id')
             or (session.get('context') or {}).get('context_type', 'general') != 'general'):
@@ -24,7 +24,7 @@ def _workspace(session):
 
 def bind(session_id, original, scope, *, request_sha256):
     """Adopt the same chat atomically; keep messages, public ID and attachments."""
-    import product_store as product
+    from runteams_core import product_store as product
     with product.chat_lock(session_id):
         session = product.get_chat(session_id, include_messages=False)
         context = (session or {}).get('context') or {}
@@ -52,8 +52,8 @@ def bind(session_id, original, scope, *, request_sha256):
 
 def attachment_source(session, attachment_id):
     """Resolve only a saved user folder in this chat, never an Agent-supplied path."""
-    import re,chat_attachments,product_store as product
-    from agent_tool_registry import AgentToolError
+    import re; from runteams_core import chat_attachments; from runteams_core import product_store as product
+    from runteams_core.agent_tool_registry import AgentToolError
     from .creator_contracts import read_folder
     if not isinstance(attachment_id,str) or not re.fullmatch('[a-f0-9]{24}',attachment_id):
         raise AgentToolError('请选择当前对话中的文件夹附件；本次未执行导入。')
@@ -74,7 +74,7 @@ def attachment_source(session, attachment_id):
 
 def _validate_arguments(arguments):
     """Reject malformed calls before any SDK read/write, with a model-visible result."""
-    from agent_tool_registry import AgentToolError
+    from runteams_core.agent_tool_registry import AgentToolError
     if not isinstance(arguments, dict):
         raise AgentToolError('SDK 工具参数必须是对象。')
     action = arguments.get('action')
@@ -99,8 +99,8 @@ def _validate_arguments(arguments):
 
 def tool(arguments, context):
     """General chat reads contracts, imports an attached folder or submits SDK bytes."""
-    import product_store as product
-    from agent_tool_registry import AgentToolError, AgentToolResult
+    from runteams_core import product_store as product
+    from runteams_core.agent_tool_registry import AgentToolError, AgentToolResult
     session = product.get_chat(context.get('chat_id'), include_messages=False)
     scope = device_data.identity()
     if scope.get('storage_kind') == 'local':

@@ -8,7 +8,7 @@ import secrets
 import threading
 import time
 
-import product_store as store
+from runteams_core import product_store as store
 from runteams_core import local_assets
 
 _picks = {}

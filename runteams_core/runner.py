@@ -17,9 +17,9 @@ import threading
 import time
 from dataclasses import dataclass, field
 
-import cli_compatibility
-from errors import Cancelled
-from adapter_base import validate_execution_profile
+from runteams_core import cli_compatibility
+from runteams_core.errors import Cancelled
+from runteams_core.adapter_base import validate_execution_profile
 
 
 # 空转检测:CLI 进程还活着但长时间无任何流式输出时,提前把"可能卡住"surface 到活动流。
@@ -49,10 +49,10 @@ def run_agent(adapter, prompt, *, execution_profile, mode="judge", model,
         raise Cancelled("运行已停止")
 
     execution_profile = validate_execution_profile(execution_profile)
-    from agent_guidance import runtime_facts, runtime_guidance
-    import agent_environment
+    from runteams_core.agent_guidance import runtime_facts, runtime_guidance
+    from runteams_core import agent_environment
     if environment_context is None:
-        from adapter_base import EXECUTION_INTERNAL_ANALYSIS
+        from runteams_core.adapter_base import EXECUTION_INTERNAL_ANALYSIS
         environment_context = runtime_facts({'provider': adapter.name}, model, reasoning_effort, cwd,
             work=work_context, readonly=execution_profile == EXECUTION_INTERNAL_ANALYSIS)
         prompt += '\n\n' + runtime_guidance(environment_context)

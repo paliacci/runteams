@@ -26,6 +26,9 @@ def check(root=ROOT):
             elif isinstance(node, ast.ImportFrom) and not node.level:
                 names = [node.module or '']
             for name in names:
+                if (root / 'runteams_core' / (name.split('.')[0] + '.py')).is_file():
+                    findings.append({'source': path.relative_to(root).as_posix(), 'line': node.lineno,
+                                     'unqualified_core_import': name})
                 if name.split('.')[0] in PRIVATE | {'runteams_official'} or (name.split('.')[0] == 'scripts' and path.relative_to(root).parts[0] in {'runteams_core','runteams_creator_dev'}):
                     findings.append({'source': path.relative_to(root).as_posix(), 'line': node.lineno, 'import': name})
     if (root / 'scripts').exists():

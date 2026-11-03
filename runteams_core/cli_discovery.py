@@ -18,7 +18,7 @@ import time
 import uuid
 from pathlib import Path
 
-import cli_compatibility
+from runteams_core import cli_compatibility
 
 _PROVIDERS = {
     'codex': ('codex', 'CODEX_BIN', 'Codex', ('com.openai.codex', 'com.openai.chat')),

@@ -5,14 +5,13 @@ import os
 import re
 import shutil
 
-from adapter_base import (AGENT_AUTHORITY_PROFILES, WorkerAdapter,
-                          validate_execution_profile)
-from errors import RateLimited, Transient
-import agent_stream
+from runteams_core.adapter_base import AGENT_AUTHORITY_PROFILES, WorkerAdapter, validate_execution_profile
+from runteams_core.errors import RateLimited, Transient
+from runteams_core import agent_stream
 
 
 def resolve_codex():
-    from cli_discovery import resolve
+    from runteams_core.cli_discovery import resolve
     return resolve("codex")
 
 
@@ -67,7 +66,7 @@ class CodexAdapter(WorkerAdapter):
         return argv
 
     def env(self, base_env):
-        from cli_discovery import execution_env
+        from runteams_core.cli_discovery import execution_env
         env = super().env(execution_env(self.name, self.executable, base_env))
         if self.config_dir:
             env["CODEX_HOME"] = self.config_dir

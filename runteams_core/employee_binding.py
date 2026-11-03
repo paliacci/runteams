@@ -24,7 +24,7 @@ def authoring_reference(session):
 
 def resolve(session):
     """Read exact frozen bytes. This neither acquires nor publishes an asset."""
-    import product_store
+    from runteams_core import product_store
     if not session or not product_store.device_chat(session['id']):
         raise ContractError('请在员工的原工作对话中继续。')
     reference = authoring_reference(session)
@@ -52,7 +52,7 @@ def resolve(session):
 
 def for_context(context):
     """Model-provided names/IDs cannot override the server-owned chat binding."""
-    import product_store
+    from runteams_core import product_store
     from .work_identity import principal
     if (context or {}).get("actor_id") not in (None,principal(device_data.identity())):
         raise PermissionError("员工不属于当前账户。")

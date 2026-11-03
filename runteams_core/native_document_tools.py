@@ -5,8 +5,8 @@ from copy import deepcopy
 def dispatch(name, arguments, context):
     if name not in {'runteams_list_documents', 'runteams_get_document', 'runteams_propose_document'}:
         return None
-    import agent_tool_registry as registry
-    import product_store as store
+    from runteams_core import agent_tool_registry as registry
+    from runteams_core import product_store as store
     from runteams_core import device_data
     if not device_data.enabled():
         return None

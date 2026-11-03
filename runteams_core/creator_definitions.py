@@ -27,7 +27,7 @@ def compiler_identity():
     return {'contracts': contract_catalog()['digest'], 'implementation': {
         name: hashlib.sha256((root / name).read_bytes()).hexdigest() for name in
         ('creator_definitions.py', 'creator_contracts.py', 'creator_schema_validation.py', 'definition_contracts.py', 'creator_conversation_assets.py',
-         'skill_packages.py', 'skill_provenance.py', 'skill_icons.py', '../capability_runtime.py', 'configuration_schema.py', 'portable_employee.py', 'skill_metadata.py', 'skill_bundles.py', 'collection_schema.py', 'portable_pipeline.py', 'creator_mcp_source.py', 'employee_mcp_package.py', 'employee_avatars.py', 'pipeline_dependency_contracts.py', 'pipeline_closure_contracts.py', 'resource_ids.py')}}
+         'skill_packages.py', 'skill_provenance.py', 'skill_icons.py', 'capability_runtime.py', 'configuration_schema.py', 'portable_employee.py', 'skill_metadata.py', 'skill_bundles.py', 'collection_schema.py', 'portable_pipeline.py', 'creator_mcp_source.py', 'employee_mcp_package.py', 'employee_avatars.py', 'pipeline_dependency_contracts.py', 'pipeline_closure_contracts.py', 'resource_ids.py')}}
 
 
 def author_schema(kind, *, version='3'):

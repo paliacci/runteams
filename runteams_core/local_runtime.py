@@ -31,7 +31,7 @@ from .local_host_lock import RuntimeBusy
 
 class LocalRuntime:
     def __init__(self, application):
-        import local_database
+        from runteams_core import local_database
         # Process composition, never request-time environment switching.
         if Path(local_database.DB_PATH).resolve().parent != application.data_directory:
             raise ValueError('本机运行目录未绑定，请通过免费版正式入口启动。')
@@ -51,7 +51,7 @@ class LocalRuntime:
         self.picker_cancel = threading.Event()
         self.picker_lock = threading.Lock()
         self.lease=application.own()
-        import product_store
+        from runteams_core import product_store
         self.store = product_store
         self.store.init_host_db()
         with self.scope():
@@ -257,7 +257,7 @@ class LocalRuntime:
         if not self.picker_lock.acquire(timeout=15):
             raise RuntimeError('资料选择仍在结束，运行锁保持。')
         try:
-            import chat_attachments
+            from runteams_core import chat_attachments
             chat_attachments.discard_native_selections(self.app.binding.scope)
         finally:
             self.picker_lock.release()
@@ -287,7 +287,7 @@ class LocalRuntime:
             self.store.add_chat_message(chat_id, 'bot', text, applied=(document_result or {}).get('applied',[]), metadata={
                 'local_turn_id': operation, 'stopped': stopped, 'failed': failed,'run_cards':(document_result or {}).get('run_cards',[]),
                 'trace': {'complete': not stopped, 'cancelled': stopped, 'failed': failed,
-                          'events': __import__('agent_stream').present_trace_events(events or [])}})
+                          'events': __import__('runteams_core.agent_stream').present_trace_events(events or [])}})
         return self.completed(chat_id, operation)
 
     def chat(self, chat_id, data=None, *, include_live=True):
@@ -322,7 +322,7 @@ class LocalRuntime:
                 'events': [e['event'] for e in turn['events'] if e['type'] == 'agent_event']}
 
     def public_chat(self, value):
-        import chat_attachments
+        from runteams_core import chat_attachments
         from .employee_session_view import public_session,work_session_record
         if work_session_record(value) or self.source_chat(value):
             value=public_session(value)
@@ -345,7 +345,7 @@ class LocalRuntime:
                                      for message in value['messages']]}
 
     def accepted(self, chat_id, message_id):
-        import chat_attachments
+        from runteams_core import chat_attachments
         with self.scope():
             value = self.store.get_chat_message(chat_id, message_id)
             return {'type': 'accepted', 'message_id': message_id,
@@ -390,7 +390,7 @@ class LocalRuntime:
         return True
 
     def config(self, data, *, session=None):
-        import model_channels
+        from runteams_core import model_channels
         authoring = bool(session and self.source_chat(session))
         pipeline = bool(session and self.pipeline_chat(session))
         if pipeline:
@@ -417,17 +417,17 @@ class LocalRuntime:
         return channel, model, effort, session['context'] if authoring or pipeline else (worker_context if employee else context)
 
     def dispatch(self, method, path, data):
-        import model_channels
+        from runteams_core import model_channels
         metadata = path == '/api/attachments/pick' or method == 'GET' or path.endswith(('/interaction', '/cancel')) or path in {'/api/channels','/api/model-catalog','/api/channel-usage','/api/environment'} or path.startswith('/api/channel/')
         with (nullcontext() if metadata or path.startswith('/api/work-folders') else self.lock), self.scope():
             if path.startswith('/api/work-folders'):
                 from .local_conversation_folders import dispatch
                 return dispatch(self, method, path, data)
             if method == 'GET' and path == '/api/app-info':
-                import chat_attachments
+                from runteams_core import chat_attachments
                 return {'native_attachment_picker': bool(os.environ.get('RUNTEAMS_ATTACHMENT_PICKER')) and chat_attachments.native_picker_available()}
             if method == 'POST' and path == '/api/attachments/pick':
-                import chat_attachments
+                from runteams_core import chat_attachments
                 if data:
                     raise ValueError('附件选择请求无效。')
                 if not os.environ.get('RUNTEAMS_ATTACHMENT_PICKER'):
@@ -447,7 +447,7 @@ class LocalRuntime:
             if method == 'GET' and path == '/api/channels':
                 return {'providers': model_channels.public_providers(), 'channels': [model_channels.public_channel(c) for c in self.store.list_channels()]}
             if method == 'GET' and path == '/api/model-catalog':
-                import model_catalog_display
+                from runteams_core import model_catalog_display
                 channels = self.store.list_channels()
                 if 'channel_ids' in data:
                     if not re.fullmatch(r'[1-9][0-9]*(?:,[1-9][0-9]*)*', data['channel_ids']):
@@ -483,12 +483,12 @@ class LocalRuntime:
                     from .conversation_folders import read as read_folder
                     folder = read_folder(chat_id)
                 if not folder['available']:raise ValueError('工作文件夹不可用，请重新选择。')
-                import runtime_capabilities
+                from runteams_core import runtime_capabilities
                 return runtime_capabilities.capability_page(channel, after=data.get('after',''), query=data.get('q',''),
                     limit=data.get('limit',40), workspace_root=folder['path'], installed_only=True, include_skills=True,
                     scope=json.dumps([self.app.binding.library_id, chat_id, folder['id']]))
             if method == 'GET' and path == '/api/environment':
-                import runtime_capabilities
+                from runteams_core import runtime_capabilities
                 channels = self.store.list_channels()
                 status_only = 'channel_ids' not in data
                 if not status_only:
@@ -555,7 +555,7 @@ class LocalRuntime:
                 self.store.rename_chat(cid, title)
                 return {'ok': True}
             if method == 'POST' and action == 'delete':
-                import chat_attachments
+                from runteams_core import chat_attachments
                 self.store.delete_chat(cid)
                 chat_attachments.remove_chat(cid)
                 return {'ok': True}
@@ -563,7 +563,7 @@ class LocalRuntime:
 
     def start(self, chat_id, data, *, work_id=None):
         """Accept once durably, then run independently of the observing socket."""
-        import model_channels
+        from runteams_core import model_channels
         supported = {'operation_id','message','attachments','attachment_tokens','reuse_attachment_ids',
                      'local_asset_ids','local_asset_bindings','capabilities','view_context','rewind_message_id'}
         if not isinstance(data, dict) or data.keys() - supported:
@@ -634,11 +634,11 @@ class LocalRuntime:
             turn = {'cancel': threading.Event(), 'events': [], 'done': threading.Event(), 'operation': operation}
             if configuration is not None:
                 turn['cancel'].employee_data_lease=(configuration['reference'],{'chat_id':chat_id,'message_id':mid})
-            from agent_interaction import TurnQuestions
+            from runteams_core.agent_interaction import TurnQuestions
             turn['cancel'].questions = TurnQuestions(turn['cancel'], (self.app.binding.library_id, chat_id, operation))
             self.active[chat_id] = turn
             def run():
-                from errors import Cancelled
+                from runteams_core.errors import Cancelled
                 class Activity:
                     def __call__(self, *args): pass
                     def request_user_input(self, questions):

@@ -11,7 +11,7 @@ import threading
 from contextlib import contextmanager
 from contextvars import ContextVar
 
-import product_store as store
+from runteams_core import product_store as store
 
 
 _lock = threading.Lock()

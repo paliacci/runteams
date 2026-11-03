@@ -71,7 +71,7 @@ def attested_proof(core,connection,frozen,session):
 
 
 def reconcile(core,identifier):
-    import product_store,codex_threads
+    from runteams_core import product_store; from runteams_core import codex_threads
     from .source_pipeline_flow import _row,_save
     with core.repository.connect()as connection:
         row=_row(connection,identifier);frozen=json.loads(row['snapshot_json'])

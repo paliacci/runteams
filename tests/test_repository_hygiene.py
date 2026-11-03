@@ -48,6 +48,12 @@ class RepositoryHygieneTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'documentation link'):
             check(self.root, 'runteams_core')
 
+    def test_rejects_business_modules_added_to_the_repository_root(self):
+        (self.root / 'business.py').write_text('pass\n')
+        self.stage()
+        with self.assertRaisesRegex(ValueError, 'business Python source belongs in its package'):
+            check(self.root, 'runteams_core')
+
 
 if __name__ == '__main__':
     unittest.main()

@@ -5,7 +5,7 @@
 ```sh
 python3.12 -m venv .venv
 .venv/bin/python -m pip install .
-.venv/bin/python -m pip install -r requirements-build.txt
+.venv/bin/python -m pip install -r requirements/build.txt
 npm ci --prefix tooling/js --ignore-scripts --no-audit --no-fund
 ```
 

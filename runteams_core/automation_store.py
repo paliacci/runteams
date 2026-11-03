@@ -12,7 +12,7 @@ import json
 import re
 import sqlite3
 
-import local_database
+from runteams_core import local_database
 
 
 conn = local_database.conn

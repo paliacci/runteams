@@ -12,8 +12,8 @@ def dispatch(name,arguments,context):
     supported={'runteams_get_context','runteams_get_employee','runteams_propose_task',
                'runteams_propose_tasks','runteams_request_choice','runteams_creator_source'}
     if name not in supported:return None
-    import agent_tool_registry as registry
-    import product_store as store
+    from runteams_core import agent_tool_registry as registry
+    from runteams_core import product_store as store
     from runteams_core import device_data
     cid=(context or {}).get('chat_id')
     if not cid or not store.device_chat(cid):return None

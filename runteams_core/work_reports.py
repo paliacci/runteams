@@ -172,7 +172,7 @@ def _operate(core, arguments, binding, *, owner=nullcontext()):
 
 
 def employee_call(arguments, context):
-    import product_store
+    from runteams_core import product_store
     from . import device_data
     from .employee_context import current as employee_context
     employee_host = employee_context()

@@ -21,7 +21,7 @@ from runteams_core.devtools.community_source import load_contract
 
 def dependency_plan(python):
     requirements = dict(line.split('==') for line in
-        (ROOT / 'requirements-community.txt').read_text().splitlines() if line and not line.startswith('#'))
+        (ROOT / 'requirements/runtime.txt').read_text().splitlines() if line and not line.startswith('#'))
     probe = '''import importlib,importlib.metadata,json,sys
 from pathlib import Path
 records=[];seen=set()
@@ -37,12 +37,12 @@ print(json.dumps(records))'''
     result = subprocess.run([str(python), '-I', '-c', probe, json.dumps(load_contract(ROOT)['python_packages'])],
                             capture_output=True, text=True, timeout=20)
     if result.returncode:
-        raise ValueError('Install requirements-community.txt in the chosen build Python environment')
+        raise ValueError('Install requirements/runtime.txt in the chosen build Python environment')
     records = json.loads(result.stdout)
     inputs = []
     for record in records:
         if requirements.get(record['distribution']) != record['version']:
-            raise ValueError('Community dependency version differs from requirements-community.txt')
+            raise ValueError('Community dependency version differs from requirements/runtime.txt')
         source = Path(record['source'])
         for path in sorted(source.rglob('*')) if source.is_dir() else [source]:
             if '__pycache__' in path.parts or path.suffix == '.pyc':continue
@@ -53,23 +53,23 @@ print(json.dumps(records))'''
     return records, inputs
 
 
-def application_site(runtime, packages):
+def application_site(runtime, packages, code):
     """Let native Python children use the same sealed application dependencies."""
-    runtime, packages = Path(runtime).resolve(), Path(packages).resolve()
+    runtime, packages, code = Path(runtime).resolve(), Path(packages).resolve(), Path(code).resolve()
     result = subprocess.run([str(runtime/'bin/python3'), '-I', '-B', '-c',
         'import sysconfig;print(sysconfig.get_path("purelib"))'],
         check=True, capture_output=True, text=True, timeout=15)
     site = Path(result.stdout.strip()).resolve()
-    if not site.is_relative_to(runtime) or not site.is_dir() or not packages.is_dir():
+    if not site.is_relative_to(runtime) or not site.is_dir() or not packages.is_dir() or not (code/"runteams_core").is_dir():
         raise ValueError('Application dependency directory must belong to the staged Python layout')
     entry = site/'runteams-application.pth'
     if entry.exists() or entry.is_symlink():
         raise ValueError('Application dependency entry already exists')
-    relative = os.path.relpath(packages, site)
-    if '\n' in relative or '\r' in relative:
+    relative = [os.path.relpath(path, site) for path in (code, packages)]
+    if any('\n' in path or '\r' in path for path in relative):
         raise ValueError('Application dependency path is invalid')
     with entry.open('x') as target:
-        target.write(relative+'\n')
+        target.write('\n'.join(relative)+'\n')
     return entry
 
 
@@ -99,7 +99,7 @@ def plan(output=None, build_python=None, data_directory=None, python_runtime=Non
     sdk_resources=snapshot(creator_builder,mcp_runtime)
     runtime=Path(python_runtime).expanduser().absolute() if python_runtime else ROOT/'runtime-dependencies/agent-python'
     if python_runtime or runtime.exists():
-        from agent_environment import verify_runtime
+        from runteams_core.agent_environment import verify_runtime
         verify_runtime(runtime)
     else:runtime=None
     return target,{'schema':'runteams.community-desktop/3','version':(ROOT/'VERSION').read_text().strip(),
@@ -153,15 +153,15 @@ def build(output=None, build_python=None, data_directory=None, validate_only=Fal
             if hashlib.sha256((packages/item['path']).read_bytes()).hexdigest()!=item['sha256']:raise ValueError('Dependency changed during copy')
         for path in sorted(packages.rglob('*')):
             if macho(path):signer.sign(path,executable=executable_macho(path))
-        application_site(runtime,packages)
+        application_site(runtime,packages,core)
         seal_runtime(runtime)
         if not signer.local:sign_runtime(runtime,signer)
         # Execute the packaged interpreter with packaged modules, never the builder's site directory.
         python=runtime/'bin/python3'
-        probe='import sys;sys.path[:0]=[sys.argv[1],sys.argv[2]];import ssl,sqlite3,tomllib,PIL.Image,pypdfium2,yaml,jsonschema,agent_environment;assert agent_environment.managed_python()["status"]=="ready"'
+        probe='import sys;sys.path[:0]=[sys.argv[1],sys.argv[2]];import ssl; import sqlite3; import tomllib; import PIL.Image; import pypdfium2; import yaml; import jsonschema; from runteams_core import agent_environment;assert agent_environment.managed_python()["status"]=="ready"'
         env={k:v for k,v in __import__('os').environ.items() if k not in ('PYTHONHOME','PYTHONPATH') and not k.startswith(('RUNTEAMS_','DYLD_','_PYI'))}
         subprocess.run([str(python),'-I','-S','-B','-c',probe,str(core),str(packages)],env=env,check=True,capture_output=True,timeout=30)
-        subprocess.run([str(python),'-E','-s','-B',str(core/'agent_python.py'),'--help'],env=env,check=True,capture_output=True,timeout=30)
+        subprocess.run([str(python),'-E','-s','-B','-m','runteams_core.agent_python','--help'],env=env,check=True,capture_output=True,timeout=30)
         sdk_probe='import sys;sys.path.insert(0,sys.argv[1]);from runteams_core.creator_build_tools import load;from runteams_core.employee_mcp import platform_runtime;from runteams_core.creator_worker_process import WORKERS;from pathlib import Path;load();r=platform_runtime();r.verify();assert all((Path(sys.argv[1])/"runteams_core"/n).is_file() for n in WORKERS.values())'
         subprocess.run([str(python),'-I','-B','-c',sdk_probe,str(core)],env=env,check=True,timeout=30)
         executable=app/'Contents/MacOS/RunTeamsLocal';executable.parent.mkdir()

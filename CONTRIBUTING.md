@@ -12,7 +12,7 @@ Repository checks reject tracked installation directories, local profiles, crede
 
 ## Licensing
 
-By intentionally submitting code for inclusion, you confirm that you have the right to submit it and identify all third-party material and licenses. A pull request alone is not a copyright assignment or permission to relicense third-party code. Contributions requiring additional rights for the official distribution will only be merged after a separate explicit agreement. See [LICENSING.md](LICENSING.md).
+By intentionally submitting code for inclusion, you confirm that you have the right to submit it and identify all third-party material and licenses. A pull request alone is not a copyright assignment or permission to relicense third-party code. Contributions requiring additional rights for the official distribution will only be merged after a separate explicit agreement. See [LICENSING.md](docs/legal/LICENSING.md).
 
 ## Security
 

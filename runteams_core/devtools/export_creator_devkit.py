@@ -36,7 +36,7 @@ def export_mcp(output,runtime_root,libraries,esbuild):
         if provenance['files'].get(name)!=hashlib.sha256((libraries/name).read_bytes()).hexdigest():raise ValueError('mcp_library_integrity')
     output.mkdir(parents=True);kit=output/'_runteams';kit.mkdir()
     def copy(source,target):target.parent.mkdir(parents=True,exist_ok=True);copy_new(source,target)
-    for name in ('LICENSE','LICENSING.md','THIRD_PARTY_DOCUMENTS.md','THIRD_PARTY_INVENTORY.json'):
+    for name in ('LICENSE','docs/legal/LICENSING.md','docs/legal/THIRD_PARTY_DOCUMENTS.md','docs/legal/THIRD_PARTY_INVENTORY.json'):
         copy(ROOT/name,kit/name)
     copy(ROOT/'runteams_creator_dev/TEMPLATE_LICENSE.txt',output/'TEMPLATE_LICENSE.txt')
     for name in developer_sources(ROOT):copy(ROOT/name,kit/name)
@@ -72,7 +72,7 @@ def export_mcp(output,runtime_root,libraries,esbuild):
     for name in ('AGENTS.md','CLAUDE.md'):copy(ROOT/'runteams_creator_dev'/('PROJECT_'+name),output/name)
     skill=output/'.agents/skills/runteams-creator/SKILL.md';skill.parent.mkdir(parents=True)
     skill.write_text('---\nname: runteams-creator\ndescription: Develop and verify local RunTeams MCP employee sources with the bundled tools.\n---\n\n'+guide)
-    copy(ROOT/'requirements-community.txt',output/'requirements.txt')
+    copy(ROOT/'requirements/runtime.txt',output/'requirements.txt')
     (output/'.gitignore').write_text('.venv/\n__pycache__/\ndist/\ndev/mcp-preview/\n')
     (output/'runteams.py').write_text('from pathlib import Path\nimport sys\nsys.path.insert(0,str(Path(__file__).resolve().parent/"_runteams"))\nfrom runteams_creator_dev.cli import main\nraise SystemExit(main())\n')
     (output/'devkit-inventory.json').write_bytes(canonical(inventory(output)))

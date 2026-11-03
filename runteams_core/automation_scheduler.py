@@ -1,7 +1,7 @@
 """Canonical durable scheduler loop, claims, cancellation and outcome recording."""
 import threading,time
 from contextlib import nullcontext
-from errors import Cancelled
+from runteams_core.errors import Cancelled
 from .automation_dispatch import dispatch_enabled
 
 class AutomationScheduler:

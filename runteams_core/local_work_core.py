@@ -26,5 +26,5 @@ class LocalWorkCore(SourceWorkService,WorkParameters,WorkLedger,LocalDocuments):
 
     def runtime(self,**options):
         from .work_assets import WorkAssets
-        import product_store
+        from runteams_core import product_store
         return WorkAssets(self.root,product_store.get_local_asset_grant)

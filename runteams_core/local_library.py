@@ -59,7 +59,7 @@ class LocalLibrary:
         return factory(**kwargs)
 
     def native_employee_tool(self, name, arguments, context):
-        from native_employee_tools import dispatch
+        from runteams_core.native_employee_tools import dispatch
         return dispatch(name,arguments,context)
 
     def creator_source_tool(self, arguments, context):

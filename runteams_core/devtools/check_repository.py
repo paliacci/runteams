@@ -31,6 +31,8 @@ def check(root, namespace):
         if not path.is_file() or path.is_symlink():
             findings.append({'path': name, 'reason': 'missing tracked file or source symlink'})
             continue
+        if namespace == 'runteams_core' and len(relative.parts) == 1 and relative.suffix == '.py' and relative.name != 'setup.py':
+            findings.append({'path': name, 'reason': 'business Python source belongs in its package'})
         if (set(relative.parts) & GENERATED or relative.parts[0] in {'build', 'dist', 'design'}
                 or any(part.endswith(('.egg-info', '.app')) for part in relative.parts)
                 or relative.suffix in PRIVATE_SUFFIXES

@@ -134,7 +134,7 @@ def workspace(core, ref, active_ids=()):
 
 def conversation(core, ref, runtime):
     """One pipeline's own conversation, independent of every position chat."""
-    import product_store
+    from runteams_core import product_store
     core._actor()
     ref = pipeline_references.checked_reference(ref)
     _, asset = _definition(ref)

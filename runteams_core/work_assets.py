@@ -63,7 +63,7 @@ class WorkAssets:
                         storage=storage or storage_for(self.root/'runteams.db')
                         host,identifier=str(grant_id).removeprefix('local-host://').split('/',1)
                         if isinstance(storage, DeviceWorkStorage):
-                            import local_database
+                            from runteams_core import local_database
                             from .execution_host import identity
                             actual=identity(Path(local_database.DB_PATH).parent)['host_id']
                         else:

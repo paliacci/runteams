@@ -39,7 +39,7 @@ def catalog(names):
 def revision(names=CHAT_SKILLS):
     """Invalidate resumed native contexts when loaded workflow bytes change."""
     digest = hashlib.sha256()
-    from agent_guidance import BASE_AGENT_INSTRUCTION
+    from runteams_core.agent_guidance import BASE_AGENT_INSTRUCTION
     digest.update(BASE_AGENT_INSTRUCTION.encode('utf-8'))
     for item in catalog(names):
         directory = Path(item['location']).parent

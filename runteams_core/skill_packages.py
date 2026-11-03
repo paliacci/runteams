@@ -49,7 +49,7 @@ def validate_resources(files):
 
 
 def prepare(source):
-    import capability_runtime
+    from runteams_core import capability_runtime
     source = Path(source)
     if source.is_symlink():
         raise ContractError("技能包目录不能是符号链接")

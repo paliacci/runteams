@@ -12,7 +12,7 @@ from .contracts import ContractError
 
 
 def outcome(chat_id,after_message_id=None):
-    import product_store as store
+    from runteams_core import product_store as store
     session = store.get_chat(chat_id)
     if not session:
         return 'interrupted', '原工作对话需要核对，不会自动重做。'
@@ -34,7 +34,7 @@ def outcome(chat_id,after_message_id=None):
 
 
 def execute(host, backend, job, asset, cancel_event=None):
-    import product_store as store
+    from runteams_core import product_store as store
     device_data.check(backend.scope)
     from .employee_context import current
     if not current().scheduled_host_ready(host):

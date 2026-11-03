@@ -11,21 +11,21 @@ NAMES = ('runteams_get_environment', 'runteams_request_choice', 'runteams_projec
 
 @contextmanager
 def claude_tools(context, names=NAMES):
-    from agent_tools_mcp import dispatch_rpc
+    from runteams_core.agent_tools_mcp import dispatch_rpc
     from .loopback_rpc import serve_rpc
     bound = {**context, 'allowed_tools': list(names)}
     with serve_rpc(lambda message: dispatch_rpc(message, bound)) as (endpoint, capability):
         config = {'mcpServers': {'runteams-agent': {'type': 'stdio', 'command': sys.executable,
-            'args': [__import__('agent_tools_mcp').__file__, '--bridge', endpoint],
+            'args': [__import__('runteams_core.agent_tools_mcp').__file__, '--bridge', endpoint],
             'env': {'RUNTEAMS_PROTOCOL_CAPABILITY': capability}}}}
         yield ['--mcp-config', json.dumps(config, ensure_ascii=False, separators=(',', ':'))]
 
 
 def run(channel, chat, message, attachments, workspace, activity, cancel, store, library_id, capabilities=None, *, employee_host=None, configuration=None):
-    import agent_guidance
-    import chat_attachments
-    from adapter_base import EXECUTION_USER_AGENT
-    from model_channels import adapter_for
+    from runteams_core import agent_guidance
+    from runteams_core import chat_attachments
+    from runteams_core.adapter_base import EXECUTION_USER_AGENT
+    from runteams_core.model_channels import adapter_for
     names = tuple(name for name in NAMES if name!='runteams_project_memory' or not chat.get('context',{}).get('creator_local_source_id'))
     worker=bool(chat.get('context',{}).get('local_employee_package'))
     authoring=bool(chat.get('context',{}).get('creator_local_source_id'))
@@ -86,7 +86,7 @@ def run(channel, chat, message, attachments, workspace, activity, cancel, store,
     user_message = message + ('\n\n' + content if content else '')
     timeout=int((chat.get('context',{}).get('local_employee_package',{}).get('runtime',{}).get('time_limit_minutes') or 10))*60
     if channel['provider'] == 'codex':
-        import codex_threads
+        from runteams_core import codex_threads
         # Reassemble from the durable transcript: prior ephemeral CLI turns did
         # not have this tool set. No old vendor thread or compatibility route.
         with (employee_host.runtime_scope(chat['id'],cancel=cancel,notify=lambda:activity.on_event({'kind':'employee_mcp_approval','chat_id':chat['id']})) if worker else nullcontext({})) as employee_mcp:
@@ -100,7 +100,7 @@ def run(channel, chat, message, attachments, workspace, activity, cancel, store,
                 on_thread=lambda thread_id, title: store.set_chat_runtime(chat['id'], 'codex', thread_id, title))
         activity.native_tool_results=result.get('native_tool_results') or []
         return result['text'], bool(result.get('incomplete'))
-    from runner import run_agent
+    from runteams_core.runner import run_agent
     with claude_tools(context, names) as args:
         adapter = adapter_for(channel)
         if hasattr(adapter, 'configure_requirements'):
@@ -117,12 +117,12 @@ def run(channel, chat, message, attachments, workspace, activity, cancel, store,
 
 
 def apply_completed(chat_id,submissions,cancel):
-    import product_store
+    from runteams_core import product_store
     session=product_store.get_chat(chat_id,include_messages=False)
     if session.get('kind')!='employee_design' and not session.get('context',{}).get('local_employee_package') and not session.get('context',{}).get('source_pipeline_workspace'):
         from .local_document_tools import apply_submissions
         return apply_submissions(chat_id,submissions,cancel)
-    from agent_tool_registry import PROTOCOL
+    from runteams_core.agent_tool_registry import PROTOCOL
     actions=[a for item in submissions or [] if isinstance(item,dict) and item.get('protocol')==PROTOCOL
         and item.get('kind')=='change_proposal' for a in item.get('data',{}).get('actions',[])]
     if not actions:return {}

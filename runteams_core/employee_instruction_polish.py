@@ -7,10 +7,10 @@ from .contracts import ContractError
 
 
 def polish(asset, original):
-    import model_channels
-    import product_store
-    from adapter_base import EXECUTION_INTERNAL_ANALYSIS
-    from runner import run_agent
+    from runteams_core import model_channels
+    from runteams_core import product_store
+    from runteams_core.adapter_base import EXECUTION_INTERNAL_ANALYSIS
+    from runteams_core.runner import run_agent
     if 'runtime_source' in asset:
         from .source_employee_runtime import resolve_runtime
         runtime = resolve_runtime(asset['runtime_source']['asset']['employee']['runtime_requirement'])
@@ -29,7 +29,7 @@ def polish(asset, original):
         if channel.get('provider') == 'codex':
             # Same official App Server transport as ordinary Codex conversations;
             # a separate, account-scoped internal owner never resumes a work turn.
-            import codex_threads
+            from runteams_core import codex_threads
             from . import device_data
             result = codex_threads.run_turn(channel, None, message, instructions,
                 execution_profile=EXECUTION_INTERNAL_ANALYSIS, model=model, effort=effort,

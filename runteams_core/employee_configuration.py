@@ -60,7 +60,7 @@ def local_binding(field, selection, *, reference=None, revision=None, connection
     if field.get('type') == 'resource' and field['binding']['provider'] == 'local_collection':
         from .local_collections import Collections
         return Collections().select(field, selection)
-    import product_store
+    from runteams_core import product_store
     from . import local_assets
     if (field['type'] != 'resource' or field['binding']['provider'] != 'local_asset'
             or not isinstance(selection, dict)
@@ -101,7 +101,7 @@ def profile(employee):
 
 
 def for_chat(chat_id):
-    import product_store
+    from runteams_core import product_store
     from .employee_binding import resolve
     session = product_store.get_chat(chat_id, include_messages=False)
     binding = resolve(session)
@@ -115,7 +115,7 @@ def for_chat(chat_id):
 
 def for_work_settings(chat_id):
     """Independent saved work settings, not a reusable asset or position scope."""
-    import product_store
+    from runteams_core import product_store
     session=product_store.get_chat(chat_id,include_messages=False)
     context=(session or {}).get('context') or {}
     if (not session or session.get('kind')!='general' or session.get('subject_type')!='employee'
@@ -247,7 +247,7 @@ def materialize_for_chat(chat_id, snapshot, workspace):
 
 
 def _materialize(snapshot, workspace):
-    import product_store
+    from runteams_core import product_store
     import tempfile
     from pathlib import Path
     from . import local_assets
@@ -506,7 +506,7 @@ class ConfigurationStore:
                     value['states'][field['key']]='unavailable'
             if value['states'][field['key']] == 'configured' and field['key'] in value['bindings']:
                 from . import local_assets
-                import product_store
+                from runteams_core import product_store
                 selected = local_binding(field, value['bindings'][field['key']],reference=self.reference,revision=self.definition_revision,connection_asset=self.connection_asset)
                 if configuration_documents.supports(field):selected=configuration_documents.freeze(field,selected)
                 if configuration_collections.supports(field):selected=configuration_collections.freeze(field,selected)

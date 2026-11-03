@@ -19,7 +19,7 @@ import time
 import warnings
 
 
-import product_store
+from runteams_core import product_store
 
 
 MAX_FILES = 10
@@ -77,10 +77,6 @@ def _picker_candidates():
         resources = os.path.dirname(os.path.dirname(sys.executable))
         yield os.path.join(resources, "RunTeamsPicker.app", "Contents", "MacOS", "RunTeamsPicker")
         yield os.path.join(resources, "RunTeamsPicker")
-    root = os.path.dirname(os.path.abspath(__file__))
-    yield os.path.join(root, "desktop", "RunTeams.app", "Contents", "Resources",
-                       "RunTeamsPicker.app", "Contents", "MacOS", "RunTeamsPicker")
-    yield os.path.join(root, "desktop", "RunTeams.app", "Contents", "Resources", "RunTeamsPicker")
 
 
 def native_picker_path():
@@ -735,7 +731,7 @@ def prompt_context(chat_id, items):
     items = [item for item in items if item.get("kind") != "local_asset"]
     lines = []
     if local:
-        import local_references
+        from runteams_core import local_references
         local = local_references.references([item['grant_id'] for item in local])
         lines = ["# 本地引用（仅引用，没有上传内容）",
                  "只用于交办任务，不在聊天中读取原件。用户确认交办后平台才挂载只读副本。"

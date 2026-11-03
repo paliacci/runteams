@@ -1,6 +1,6 @@
 """Canonical atomic employee actions and their durable turn receipts."""
 import json
-import local_references
+from runteams_core import local_references
 from contextlib import ExitStack
 from . import device_data
 
@@ -11,7 +11,7 @@ def execute_actions(chat_id,actions,*,cancel_event=None):
     one transaction, so a lost reply reads the same result without another UI
     confirmation or a repeated task/document write.
     """
-    import product_store as store
+    from runteams_core import product_store as store
     from .contracts import digest
     from .device_work_services import current
     from .employee_context import current as employee_context
@@ -51,7 +51,7 @@ def execute_actions(chat_id,actions,*,cancel_event=None):
         applied,cards=[],[]
         for action in actions:
             if cancel_event is not None and cancel_event.is_set():
-                from errors import Cancelled
+                from runteams_core.errors import Cancelled
                 raise Cancelled('运行已停止')
             summary,effect=employee_context().apply_action(work,action,context)
             if action['op'] in ('create_document','update_document') and not (effect or {}).get('document_id'):
@@ -62,7 +62,7 @@ def execute_actions(chat_id,actions,*,cancel_event=None):
             'actions_digest':action_digest}
         work.repository.event(stream,'chat.actions_applied',result,source='agent_tool',connection=connection)
         if cancel_event is not None and cancel_event.is_set():
-            from errors import Cancelled
+            from runteams_core.errors import Cancelled
             raise Cancelled('运行已停止')
         device_data.check(expected)
     return result

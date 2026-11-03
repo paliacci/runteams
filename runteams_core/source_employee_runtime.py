@@ -151,7 +151,7 @@ def prepare(ref, operation_id, *, cancel=None, revision=None):
 
 
 def resolve_runtime(requirement):
-    import product_store, model_channels
+    from runteams_core import product_store; from runteams_core import model_channels
     provider=requirement['provider']
     channels=[c for c in product_store.list_channels() if c.get('enabled') and c['provider']==provider]
     if not channels:raise ContractError('员工需要的模型渠道尚未连接。')
@@ -224,7 +224,7 @@ def employee(package):
 
 
 def for_chat(chat_id):
-    import product_store
+    from runteams_core import product_store
     session = product_store.get_chat(chat_id,include_messages=False)
     package = (session or {}).get('context',{}).get('local_employee_package')
     if package is None:
@@ -253,7 +253,7 @@ def work_config_context(session, incoming, *, scope_pipeline_id=None):
 
 
 def create_chat(package, *, title=None, preferred_skill=None, configuration_snapshot=None, work_context=None):
-    import product_store
+    from runteams_core import product_store
     item = employee(package);runtime = package['runtime'];ref = package['reference']
     context = {'context_type':'worker','intent':'work','worker_name':item['name'],
                'source_employee':ref,'local_employee_package':package,
@@ -273,7 +273,7 @@ def create_chat(package, *, title=None, preferred_skill=None, configuration_snap
 
 
 def open_work(ref, operation_id, *, package=None):
-    import product_store
+    from runteams_core import product_store
     if not isinstance(operation_id,str) or str(uuid.UUID(operation_id))!=operation_id:
         raise ContractError('工作操作编号无效。')
     key = 'source-work-open:' + operation_id
@@ -314,7 +314,7 @@ def open_default(ref):
         raise ContractError('员工配置已更新，请重新打开。')
     # Prefer the latest conversation for these verified professional assets and
     # runtime. A separate new-session receipt remains immutable after navigation.
-    import product_store
+    from runteams_core import product_store
     with device_data.connect(readonly=True) as connection:
         rows=connection.execute("SELECT id,context_json FROM chats WHERE kind='general' AND subject_type='employee' ORDER BY updated_at DESC,id DESC").fetchall()
     current_asset = None

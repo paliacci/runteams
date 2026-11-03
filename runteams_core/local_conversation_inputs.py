@@ -23,7 +23,7 @@ def request_digest(data):
 
 
 def prepare(runtime, chat, data, operation, digest, *, capabilities=None, rewind_source=None, employee_configuration=None):
-    import chat_attachments as attachments
+    from runteams_core import chat_attachments as attachments
     uploads, tokens, reuse = (data.get(key) or [] for key in
                              ('attachments', 'attachment_tokens', 'reuse_attachment_ids'))
     if not all(isinstance(value, list) for value in (uploads, tokens, reuse)):
@@ -48,7 +48,7 @@ def prepare(runtime, chat, data, operation, digest, *, capabilities=None, rewind
                 superseded[metadata['local_turn_id']] = metadata.get('local_turn_request_sha256')
     def admit(picked):
         nonlocal committed, message_id
-        import local_references
+        from runteams_core import local_references
         items=local_references.with_input_bindings(reused+uploaded+picked+local_references.references(data.get('local_asset_ids') or []),data.get('local_asset_bindings'))
         if len(items) > attachments.MAX_FILES:
             raise ValueError('每次最多添加 10 个附件。')
@@ -102,7 +102,7 @@ def prepare(runtime, chat, data, operation, digest, *, capabilities=None, rewind
 
 
 def file_for(runtime, chat_id, attachment_id):
-    import chat_attachments as attachments
+    from runteams_core import chat_attachments as attachments
     runtime.chat(chat_id)
     item = runtime.store.find_chat_attachment(chat_id, attachment_id)
     if not item or item.get('kind') in ('folder', 'local_asset'):

@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "runteams-core"
 version = "0.1.2"
 license = "LicenseRef-RunTeams-Source-Available-1.0"
-license-files = ["LICENSE", "LICENSING.md", "THIRD_PARTY_DOCUMENTS.md"]
+license-files = ["LICENSE", "docs/legal/LICENSING.md", "docs/legal/THIRD_PARTY_DOCUMENTS.md"]
 requires-python = ">=3.12"
 dependencies = [
   "Pillow==11.3.0",
@@ -25,40 +25,7 @@ dependencies = [
 runteams-community = "runteams_core.community:main"
 
 [tool.setuptools]
-py-modules = [
-  "adapter_base",
-  "adapter_claude",
-  "adapter_codex",
-  "agent_environment",
-  "agent_guidance",
-  "agent_interaction",
-  "agent_python",
-  "agent_stream",
-  "agent_tool_registry",
-  "agent_tools_mcp",
-  "app_secrets",
-  "automation_store",
-  "bot_context",
-  "capability_runtime",
-  "chat_attachments",
-  "cli_compatibility",
-  "cli_discovery",
-  "codex_processes",
-  "codex_threads",
-  "errors",
-  "local_database",
-  "local_references",
-  "model_catalog_display",
-  "model_channels",
-  "native_document_tools",
-  "native_employee_tools",
-  "plugin_brands",
-  "product_store",
-  "provider_catalog",
-  "runner",
-  "runtime_capabilities",
-  "work_environment"
-]
+py-modules = []
 include-package-data = true
 
 [tool.setuptools.packages.find]

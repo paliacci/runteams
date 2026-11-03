@@ -14,10 +14,10 @@ import tempfile
 import re
 from datetime import datetime
 
-import cli_compatibility
-from adapter_claude import ClaudeCodeAdapter, resolve_claude
-from adapter_codex import CodexAdapter, resolve_codex
-import provider_catalog
+from runteams_core import cli_compatibility
+from runteams_core.adapter_claude import ClaudeCodeAdapter, resolve_claude
+from runteams_core.adapter_codex import CodexAdapter, resolve_codex
+from runteams_core import provider_catalog
 
 
 PROVIDERS = provider_catalog.PROVIDER_MAP
@@ -73,7 +73,7 @@ def config_directory(channel, env=None):
 def resolve_channel_executable(channel):
     explicit = _expanded(channel.get("executable") or "")
     if explicit:
-        from cli_discovery import resolve
+        from runteams_core.cli_discovery import resolve
         return resolve(channel.get("provider"), explicit=explicit)
     runtime = _ADAPTERS.get(channel.get("provider"))
     if not runtime:
@@ -95,7 +95,7 @@ def adapter_for(channel):
 
 
 def _probe_env(channel):
-    from cli_discovery import execution_env
+    from runteams_core.cli_discovery import execution_env
     env = execution_env(channel.get("provider"), channel.get("executable"), os.environ)
     config_dir = _expanded(channel.get("config_dir") or "")
     if config_dir:
@@ -659,8 +659,8 @@ def _fallback_models():
 
 
 def _catalog_key(channel, executable):
-    from cli_discovery import executable_stamp
-    from model_catalog_display import _identity
+    from runteams_core.cli_discovery import executable_stamp
+    from runteams_core.model_catalog_display import _identity
     stamp = executable_stamp(executable)
     return (channel.get("provider"), executable, stamp,
             _expanded(channel.get("config_dir") or ""), _identity([channel], None)[2:])
@@ -860,7 +860,7 @@ def _probe_claude_auth(exe, env):
 
 def probe(channel, *, account_summary=True):
     """通过官方 CLI 探测安装及登录状态，不发模型请求、不消耗订阅额度。"""
-    from cli_discovery import DiscoveryError
+    from runteams_core.cli_discovery import DiscoveryError
     out = {"installed": False, "authenticated": False, "compatible": False,
            "status": "missing",
            "account": "", "detail": "", "version": "", "executable": ""}
@@ -895,9 +895,9 @@ def probe(channel, *, account_summary=True):
     except Exception as e:
         out.update(status="missing" if not out["installed"] else "error", detail=str(e)[:300])
     if out.get('status') != 'ready':
-        import model_catalog_display
+        from runteams_core import model_catalog_display
         model_catalog_display.invalidate(channel)
-        import runtime_capabilities
+        from runteams_core import runtime_capabilities
         runtime_capabilities.invalidate_channel(channel)
     return out
 
@@ -905,7 +905,7 @@ def probe(channel, *, account_summary=True):
 def login_command(channel):
     """返回可复制到终端的订阅登录命令；凭据由官方 CLI 自己管理。"""
     try:
-        from cli_discovery import cached_display_executable
+        from runteams_core.cli_discovery import cached_display_executable
         exe = cached_display_executable(channel.get('provider'), channel.get('executable') or '') or resolve_channel_executable(channel)
     except Exception:
         exe = provider_info(channel.get("provider"))["executable"]

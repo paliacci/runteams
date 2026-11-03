@@ -311,7 +311,7 @@ INPUT_SCHEMA = {'type': 'object', 'additionalProperties': False, 'required': ['o
 
 def employee_call(arguments, context):
     """Use only the configuration admitted for the actual stored user request."""
-    import product_store
+    from runteams_core import product_store
     from jsonschema import Draft202012Validator
     from .employee_context import current as employee_context
     employee_host = employee_context()

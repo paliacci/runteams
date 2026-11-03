@@ -1,5 +1,6 @@
 include VERSION
-include requirements*.txt
+recursive-include requirements *.txt
+recursive-include docs/legal *
 recursive-include contracts *
 recursive-include web *
 recursive-include sdk *

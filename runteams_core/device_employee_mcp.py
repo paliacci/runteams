@@ -74,7 +74,7 @@ class EmployeeMCPWork:
             self.notice_revision += 1
 
     def notice_context(self, chat):
-        import product_store
+        from runteams_core import product_store
         session=product_store.get_chat(chat,include_messages=False)
         if (not product_store.device_chat(chat) or not session or
                 session['kind']!='general' or session['subject_type']!='employee'):
@@ -133,7 +133,7 @@ class EmployeeMCPWork:
         self._notice_changed()
 
     def _session(self, chat):
-        import product_store as store
+        from runteams_core import product_store as store
         self.check()
         session = store.get_chat(chat)
         if (not session or not store.device_chat(chat) or session.get('kind') != 'general'
@@ -154,7 +154,7 @@ class EmployeeMCPWork:
         return None
 
     def load(self, chat, *, pin=False):
-        import product_store as store
+        from runteams_core import product_store as store
         session = self._session(chat)
         work = employee_workspaces.workspace(chat)
         path = work / '.runteams' / FILE
@@ -196,7 +196,7 @@ class EmployeeMCPWork:
     def _trust_path(self, binding, package):
         # Host credentials are intentionally absent from portable work backups.
         key = digest({'binding':self._trust_binding(binding), 'package':package})
-        import local_database
+        from runteams_core import local_database
         path=Path(local_database.DB_PATH).resolve().parent / 'host-credentials' / self.trust_namespace / self.scope['cache_scope'] / (key+'.json')
         if any(p.is_symlink() for p in (path,*path.parents)):raise ValueError('本机授权路径无效。')
         return path
@@ -319,7 +319,7 @@ class EmployeeMCPWork:
         return lambda:environment(self,chat,package,binding)
 
     def credential_configuration(self, chat, binding):
-        import product_store
+        from runteams_core import product_store
         from .employee_configuration import for_chat,admission
         session=product_store.get_chat(chat,include_messages=False)
         config=for_chat(chat)
@@ -487,7 +487,7 @@ class EmployeeMCPWork:
             yield {'mcp_servers':config,'on_approval':lambda method,params:self.ask(chat,method,params,cancel=cancel,notify=notify)}
 
     def recognizes(self, chat, workspace=''):
-        import product_store as store
+        from runteams_core import product_store as store
         if workspace or not device_data.personal() or not store.device_chat(chat): return False
         session=store.get_chat(chat)
         if not session or session.get('subject_type')!='employee' or session.get('kind')!='general': return False
@@ -600,7 +600,7 @@ def approval_response(method, params, decision):
 
 def for_employee(server,chat,workspace=''):
     """Leave all unrelated personal, cloud and organization owners untouched."""
-    import product_store as store
+    from runteams_core import product_store as store
     if workspace or not device_data.personal():return None
     try:device_data.identity()
     except PermissionError:return None

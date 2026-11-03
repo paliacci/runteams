@@ -17,7 +17,7 @@ def supports(field):
  return (field.get('type')=='secret' and binding.get('provider')=='native_credential' and credential_key(key))
 
 def _values(keys):
- import app_secrets
+ from runteams_core import app_secrets
  values=app_secrets.resolve(keys)
  if set(values)!=set(keys) or any(not isinstance(v,str) or not 1<=len(v.encode('utf-8'))<=8192 or '\0' in v for v in values.values()):
   raise ValueError('请先在本机保存此项所需的凭据。')
@@ -45,7 +45,7 @@ def update(field,value):
  if not supports(field) or not isinstance(value,str) or not value.strip() or not 1<=len(value.encode('utf-8'))<=8192 or '\0' in value:
   raise ValueError('请填写有效凭据，最多8192字节。')
  scope=device_data.identity()
- import app_secrets
+ from runteams_core import app_secrets
  app_secrets.set_secret(field['binding']['key'],value)
  device_data.check(scope)
  return {'selection':select(field,{'key':field['binding']['key']}),'available':True}

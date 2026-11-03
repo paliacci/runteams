@@ -13,7 +13,7 @@ import stat
 import secrets
 import threading
 
-import local_database
+from runteams_core import local_database
 from .workspace_context import selected
 
 

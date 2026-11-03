@@ -1,5 +1,5 @@
 """Original source-employee task reference grant selection."""
-import local_references
+from runteams_core import local_references
 def source_task_references(action, source, *, core=None):
     if 'local_reference_ids' in action:
         selected = action['local_reference_ids']

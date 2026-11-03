@@ -35,7 +35,7 @@ def _tool_label(name):
     matched = next((label for tool, label in _RUNTEAMS_TOOL_LABELS.items()
                     if raw.endswith("__" + tool) or raw.endswith("/" + tool)), None)
     if matched:return matched
-    from agent_tool_registry import get
+    from runteams_core.agent_tool_registry import get
     tool=get(raw.rsplit('__',1)[-1].rsplit('/',1)[-1])
     return tool.display_label if tool and tool.display_label else raw
 

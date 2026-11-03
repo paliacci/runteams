@@ -30,7 +30,7 @@ class Build(build_py):
         code = list(ROOT.glob('*.py')) + list((ROOT / 'runteams_core').rglob('*.py')) + [p for p in (ROOT / 'runteams_creator_dev').rglob('*') if p.is_file()]
         for folder in ('desktop', 'tooling', '.github/workflows'):
             code.extend(p for p in (ROOT / folder).rglob('*') if p.is_file() and not any(x in EXCLUDED for x in p.relative_to(ROOT).parts))
-        files = sorted(set(assets + code + [ROOT / name for name in ('pyproject.toml','requirements-community.txt','requirements-build.txt','README.md','LICENSE','LICENSING.md','THIRD_PARTY_DOCUMENTS.md','THIRD_PARTY_INVENTORY.json','CONTRIBUTING.md','SECURITY.md')]))
+        files = sorted(set(assets + code + [ROOT / name for name in ('pyproject.toml','requirements/runtime.txt','requirements/build.txt','README.md','LICENSE','docs/legal/LICENSING.md','docs/legal/THIRD_PARTY_DOCUMENTS.md','docs/legal/THIRD_PARTY_INVENTORY.json','CONTRIBUTING.md','SECURITY.md')]))
         hashes = {p.relative_to(ROOT).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest() for p in files
                   if not any(x in EXCLUDED for x in p.relative_to(ROOT).parts)}
         identity = {'schema': 'runteams.core-package/1', 'version': (ROOT / 'VERSION').read_text().strip(),

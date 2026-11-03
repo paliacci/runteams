@@ -67,7 +67,7 @@ class LocalApplication:
 
     def rebind(self):
         if self._generation!=self.backups.generation:
-            import chat_attachments
+            from runteams_core import chat_attachments
             chat_attachments.discard_native_selections(self.binding.scope)
         self._generation=self.backups.generation
         self.binding=self.provider.resolve(self.base)

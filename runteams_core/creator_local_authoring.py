@@ -40,7 +40,7 @@ def source(session):
 
 def session_for(store, identity, scope, runtime, *, employee_source=None):
     import json
-    import product_store as product
+    from runteams_core import product_store as product
     from . import device_data
     original = store.describe(identity)
     # The existing device transaction serializes duplicate/lost-reply opens.

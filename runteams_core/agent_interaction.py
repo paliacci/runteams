@@ -7,7 +7,7 @@ from copy import deepcopy
 import secrets
 import threading
 
-from errors import Cancelled
+from runteams_core.errors import Cancelled
 
 
 def scope():

@@ -1,7 +1,7 @@
 # Source and SDK licensing
 
 RunTeams is free to use and its local product source is available under the
-RunTeams Source Available License 1.0 in LICENSE. This license permits commercial
+RunTeams Source Available License 1.0 in the root LICENSE. This license permits commercial
 work using the product and restricts commercial redistribution of the product.
 It is not an OSI-approved open-source license.
 

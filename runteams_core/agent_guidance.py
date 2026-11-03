@@ -5,9 +5,9 @@ def runtime_facts(channel, model, effort, cwd, *, work=None, readonly=False):
     """Actual turn settings, independent of a CLI's user-wide defaults."""
     facts = {'provider': channel.get('provider'), 'model': model,
              'reasoning_effort': effort, 'cwd': str(cwd)}
-    from agent_environment import describe
+    from runteams_core.agent_environment import describe
     if work is not None:
-        from work_environment import BindingStore
+        from runteams_core.work_environment import BindingStore
         facts['workspace_environment'] = BindingStore.reference(work).bind(cwd)
         if readonly:
             facts['workspace_environment']['python']['launcher_argv'].append('--read-only-state')

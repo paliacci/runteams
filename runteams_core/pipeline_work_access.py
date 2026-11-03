@@ -3,7 +3,7 @@
 Never exposes employee snapshots/directories or a writable workflow cursor.
 Conversation and Apps share this adapter; professional handoffs stay in R05.
 """
-import local_references
+from runteams_core import local_references
 import copy
 import hashlib
 import json
@@ -200,7 +200,7 @@ def proposal(core, chat_id, arguments, *, actor_id=None, composer=True):
         raise PermissionError('共享业务授权必须沿原资料入口核对。')
     contract=control.dispatch_contract(core,ref,arguments.get('start_column_key'))
     if composer:
-        import product_store,local_references
+        from runteams_core import product_store; from runteams_core import local_references
         messages=product_store.get_chat(chat_id).get('messages') or []
         index=next((i for i in range(len(messages)-1,-1,-1) if messages[i]['role']=='user'),None)
         source=local_references.conversation_source(messages[index].get('attachments') or [],messages[:index]) if index is not None else {}

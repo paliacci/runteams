@@ -10,7 +10,7 @@ durable phases only after original admitted MCP tool authority.
 from contextlib import contextmanager
 from pathlib import Path
 import hmac,time,uuid,re
-import app_secrets,local_database
+from runteams_core import app_secrets; from runteams_core import local_database
 from . import device_data
 from .connection_credentials import ConnectionCredentialRecords
 from .creator_contracts import CreatorContractError,digest

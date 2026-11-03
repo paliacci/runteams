@@ -14,7 +14,9 @@ import platform
 import sys
 import tomllib
 
-ROOT = Path(__file__).resolve().parent
+from .resources import root as resource_root
+
+ROOT = resource_root()
 
 
 def runtime_root():
@@ -186,7 +188,7 @@ def execution_env(base_env, cwd, snapshot=None):
 
 
 def tool(arguments, context):
-    import agent_tool_registry as registry
+    from runteams_core import agent_tool_registry as registry
     if arguments:
         raise registry.AgentToolError('环境查询不接受路径或其他参数。')
     snapshot = (context.get('runtime') or {}).get('workspace_environment')
@@ -194,7 +196,7 @@ def tool(arguments, context):
         raise registry.AgentToolError('本轮没有已绑定的执行环境，请重新开始工作。')
     identity = None
     if context.get('chat_id'):
-        import product_store
+        from runteams_core import product_store
         if product_store.device_chat(context['chat_id']):
             from runteams_core import device_data
             identity = device_data.identity()
@@ -206,7 +208,7 @@ def tool(arguments, context):
         if not product_store.get_chat(context['chat_id'], include_messages=False):
             raise registry.AgentToolError('本轮对话已不可用，请重新开始工作。')
     if snapshot.get('binding'):
-        from work_environment import BindingStore
+        from runteams_core.work_environment import BindingStore
         store = BindingStore.record(snapshot['binding']['record'])
         if store.key != snapshot['binding']['work_key']:
             raise registry.AgentToolError('工作环境绑定身份不一致。')

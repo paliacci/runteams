@@ -13,14 +13,13 @@ import threading
 import time
 import uuid
 
-from adapter_codex import CodexAdapter
-import model_channels
-from adapter_base import (AGENT_AUTHORITY_PROFILES, EXECUTION_INTERNAL_ANALYSIS,
-                          validate_execution_profile)
-import agent_stream
-import agent_tool_registry
-import codex_processes
-from errors import Cancelled
+from runteams_core.adapter_codex import CodexAdapter
+from runteams_core import model_channels
+from runteams_core.adapter_base import AGENT_AUTHORITY_PROFILES, EXECUTION_INTERNAL_ANALYSIS, validate_execution_profile
+from runteams_core import agent_stream
+from runteams_core import agent_tool_registry
+from runteams_core import codex_processes
+from runteams_core.errors import Cancelled
 
 # Process-local native provider definition: same OpenAI authentication/default
 # endpoint and provider semantics, HTTP Responses streaming instead of WebSocket.
@@ -167,7 +166,7 @@ def run_turn(channel, thread_id, message, developer_instructions, *, model="", e
         raise Cancelled("运行已停止")
     executable = model_channels.resolve_channel_executable(channel)
     env = model_channels._probe_env(channel)
-    import agent_environment
+    from runteams_core import agent_environment
     env = agent_environment.execution_env(env, cwd,
         ((tool_context or {}).get('runtime') or {}).get('workspace_environment'))
     argv = _server_argv(executable, extensions_enabled)
@@ -242,7 +241,7 @@ def run_turn(channel, thread_id, message, developer_instructions, *, model="", e
         pass
 
     def defer_question(native_id, questions, dynamic=False):
-        from agent_interaction import questions as normalize_questions
+        from runteams_core.agent_interaction import questions as normalize_questions
         questions = normalize_questions(questions)
         key = on_activity.request_user_input_deferred(questions)
         blocking_questions[native_id] = {'key': key, 'questions': questions,
@@ -304,7 +303,7 @@ def run_turn(channel, thread_id, message, developer_instructions, *, model="", e
             # Background/non-chat owners may consume the structured request from
             # the result. An optional question must not abort independent work or
             # become a fabricated final answer when there is no live chat UI.
-            from agent_interaction import questions as normalize_questions
+            from runteams_core.agent_interaction import questions as normalize_questions
             user_input_requests.append({'thread_id': active_thread_id, 'turn_id': turn_id,
                 'item_id': item_id, 'questions': normalize_questions(questions), 'is_blocking': False})
             async_question_items[item_id] = None

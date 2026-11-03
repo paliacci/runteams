@@ -15,7 +15,7 @@ import sys
 import time
 import uuid
 
-import agent_environment
+from runteams_core import agent_environment
 
 SCHEMA = 'runteams.work-environment/1'
 _HASH = re.compile(r'^[a-f0-9]{64}$')
@@ -30,7 +30,7 @@ def digest(value):
 
 
 def chat_work(chat_id):
-    import product_store as store
+    from runteams_core import product_store as store
     from runteams_core import device_data
     if store.device_chat(chat_id):
         return {'root': str(device_data.root() / 'work-environments'),
@@ -84,7 +84,7 @@ def python_identity(python):
 
 def launcher(record, binding_id):
     args = ([sys.executable, '--runteams-python'] if getattr(sys, 'frozen', False)
-            else [sys.executable, str(Path(__file__).with_name('agent_python.py'))])
+            else [sys.executable, '-m', 'runteams_core.agent_python'])
     return args + ['--record', str(record), '--binding-id', binding_id]
 
 

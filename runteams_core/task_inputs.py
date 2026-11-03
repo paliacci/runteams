@@ -63,7 +63,7 @@ def consume(core_root, task_id, tokens):
 def _consume(core_root, task_id, tokens):
     # The native picker and its one-time tokens belong to the desktop adapter;
     # the core only keeps the resulting stable snapshot references.
-    import chat_attachments
+    from runteams_core import chat_attachments
 
     from .cloud_files import put_tree
     storage = _device_storage(core_root)

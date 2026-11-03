@@ -6,7 +6,7 @@ these areas. Do not read product code or assets from the retired combined
 workspace or the private official repository.
 
 RunTeams-authored product code uses LICENSE. The SDK package exceptions and
-third-party licenses are documented in LICENSING.md. Preserve upstream notices.
+third-party licenses are documented in docs/legal/LICENSING.md. Preserve upstream notices.
 Do not describe the restricted product license as OSI-approved open source.
 
 Reuse the existing UI and local business implementations. The local edition has
@@ -19,3 +19,5 @@ run runteams_core.devtools.ci_devkit on macOS ARM64 for the developer-kit mainli
 Neither check is authorization to run real models, employee work or deployments.
 
 Repository layout and maintenance rules are in docs/architecture.md and docs/development.md. Run the tracked-file hygiene check before committing; keep experiment logs, local profiles and one-time repair scripts outside Git. Generated static UI resources and deterministic test inputs remain maintained source artifacts.
+
+All runtime Python modules belong under runteams_core; use qualified package imports. requirements/ owns dependency lists and docs/legal/ owns explanatory licensing and inventories. The root contains project/build metadata, not business modules.

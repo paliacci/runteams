@@ -53,7 +53,7 @@ def for_session(session):
 
 def local_entries(*,errors=None):
     if not device_data.personal():return []
-    import product_store
+    from runteams_core import product_store
     scope=device_data.identity();store=current_store(scope['cache_scope']);sessions=[]
     # Conversations only supply a navigation target, never employee identity.
     with device_data.connect(readonly=True) as connection:

@@ -36,4 +36,4 @@ macOS ARM64 自包含安装包携带 Python 和运行依赖，最低系统 macOS
 
 RunTeams 产品源码采用 [RunTeams Source Available License 1.0](LICENSE)：允许内部商用和用产品交付付费成果，商业再分发或作为托管产品提供须另行授权。这是源码可用许可，不是 OSI 开源许可。
 
-独立创作的员工、流水线、技能和成果可以商用。`sdk/runtime`、`sdk/view`、`sdk/ui` 保留 Apache-2.0；第三方材料保留各自许可。详情见 [许可说明](LICENSING.md) 和 [第三方声明](THIRD_PARTY_DOCUMENTS.md)。
+独立创作的员工、流水线、技能和成果可以商用。`sdk/runtime`、`sdk/view`、`sdk/ui` 保留 Apache-2.0；第三方材料保留各自许可。详情见 [许可说明](docs/legal/LICENSING.md) 和 [第三方声明](docs/legal/THIRD_PARTY_DOCUMENTS.md)。

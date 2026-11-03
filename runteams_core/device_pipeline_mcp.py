@@ -55,7 +55,7 @@ class PipelineMCPWork(EmployeeMCPWork):
         self.work_wake = work_wake
 
     def notice_context(self, chat):
-        import product_store
+        from runteams_core import product_store
         ref=pipeline_chat_binding.reference(chat)
         from .device_work import DeviceWorkStorage
         from .repository import current_audit_context
@@ -121,7 +121,7 @@ class PipelineMCPWork(EmployeeMCPWork):
             self.check_operation(chat)
             if not known:
                 self._write(path, record)
-                import product_store
+                from runteams_core import product_store
                 product_store.set_chat_runtime(chat, '', '')
         self.check()
         return own, packages, base
@@ -219,7 +219,7 @@ class PipelineMCPWork(EmployeeMCPWork):
             snapshot = OwnConfiguration(own['reference'], {'configuration':EMPTY}, own['revision']).snapshot()
         definition = own['asset'].get('configuration', EMPTY)
         snapshot = _validate_snapshot(definition, own['reference'], own['revision'], snapshot)
-        import product_store
+        from runteams_core import product_store
         from . import local_assets
         for selected in snapshot['bindings'].values():
             if 'grant_id' in selected:
@@ -380,7 +380,7 @@ def for_pipeline(server, chat, workspace=''):
 
 def control_programs(host, action, chats):
     """Original pipeline control callback, scoped to its actual owned chats."""
-    import product_store
+    from runteams_core import product_store
     if action not in ('pause', 'start'):
         raise ValueError('请选择暂停或启动流水线程序。')
     for chat in chats:

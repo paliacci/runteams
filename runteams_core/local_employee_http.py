@@ -51,8 +51,8 @@ def dispatch(runtime,method,path,data):
         from .employee_collection_operations import dispatch
         return dispatch(method,data,importing=path.endswith('/import'))
     if path.startswith('/api/local-references/') and method=='POST':
-        import local_references
-        import chat_attachments,os
+        from runteams_core import local_references
+        from runteams_core import chat_attachments; import os
         if path.endswith('/confirm') and set(data)=={'tokens'}:return {'references':local_references.confirm(data['tokens'])}
         if path.endswith('/pick') and set(data)=={'kind'}:
             if data['kind'] not in ('file','folder'):raise ValueError('资料类型无效。')

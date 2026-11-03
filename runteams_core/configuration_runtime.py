@@ -54,7 +54,7 @@ def verify(field,selected):
             raise ValueError('原工作所需的包内运行环境已变化，请重新核对。')
     else:
         if set(selected)!=base|{'runtime'} or selected['kind']!='model-channel':raise ValueError('原运行条件无效。')
-        import product_store,model_channels
+        from runteams_core import product_store; from runteams_core import model_channels
         from .definition_contracts import validate_definition
         runtime=validate_definition('runtime_snapshot',selected['runtime'])
         if set(runtime)!={'provider','channel_id','model','effort'}:raise ValueError('原模型运行条件无效。')

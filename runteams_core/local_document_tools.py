@@ -11,7 +11,7 @@ def _stream(chat_id, message):
 
 
 def receipt(chat_id, operation):
-    import product_store as store
+    from runteams_core import product_store as store
     session=store.get_chat(chat_id)
     message=next((m for m in (session or {}).get('messages',[])
                   if m['role']=='user' and m.get('metadata',{}).get('local_turn_id')==operation),None)
@@ -24,14 +24,14 @@ def receipt(chat_id, operation):
 
 
 def apply_submissions(chat_id, submissions, cancel):
-    from agent_tool_registry import PROTOCOL
+    from runteams_core.agent_tool_registry import PROTOCOL
     actions=[action for item in submissions or [] if isinstance(item,dict)
              and item.get('protocol')==PROTOCOL and item.get('kind')=='change_proposal'
              for action in item.get('data',{}).get('actions',[])]
     if not actions:return {}
     if any(not isinstance(a,dict) or a.get('op') not in ('create_document','update_document') or a.get('data_view') for a in actions):
         raise ContractError('此入口只处理个人文档。')
-    import product_store as store
+    from runteams_core import product_store as store
     session=store.get_chat(chat_id)
     if not session or session.get('kind')!='general' or session.get('scope_pipeline_id'):
         raise ContractError('请在个人对话处理文档。')
@@ -49,7 +49,7 @@ def apply_submissions(chat_id, submissions, cancel):
         applied=[]
         for action in actions:
             if cancel.is_set():
-                from errors import Cancelled
+                from runteams_core.errors import Cancelled
                 raise Cancelled('运行已停止')
             if action['op']=='update_document' and type(action.get('base_revision')) is not int:
                 raise ContractError('请重新读取文档并提供 base_revision。')
@@ -64,7 +64,7 @@ def apply_submissions(chat_id, submissions, cancel):
         result={'ok':True,'applied':applied,'run_cards':[],'focus_pid':None,'device_only':True,'actions_digest':action_digest}
         core.repository.event(_stream(chat_id,message),'chat.actions_applied',result,connection=c,source='agent_tool')
         if cancel.is_set():
-            from errors import Cancelled
+            from runteams_core.errors import Cancelled
             raise Cancelled('运行已停止')
         core._actor()
         return result

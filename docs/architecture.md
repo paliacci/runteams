@@ -5,7 +5,7 @@
 | 路径 | 职责 |
 | --- | --- |
 | `runteams_core/` | 本机业务、身份、存储、HTTP 接线与文档模型 |
-| 根目录 Python 模块 | 模型渠道、CLI 适配器、对话工具和工作环境；由 pyproject.toml 的 py-modules 明确打包 |
+| `runteams_core` 内的渠道与运行模块 | 模型渠道、CLI 适配器、对话工具和工作环境；全部使用包内限定导入 |
 | `runteams_creator_dev/` | 独立 SDK 开发工程的命令实现 |
 | `sdk/` | 公共 SDK、MCP 宿主、合同和消费者测试 |
 | `web/` | 两版共用的业务 UI 与随包静态资源 |
@@ -16,6 +16,8 @@
 | `runtime/` | 原生辅助运行时源码 |
 | `tests/` | 自动检查使用的测试和确定性夹具 |
 | `tooling/` | 工具清单及检查所需的 JavaScript 锁 |
+| `requirements/` | Python 运行与构建依赖 |
+| `docs/legal/` | 许可解释、第三方说明与清单 |
 
 ## 运行与资源
 
@@ -29,6 +31,6 @@
 
 源码、锁文件、必要的编译后静态资源和测试夹具进入 Git。Python／Node 安装目录、构建缓存、App／DMG、个人数据库、凭据和单次验收记录留在 Git 之外。生成的静态资源必须与其前端源码及许可一起更新。
 
-不要为一次性的截图或调试记录添加新的正式命令。维护者工具归 `runteams_core.devtools`，修改后更新 `tooling/commands.json`。目录调整必须同时更新真实调用者，不保留旧路径转发。
+不要为一次性的截图或调试记录添加新的正式命令。维护者工具归 `runteams_core.devtools`，修改后更新 `tooling/commands.json`。目录调整必须同时更新真实调用者，不保留旧路径转发。根目录只保留项目文档和构建配置，业务 Python 模块全部维护在包内；仓库检查会拒绝根目录新增业务模块。
 
 返回 [项目首页](../README.md)。

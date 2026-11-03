@@ -25,8 +25,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix='runteams-community-install-') as directory:
         environment['HOME'] = directory
         subprocess.run([args.python, '-I', '-B', '-c',
-            "from pathlib import Path;import local_database,os;"
-            "p=Path(local_database.DB_PATH);assert p.is_relative_to(Path(os.environ['HOME']))"],
+            "from pathlib import Path;from runteams_core import local_database; import os;p=Path(local_database.DB_PATH);assert p.is_relative_to(Path(os.environ['HOME']))"],
             cwd=directory, env=environment, check=True)
         with tempfile.TemporaryFile(mode='w+') as errors:
             process = subprocess.Popen([args.python, '-I', '-B', '-m', 'runteams_core.community',

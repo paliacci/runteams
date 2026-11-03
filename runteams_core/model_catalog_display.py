@@ -6,8 +6,8 @@ import threading
 import time
 from concurrent.futures import Future
 
-import cli_discovery
-import model_channels
+from runteams_core import cli_discovery
+from runteams_core import model_channels
 
 _LOCK = threading.RLock()
 _ENTRIES = {}

@@ -254,7 +254,7 @@ def handle(handler):
         with handler.server.creator_owner_lock:
             if handler.server.creator_owner_stopped:raise PermissionError()
             if handler.server.browser_work_host is None:
-                import agent_interaction
+                from runteams_core import agent_interaction
                 handler.server.browser_work_host=BrowserWorkHost(handler.server.creator_router(),agent_interaction.scope)
             host_service=handler.server.browser_work_host
         return handler._json(host_service.call(value,origin))

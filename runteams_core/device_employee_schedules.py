@@ -13,7 +13,7 @@ import threading
 import uuid
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
-from errors import Cancelled
+from runteams_core.errors import Cancelled
 
 from . import device_data
 from .contracts import ContractError

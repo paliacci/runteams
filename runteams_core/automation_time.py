@@ -1,6 +1,6 @@
 """Original schedule normalization, without a cloud database dependency."""
 import json,re
-from local_database import now
+from runteams_core.local_database import now
 
 def _automation_json(value, fallback):
     if isinstance(value, type(fallback)):

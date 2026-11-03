@@ -5,7 +5,7 @@ alone creates a connection grant, cloud claim, execution or network client.
 """
 import hashlib,hmac,time
 from pathlib import Path
-import app_secrets,local_database
+from runteams_core import app_secrets; from runteams_core import local_database
 from .creator_contracts import CreatorContractError,canonical,digest
 from .device_files import _read,_publish
 

@@ -1,6 +1,6 @@
 """Shared native-capability selection and prompting for both conversation hosts."""
 import re
-import model_channels
+from runteams_core import model_channels
 
 def _normalize_capabilities(value):
     result = []

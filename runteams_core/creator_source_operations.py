@@ -85,7 +85,7 @@ def write(store, identity, file, body, scope, serialize):
         if (not isinstance(body, dict) or set(body) != {'session_id','base_revision'} or
                 type(body['session_id']) is not int or body['session_id'] < LOCAL_CHAT_ID_MIN):
             raise ValueError('恢复会话无效。')
-        import product_store
+        from runteams_core import product_store
         session = product_store.get_chat(body['session_id'])
         if not session or (session.get('context') or {}).get('creator_local_source_id') != identity:
             raise PermissionError('恢复会话与这份源码不匹配。')

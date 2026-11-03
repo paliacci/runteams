@@ -491,7 +491,7 @@ def end_execution(core, identifier, token=None, *, recovery=False):
 
 
 def check_chat_operation(chat_id):
-    import product_store
+    from runteams_core import product_store
     session = product_store.get_chat(chat_id, include_messages=False)
     context = (session or {}).get('context') or {}
     if not context.get('pipeline_work'): return

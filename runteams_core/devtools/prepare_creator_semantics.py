@@ -101,7 +101,7 @@ def prepare_semantics(stage):
     bundle(stage/'_canonical/python-stdlib.bytecode.zip', bytecode(stdlib, '/lib/python312.zip', zip_import=True), compress=True)
     bundle(stage/'_canonical/python-dependencies.zip', bytecode(members, '/python-dependencies.zip', zip_import=True))
     sources = {f'runteams_core/{name}.py': (ROOT/f'runteams_core/{name}.py').read_bytes() for name in CORE}
-    sources['capability_runtime.py'] = (ROOT/'capability_runtime.py').read_bytes()
+    sources['runteams_core/capability_runtime.py'] = (ROOT/'runteams_core/capability_runtime.py').read_bytes()
     for path in (ROOT/'contracts/creator-system').rglob('*.json'):
         sources[str(path.relative_to(ROOT))] = path.read_bytes()
     for name in ('product-model-v2.json','marketplace-pipeline-v2.json'):

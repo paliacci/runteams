@@ -14,7 +14,7 @@ _lock = threading.RLock()
 
 
 def session(chat_id=None):
-    import product_store as store
+    from runteams_core import product_store as store
     if not device_data.personal():
         raise PermissionError('请在个人工作区选择工作文件夹。')
     if chat_id in (None, '', 'new'):
@@ -83,7 +83,7 @@ def records(expected=None):
 
 
 def original(item):
-    import product_store as store
+    from runteams_core import product_store as store
     if item and item.get('subject_type') == 'employee':
         from .employee_context import current as employee_context
         return str(employee_context().workspace(item['id']))
@@ -124,7 +124,7 @@ def read(chat_id=None, *, expected=None):
 
 def bind(chat_id, selection_id, *, expected=None):
     scope = expected or device_data.identity()
-    import product_store as store
+    from runteams_core import product_store as store
     if not str(chat_id).isdigit():
         raise ValueError('对话编号无效。')
     with store.chat_lock(int(chat_id)):
@@ -143,8 +143,8 @@ def bind(chat_id, selection_id, *, expected=None):
 
 
 def pick(chat_id=None, *, expected=None, cancel_event=None):
-    import chat_attachments
-    import product_store as store
+    from runteams_core import chat_attachments
+    from runteams_core import product_store as store
     scope = expected or device_data.identity()
     device_data.check(scope)
     item = session(chat_id)
@@ -171,7 +171,7 @@ def pick(chat_id=None, *, expected=None, cancel_event=None):
 
 def clear(chat_id=None, selection_id=None, *, expected=None):
     """Forget the selection without touching files or an already frozen chat."""
-    import product_store as store
+    from runteams_core import product_store as store
     scope = expected or device_data.identity()
     item = session(chat_id)
     with store.chat_lock(int(chat_id)) if item else _lock:
@@ -243,7 +243,7 @@ def snapshot(source, destination, scope, check):
 
 def frozen_reference(chat_id):
     scope = device_data.identity()
-    import product_store as store
+    from runteams_core import product_store as store
     item = store.get_chat(chat_id, include_messages=False)
     if item and item.get('kind') == 'employee_design':
         from .employee_context import current as employee_context

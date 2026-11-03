@@ -6,7 +6,7 @@ import os
 class LocalAttachmentStorage:
     @staticmethod
     def _require_device(chat_id):
-        import product_store
+        from runteams_core import product_store
         if not product_store.device_chat(chat_id):
             raise PermissionError('附件必须属于当前本机对话。')
 
@@ -25,7 +25,7 @@ class LocalAttachmentStorage:
 
     def restore(self, chat_id, item):
         self._require_device(chat_id)
-        from chat_attachments import _contained_path
+        from runteams_core.chat_attachments import _contained_path
         folder=item.get('kind')=='folder'
         path = _contained_path(chat_id, item.get('stored_name') or '', require_file=not folder)
         if not (os.path.isdir(path) if folder else os.path.isfile(path)):

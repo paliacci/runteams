@@ -5,7 +5,7 @@ import json
 import os
 import sys
 
-import agent_tool_registry
+from runteams_core import agent_tool_registry
 
 
 def _server_context():

@@ -214,7 +214,7 @@ def _execute(core, identifier, frozen, runtime=None):
     if frozen.get('work_folder'):
         from .conversation_folders import inherit
         inherit(chat_id, frozen['work_folder'])
-    import product_store
+    from runteams_core import product_store
     with device_data.connect() as connection:
         session=product_store.get_chat(chat_id,include_messages=False)
         if frozen.get('pipeline_work'):
@@ -314,7 +314,7 @@ def finish(core, identifier, status, reason='', *, visit=None):
         if frozen.get('pipeline_work'):
             c.execute('UPDATE workflow_runs SET snapshot_json=? WHERE id=?',(json.dumps(frozen),identifier))
         if frozen.get('employee_run_id'):
-            import product_store
+            from runteams_core import product_store
             session=product_store.get_chat(frozen.get('work_chat_id')) or {}
             reply=next((m.get('text') or '' for m in reversed(session.get('messages') or []) if m['role']=='bot'),'')
             output={'status':execution_state,'summary':reply,'output':{},'issues':[reason] if reason else [],'artifacts':[]}

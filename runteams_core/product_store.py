@@ -15,9 +15,9 @@ import sqlite3
 import subprocess
 from datetime import datetime
 
-import automation_store
-import local_database
-import provider_catalog
+from runteams_core import automation_store
+from runteams_core import local_database
+from runteams_core import provider_catalog
 
 
 data_dir = local_database.data_dir

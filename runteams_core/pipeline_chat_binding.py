@@ -2,7 +2,7 @@
 from . import device_data,pipeline_references
 
 def reference(chat):
-    import product_store
+    from runteams_core import product_store
     session = product_store.get_chat(chat, include_messages=False)
     if (not device_data.personal() or not product_store.device_chat(chat) or not session or
             session['kind'] != 'general' or session['subject_type'] != 'workspace' or

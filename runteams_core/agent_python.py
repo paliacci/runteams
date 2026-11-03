@@ -14,8 +14,8 @@ from packaging.requirements import Requirement
 from packaging.specifiers import SpecifierSet
 from packaging.version import Version
 
-import agent_environment
-from work_environment import BindingStore, EnvironmentError, file_identity
+from runteams_core import agent_environment
+from runteams_core.work_environment import BindingStore, EnvironmentError, file_identity
 
 _MODULE = re.compile(r'^[A-Za-z_]\w*(?:\.[A-Za-z_]\w*)*$')
 _MARKER = 'RUNTEAMS_ENVIRONMENT_PROBE='
@@ -190,7 +190,7 @@ def prepare(store, expected, packages, modules, reason, readonly=False):
 
             if base:
                 parent = store.root.parent / 'python-environments' / store.key
-                from work_environment import _directory
+                from runteams_core.work_environment import _directory
                 _directory(parent)
                 created = parent / uuid.uuid4().hex
                 execute([executable, '-I', '-B', '-m', 'venv', str(created)], python, 60)

@@ -9,7 +9,7 @@ This module deliberately does not implement an Agent loop. Claude Code and
 Codex remain responsible for reasoning and tool selection; RunTeams only
 dispatches its local control-plane tools.
 """
-import local_references
+from runteams_core import local_references
 from copy import deepcopy
 from dataclasses import dataclass
 import json
@@ -122,7 +122,7 @@ def dispatch(name, arguments=None, context=None):
         return tool.handler(deepcopy(values), context or {})
     if name in ('runteams_work_report', 'runteams_employee_data', 'runteams_pipeline_work', 'runteams_pipeline_workspace', 'runteams_propose_pipeline_work'):
         return tool.handler(deepcopy(values), context or {})
-    from native_document_tools import dispatch as native_document_tool
+    from runteams_core.native_document_tools import dispatch as native_document_tool
     document_result = native_document_tool(name, values, context or {})
     if document_result is not None:return document_result
     from runteams_core.tool_extensions import native_employee as native_employee_tool
@@ -133,7 +133,7 @@ def dispatch(name, arguments=None, context=None):
         # Current cloud identity/turn/selection owns this read. Do not initialize
         # an unrelated repository or use model-supplied actor_id as authority.
         return tool.handler(deepcopy({} if arguments is None else arguments), deepcopy(context or {}))
-    import product_store
+    from runteams_core import product_store
     chat_id=(context or {}).get('chat_id')
     if chat_id and product_store.device_chat(chat_id):
         session=product_store.get_chat(chat_id,include_messages=False)
@@ -352,7 +352,7 @@ def _get_bot_context(arguments, context):
     scope_type = str(arguments.get("scope_type") or conversation.get("scope_type") or
                      ("run" if run_id else "pipeline" if pipeline_id else "global")).strip()
     try:
-        import bot_context
+        from runteams_core import bot_context
         core = tool_services.current()
         employee = core.employee(employee_id) or {}
         active_release = employee.get("active_release") or {}
@@ -404,7 +404,7 @@ def _get_task(arguments, context):
         raise AgentToolError("当前员工 只能读取自身参与的任务")
     snapshot = workflow.get("snapshot_json") or {}
     task = snapshot.get("task") or {}
-    import bot_context as _bot_context
+    from runteams_core import bot_context as _bot_context
     runs = []
     for run in workflow.get("employee_runs") or []:
         result = run.get("output_json") or {}
@@ -717,7 +717,7 @@ def _propose_task(arguments, _context):
     if 'local_reference_ids' in arguments:
         action['local_reference_ids'] = arguments['local_reference_ids']
     from runteams_core.employee_context import current as employee_context
-    import product_store as store
+    from runteams_core import product_store as store
     _root, _view, conversation = _tool_context(_context)
     session = store.get_chat((_context or {}).get('chat_id')) if (_context or {}).get('chat_id') else None
     messages = (session or {}).get('messages') or []
@@ -800,7 +800,7 @@ def _request_choice(arguments, _context):
         raise AgentToolError("选择工具包含未知参数：{}".format(", ".join(extra)))
     ask = _context.get('request_user_input')
     if callable(ask):
-        from agent_interaction import questions
+        from runteams_core.agent_interaction import questions
         try:
             value = questions(arguments.get('questions') or [{
                 'id': 'choice', 'question': arguments.get('question'),
@@ -1285,7 +1285,7 @@ def _project_memory(arguments, context):
 
 
 def _get_environment(arguments, context):
-    from agent_environment import tool
+    from runteams_core.agent_environment import tool
     return tool(arguments, context)
 
 
