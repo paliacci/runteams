@@ -5,12 +5,9 @@ if not __package__:
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import argparse
-import hashlib
 import json
-import os
 from pathlib import Path
 import plistlib
-import stat
 import subprocess
 import tempfile
 
@@ -28,47 +25,6 @@ except ImportError:
 # actual mount/copy/signature checks and the 1/4/16/64 MiB comparison.
 LZMA_CHUNK_SECTORS = 131072
 
-
-def _deduplicate_staged_assets(app):
-    """Share identical non-executable assets only inside the disposable image stage."""
-    groups = {}
-    for path in sorted(app.rglob('*')):
-        # Their signed manifests require independent files, even for equal bytes.
-        if {'mcp-runtime','creator-builder','agent-python'} & set(path.relative_to(app).parts):
-            continue
-        info = path.lstat()
-        if not stat.S_ISREG(info.st_mode) or info.st_mode & 0o111:
-            continue
-        key = (info.st_size, info.st_mode, info.st_uid, info.st_gid,
-               getattr(info, 'st_flags', 0))
-        groups.setdefault(key, []).append(path)
-    saved, count = 0, 0
-    for paths in groups.values():
-        if len(paths) < 2:
-            continue
-        seen = {}
-        for path in paths:
-            digest = hashlib.sha256()
-            with path.open('rb') as stream:
-                for data in iter(lambda: stream.read(1024 * 1024), b''):
-                    digest.update(data)
-            # xattr is supplied by macOS; unequal metadata must remain independent.
-            attributes = subprocess.check_output(['xattr', '-lx', str(path)])
-            key = (digest.digest(), attributes)
-            original = seen.get(key)
-            if original is None:
-                seen[key] = path
-                continue
-            if path.stat().st_ino == original.stat().st_ino:
-                continue
-            size = path.stat().st_size
-            with tempfile.TemporaryDirectory(prefix='.runteams-link-', dir=path.parent) as temporary:
-                link = Path(temporary) / 'asset'
-                os.link(original, link, follow_symlinks=False)
-                os.replace(link, path)
-            count += 1
-            saved += size
-    return {'shared_asset_files': count, 'shared_asset_bytes': saved}
 
 
 def package(app, output, image_format='ULMO', *, signer=None):
@@ -101,7 +57,6 @@ def package(app, output, image_format='ULMO', *, signer=None):
         contents.mkdir()
         # Preserve the sealed app bytes, permissions and links while staging.
         subprocess.run(['ditto', str(app), str(contents / app.name)], check=True)
-        deduplication = _deduplicate_staged_assets(contents / app.name)
         subprocess.run(['codesign', '--verify', '--deep', '--strict', str(contents / app.name)], check=True)
         (contents / 'Applications').symlink_to('/Applications')
         image = root / 'package.dmg'
@@ -123,7 +78,7 @@ def package(app, output, image_format='ULMO', *, signer=None):
     return {'app': str(app), 'version': version, 'dmg': str(output),
             'bytes': output.stat().st_size, 'format': image_format,
             'lzma_chunk_bytes': LZMA_CHUNK_SECTORS * 512 if image_format == 'ULMO' else None,
-            **deduplication, 'verified': True}
+            'asset_files_preserved_independently': True, 'verified': True}
 
 
 if __name__ == '__main__':

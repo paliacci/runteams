@@ -166,18 +166,18 @@ def build(output=None, build_python=None, data_directory=None, validate_only=Fal
         subprocess.run([str(python),'-I','-B','-c',sdk_probe,str(core)],env=env,check=True,timeout=30)
         executable=app/'Contents/MacOS/RunTeamsLocal';executable.parent.mkdir()
         subprocess.run(['/usr/bin/xcrun','swiftc','-swift-version','5','-target',
-            ('arm64' if platform.machine()=='arm64' else 'x86_64')+'-apple-macosx12.0',
+            ('arm64' if platform.machine()=='arm64' else 'x86_64')+'-apple-macosx13.5',
             *[str(ROOT/'desktop/community'/name) for name in ('Policy.swift','Bootstrap.swift','main.swift')],
             *[str(ROOT/'desktop/creator'/name) for name in ('CreatorDesktopHost.swift','CreatorCloudWork.swift','CreatorWebHost.swift')],
             '-framework','AppKit','-framework','WebKit','-o',str(executable)],check=True)
         picker=resources/'RunTeamsPicker.app';binary=picker/'Contents/MacOS/RunTeamsPicker';binary.parent.mkdir(parents=True)
-        subprocess.run(['/usr/bin/xcrun','swiftc','-swift-version','5',str(ROOT/'desktop/attachment_picker.swift'),'-framework','AppKit','-o',str(binary)],check=True)
+        subprocess.run(['/usr/bin/xcrun','swiftc','-swift-version','5','-target',('arm64' if platform.machine()=='arm64' else 'x86_64')+'-apple-macosx13.5',str(ROOT/'desktop/attachment_picker.swift'),'-framework','AppKit','-o',str(binary)],check=True)
         info=plistlib.loads((ROOT/'desktop/RunTeamsPicker-Info.plist').read_bytes());info.update(CFBundleIdentifier='ai.runteams.community.picker',CFBundleDisplayName='RunTeams 本机文件选择器')
         (picker/'Contents/Info.plist').write_bytes(plistlib.dumps(info));signer.sign(picker,executable=True)
         shutil.copyfile(ROOT/'desktop/RunTeams.icns',resources/'RunTeams.icns')
         config['inputs']=inventory(resources)
         (resources/'bootstrap.json').write_text(json.dumps(config,ensure_ascii=False,indent=2)+'\n')
-        (app/'Contents/Info.plist').write_bytes(plistlib.dumps({'RunTeamsLocalBuild':signer.local,'CFBundleIdentifier':BUNDLE_ID,'CFBundleName':'RunTeams Local','CFBundleDisplayName':'RunTeams 本机版','CFBundleExecutable':'RunTeamsLocal','CFBundlePackageType':'APPL','CFBundleVersion':config['version'],'CFBundleShortVersionString':config['version'],'CFBundleIconFile':'RunTeams.icns','LSMinimumSystemVersion':'12.0','NSHighResolutionCapable':True,'NSAppTransportSecurity':{'NSAllowsLocalNetworking':True}}))
+        (app/'Contents/Info.plist').write_bytes(plistlib.dumps({'RunTeamsLocalBuild':signer.local,'CFBundleIdentifier':BUNDLE_ID,'CFBundleName':'RunTeams Local','CFBundleDisplayName':'RunTeams 本机版','CFBundleExecutable':'RunTeamsLocal','CFBundlePackageType':'APPL','CFBundleVersion':config['version'],'CFBundleShortVersionString':config['version'],'CFBundleIconFile':'RunTeams.icns','LSMinimumSystemVersion':'13.5','NSHighResolutionCapable':True,'NSAppTransportSecurity':{'NSAllowsLocalNetworking':True}}))
         signer.sign(app,executable=True)
         subprocess.run(['/usr/bin/codesign','--verify','--deep','--strict',str(app)],check=True)
         subprocess.run([str(executable),'--check-bootstrap'],check=True,capture_output=True,timeout=30)
