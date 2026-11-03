@@ -4868,3 +4868,9 @@ select.ptbl-in{padding-right:20px}
 .menu-head-action:hover,.menu-head-action.active{background:var(--surface-hover);color:var(--text-primary)}
 .menu-head-action:focus-visible{outline:1px solid var(--control-focus);outline-offset:-1px}
 .menu-head-action:disabled{opacity:.5;cursor:default}
+
+/* Shared first-paint navigation. */
+.page-back{display:inline-flex;align-items:center;gap:7px;margin:0 0 24px;padding:0;border:0;background:transparent;color:var(--sub);font-size:calc(12px * var(--interface-font-scale,1));cursor:pointer}
+.page-back:hover{color:var(--ink)}
+.page-back .i{width:15px;height:15px}
+.pending-page .page-back{text-decoration:none}
