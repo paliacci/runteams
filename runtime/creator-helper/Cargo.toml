@@ -1,0 +1,16 @@
+[package]
+name = "runteams-creator-helper"
+version = "1.0.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+wasmtime = { version = "=49.0.0", default-features = false, features = ["std", "runtime", "cranelift", "wat"] }
+serde = { version = "=1.0.228", features = ["derive"] }
+serde_json = "=1.0.145"
+base64 = "=0.22.1"
+wasmtime-wasi = { version = "=49.0.0", default-features = false, features = ["p1"] }
+
+[profile.release]
+opt-level = 1
+debug = 0

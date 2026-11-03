@@ -1,0 +1,7 @@
+{
+  "records": [
+    {"id": "entry-a", "amount": 120},
+    {"id": "entry-b", "amount": 180}
+  ],
+  "declared_total": 360
+}

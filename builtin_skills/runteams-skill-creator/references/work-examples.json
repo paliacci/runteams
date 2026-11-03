@@ -1,0 +1,19 @@
+{
+  "normal": {
+    "parameters": {
+      "goal": "创建统计给定文本Unicode字符数的技能；样例A😀应为2，空输入为0。"
+    },
+    "expected": "实际脚本得到2与0；缺失输入应明确拒绝；保存不自动发布员工。"
+  },
+  "boundary": {
+    "parameters": {
+      "goal": ""
+    },
+    "expected": "资料不足时说明缺项，不伪造事实、产物或完成。"
+  },
+  "failure": {
+    "parameters": {},
+    "expected": "输入校验拒绝缺少必填参数。"
+  },
+  "verification": "这些是方法验收样例；是否实际执行须另有产物和核对记录。"
+}

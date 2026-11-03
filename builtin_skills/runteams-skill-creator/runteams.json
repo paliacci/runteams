@@ -1,0 +1,118 @@
+{
+  "schema": "runteams.package-extension/v3",
+  "display_name": "技能创建与评估",
+  "work": {
+    "name": "创建与评估产品技能",
+    "summary": "用户目标和代表性输入，交付技能文件、评估产物及限制。",
+    "objective": "work与SKILL.md方法一致，依赖来自真实接口，包内无模型凭据或本机账户身份。",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "goal": {
+          "type": "string",
+          "description": "用户目标和代表性输入"
+        }
+      },
+      "required": [
+        "goal"
+      ],
+      "additionalProperties": false
+    },
+    "output_schema": {
+      "type": "object",
+      "properties": {
+        "skill_files": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "evaluations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "input": {
+                "type": "string"
+              },
+              "actual": {
+                "type": "string"
+              },
+              "expected": {
+                "type": "string"
+              },
+              "execution_kind": {
+                "enum": [
+                  "actual",
+                  "simulated",
+                  "unverified"
+                ]
+              },
+              "passed": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "input",
+              "actual",
+              "expected",
+              "execution_kind",
+              "passed"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "skill_files",
+        "evaluations",
+        "limitations"
+      ],
+      "additionalProperties": false
+    },
+    "steps": [
+      {
+        "id": "step-1",
+        "instruction": "读取用户目标和上游创建方法，确定稳定的正式工作、输入和交付标准。"
+      },
+      {
+        "id": "step-2",
+        "instruction": "制作完整标准技能包，按真实模块目录声明所需员工操作，保持方法与资源分离。"
+      },
+      {
+        "id": "step-3",
+        "instruction": "用正常、边界和不适用样例实际执行方法，读回产物、纠错并再次验证。"
+      }
+    ],
+    "acceptance": [
+      {
+        "id": "check-1",
+        "label": "交付内容",
+        "criterion": "work与SKILL.md方法一致，依赖来自真实接口，包内无模型凭据或本机账户身份。"
+      },
+      {
+        "id": "check-2",
+        "label": "核实与范围",
+        "criterion": "评估记录分别说明实际执行、模拟与未验证项，发现问题有修复后复验。"
+      }
+    ],
+    "deliverables": [
+      {
+        "path": "output/skill",
+        "name": "完整技能包",
+        "required": true,
+        "type": "folder"
+      }
+    ],
+    "assets": [],
+    "result_actions": []
+  },
+  "tools": [],
+  "execution": {}
+}

@@ -1,0 +1,156 @@
+{
+  "schema": "runteams.development-commands/1",
+  "namespace": "runteams_core",
+  "entries": [
+    {
+      "path": "runteams_core/devtools/build_community_web_manifest.py",
+      "module": "runteams_core.devtools.build_community_web_manifest",
+      "command": true,
+      "description": "Register the canonical business UI's static files without creating a UI fork."
+    },
+    {
+      "path": "runteams_core/devtools/build_creator_sdk.py",
+      "module": "runteams_core.devtools.build_creator_sdk",
+      "command": true,
+      "description": "Generate SDK inputs/types from exact frozen contracts. No npm lifecycle hooks."
+    },
+    {
+      "path": "runteams_core/devtools/build_wheel.py",
+      "module": "runteams_core.devtools.build_wheel",
+      "command": true,
+      "description": "Build one reproducible core wheel from its committed source checkout."
+    },
+    {
+      "path": "runteams_core/devtools/check_creator_sdk.py",
+      "module": "runteams_core.devtools.check_creator_sdk",
+      "command": true,
+      "description": "Check real packed SDKs in an isolated consumer; never publish or run hooks."
+    },
+    {
+      "path": "runteams_core/devtools/check_desktop_document_resources.py",
+      "module": "runteams_core.devtools.check_desktop_document_resources",
+      "command": true,
+      "description": "Reject stale desktop candidates that still carry the retired editor kernel."
+    },
+    {
+      "path": "runteams_core/devtools/check_mcp_host_presentation.cjs",
+      "module": null,
+      "command": true,
+      "description": ""
+    },
+    {
+      "path": "runteams_core/devtools/check_source.py",
+      "module": "runteams_core.devtools.check_source",
+      "command": true,
+      "description": "Check the maintained standalone source/module boundary without starting work."
+    },
+    {
+      "path": "runteams_core/devtools/ci.py",
+      "module": "runteams_core.devtools.ci",
+      "command": true,
+      "description": "The core CI entry: source boundary, deterministic wheel and installed mainline."
+    },
+    {
+      "path": "runteams_core/devtools/ci_devkit.py",
+      "module": "runteams_core.devtools.ci_devkit",
+      "command": true,
+      "description": "Build and verify the SDK kit from pinned public inputs on macOS ARM64."
+    },
+    {
+      "path": "runteams_core/devtools/command_inventory.py",
+      "module": "runteams_core.devtools.command_inventory",
+      "command": true,
+      "description": "List canonical development commands and enforce one owning Python package."
+    },
+    {
+      "path": "runteams_core/devtools/community_source.py",
+      "module": "runteams_core.devtools.community_source",
+      "command": true,
+      "description": "Validate, audit and stage the canonical community source contract."
+    },
+    {
+      "path": "runteams_core/devtools/creator_source_checker_entry.py",
+      "module": "runteams_core.devtools.creator_source_checker_entry",
+      "command": false,
+      "description": "Isolated packaging probe using the same entry as the product executable."
+    },
+    {
+      "path": "runteams_core/devtools/export_creator_devkit.py",
+      "module": "runteams_core.devtools.export_creator_devkit",
+      "command": true,
+      "description": "Export a self-contained macOS development workspace, without account data."
+    },
+    {
+      "path": "runteams_core/devtools/package_creator_builder.py",
+      "module": "runteams_core.devtools.package_creator_builder",
+      "command": true,
+      "description": "Stage trusted build resources, outside any author source package."
+    },
+    {
+      "path": "runteams_core/devtools/package_creator_source_checker.py",
+      "module": "runteams_core.devtools.package_creator_source_checker",
+      "command": true,
+      "description": "Build an isolated, signed source checker; never installs or starts the app."
+    },
+    {
+      "path": "runteams_core/devtools/package_desktop_dmg.py",
+      "module": "runteams_core.devtools.package_desktop_dmg",
+      "command": true,
+      "description": "Create and verify a smaller, lossless macOS DMG from a signed desktop app."
+    },
+    {
+      "path": "runteams_core/devtools/package_mcp_runtime.py",
+      "module": "runteams_core.devtools.package_mcp_runtime",
+      "command": true,
+      "description": "Seal the already verified M06 runtime for desktop packaging; never fetch tools."
+    },
+    {
+      "path": "runteams_core/devtools/prepare_agent_python.py",
+      "module": "runteams_core.devtools.prepare_agent_python",
+      "command": true,
+      "description": "Build-time provisioner for checksum-pinned, relocatable Agent Python."
+    },
+    {
+      "path": "runteams_core/devtools/prepare_creator_builder.py",
+      "module": "runteams_core.devtools.prepare_creator_builder",
+      "command": true,
+      "description": "Stage signed SDK build resources and the matching portable development kit."
+    },
+    {
+      "path": "runteams_core/devtools/prepare_creator_semantics.py",
+      "module": "runteams_core.devtools.prepare_creator_semantics",
+      "command": false,
+      "description": "Stage a fixed managed Python validation closure, without install scripts."
+    },
+    {
+      "path": "runteams_core/devtools/prepare_mcp_runtime.py",
+      "module": "runteams_core.devtools.prepare_mcp_runtime",
+      "command": true,
+      "description": "Prepare fixed application resources. Never download/install on an end user's launch."
+    },
+    {
+      "path": "runteams_core/devtools/provision_mcp_node.py",
+      "module": "runteams_core.devtools.provision_mcp_node",
+      "command": true,
+      "description": "Build-time Node provisioner, not an installation/first-launch hook."
+    },
+    {
+      "path": "runteams_core/devtools/python_sources.py",
+      "module": "runteams_core.devtools.python_sources",
+      "command": false,
+      "description": "Project canonical account-free Python sources into an offline developer kit."
+    },
+    {
+      "path": "runteams_core/devtools/source_root.py",
+      "module": "runteams_core.devtools.source_root",
+      "command": false,
+      "description": "Locate explicit build source when tools are used across the two projects."
+    },
+    {
+      "path": "runteams_core/devtools/verify_install.py",
+      "module": "runteams_core.devtools.verify_install",
+      "command": true,
+      "description": "Verify the installed community mainline in a fresh, disposable local library."
+    }
+  ]
+}

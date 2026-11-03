@@ -1,0 +1,90 @@
+/* Approved first-use empty states, native Figma 195:288177 / 653:67044 / 664:85316. */
+.rt-empty-state{display:flex;flex-direction:column;align-items:center;justify-content:safe center;flex:1 0 auto;align-self:stretch;gap:24px;width:100%;max-width:100%;min-width:0;margin:0;padding:24px;box-sizing:border-box;grid-column:1/-1;text-align:center;color:var(--text-secondary)}
+.rt-empty-state[hidden]{display:none!important}
+.rt-empty-state-art{width:280px;aspect-ratio:280/184;max-width:100%;flex:0 0 auto}
+.rt-empty-state-art>svg{display:block;width:100%;max-width:100%;height:auto}
+.rt-empty-state-copy{display:flex;flex-direction:column;gap:8px;width:100%;max-width:560px;min-width:0}
+.rt-empty-state-copy>b{margin:0;font-size:calc(20px * var(--interface-font-scale,1));font-weight:500;line-height:calc(28px * var(--interface-font-scale,1));color:var(--text-primary);overflow-wrap:anywhere}
+.rt-empty-state-copy>span{font-size:calc(13px * var(--interface-font-scale,1));line-height:calc(22px * var(--interface-font-scale,1));font-weight:400;color:var(--text-secondary);overflow-wrap:anywhere}
+.rt-empty-state--records{gap:18px}
+.rt-empty-state--records .rt-empty-state-art{width:224px}
+.rt-empty-state--records .rt-empty-state-copy>b{font-size:calc(16px * var(--interface-font-scale,1));line-height:calc(24px * var(--interface-font-scale,1))}
+
+/* Approved connection/responsibility states, native Figma batch 2. */
+:is(.rt-empty-state--channels,.rt-empty-state--mobileGuest,.rt-empty-state--devices,.rt-empty-state--responsibilities){width:100%;gap:16px}
+:is(.rt-empty-state--channels,.rt-empty-state--mobileGuest,.rt-empty-state--devices,.rt-empty-state--responsibilities) .rt-empty-state-copy{gap:10px}
+:is(.rt-empty-state--channels,.rt-empty-state--mobileGuest,.rt-empty-state--devices,.rt-empty-state--responsibilities) .rt-empty-state-copy>b{font-size:calc(16px * var(--interface-font-scale,1));line-height:calc(24px * var(--interface-font-scale,1))}
+:is(.rt-empty-state--channels,.rt-empty-state--mobileGuest,.rt-empty-state--devices,.rt-empty-state--responsibilities) .rt-empty-state-copy>span{font-size:calc(12px * var(--interface-font-scale,1));line-height:calc(20px * var(--interface-font-scale,1))}
+.rt-empty-state--channels .rt-empty-state-art{width:168px}
+:is(.rt-empty-state--mobileGuest,.rt-empty-state--devices) .rt-empty-state-art{width:196px}
+.rt-empty-state--responsibilities .rt-empty-state-art{width:224px}
+
+/* Batch 5 native first-use artwork. Existing actions stay outside the passive state. */
+.rt-empty-state--employeeVersions{gap:16px}
+.rt-empty-state--employeeVersions .rt-empty-state-art{width:168px}
+:is(.rt-empty-state--employeeVersions,.rt-empty-state--automations) .rt-empty-state-copy>b{font-size:calc(16px * var(--interface-font-scale,1));line-height:calc(24px * var(--interface-font-scale,1))}
+.rt-empty-state--automations{gap:18px}
+.rt-empty-state--automations .rt-empty-state-art{width:224px}
+.core-pipeline-board:has(>.rt-empty-state:not([hidden])){display:flex;flex-direction:column;overflow:auto}
+.core-pipeline-board:has(>.rt-empty-state:not([hidden]))>.cols{flex:0 0 auto;height:auto;min-height:0}
+
+/* Batch 6: successful searches without matches. Input and original actions stay. */
+#skills_search_empty[hidden],.marketplace-search-state[hidden]{display:none!important}
+.rail-command-empty>.rt-empty-state--globalSearch{gap:12px}
+.rt-empty-state--globalSearch .rt-empty-state-art{width:112px}
+.rt-empty-state--globalSearch .rt-empty-state-copy{gap:6px}
+.rt-empty-state--globalSearch .rt-empty-state-copy>b{font-size:calc(16px * var(--interface-font-scale,1));line-height:calc(24px * var(--interface-font-scale,1))}
+.rt-empty-state--globalSearch .rt-empty-state-copy>span{font-size:calc(13px * var(--interface-font-scale,1));line-height:calc(22px * var(--interface-font-scale,1))}
+
+/* Batch 7: catalog and published pages; compact public-comment states. */
+:is(.rt-empty-state--marketComments,.rt-empty-state--marketPipelineComments){gap:20px}
+:is(.rt-empty-state--marketComments,.rt-empty-state--marketPipelineComments) .rt-empty-state-art{width:112px}
+:is(.rt-empty-state--marketComments,.rt-empty-state--marketPipelineComments) .rt-empty-state-copy>b{font-size:calc(16px * var(--interface-font-scale,1));line-height:calc(24px * var(--interface-font-scale,1))}
+
+/* Batch 8: approved finance, trash and empty-archive native artwork. */
+.trash-read-state{display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;min-height:240px;color:var(--text-secondary);font-size:calc(13px * var(--interface-font-scale,1));text-align:center}
+.trash-read-state>b{font-size:calc(16px * var(--interface-font-scale,1));line-height:calc(24px * var(--interface-font-scale,1));font-weight:500;color:var(--text-primary)}
+.rt-empty-state--archive{gap:18px}
+.rt-empty-state--archive .rt-empty-state-art{width:224px}
+.rt-empty-state--archive .rt-empty-state-copy>b{font-size:calc(16px * var(--interface-font-scale,1));line-height:calc(24px * var(--interface-font-scale,1))}
+
+/* Compact first-use illustration for the employee rail. Keep its existing create action. */
+.bot-list>.rt-empty-state--railEmployees{gap:16px}
+.rt-empty-state--railEmployees .rt-empty-state-art{width:168px}
+.rt-empty-state--railEmployees .rt-empty-state-copy{gap:6px}
+.rt-empty-state--railEmployees .rt-empty-state-copy>b{font-size:calc(14px * var(--interface-font-scale,1));line-height:calc(22px * var(--interface-font-scale,1))}
+.rt-empty-state--railEmployees .rt-empty-state-copy>span{font-size:calc(12px * var(--interface-font-scale,1));line-height:calc(20px * var(--interface-font-scale,1))}
+
+/* Empty regions own the available content space. Headers, filters and actions
+   remain siblings; only the successful empty branch establishes this layout.
+   New bounded content containers can opt in with .rt-empty-region. */
+.rt-empty-region,
+:where(.docs-body,.trash-empty-state,.market-creator-list-body,#market_creator_list_results,#skills_search_empty,.marketplace-search-state,.settings-finance-empty,.account-wallet-funds,.account-rental-list,#account_billing_records):has(>.rt-empty-state:not([hidden])){display:flex;flex-direction:column;flex:1 0 auto;min-width:0;min-height:0}
+:where(.docs-page,.trash-page,.market-creator-page,.marketplace-main-page):has(.rt-empty-state:not([hidden])){display:flex;flex-direction:column}
+:where(.docs-content,.trash-content,.market-creator-content,.marketplace-main-content):has(.rt-empty-state:not([hidden])){display:flex;flex-direction:column;flex:1 0 auto;min-height:100%}
+:where(.market-creator-list-body,#market_catalog,.marketplace-search-results):has(.rt-empty-state:not([hidden])){display:flex;flex-direction:column;flex:1 0 auto;min-height:0}
+.wallet-page:has(.account-wallet-funds>.rt-empty-state),.billing-page:has([data-billing-panel]:not([hidden]) .rt-empty-state){display:flex;flex-direction:column}
+.account-page-content:has(>.account-wallet-records>.account-wallet-funds>.rt-empty-state),.account-page-content:has(>.account-billing-content>[data-billing-panel]:not([hidden]) .rt-empty-state){display:flex;flex-direction:column;flex:1 0 auto;min-height:100%}
+.account-wallet-records:has(>.account-wallet-funds>.rt-empty-state),.account-billing-content:has(>[data-billing-panel]:not([hidden]) .rt-empty-state),[data-billing-panel]:not([hidden]):has(.rt-empty-state){display:flex;flex-direction:column;flex:1 0 auto;min-height:0}
+:where(.account-wallet-funds,.account-rental-list,#account_billing_records):has(>.rt-empty-state){max-height:none;overflow:visible;scrollbar-gutter:auto}
+:where(.creator-work-viewport,.employee-automation-body,.result-evidence-preview-content.is-archive):has(>.rt-empty-state:not([hidden])){display:flex;flex-direction:column;overflow:auto}
+:where(.creator-work-viewport,.employee-automation-body):has(>.rt-empty-state:not([hidden])){flex:1 1 0}
+.settings-finance-empty:has(>.rt-empty-state){min-height:256px}
+.rt-empty-state-copy>span:empty{display:none}
+
+/* All current and future shared artwork follows the effective theme, including
+   system appearance before account preferences load. Painted insets (magnifier
+   handles) retain their fill role. Keep system selectors low-specificity so the
+   decorative-guide suppression below still wins. */
+[data-theme="dark"] .rt-empty-state-art :where([stroke]:not([stroke="none"],[stroke="var(--editor-palette-bg-blue)"])){stroke:var(--text-primary)}
+[data-theme="dark"] .rt-empty-state-art [stroke="var(--border-control)"]{stroke:color-mix(in srgb,var(--text-primary) 65%,transparent)}
+[data-theme="dark"] .rt-empty-state-art [stroke="var(--border-default)"]{stroke:color-mix(in srgb,var(--text-primary) 32%,transparent)}
+@media(prefers-color-scheme:dark){
+  :where(:root:not([data-theme="light"])) .rt-empty-state-art :where([stroke]:not([stroke="none"],[stroke="var(--editor-palette-bg-blue)"])){stroke:var(--text-primary)}
+  :where(:root:not([data-theme="light"])) .rt-empty-state-art [stroke="var(--border-control)"]{stroke:color-mix(in srgb,var(--text-primary) 65%,transparent)}
+  :where(:root:not([data-theme="light"])) .rt-empty-state-art [stroke="var(--border-default)"]{stroke:color-mix(in srgb,var(--text-primary) 32%,transparent)}
+}
+
+/* Decorative guides stay out of illustrations in both themes; meaningful flow/placeholder dashes remain. */
+.rt-empty-state-art path[stroke-dasharray]:is([stroke="var(--border-default)"],[stroke="var(--border-control)"]),
+.rt-empty-state--responsibilities .rt-empty-state-art path[stroke-dasharray]{stroke:none}

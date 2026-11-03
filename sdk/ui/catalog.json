@@ -1,0 +1,97 @@
+{
+  "schemaVersion": 1,
+  "package": "runteams-ui",
+  "version": "0.1.0",
+  "status": "local-development",
+  "components": [
+    {
+      "export": "createDrawerHeader",
+      "purpose": "Fixed top drawer toolbar with persistent collapse control, custom text and keyed actions",
+      "inputs": [
+        "onCollapse",
+        "extras"
+      ],
+      "methods": [
+        "setExtras",
+        "dispose"
+      ],
+      "sourceHostConnected": true,
+      "installedAppVerified": false
+    },
+    {
+      "export": "createSection",
+      "purpose": "Collapsible section with arbitrary content and an optional independent open-full action"
+    },
+    {
+      "export": "createFullView",
+      "purpose": "Shared employee/current-module breadcrumb, separate page title, optional return actions and scrollable content slot",
+      "inputs": [
+        "title",
+        "employeeName",
+        "onReturn"
+      ]
+    }
+  ],
+  "patterns": [
+    {
+      "export": "createModuleTemplate",
+      "purpose": "Panel and full presentation of one live module content node",
+      "modes": [
+        "panel",
+        "full"
+      ],
+      "folding": "local Section state",
+      "businessModel": null
+    }
+  ],
+  "interfaces": [
+    {
+      "export": "createPresentationClient",
+      "version": "0.1.0",
+      "methods": [
+        "openFull",
+        "returnToPanel",
+        "getSnapshot",
+        "subscribe",
+        "dispose"
+      ],
+      "productionHostConnected": false
+    },
+    {
+      "export": "connectHostTheme",
+      "version": "0.1.0",
+      "purpose": "Opt-in native platform light/dark theme binding, no business authority",
+      "sourceHostConnected": true,
+      "installedAppVerified": false
+    },
+    {
+      "export": "createHostControls",
+      "version": "0.1.0",
+      "methods": [
+        "openFull",
+        "returnToPanel",
+        "setHeader",
+        "getSnapshot",
+        "subscribe",
+        "dispose"
+      ],
+      "sourceHostConnected": true,
+      "installedAppVerified": false
+    }
+  ],
+  "deferred": [
+    "installed-app-and-real-account-acceptance"
+  ],
+  "canonicalSources": [
+    "design/ui-tokens.json",
+    "packages/ui-components/"
+  ],
+  "entry": "index.js",
+  "types": "index.d.ts",
+  "styles": [
+    "runteams-ui/theme.css",
+    "runteams-ui/styles.css"
+  ],
+  "guide": "README.md",
+  "example": "examples/module/index.html"
+}

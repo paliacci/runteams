@@ -1,0 +1,148 @@
+{
+  "version": 1,
+  "id_pattern": "[a-z][a-z0-9]{7}",
+  "device_chat_id_pattern": "local-[a-f0-9]{32}",
+  "routes": [
+    {
+      "internal": "/",
+      "public": "/",
+      "kind": "home"
+    },
+    {
+      "internal": "/chat/new",
+      "public": "/chats/new",
+      "kind": "chat-new"
+    },
+    {
+      "internal": "/chat/{chat}",
+      "public": "/chats/{chat}",
+      "kind": "chat",
+      "refs": {
+        "chat": "chats"
+      }
+    },
+    {
+      "internal": "/bots/{employee}/settings",
+      "public": "/employees/{employee}/settings",
+      "kind": "bot-settings",
+      "refs": {
+        "employee": "employees"
+      }
+    },
+    {
+      "internal": "/bots/{employee}",
+      "public": "/employees/{employee}",
+      "kind": "bot",
+      "refs": {
+        "employee": "employees"
+      }
+    },
+    {
+      "internal": "/pipelines/local/{source}/{entry}",
+      "public": "/pipelines/local/{source}/{entry}",
+      "kind": "source-pipeline",
+      "keys": {
+        "source": "[a-f0-9]{64}",
+        "entry": "[A-Za-z0-9_-]{1,1280}"
+      }
+    },
+    {
+      "internal": "/pipelines/new",
+      "public": "/pipelines/new",
+      "kind": "source-pipeline-new"
+    },
+    {
+      "internal": "/docs/{document}",
+      "public": "/documents/{document}",
+      "kind": "docs-detail",
+      "refs": {
+        "document": "documents"
+      }
+    },
+    {
+      "internal": "/docs",
+      "public": "/documents",
+      "kind": "docs"
+    },
+    {
+      "internal": "/marketplace/listings/{listing}",
+      "public": "/marketplace/listings/{listing}",
+      "kind": "marketplace-detail",
+      "refs": {
+        "listing": "listings"
+      }
+    },
+    {
+      "internal": "/marketplace/published/{listing}/{section}",
+      "public": "/marketplace/published/{listing}/{section}",
+      "kind": "marketplace-publisher",
+      "refs": {
+        "listing": "listings"
+      },
+      "keys": {
+        "section": "manage|edit|update"
+      }
+    },
+    {
+      "internal": "/marketplace/published/{listing}",
+      "public": "/marketplace/published/{listing}",
+      "kind": "marketplace-publisher",
+      "refs": {
+        "listing": "listings"
+      }
+    },
+    {
+      "internal": "/marketplace/published",
+      "public": "/marketplace/published",
+      "kind": "marketplace-publisher"
+    },
+    {
+      "internal": "/marketplace/publish",
+      "public": "/marketplace/publish",
+      "kind": "marketplace-publish"
+    },
+    {
+      "internal": "/marketplace",
+      "public": "/marketplace",
+      "kind": "marketplace"
+    },
+    {
+      "internal": "/wallet",
+      "public": "/wallet",
+      "kind": "wallet"
+    },
+    {
+      "internal": "/billing",
+      "public": "/billing",
+      "kind": "billing"
+    },
+    {
+      "internal": "/billing/{tab}",
+      "public": "/billing/{tab}",
+      "kind": "billing",
+      "keys": {
+        "tab": "subscription|records"
+      }
+    },
+    {
+      "internal": "/trash",
+      "public": "/trash",
+      "kind": "trash"
+    },
+    {
+      "internal": "/automations",
+      "public": "/automations",
+      "kind": "automations"
+    },
+    {
+      "internal": "/design-system",
+      "public": "/design-system",
+      "kind": "design-system"
+    }
+  ],
+  "query_refs": {
+    "chat": "chats",
+    "employee": "employees",
+    "workflow": "workflows"
+  }
+}

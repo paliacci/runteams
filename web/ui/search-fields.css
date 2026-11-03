@@ -1,0 +1,97 @@
+/* Figma 703:74366. One search appearance; modules own placement and width.
+   Border-box padding includes the 1px inside edge in the visual 12px inset. */
+.rt-search-field,
+:is(.product-shell,.ui-panel-motion-layer,#modalHost,#childModalHost,#railSearchHost,#popmenu) .rt-search-field {
+  --search-height:36px;
+  --search-inset:11px;
+  --search-gap:8px;
+  --search-icon:14px;
+  --search-font:12.5px;
+  --search-line:19px;
+  box-sizing:border-box;
+  display:flex;
+  align-items:center;
+  min-width:0;
+  min-height:var(--search-height);
+  height:var(--search-height);
+  gap:var(--search-gap);
+  padding:0 var(--search-inset);
+  border:1px solid var(--border-default);
+  border-radius:10px;
+  background:var(--canvas);
+  color:var(--text-faint);
+  outline:none;
+  box-shadow:none;
+  transition:background-color var(--dur-1) var(--ease);
+}
+.rt-search-field--compact,
+:is(.product-shell,.ui-panel-motion-layer,#modalHost,#childModalHost,#railSearchHost,#popmenu) .rt-search-field--compact { --search-height:32px; }
+.rt-search-field--large,
+:is(.product-shell,.ui-panel-motion-layer,#modalHost,#childModalHost,#railSearchHost,#popmenu) .rt-search-field--large {
+  --search-height:44px; --search-inset:15px; --search-gap:12px;
+  --search-icon:18px; --search-font:14px; --search-line:20px;
+}
+.rt-search-field--command,
+:is(.product-shell,.ui-panel-motion-layer,#modalHost,#childModalHost,#railSearchHost,#popmenu) .rt-search-field--command {
+  --search-height:44px; --search-icon:19px; --search-font:18px; --search-line:27px;
+}.rt-search-field:focus-within,:is(.product-shell,.ui-panel-motion-layer,#modalHost,#childModalHost,#railSearchHost,#popmenu) .rt-search-field:focus-within{
+  outline:none;
+  box-shadow:none;
+}
+.rt-search-field>.i,
+:is(.product-shell,.ui-panel-motion-layer,#modalHost,#childModalHost,#railSearchHost,#popmenu) .rt-search-field>.i {
+  width:var(--search-icon); height:var(--search-icon);
+  flex:0 0 var(--search-icon); color:var(--text-faint); stroke-width:1.8;
+}
+.rt-search-field>input,
+:is(.product-shell,.ui-panel-motion-layer,#modalHost,#childModalHost,#railSearchHost,#popmenu) .rt-search-field>input {
+  appearance:none; box-sizing:border-box; min-width:0; width:100%; flex:1;
+  height:100%; min-height:0; margin:0; padding:0; border:0;
+  border-radius:0; outline:none; box-shadow:none; background:transparent;
+  color:var(--text-primary); font:400 var(--search-font)/var(--search-line) var(--ui);
+  letter-spacing:0; text-overflow:ellipsis;
+}
+.rt-search-field>input::placeholder,
+:is(.product-shell,.ui-panel-motion-layer,#modalHost,#childModalHost,#railSearchHost,#popmenu) .rt-search-field>input::placeholder { color:var(--text-faint); opacity:1; }
+.rt-search-field>input:focus,.rt-search-field>input:focus-visible,
+:is(.product-shell,.ui-panel-motion-layer,#modalHost,#childModalHost,#railSearchHost,#popmenu) .rt-search-field>input:focus-visible:not(:disabled):not([aria-disabled="true"]) {
+  border:0!important; outline:none!important; box-shadow:none!important;
+}
+.rt-search-field>input::-webkit-search-cancel-button { opacity:.45; }
+.rt-search-field[aria-invalid="true"],.rt-search-field:has(>input[aria-invalid="true"]),
+:is(.product-shell,.ui-panel-motion-layer,#modalHost,#childModalHost,#railSearchHost,#popmenu) .rt-search-field:is([aria-invalid="true"],:has(>input[aria-invalid="true"])) { border-color:var(--status-danger); }
+.rt-search-field[aria-disabled="true"],.rt-search-field:has(>input:disabled),
+:is(.product-shell,.ui-panel-motion-layer,#modalHost,#childModalHost,#railSearchHost,#popmenu) .rt-search-field:is([aria-disabled="true"],:has(>input:disabled)) { opacity:.45; background:var(--canvas); }
+
+/* Composition stays local: Esc is outside the 44px global field. */
+.rail-command-search { padding:0 20px 0 12px; gap:17px; }
+.rail-command-search>.rt-search-field { flex:1; }
+.employee-mail-search-field { flex:1; }
+.skill-picker-search.rt-search-field { flex-basis:32px; margin:4px 6px 6px; }
+
+/* Approved market discovery input, native 1483:293832 (2026-10-21).
+   Kept in the shared search control so website and desktop use identical appearance. */
+.rt-search-field.rt-search-field--market,
+:is(.product-shell,.ui-panel-motion-layer,#modalHost,#childModalHost,#railSearchHost,#popmenu) .rt-search-field--market {
+  --search-height:52px; --search-inset:15px; --search-gap:12px;
+  --search-icon:20px; --search-font:15px; --search-line:24px;
+  background:var(--surface); border-color:var(--border-strong); border-radius:8px;
+}
+.rt-search-field--market>.i { color:var(--text-muted); }
+.rt-search-field--market>input::-webkit-search-cancel-button { display:none; }
+.rt-search-field.rt-search-field--market-results,
+:is(.product-shell,.ui-panel-motion-layer,#modalHost,#childModalHost,#railSearchHost,#popmenu) .rt-search-field--market-results { --search-height:46px; }
+@container(max-width:700px){
+  .rt-search-field.rt-search-field--market,
+  :is(.product-shell,.ui-panel-motion-layer,#modalHost,#childModalHost,#railSearchHost,#popmenu) .rt-search-field--market {
+    --search-height:46px; --search-inset:9px; --search-gap:8px; --search-font:13px;
+  }
+}
+
+/* Light market search keeps a neutral edge in resting and focused states. */
+html[data-theme="light"] .rt-search-field.rt-search-field--market,
+html[data-theme="light"] :is(.product-shell,.ui-panel-motion-layer,#modalHost,#childModalHost,#railSearchHost,#popmenu) .rt-search-field--market {
+  border-color:color-mix(in srgb,var(--overlay-scrim) 30%,var(--surface));
+}html[data-theme="light"] .rt-search-field.rt-search-field--market:focus-within,html[data-theme="light"] :is(.product-shell,.ui-panel-motion-layer,#modalHost,#childModalHost,#railSearchHost,#popmenu) .rt-search-field--market:focus-within{
+  outline:none; box-shadow:none;
+}

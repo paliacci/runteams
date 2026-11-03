@@ -1,0 +1,15 @@
+{
+  "schema": "runteams.skill-sources/v1",
+  "sources": [
+    {
+      "repository": "https://github.com/anthropics/skills",
+      "revision": "dbd4588f9e1033efb41dad4bef2f7947c8993d44",
+      "path": "skills/doc-coauthoring",
+      "name": "doc-coauthoring",
+      "source_url": "https://github.com/anthropics/skills/tree/dbd4588f9e1033efb41dad4bef2f7947c8993d44/skills/doc-coauthoring",
+      "distribution": "reference-only",
+      "license": "unconfirmed",
+      "integration": "Independent RunTeams document workflow; upstream text is not redistributed"
+    }
+  ]
+}

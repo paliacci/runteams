@@ -1,0 +1,86 @@
+.visual-grid{border:0;border-radius:0;margin:12px 0 6px;min-width:0;background:var(--surface)}
+.visual-grid-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 12px;font-size:12px;color:var(--text-muted)}
+.visual-grid-bar>div{display:flex;gap:6px;align-items:center}.visual-grid-bar input{max-width:150px;min-width:60px}
+.visual-grid .table-scroll{max-height:none;border-bottom:0}
+.visual-grid table{font-size:13px}.visual-grid td{padding:0;vertical-align:top}.visual-grid th{padding:5px 8px}
+.grid-input{display:block;border:0;outline:0;background:transparent;color:var(--text-primary);width:100%;min-width:0;resize:vertical;min-height:42px;max-height:160px;padding:9px 10px;font-size:13px;line-height:1.7;field-sizing:content;overflow-wrap:anywhere;border-radius:0}
+.grid-input:hover{background:var(--surface-hover)}.grid-input:focus-visible{outline:0;box-shadow:inset 0 0 0 1.5px var(--accent-default);background:var(--surface)}
+.grid-input[aria-invalid=true]{box-shadow:inset 0 0 0 1px var(--status-danger)}
+.column-heading{display:flex;align-items:center;gap:2px;min-width:0}.column-name{width:100%;min-width:0;border:0;background:transparent;color:var(--text-secondary);font-weight:600;font-size:12px;padding:5px 2px;border-radius:0}
+.column-name:focus-visible{outline:none;box-shadow:0 1px var(--accent-default)}
+.column-heading>button{padding:4px;opacity:0}.column-heading:hover>button,.column-heading:focus-within>button{opacity:1}
+.visual-grid .row-action{width:36px;padding:6px 3px;text-align:center}.row-action button{padding:5px;opacity:0}.visual-grid tr:hover .row-action button,.row-action:focus-within button{opacity:1}
+.visual-grid-footer{display:flex;justify-content:space-between;gap:8px;padding:5px 8px;font-size:12px}.visual-grid-footer>div{display:flex;align-items:center;gap:5px}
+.column-panel{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding:8px 12px;border-top:1px solid var(--border-default);font-size:12px;background:var(--surface-subtle)}
+.column-panel>input,.chart-settings input{min-width:0;border:1px solid var(--border-default);background:var(--surface);color:var(--text-primary);border-radius:5px;padding:5px 8px;width:150px}
+.column-panel>span{color:var(--text-primary);font-weight:600;margin-right:8px}
+.visual-select{position:relative;min-width:0}.visual-select>button{border:1px solid var(--border-default);background:var(--surface);width:100%;justify-content:space-between;min-height:32px;color:var(--text-primary);font-size:13px}
+.visual-menu{position:absolute;top:calc(100% + 5px);left:0;z-index:45;min-width:100%;width:max-content;max-width:260px;max-height:240px;overflow:auto;background:var(--surface);border:1px solid var(--border-default);box-shadow:0 6px 20px var(--effect-shadow);border-radius:6px;padding:4px}
+.visual-menu button{width:100%;display:flex;justify-content:space-between;gap:20px;text-align:left;font-size:13px;border-radius:3px}.visual-menu [aria-selected=true]{color:var(--accent-default)}
+.chart-action-bar{display:flex;gap:4px;justify-content:flex-end;font-size:12px;margin:4px 0;color:var(--text-muted)}
+.chart-settings{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;padding:12px;background:var(--surface-subtle);border:1px solid var(--border-default);border-radius:7px;font-size:12px}
+.chart-settings label{display:flex;flex-direction:column;gap:6px;color:var(--text-muted);min-width:0}.chart-settings input{width:100%;min-height:32px}
+.chart-empty{display:flex;align-items:center;justify-content:center;flex-direction:column;gap:10px;min-height:180px;color:var(--text-muted);font-size:13px;border:1px dashed var(--border-default);border-radius:6px;margin:12px 0}
+.chart-unit{display:block;text-align:right;color:var(--text-muted);font-size:11px;margin-right:24px}
+.chart-values{font-size:12px;color:var(--text-muted);margin:8px 0}.chart-values>summary{cursor:pointer;list-style:revert}.chart-values table{margin-top:8px;table-layout:fixed;color:var(--text-primary)}
+.data-copy-note{font-size:11px;color:var(--text-muted);margin:6px 0}.data-inline-actions{font-size:12px;display:flex;justify-content:flex-end}.grid-error{display:block;color:var(--status-danger);font-size:12px;margin:4px 10px;white-space:normal}.grid-empty{font-size:13px;color:var(--text-muted);text-align:center;padding:12px}.structured-cell{padding:8px;font-size:12px;overflow-wrap:anywhere}.structured-cell summary{cursor:pointer;list-style:revert}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+@media(max-width:650px){.chart-settings{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.column-panel{gap:4px}.visual-grid-bar{padding:8px}.chart-action-bar{justify-content:flex-start}.visual-grid .table-scroll{max-height:none}}
+
+.grid-input{resize:none}
+.visual-grid .row-action{position:sticky;right:0;background:var(--surface);z-index:2}
+.visual-grid th.row-action{background:var(--surface-subtle);z-index:3}
+.bn-editor .bn-block-content .data-copy-note{font-size:11px;line-height:1.6;color:var(--text-muted);margin:6px 0}
+.visual-menu{width:100%;min-width:150px;max-width:min(260px,100vw - 64px)}
+.visual-menu button{white-space:normal;overflow-wrap:anywhere}
+
+/* Reveal contextual commands on hover; keyboard focus and opened panels stay usable. */
+.data-surface{min-width:0;width:100%}
+.data-surface .data-edit-control,.data-surface .data-inline-actions,.data-surface .chart-action-bar{opacity:0;pointer-events:none}
+.data-surface:hover .data-edit-control,.data-surface .data-edit-control:focus-visible,.data-surface .data-edit-control[aria-expanded="true"],
+.data-surface:hover>.data-inline-actions,.data-surface .data-inline-actions:focus-within,.data-surface .data-inline-actions:has(.data-source-panel),.data-surface .data-inline-actions:has([aria-expanded="true"]),
+.data-surface:hover .chart-action-bar,.data-surface:focus-within .chart-action-bar,.data-surface[data-selected="true"] .chart-action-bar{visibility:visible;opacity:1;pointer-events:auto}
+.visual-grid .column-heading>button,.visual-grid .row-action button{opacity:0;pointer-events:none}
+.visual-grid .column-heading:hover>button,.visual-grid .column-heading:focus-within>button,
+.visual-grid tr:hover .row-action button,.visual-grid tr:focus-within .row-action button{visibility:visible;opacity:1;pointer-events:auto}
+/* Hidden controls remain keyboard reachable and reveal themselves on focus. */
+.data-surface .data-edit-control:focus-visible,.data-surface .data-inline-actions:focus-within,.data-surface .chart-action-bar:focus-within{visibility:visible;opacity:1;pointer-events:auto}
+.visual-grid .grid-input,.visual-grid .grid-input:hover,.visual-grid .grid-input:focus,.visual-grid .grid-input:focus-visible,.visual-grid .grid-input[aria-invalid="true"],
+.visual-grid .column-name,.visual-grid .column-name:focus,.visual-grid .column-name:focus-visible{border:0;outline:0;box-shadow:none;text-decoration:none;background:transparent}
+.bn-editor .node-dataTable.ProseMirror-selectednode>.bn-block-content>*::after,
+.bn-editor .node-barChart.ProseMirror-selectednode>.bn-block-content>*::after{display:none}
+.bn-editor .widget-dataTable .widget-title-input:focus-visible,.bn-editor .widget-barChart .widget-title-input:focus-visible{outline:0;box-shadow:none}
+/* Editing actions sit outside the table, without permanent header/footer bands. */
+.visual-grid{position:relative;margin-bottom:6px}
+.visual-grid-bar{display:contents}
+.visual-grid-bar>div{display:contents}
+.visual-grid-bar input[type=search]{display:block;margin:8px;max-width:180px}
+.visual-grid .table-scroll{border-bottom:0;border-radius:0}
+.visual-grid .table-scroll table thead tr:first-child th{border-top:0}
+.visual-grid-footer{display:contents}
+.visual-grid-footer.has-pages>div{display:flex;justify-content:flex-end;gap:5px;align-items:center;padding:6px 10px;border-top:1px solid var(--border-default)}
+.grid-add-column,.grid-add-row{position:absolute;z-index:5;display:flex;align-items:center;justify-content:center;width:24px;height:24px;padding:0;border:1px solid var(--border-default);background:var(--surface);border-radius:5px;box-shadow:0 2px 5px var(--effect-shadow)}
+.grid-add-column{right:6px;top:7px;transform:none}
+.grid-add-row{left:50%;bottom:-12px;transform:translateX(-50%)}
+.data-surface{position:relative}
+.data-surface>.data-inline-actions{position:absolute;left:-29px;top:12px;width:29px;padding-right:5px;display:flex;flex-direction:column;align-items:stretch;gap:3px;z-index:15}
+.data-inline-actions>button{padding:4px;width:24px;height:26px;background:var(--surface)}
+.data-inline-actions>button:hover{background:var(--surface-hover)}
+.data-source-panel{position:absolute;left:29px;top:0;width:min(340px,calc(100vw - 80px));padding:12px;background:var(--surface);color:var(--text-secondary);border:1px solid var(--border-default);border-radius:7px;box-shadow:0 6px 22px var(--effect-shadow);font-size:12px;line-height:1.7;overflow-wrap:anywhere;text-align:left}
+.data-source-panel small{display:block;color:var(--text-muted);font-size:11px;margin-top:8px}
+@media(max-width:650px){.data-surface>.data-inline-actions{left:-25px;width:25px;padding-right:1px}.data-source-panel{left:25px}}
+
+.compact-link{display:inline-flex;align-items:baseline;gap:4px;max-width:100%;color:var(--accent-default);font-size:13px;overflow-wrap:anywhere;text-decoration:none}
+.compact-link:hover{text-decoration:underline}
+.compact-link>span{font-size:11px;flex:none}
+.grid-link{display:flex;align-items:flex-start;gap:4px;padding:9px 10px;min-height:42px}
+.grid-link .compact-link{min-width:0;flex:1}
+.grid-link .link-edit{opacity:0;pointer-events:none;padding:3px;flex:none;width:20px;height:23px}
+.grid-link:hover .link-edit,.grid-link:focus-within .link-edit{opacity:1;pointer-events:auto}
+.visual-grid td>span{display:block;padding:9px 10px;overflow-wrap:anywhere}
+
+.visual-grid .compact-link{color:var(--accent-default);text-decoration:none}
+.visual-grid .compact-link:hover{text-decoration:underline}
+
+/* A stale tooltip position after resizing must not widen the document. */
+.visual-chart .chart{overflow:clip}

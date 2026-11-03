@@ -1,0 +1,4 @@
+Contains unmodified Anthropic skill-creator skill resources.
+Copyright notices and complete Apache-2.0 license are retained in upstream/skill-creator/LICENSE.txt.
+Upstream: https://github.com/anthropics/skills/tree/dbd4588f9e1033efb41dad4bef2f7947c8993d44/skills/skill-creator
+RunTeams integration instructions are separately authored; no upstream endorsement is implied.

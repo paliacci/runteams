@@ -1,0 +1,73 @@
+/* Shared reading failure / Figma 793:114249; geometry belongs to the host. */
+.rt-load-failure{box-sizing:border-box;min-width:0;max-width:100%;color:var(--text-primary);font-family:var(--ui);font-weight:400}
+.rt-load-failure--page,.rt-load-failure--modal{display:flex;flex-direction:column;align-items:center;text-align:center;width:100%;grid-column:1/-1;margin:0 auto;padding:48px 24px;min-height:340px}
+.rt-load-failure--page{max-width:560px}
+.rt-failure-art{width:224px;height:147.2px;max-width:100%;flex:none}
+.rt-failure-art>svg{display:block;width:100%;height:auto}
+.rt-failure-copy{min-width:0;max-width:100%}
+.rt-failure-copy>b{display:block;font-size:calc(20px * var(--interface-font-scale,1));font-weight:500;line-height:calc(28px * var(--interface-font-scale,1));overflow-wrap:anywhere}
+.rt-load-failure--page>.rt-failure-copy{margin-top:16px}
+.rt-failure-copy>p{margin:8px 0 0;font-size:calc(13px * var(--interface-font-scale,1));font-weight:400;line-height:calc(20px * var(--interface-font-scale,1));color:var(--text-secondary);overflow-wrap:anywhere}
+.rt-load-failure--modal{max-width:480px;min-height:270px;padding:28px 20px}
+.rt-load-failure--modal>.rt-failure-art{width:168px;height:110.4px}
+.rt-load-failure--modal>.rt-failure-copy{margin-top:12px}
+.rt-load-failure--modal>.rt-failure-copy>b{font-size:calc(16px * var(--interface-font-scale,1));line-height:calc(24px * var(--interface-font-scale,1))}
+.rt-load-failure>.rt-failure-retry{margin-top:17px}
+.rt-load-failure--modal>.rt-failure-retry{margin-top:14px}
+.rt-failure-retry{box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;gap:8px;flex:none;height:36px;width:120px;min-width:120px;max-width:120px;margin:0;padding:0 16px;border:1px solid transparent;border-radius:8px;background:var(--action-primary);color:var(--action-on-primary);font:500 calc(13px * var(--interface-font-scale,1))/calc(20px * var(--interface-font-scale,1)) var(--ui);text-decoration:none;white-space:nowrap;cursor:pointer;box-shadow:none}
+.rt-failure-retry:hover{background:var(--text-primary)}
+.rt-failure-retry:focus-visible{outline:none;border-color:var(--action-on-primary)}
+.rt-failure-retry:disabled{opacity:.55;cursor:default}
+.rt-failure-retry--secondary{width:96px;min-width:96px;max-width:96px;height:32px;padding:0 14px;background:var(--surface);border-color:var(--border-default);color:var(--text-primary)}
+.rt-failure-retry--secondary:hover{background:var(--surface-hover)}
+.rt-failure-retry--secondary:focus-visible{border-color:var(--text-secondary)}
+.rt-failure-retry-icon{display:flex;width:16px;height:16px;flex:none}
+.rt-failure-retry-icon>svg,.rt-failure-info>svg{display:block;width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.rt-failure-retry[aria-busy=true] .rt-failure-retry-icon{animation:rt-read-retry 1s linear infinite}
+.rt-load-failure--local{display:flex;align-items:center;gap:12px;flex-wrap:wrap;width:100%;padding:12px 0;min-height:48px;text-align:left}
+.rt-load-failure--local>.rt-failure-info{display:flex;width:16px;height:16px;flex:none;color:var(--text-muted)}
+.rt-load-failure--local>.rt-failure-copy{flex:1 1 140px}
+.rt-load-failure--local>.rt-failure-copy>b{font-size:calc(13px * var(--interface-font-scale,1));line-height:calc(20px * var(--interface-font-scale,1));font-weight:400;color:var(--text-secondary)}
+.rt-load-failure--local>.rt-failure-retry{margin:0 0 0 auto}
+.rt-load-failure--compact{gap:8px;padding:4px 0;min-height:28px}
+.rt-load-failure--compact>.rt-failure-info{display:none}
+.rt-load-failure--compact>.rt-failure-copy{flex:1 1 96px}
+.rt-failure-retry--wide{width:136px;min-width:136px;max-width:136px}
+.rt-failure-retry--compact{height:28px;width:80px;min-width:80px;max-width:80px;padding:0 8px;gap:6px}
+.rt-load-failure--compact .rt-failure-retry-icon{width:13px;height:13px}
+[data-theme="dark"] .rt-failure-art [stroke="var(--avatar-blue)"]{stroke:var(--text-primary)}
+/* Host wrappers keep their layout. Only the failure's own space is composed. */
+.docs-body>.rt-load-failure--page{margin-top:44px}
+.skills-library-scroll .rt-load-failure--page{margin-top:20px}
+.marketplace-search-state>.rt-load-failure,.market-creator-list-body .rt-load-failure--page{margin-top:20px}
+.doc-reader-empty:has(>.rt-load-failure){display:block;padding:0}
+@keyframes rt-read-retry{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.rt-failure-retry[aria-busy=true] .rt-failure-retry-icon{animation:none}}
+@media(max-height:620px){.rt-load-failure--page{padding-top:28px;padding-bottom:28px;min-height:300px}.docs-body>.rt-load-failure--page{margin-top:0}}
+
+.rail-work-row>.rt-failure-retry{height:22px;width:70px;min-width:70px;max-width:70px;padding:0 5px;font-size:calc(11px * var(--interface-font-scale,1));border-color:var(--border-default);background:transparent}
+.rail-work-row>.rt-failure-retry .rt-failure-retry-icon{width:12px;height:12px}
+.rt-resource-read-failure{width:100%;min-width:0}
+.rt-resource-pane-body>.rt-resource-read-failure{margin:auto}
+.rail-command-results>.rt-load-failure,.bot-list-shell>.rt-load-failure,.rail-pipeline-tree>.rt-load-failure,.bot-list>.rt-load-failure{padding:12px}
+/* Dense navigation uses the shared local failure, composed as one quiet row. */
+.rail-pipeline-tree>.rt-load-failure--rail{min-height:32px;padding:4px 12px;gap:8px;flex-wrap:nowrap}
+.rt-load-failure--rail>.rt-failure-copy{flex:1 1 auto}
+.rt-load-failure--rail>.rt-failure-copy>b{font-size:calc(13px * var(--interface-font-scale,1));line-height:calc(20px * var(--interface-font-scale,1))}
+.rt-load-failure--rail>.rt-failure-retry{height:24px;width:calc(64px * var(--interface-font-scale,1));min-width:calc(64px * var(--interface-font-scale,1));max-width:calc(64px * var(--interface-font-scale,1));padding:0 4px;gap:4px;border:0;border-radius:5px;background:transparent;color:var(--text-secondary);font-weight:400}
+.rt-load-failure--rail>.rt-failure-retry:hover:not(:disabled){background:var(--surface-hover);color:var(--text-primary)}
+.rt-load-failure--rail>.rt-failure-retry:focus-visible{outline:2px solid var(--text-secondary);outline-offset:1px}
+.rt-load-failure--rail>.rt-failure-retry:disabled{opacity:1;color:var(--text-muted)}
+
+.core-package-resource-viewer-host:has(>.rt-load-failure),.rt-resource-pane-body:has(>.rt-resource-read-failure){display:flex;align-items:center;justify-content:center}
+.result-evidence-preview-content.is-empty .rt-failure-copy>b{font-size:calc(16px * var(--interface-font-scale,1));line-height:calc(24px * var(--interface-font-scale,1));color:var(--text-primary);font-weight:500}
+.rail-account-read-failure>.rt-load-failure{flex-wrap:nowrap;padding:0}
+.rail-account-read-failure .rt-failure-copy>b{font-size:calc(12px * var(--interface-font-scale,1))}
+.rail-account-read-failure .rt-failure-retry{height:28px;width:80px;min-width:80px;max-width:80px}
+
+.channel-usage-inline>.rt-failure-retry{height:22px;width:70px;min-width:70px;max-width:70px;padding:0 5px;font-size:calc(11px * var(--interface-font-scale,1));background:transparent}
+.product-shell .conversation-main .conversation-composer .copt.runtime button.runtime-csel.rt-failure-retry{width:max-content;min-width:0;max-width:100%;height:auto;min-height:36px;padding:0 6px 0 8px;font-size:calc(12px * var(--interface-font-scale,1));white-space:normal}
+.conversation-panel-header>.conversation-header-read-error{width:max-content;max-width:100%;flex-wrap:nowrap;padding:0;min-height:28px}
+.conversation-header-read-error>.rt-failure-copy{flex:0 1 auto}
+.conversation-header-read-error>.rt-failure-copy>b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+

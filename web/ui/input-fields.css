@@ -1,0 +1,30 @@
+/* Text fields keep their normal appearance on hover and focus. */
+:root { --field-border-rest:color-mix(in srgb,var(--text-primary) 12%,transparent); }
+
+/* Geometry and resting backgrounds stay with the component. These declarations
+ * apply without an interaction-state branch, including keyboard focus. */
+:is(:root,#modalHost,#childModalHost,#rgPipelineHead,#rgDrawer) :is(input:not([type="checkbox"],[type="radio"],[type="range"],[type="color"],[type="file"],[type="hidden"],[type="button"],[type="submit"],[type="reset"],[type="image"]),textarea,select):not(:disabled,[readonly],[aria-disabled="true"],[aria-invalid="true"],.invalid,.error):not([inert] *,[aria-invalid="true"] *):not(.field.invalid *,.field.error *) {
+  border-color:var(--field-border-rest)!important;
+  outline:0!important;
+  outline-offset:0!important;
+  box-shadow:none!important;
+}
+
+/* Search and conversation editors own one frame around a borderless editor.
+ * An editor still reading its conversation does not change that frame's paint. */
+:is(:root,#modalHost,#childModalHost,#rgPipelineHead,#rgDrawer) :is(.rt-search-field,.settings-search,.ccomposer):not(.dragging,[aria-disabled="true"],[aria-invalid="true"],.invalid,.error):not([inert] *,[aria-invalid="true"] *):not(.field.invalid *,.field.error *):not(:has(input:is(:disabled,[readonly],[aria-disabled="true"],[aria-invalid="true"]),textarea:is(:disabled,[readonly],[aria-invalid="true"]),.ccomposer-editor[contenteditable="false"]:not([aria-busy="true"]))) {
+  border-color:var(--field-border-rest)!important;
+  outline:0!important;
+  outline-offset:0!important;
+  box-shadow:none!important;
+}
+
+/* Field dropdowns follow text inputs. Toolbar/model/icon triggers and their
+ * menus remain ordinary buttons with their original interaction feedback. */
+:is(:root,#modalHost,#childModalHost,#rgPipelineHead,#rgDrawer) :is(button:is(.csel,[data-menu-trigger="field"]):not([data-menu-trigger="quiet"],[data-menu-trigger="icon"],.copt *,.conversation-model-control *,.conversation-main-header *,.conversation-panel-controls *,.runtime-csel)):not(:disabled,[aria-disabled="true"],[aria-invalid="true"],.invalid,.error):not([inert] *,[aria-invalid="true"] *):not(.field.invalid *,.field.error *) {
+  border-color:var(--field-border-rest)!important;
+  background:var(--surface)!important;
+  outline:0!important;
+  outline-offset:0!important;
+  box-shadow:none!important;
+}

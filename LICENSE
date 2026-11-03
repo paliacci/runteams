@@ -1,0 +1,94 @@
+RunTeams Source Available License 1.0
+SPDX-License-Identifier: LicenseRef-RunTeams-Source-Available-1.0
+Copyright (c) 2026 RunTeams copyright holders.
+
+1. Scope and acceptance
+
+This license applies to RunTeams-authored files in this repository unless a
+file or directory expressly states a different license. By exercising the
+permissions below, you accept these terms. "Software" means those covered
+files and their modified versions, in source or executable form. "Licensor"
+means each copyright holder granting rights in their covered contributions.
+
+2. Free use, including commercial work
+
+Subject to these terms, Licensor grants you a worldwide, non-exclusive,
+royalty-free license to access, study, copy, build, run and modify the Software
+for personal use, education, research and your organization's internal business
+operations. Employees and contractors may operate it on your behalf for those
+purposes. You may use the Software to perform paid work for clients and to
+create, use, sell and distribute your own outputs and independently authored
+employees, pipelines, skills, integrations and other assets.
+
+Ordinary outputs and independently authored assets are not covered by this
+license merely because the Software created, processed or executed them. This
+does not grant rights in third-party material included in an output or asset.
+
+3. Non-commercial redistribution
+
+You may redistribute the Software, with or without modifications, free of
+charge for non-commercial purposes. Keep this license and all applicable
+copyright, attribution and third-party notices, identify your modifications,
+and provide the covered source under this same license with executable copies.
+Recipients receive these permissions directly from Licensor. You may not
+impose terms that remove these permissions or the restrictions below.
+
+4. Commercial product redistribution requires separate permission
+
+Without a separate written license from the relevant rights holders, you may
+not sell, rent, sublicense or otherwise commercially redistribute the Software
+or a product containing a substantial part of it, including modified, rebranded,
+white-label or bundled versions. You may not provide others with hosted or
+managed access to the Software's functionality as a commercial product or
+service, including a free tier offered as part of such a commercial offering.
+Removing the price tag does not permit distribution as part of a paid bundle
+or commercial product offering.
+
+Using the Software internally to deliver your own services or work outputs to
+clients is permitted by section 2; exposing the Software itself or a modified
+version to clients as a product is subject to this section. Selling your own
+independently authored assets or integrations is permitted. Merely using the
+published SDK interfaces does not make an independently authored asset a
+modified version of the Software.
+
+5. SDK, third-party components and prior grants
+
+The separate licenses in sdk/runtime, sdk/view and sdk/ui apply to those SDK
+packages. Their Apache-2.0 permissions, including use in commercial independent
+applications and assets, are unchanged. The SDK does not grant rights to
+redistribute the remaining RunTeams application as a commercial product.
+
+Third-party components, fonts, artwork and vendored skills retain their own
+licenses and notices, including permissive and copyleft licenses. This license
+does not restrict rights granted by those licenses or supersede any valid
+license previously granted for a copy. See THIRD_PARTY_DOCUMENTS.md and the
+component notices. No rights are granted in material Licensor does not own.
+
+6. Trademarks and official services
+
+No license to RunTeams names, logos or trademarks is granted except reasonable
+factual attribution. Modified distributions must not imply official origin or
+endorsement. This source license grants no account, subscription, marketplace,
+cloud service or other separately licensed entitlement.
+
+7. Compliance and termination
+
+Your rights under this license terminate automatically if you breach it. If
+you cure the breach within 30 days after first learning of it, your rights are
+reinstated unless Licensor has previously terminated your rights for a breach
+of this license. Provisions concerning third-party rights, trademarks,
+disclaimers and liabilities survive termination. No additional patent license
+is granted by this document.
+
+8. Disclaimer and limitation of liability
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+NONINFRINGEMENT. TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, LICENSOR
+AND CONTRIBUTORS ARE NOT LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+WHETHER IN CONTRACT, TORT OR OTHERWISE, ARISING FROM THE SOFTWARE OR ITS USE.
+Mandatory rights and liabilities that cannot lawfully be excluded remain.
+
+This is a source-available license with commercial redistribution restrictions;
+it is not an OSI-approved open-source license. Commercial licensing inquiries:
+https://github.com/paliacci/runteams/discussions

@@ -1,0 +1,13 @@
+{
+  "schema": "runteams.sdk-contract-input/1",
+  "profile": "runtime",
+  "source": "contracts/creator-system/v1/methods.json",
+  "sha256": "ecd37935d0ed703dfdd7b03be52cfc26a2415f2d4a9cba7a51ef53aeb8fe9de6",
+  "methods": [
+    "system.negotiate",
+    "data.query",
+    "data.mutate",
+    "connection.http"
+  ],
+  "generator_sha256": "f952fb22b526f7817aadb4783a49be077a08cea94591dd93ad3924c24e4ced76"
+}

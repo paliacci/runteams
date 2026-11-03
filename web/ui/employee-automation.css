@@ -1,0 +1,95 @@
+.employee-automation-drawer{display:flex;flex-direction:column;min-height:0;height:100%;overflow:hidden}
+.employee-automation-add{display:inline-flex;align-items:center;gap:4px;height:28px;width:auto;padding:0 4px;border-radius:7px;font-size:calc(12px * var(--interface-font-scale,1));line-height:18px;color:var(--text-secondary);white-space:nowrap}
+.employee-automation-add .i{width:16px!important;height:16px!important}
+.employee-automation-add:hover,.employee-automation-icon-action:hover{background:var(--surface-hover);color:var(--text-primary)}
+.employee-automation-add:disabled,.employee-automation-icon-action:disabled{opacity:.45;cursor:default}
+.employee-automation-body{--employee-automation-inset:20px;flex:1;min-height:0;overflow:auto;padding:0 var(--employee-automation-inset) 24px!important;gap:0!important}
+.employee-automation-list{display:flex;flex-direction:column;gap:14px;min-width:0;margin-inline:calc(-1 * var(--employee-automation-inset))}
+.employee-automation-row{display:grid;grid-template-columns:34px minmax(0,1fr) 26px;align-items:center;column-gap:0;min-height:68px;flex:none;border-radius:0;padding:12px var(--employee-automation-inset);box-sizing:border-box}
+.employee-automation-row:hover,.employee-automation-row:focus-within{background:var(--surface-hover)}
+.employee-automation-open{grid-column:2;display:flex;align-items:center;align-self:stretch;min-width:0;width:100%;padding:0;border:0;border-radius:8px;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer}
+.employee-automation-copy{width:100%;min-width:0;box-sizing:border-box;padding:0 4px 0 12px}
+.employee-automation-copy b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:calc(13px * var(--interface-font-scale,1));font-weight:500;line-height:20px;color:var(--text-primary)}
+.employee-automation-copy small{display:block;margin-top:6px;font-size:calc(11px * var(--interface-font-scale,1));line-height:17px;color:var(--text-secondary);overflow-wrap:anywhere}
+.employee-automation-icon-action{display:grid;place-items:center;width:100%;height:28px;border-radius:7px;color:var(--text-secondary)}
+.employee-automation-icon-action .i{width:16px;height:16px}
+.employee-automation-toggle{width:34px;height:34px;color:var(--icon-blue)}
+.employee-automation-toggle .i{width:24px;height:24px}
+.employee-automation-row[data-schedule-state="paused"] .employee-automation-toggle{color:var(--text-muted)}
+.employee-automation-row[data-schedule-state="running"] .employee-automation-toggle{color:var(--status-running)}
+.employee-automation-row[data-schedule-state="attention"] .employee-automation-toggle{color:var(--status-attention)}
+.employee-automation-row[data-schedule-state="failed"] .employee-automation-toggle{color:var(--status-danger)}
+.employee-automation-loading{padding:20px 0;color:var(--text-secondary);font-size:12px}
+.employee-automation-recovery{flex:none;margin-bottom:16px;font-size:12px;line-height:20px;color:var(--text-secondary)}
+.employee-automation-records>div{padding:12px 0;border-bottom:1px solid var(--border-default)}
+.employee-automation-records span{display:block;color:var(--text-secondary);font-size:12px;margin-top:4px}
+.employee-automation-records p{overflow-wrap:anywhere}
+.employee-automation-add:focus-visible,.employee-automation-icon-action:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.employee-schedule-editor .automation-form-section-title{align-items:flex-start;flex-wrap:wrap;gap:8px}
+.employee-schedule-editor .automation-form-section-title span{min-width:0;line-height:20px}
+
+
+.employee-schedule-editor [hidden]{display:none!important}
+
+.automation-editor.employee-schedule-editor{height:auto;max-height:calc(100dvh - 28px)}
+
+/* Creation uses one task editor and two equal summary rows. */
+.automation-editor.employee-schedule-editor{width:560px;max-width:calc(100vw - 32px);height:auto;max-height:calc(100dvh - 28px);border-radius:20px}
+.employee-schedule-editor>.mh{padding:22px 24px 24px;border:0;align-items:center}
+.employee-schedule-editor>.mh .tt{font-size:20px;line-height:30px;font-weight:600}
+.employee-schedule-editor>.mb{flex:0 1 auto;padding:0 24px 24px;gap:0}
+.employee-schedule-editor>.mf{padding:0 24px 24px;border:0;background:transparent;gap:8px;position:static}
+.employee-schedule-editor>.mf .btn{min-width:72px;height:36px;border-radius:8px;font-size:14px}
+.employee-schedule-editor .employee-schedule-content{display:flex;flex-direction:column;gap:8px;min-width:0}
+.employee-schedule-task{position:relative;margin-bottom:8px;min-width:0}
+.employee-schedule-task>.ta{display:block;width:100%;height:144px;min-height:144px;resize:none;padding:14px 14px 44px;border:1px solid color-mix(in srgb,var(--text-primary) 12%,transparent);border-radius:8px;background:var(--surface);color:var(--text-primary);font-size:14px;line-height:22px;box-shadow:none}
+.employee-schedule-task>.ta::placeholder{color:var(--text-muted)}
+.employee-schedule-original{position:absolute;right:14px;bottom:10px;display:flex;align-items:center;gap:8px;min-height:28px;font-size:13px;line-height:20px;color:var(--text-secondary);cursor:pointer}
+.employee-schedule-original>input{width:18px;height:18px;margin:0;accent-color:var(--accent);cursor:inherit}
+.employee-schedule-timing,.employee-schedule-name{border-radius:8px;background:var(--surface-subtle);min-width:0}
+.employee-schedule-summary{display:flex;align-items:center;gap:12px;width:100%;min-height:44px;padding:0 12px;text-align:left;color:var(--text-primary);border-radius:8px;background:transparent;font-size:14px;line-height:22px}
+.employee-schedule-summary>.i,.employee-schedule-name>.i{width:16px;height:16px;flex:none;color:var(--text-muted)}
+.employee-schedule-summary>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.employee-schedule-summary>small{display:flex;align-items:center;gap:8px;margin-left:auto;font-size:12px;line-height:20px;color:var(--text-muted);white-space:nowrap}
+.employee-schedule-summary>.i:last-child{width:12px;height:12px;transform:rotate(90deg)}
+.employee-schedule-summary[aria-expanded="true"]>.i:last-child{transform:rotate(-90deg)}
+.employee-schedule-details{overflow:hidden}
+.employee-schedule-details-inner{padding:12px}
+.employee-schedule-fields{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:32px}
+.employee-schedule-fields .field{margin:0;min-width:0;gap:8px;font-size:13px;color:var(--text-secondary)}
+.employee-schedule-fields .inp{width:100%;height:36px;padding-top:0;padding-bottom:0;background:var(--surface);border-radius:8px;font-size:14px}
+.employee-schedule-days{margin-top:12px;color:var(--text-secondary);font-size:13px}
+.employee-schedule-days>div{display:flex;gap:10px;margin-top:8px}
+.employee-schedule-days label{flex:1;min-width:0;position:relative;cursor:pointer}
+.employee-schedule-days input{position:absolute;opacity:0;width:100%;height:100%;margin:0;cursor:pointer}
+.employee-schedule-days label>span{display:grid;place-items:center;height:36px;border:1px solid color-mix(in srgb,var(--text-primary) 12%,transparent);border-radius:6px;background:var(--surface);font-size:14px;pointer-events:none}
+.employee-schedule-days input:checked+span{background:var(--surface-selected);border-color:var(--accent);color:var(--accent)}
+.employee-schedule-days input:focus-visible+span,.employee-schedule-summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.employee-schedule-name{display:flex;align-items:center;gap:12px;min-height:44px;padding:0 12px}
+.employee-schedule-name>input{flex:1;width:0;min-width:0;border:0;outline:0;background:transparent;font-family:inherit;font-size:14px;line-height:22px;color:var(--text-primary)}
+
+.employee-schedule-content #employee_schedule_error{margin:4px 0 0;font-size:13px;line-height:20px;overflow-wrap:anywhere}
+.employee-schedule-paused{font-size:13px;line-height:20px;color:var(--text-muted)}
+.employee-schedule-content :disabled{cursor:default;opacity:.58}
+@media(max-width:560px){.employee-schedule-summary{flex-wrap:wrap;column-gap:8px;padding:10px 12px}.employee-schedule-summary>small{order:4;flex-basis:100%;padding-left:24px}.employee-schedule-summary>span{flex-basis:calc(100% - 54px)}.employee-schedule-editor>.mh{padding-bottom:18px}.employee-schedule-fields{gap:12px}.employee-schedule-days>div{gap:4px}}
+
+
+.employee-schedule-original>input{appearance:none;border:1px solid color-mix(in srgb,var(--text-primary) 20%,transparent);border-radius:4px;background:var(--surface);display:grid;place-content:center}
+.employee-schedule-original>input:checked{background:var(--accent);border-color:var(--accent)}
+.employee-schedule-original>input:checked::after{content:"";width:8px;height:4px;border-left:1.5px solid var(--action-on-primary);border-bottom:1.5px solid var(--action-on-primary);transform:translateY(-1px) rotate(-45deg)}
+.employee-schedule-original>input[type="checkbox"]:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* Inline naming keeps only its caret; selectors use the shared button/menu. */
+.employee-schedule-fields .csel{width:100%}
+.employee-schedule-editor .employee-schedule-name,.employee-schedule-editor .employee-schedule-name:focus-within{border:0;outline:0;box-shadow:none}
+.employee-schedule-editor .employee-schedule-name>input,.employee-schedule-editor .employee-schedule-name>input:focus,.employee-schedule-editor .employee-schedule-name>input:focus-visible{appearance:none;-webkit-appearance:none;border:0;outline:0;box-shadow:none}
+
+/* This inline text field must not regain the native or global focused frame. */
+#modalHost .employee-schedule-editor #employee_schedule_name,
+#modalHost .employee-schedule-editor #employee_schedule_name:focus,
+#modalHost .employee-schedule-editor #employee_schedule_name:focus-visible{border:0!important;outline:0!important;box-shadow:none!important;appearance:none;-webkit-appearance:none;background:transparent;border-radius:0;padding:0;height:auto;min-height:0}
+#modalHost .employee-schedule-editor #employee_schedule_name::placeholder{color:var(--text-muted);opacity:1}
+
+/* A confirmed create action keeps its paint while the list is revalidated. */
+.employee-automation-drawer [data-rt-ui] .employee-automation-add:disabled[data-read-pending]{opacity:1;color:var(--rt-text-primary)}

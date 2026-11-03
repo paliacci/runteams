@@ -1,0 +1,24 @@
+{
+  "sdk": "1.0.0",
+  "schema_major": 1,
+  "status": "interface-frozen-isolated-not-product-integrated",
+  "files": {
+    "SPEC.md": "92210312f775559828411651c086407caa385fa295008415df0f904e5ac7a1c0",
+    "connection.schema.json": "47002818f7d34dc08e660f0b9f4b15b69825a72f8333310f3720a5487795027c",
+    "dependencies.schema.json": "47b791d9e244f70b19749101abef0d4eae3e136f2eec4b8ac79832aee57abf7e",
+    "employee-source.schema.json": "bd4fb850d91a5f65a04be3019813e5011477c1122ca8bac5266df06a1fb5f66b",
+    "methods.json": "ecd37935d0ed703dfdd7b03be52cfc26a2415f2d4a9cba7a51ef53aeb8fe9de6",
+    "pipeline-source.schema.json": "a2a7dcc077f5a0b800814d54820bf39b2721d08dc8cbec886c3f69f103ce8a26",
+    "project.schema.json": "3f55eec9db9fc6ca95b70bafd7603109d5728ae0afab096fb4953f3000df43b1",
+    "reference.py": "2acab52f7d3e41a04114bb40a8b9386f60bf7190634a7210c5d49db1b909ee05",
+    "release.schema.json": "5e2db276cc0d4ec54a9cc2d02dd0f7e2a923b404008da7c2c610b8a2deb170c8",
+    "reply.schema.json": "36a95065094cdeda80088279238eaaf6aa2cf0f86543f48f175967e996281d4c",
+    "request.schema.json": "69366b34dc772b108307d79d73c4f467e0be702763cd69f9afc03a8af382da0d",
+    "sdk/README.md": "7b401f4bda47667ef0f0ce914d4cf50d5e6c59cfcf3c76bad53b42cbe0041e6f",
+    "sdk/client.d.ts": "e1a1771e73633cfe8a076e21b1fd0e5f26cc8ec61d5b207c0f1ad5d79bd97ae1",
+    "sdk/client.js": "f2c461bb3d2ecc513d76c6d1c6efb61637919e309ec27be8779b7df45ee0ca85",
+    "sdk/client.mjs": "d4d4b1237de974cf6d50dae6e59e3f5669f61ebefc96107b83a5ba6bdf95cc8f",
+    "sdk/package.json": "e0ebe958d66b05682ac10fb24e2e29c089e7f1b15149c3f109f1943ac341cfaa"
+  },
+  "sha256": "e19fe16c82c3e5d6b347f7de5b32af5e6b77c3900f10a6c87340409ed64d0b6f"
+}

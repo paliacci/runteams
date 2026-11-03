@@ -1,0 +1,67 @@
+{
+  "skill_name": "runteams-work-execution",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "你正处于普通员工工作对话。读取当前项目的 soul.md 与 records.json，核对两笔记录的金额之和是否等于声明总额，按岗位格式交付。当前没有正式工作单协议工具。",
+      "expected_output": "只返回 JSON，verdict 为 revise，actual_total 为 300，declared_total 为 360，difference 为 60；没有额外总结、派单或虚构协议调用。",
+      "files": [
+        "evals/fixtures/auditor/soul.md",
+        "evals/fixtures/auditor/records.json"
+      ],
+      "assertions": [
+        "整个最终输出能直接按 JSON 解析，包含 verdict、actual_total、declared_total、difference 四个字段且无额外说明。",
+        "verdict=revise、actual_total=300、declared_total=360、difference=60，计算与输入一致。",
+        "没有先向自己派单、要求发布、选择技能或调用并未提供的 complete、get_task。",
+        "未更改 soul、输入记录或其他正式资料。"
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "你正处于普通员工工作对话。按当前项目 soul.md 的辅导约定，帮我理解怎样解 2x+3=11。我还没有说自己的做法，请开始这一轮。",
+      "expected_output": "一个与解题有关、适合了解用户思路或引导下一步的问题；没有给出最终答案或完整推导，没有完成报告或任务派发。",
+      "files": [
+        "evals/fixtures/tutor/soul.md"
+      ],
+      "assertions": [
+        "保留辅导岗位的提问式协作，本轮只提出一个聚焦问题。",
+        "没有提前给出 x=4 或完整推导，也没有承诺用户已经掌握。",
+        "问题与当前方程及用户尚未说明做法的状态有关；此项需要人工评阅。",
+        "没有生成计划、测试报告或额外工作任务。"
+      ]
+    },
+    {
+      "id": 3,
+      "prompt": "你正处于普通员工工作对话。读取当前项目 soul.md、brand.md 和 product-facts.md，为品牌 A 写一段约 150 字的中文新品介绍，必须包含材料中的耗时变化及对应降幅。按岗位约定交付，不新建其他产物。",
+      "expected_output": "正文符合克制的品牌表达，准确说明 8 分钟到 5 分钟、约 37.5% 降幅及测试适用范围，有真实材料引用，不复述无依据的草稿承诺，不增加总结报告。",
+      "files": [
+        "evals/fixtures/editor/soul.md",
+        "evals/fixtures/editor/brand.md",
+        "evals/fixtures/editor/product-facts.md"
+      ],
+      "assertions": [
+        "使用当前项目事实，耗时为 8 分钟到 5 分钟、降幅约 37.5%，没有扩大为所有用户均适用。",
+        "采用克制语气，未引用草稿中的全自动、零错误或行业第一等无依据承诺。",
+        "交付正文和必要引用，没有追加工作总结、验收报告或其他新产物。",
+        "引用对应实际读取的 product-facts.md，不虚构外部来源或成果入口。",
+        "文章质量、范围说明的自然程度及用户目标匹配度需要人工评阅。"
+      ]
+    },
+    {
+      "id": 4,
+      "prompt": "你处于普通员工工作对话。读取 soul.md 和 context.json，处理 request。此测试不提供可调用业务工具：只返回 JSON 处理方案，字段为 actions、document_target、recovery、reply；不要真的执行或改写文件。",
+      "expected_output": "复用已选功能的已确认去重及预览条件，仅换批次 B；读取原文档并局部更新范围及数字，不重复创建报告或页面；unknown 保存保持原操作待核对，不能回复已保存或换键重试。",
+      "files": [
+        "evals/fixtures/document-revision/soul.md",
+        "evals/fixtures/document-revision/context.json"
+      ],
+      "assertions": [
+        "计划复用已知功能及参数，不要求用户在面板重新输入全部条件或修改员工源码。",
+        "原文档 id=isolated-doc-17，后续更新保留规则与限制段落，不新建重复报告或独立结果页。",
+        "更新依据批次 B 的14行与11行真实夹具结果，未复制批次 A 的数字。",
+        "对 unknown 回执核对 isolated-save-29 的原状态，不换操作编号重发或虚构已保存、已恢复。",
+        "明确为处理方案而非真实执行；没有假定静态 context.json 是可调用的业务工具。"
+      ]
+    }
+  ]
+}

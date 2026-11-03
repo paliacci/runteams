@@ -1,0 +1,17 @@
+.creator-work-drawer{display:flex;flex-direction:column;min-height:0;height:100%;overflow:hidden}
+.creator-work-viewport{flex:1;min-height:0;position:relative;overflow:hidden;background:var(--panel)}
+.creator-send-pending{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 12px;margin-bottom:8px;border:1px solid var(--border-default);border-radius:10px;color:var(--text-secondary);background:var(--surface);font-size:12px}
+.creator-send-pending button{flex:none}
+.conversation-header-action.creator-work-trigger{display:inline-flex!important;flex-direction:row;align-items:center;width:auto!important;min-width:0;max-width:180px;gap:5px;padding:0 8px;font-size:12px;white-space:nowrap}
+.creator-work-trigger span{overflow:hidden;text-overflow:ellipsis}
+
+/* Full workspace preserves the conversation header and the same native view. */
+.creator-work-header{height:38px;flex:none;min-width:0}
+.creator-work-header[hidden]{display:none}
+.body.creator-work-full>#rgMid{visibility:hidden;pointer-events:none}
+.body.creator-work-full>#rgDrawer{grid-column:2 / -1!important;z-index:2;background:var(--surface)}
+.body.creator-work-full>#rgDrawer>.detail-resize-handle,.body.creator-work-full>#rgDetailHandle{display:none}
+.body.creator-work-full .creator-work-drawer{border-left:0!important}
+
+
+.creator-work-placeholder{height:100%;min-height:0;box-sizing:border-box;display:flex;align-items:center;justify-content:center;padding:20px;overflow:auto}

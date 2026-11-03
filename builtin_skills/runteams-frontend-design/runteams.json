@@ -1,0 +1,106 @@
+{
+  "schema": "runteams.package-extension/v3",
+  "display_name": "前端设计与实现",
+  "work": {
+    "name": "设计并实现前端界面",
+    "summary": "品牌、内容、行为及已有确认稿，交付实现、截图与交互验收。",
+    "objective": "有确认稿时结构与视觉遵循最新设计，语义颜色和组件沿用项目来源。",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "brief": {
+          "type": "string",
+          "description": "品牌、内容、行为及已有确认稿"
+        }
+      },
+      "required": [
+        "brief"
+      ],
+      "additionalProperties": false
+    },
+    "output_schema": {
+      "type": "object",
+      "properties": {
+        "implementation": {
+          "type": "object",
+          "properties": {
+            "files": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "screenshots": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "interaction_evidence": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "files",
+            "screenshots",
+            "interaction_evidence"
+          ],
+          "additionalProperties": false
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "implementation",
+        "limitations"
+      ],
+      "additionalProperties": false
+    },
+    "steps": [
+      {
+        "id": "step-1",
+        "instruction": "读取项目规则和正式设计，先确定用户操作流程，再采用产品与UI设计方法。"
+      },
+      {
+        "id": "step-2",
+        "instruction": "使用项目组件与主题实现可运行界面，核对正常、加载、空和失败状态。"
+      },
+      {
+        "id": "step-3",
+        "instruction": "运行真实页面，验证交互、键盘、响应式和浅深主题，修正后重新检查。"
+      }
+    ],
+    "acceptance": [
+      {
+        "id": "check-1",
+        "label": "交付内容",
+        "criterion": "有确认稿时结构与视觉遵循最新设计，语义颜色和组件沿用项目来源。"
+      },
+      {
+        "id": "check-2",
+        "label": "核实与范围",
+        "criterion": "实际页面在桌面和窄屏可操作、无内容溢出，键盘焦点和失败恢复可用。"
+      }
+    ],
+    "deliverables": [],
+    "assets": [
+      {
+        "name": "project",
+        "type": "folder",
+        "source": "local_asset",
+        "required": true,
+        "mode": "git"
+      }
+    ],
+    "result_actions": []
+  },
+  "tools": [],
+  "execution": {}
+}

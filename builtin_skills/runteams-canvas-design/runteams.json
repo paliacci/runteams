@@ -1,0 +1,102 @@
+{
+  "schema": "runteams.package-extension/v3",
+  "display_name": "海报与视觉设计",
+  "work": {
+    "name": "制作静态视觉作品",
+    "summary": "文案、用途、尺寸及视觉要求，交付作品文件与视觉核对。",
+    "objective": "成品文字逐字符合给定内容，无伪造标志或素材来源。",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "brief": {
+          "type": "string",
+          "description": "文案、用途、尺寸及视觉要求"
+        }
+      },
+      "required": [
+        "brief"
+      ],
+      "additionalProperties": false
+    },
+    "output_schema": {
+      "type": "object",
+      "properties": {
+        "artwork": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "width": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "height": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "visual_evidence": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "path",
+            "width",
+            "height",
+            "visual_evidence"
+          ],
+          "additionalProperties": false
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "artwork",
+        "limitations"
+      ],
+      "additionalProperties": false
+    },
+    "steps": [
+      {
+        "id": "step-1",
+        "instruction": "读取用户文案、尺寸与已批准品牌要求，选择原创视觉方向。"
+      },
+      {
+        "id": "step-2",
+        "instruction": "按上游设计方法生成真实PNG或PDF，检查实际字体和输出尺寸。"
+      },
+      {
+        "id": "step-3",
+        "instruction": "打开实际成品核对文字、裁切、对齐和分辨率，修正后重新导出查看。"
+      }
+    ],
+    "acceptance": [
+      {
+        "id": "check-1",
+        "label": "交付内容",
+        "criterion": "成品文字逐字符合给定内容，无伪造标志或素材来源。"
+      },
+      {
+        "id": "check-2",
+        "label": "核实与范围",
+        "criterion": "最终文件真实可打开，尺寸正确，关键文字未裁切，保留最终目视证据。"
+      }
+    ],
+    "deliverables": [
+      {
+        "path": "output/artwork.png",
+        "name": "视觉作品",
+        "required": true,
+        "type": "image"
+      }
+    ],
+    "assets": [],
+    "result_actions": []
+  },
+  "tools": [],
+  "execution": {}
+}

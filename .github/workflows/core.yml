@@ -1,0 +1,28 @@
+name: Core source and installed product
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  core:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.22.1'
+      - run: python -m pip install -r requirements-build.txt
+      - run: npm ci --prefix tooling/js --ignore-scripts --no-audit --no-fund
+      - run: python -B -m runteams_core.devtools.ci --output "$RUNNER_TEMP/core-ci" --sdk-tsc "$GITHUB_WORKSPACE/tooling/js/node_modules/typescript/lib/tsc.js"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: core-build
+          path: |
+            ${{ runner.temp }}/core-ci/wheels/*.whl
+            ${{ runner.temp }}/core-ci/verification.json
+            ${{ runner.temp }}/core-ci/sdk-clients/*.json

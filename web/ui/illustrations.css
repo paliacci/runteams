@@ -1,0 +1,9 @@
+/* Light illustrations use existing neutral roles. Dark artwork and semantic
+   status colors, brand marks, portraits and interactive controls stay intact. */
+html[data-theme="light"] .home-scene [data-scene-paint="accent-default"]{fill:var(--action-primary);color:var(--action-primary)!important}
+html[data-theme="light"] .home-scene [data-scene-paint="accent-subtle"]{fill:var(--surface-subtle);color:var(--surface-subtle)!important}
+/* Original decorative blue/white images; keep their geometry and transparency. */
+html[data-theme="light"] :is(.guide-scene,.reading-error-art)>img{filter:grayscale(1)}
+html[data-theme="light"] .marketplace-pipeline-feature{background:radial-gradient(ellipse at 85% 40%,color-mix(in srgb,var(--text-secondary) 5%,transparent),transparent 65%),var(--surface)}
+html[data-theme="light"] :is(.marketplace-flow-track,.marketplace-flow-arrow,.marketplace-flow-node>svg){stroke:var(--text-secondary)}
+html[data-theme="light"] .marketplace-flow-signal{stroke:var(--action-primary)}

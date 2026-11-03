@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="zh-CN" data-rt-ui data-theme="light">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>RunTeams UI Kit · 模块视图</title>
+<link rel="stylesheet" href="../../dist/foundation/theme.css"><link rel="stylesheet" href="../../dist/components/styles.css"><link rel="stylesheet" href="./preview.css"></head>
+<body>
+<header class="preview-bar"><a class="wordmark" href="./index.html">RunTeams <span>UI KIT</span></a><div class="preview-controls"><label>画布 <select class="rt-input" id="width" aria-label="画布"><option value="wide">自适应</option><option value="narrow">窄容器 360</option></select></label><button class="rt-button" id="theme" aria-pressed="false">切换深色</button></div></header>
+<main class="preview-main"><div class="preview-heading"><div><p class="eyebrow">MODULE PRESENTATION / 01</p><h1>一个模块，两种呈现</h1><p class="lead">在抽屉里快速查看，展开后继续处理。当前内容随你一起切换。</p></div><span class="preview-tag">交互预览</span></div>
+<div class="demo" id="demo" data-mode="panel">
+<button class="rt-button reopen-drawer" id="reopen-drawer" hidden>打开抽屉</button>
+<div class="context" id="context"><div class="context-top">主工作区</div><div class="context-center"><div class="abstract-panel" aria-hidden="true"><i></i><i></i><i></i></div><h2>内容始终连贯</h2><p>点击右侧模块的展开按钮，<br>查看完整工作视图。</p></div><div class="context-bottom">抽屉与工作区共用同一内容实例</div></div>
+<aside class="drawer" id="drawer" aria-label="员工工作抽屉"><div id="panel-header"></div><div class="rt-panel-header"><h2 class="rt-panel-title">员工名称</h2><p class="rt-description">查看当前内容，继续手头的工作。</p></div><div class="drawer-scroll" id="drawer-content"><p class="section-note" id="header-help" hidden>在下方选择条目并编辑。展开完整视图后，可以继续编辑同一份内容。</p></div></aside>
+<div class="full-slot" id="full-slot" hidden></div>
+</div>
+<div class="preview-caption"><span id="mode-caption">当前：抽屉视图</span><span>本地示例 · 不连接业务服务</span></div>
+<details class="verification"><summary>交互检查</summary><p>可在条目中切换选择、填写内容，再展开并返回，检查状态是否保留。</p><p><label><input type="checkbox" id="header-extras" checked>显示页眉自定义文字与按钮</label></p><label><input type="checkbox" id="reject-next">下一次切换模拟不可用</label><p id="checks" role="status"></p><button class="rt-button" id="run-checks">运行组件检查</button></details>
+</main><script type="module" src="./preview.js"></script></body></html>

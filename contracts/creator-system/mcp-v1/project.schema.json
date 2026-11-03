@@ -1,0 +1,202 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:runteams:creator-project:2",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "const": "runteams.creator-project/2"
+    },
+    "key": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_.-]{0,79}$"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 100
+    },
+    "sdk": {
+      "const": "mcp-apps/1-dev"
+    },
+    "entrypoints": {
+      "type": "object",
+      "properties": {
+        "employees": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240,
+            "pattern": "^(?!/)(?!.*(?:^|/)\\.{1,2}(?:/|$))(?!.*//)(?!.*[\\\\\\x00-\\x1f:%?#]).+$"
+          },
+          "maxItems": 64,
+          "uniqueItems": true
+        },
+        "pipelines": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240,
+            "pattern": "^(?!/)(?!.*(?:^|/)\\.{1,2}(?:/|$))(?!.*//)(?!.*[\\\\\\x00-\\x1f:%?#]).+$"
+          },
+          "maxItems": 64,
+          "uniqueItems": true
+        },
+        "ui": false
+      },
+      "required": [
+        "employees"
+      ],
+      "additionalProperties": false
+    },
+    "data_models": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 240,
+        "pattern": "^(?!/)(?!.*(?:^|/)\\.{1,2}(?:/|$))(?!.*//)(?!.*[\\\\\\x00-\\x1f:%?#]).+$"
+      },
+      "maxItems": 32,
+      "uniqueItems": true
+    },
+    "migrations": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 240,
+        "pattern": "^(?!/)(?!.*(?:^|/)\\.{1,2}(?:/|$))(?!.*//)(?!.*[\\\\\\x00-\\x1f:%?#]).+$"
+      },
+      "maxItems": 64,
+      "uniqueItems": true
+    },
+    "connections": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 240,
+        "pattern": "^(?!/)(?!.*(?:^|/)\\.{1,2}(?:/|$))(?!.*//)(?!.*[\\\\\\x00-\\x1f:%?#]).+$"
+      },
+      "maxItems": 32,
+      "uniqueItems": true
+    },
+    "operations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_.-]{0,79}$"
+          },
+          "input": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240,
+            "pattern": "^(?!/)(?!.*(?:^|/)\\.{1,2}(?:/|$))(?!.*//)(?!.*[\\\\\\x00-\\x1f:%?#]).+$"
+          },
+          "output": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240,
+            "pattern": "^(?!/)(?!.*(?:^|/)\\.{1,2}(?:/|$))(?!.*//)(?!.*[\\\\\\x00-\\x1f:%?#]).+$"
+          },
+          "handler": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240,
+            "pattern": "^(?!/)(?!.*(?:^|/)\\.{1,2}(?:/|$))(?!.*//)(?!.*[\\\\\\x00-\\x1f:%?#]).+$"
+          },
+          "actors": {
+            "type": "array",
+            "items": {
+              "enum": [
+                "user",
+                "employee"
+              ]
+            },
+            "maxItems": 2,
+            "uniqueItems": true
+          },
+          "effect": {
+            "enum": [
+              "read",
+              "write"
+            ]
+          },
+          "connection": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_.-]{0,79}$"
+              }
+            ]
+          }
+        },
+        "required": [
+          "key",
+          "input",
+          "output",
+          "handler",
+          "actors",
+          "effect",
+          "connection"
+        ],
+        "additionalProperties": false
+      },
+      "maxItems": 0,
+      "uniqueItems": true
+    },
+    "dependency_lock": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 240,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.{1,2}(?:/|$))(?!.*//)(?!.*[\\\\\\x00-\\x1f:%?#]).+$"
+    },
+    "source_access": {
+      "type": "object",
+      "properties": {
+        "default": {
+          "const": "author"
+        },
+        "public_files": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240,
+            "pattern": "^(?!/)(?!.*(?:^|/)\\.{1,2}(?:/|$))(?!.*//)(?!.*[\\\\\\x00-\\x1f:%?#]).+$"
+          },
+          "maxItems": 500,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "default",
+        "public_files"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "schema",
+    "key",
+    "version",
+    "name",
+    "sdk",
+    "entrypoints",
+    "dependency_lock",
+    "source_access"
+  ],
+  "additionalProperties": false
+}

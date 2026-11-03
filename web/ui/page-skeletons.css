@@ -1,0 +1,146 @@
+/* Use the same semantic shimmer as the existing loading controls. */
+.route-skeleton,.route-sk-shapes{width:100%;height:100%;min-height:0;min-width:0}
+.route-skeleton,.route-sk-region{pointer-events:none}
+.route-sk-page{height:100%;overflow:auto;box-sizing:border-box}
+.route-sk-content{max-width:1080px;margin:0 auto;padding:48px 40px 80px;box-sizing:border-box}
+.route-sk-page-marketplace .route-sk-content{max-width:1160px;padding-top:24px}
+.route-sk-heading{display:flex;justify-content:space-between;align-items:center;gap:24px;margin-bottom:36px}
+.route-sk-heading>div,.route-sk-copy-group{min-width:0;flex:1;display:flex;flex-direction:column;gap:10px}
+.route-sk-title{width:150px;height:30px;max-width:80%}
+.route-sk-subtitle{width:320px;height:14px;max-width:90%;margin-top:10px}
+.route-sk-action{width:104px;height:36px;flex:0 0 auto;border-radius:10px}
+.route-sk-name{width:150px;max-width:80%;height:16px}
+.route-sk-copy{width:100%;height:12px}
+.route-sk-short{width:64%;height:12px}
+.route-sk-meta{width:60px;height:12px;max-width:100%}
+.route-sk-back{width:62px;height:24px;margin-bottom:28px}
+.route-sk-tabs{display:flex;gap:28px;align-items:center;margin-bottom:24px;min-height:32px}
+.route-sk-tab{width:65px;height:14px;max-width:100%}
+.route-sk-field{width:100%;height:38px;border-radius:10px}
+.route-sk-editor{width:100%;height:180px;border-radius:10px}
+.route-sk-avatar{width:40px;height:40px;flex:0 0 auto;border-radius:12px}
+.route-sk-large-avatar{width:72px;height:72px;flex:0 0 auto;border-radius:18px}
+.route-sk-identity,.route-sk-row{display:flex;align-items:center;gap:16px;min-width:0}
+.route-sk-row{min-height:82px;padding:14px 0;border-bottom:1px solid var(--border-default);box-sizing:border-box}
+.route-sk-row .route-sk-copy-group{gap:8px}
+.route-sk-row .route-sk-short{display:none}
+.route-sk-card{display:flex;flex-direction:column;gap:16px;min-width:0;padding:24px;border:1px solid var(--border-default);border-radius:16px}
+.route-sk-card-foot{display:flex;justify-content:space-between;gap:24px;margin-top:12px}
+.route-sk-market-hero{display:grid;grid-template-columns:1fr 1fr;gap:36px;min-height:220px;padding:32px;margin-bottom:32px;background:var(--surface-subtle);border-radius:20px;box-sizing:border-box}
+.route-sk-market-hero>div{display:flex;flex-direction:column;justify-content:space-between;min-width:0}
+.route-sk-market-hero .skeleton-block{--sk-base:var(--border-default);--sk-shine:var(--surface)}
+.route-sk-hero-title{width:100%;height:38px}
+.route-sk-hero-art{height:160px;width:100%;align-self:center;border-radius:16px}
+.route-sk-search{display:flex;gap:16px;align-items:center;margin-bottom:32px;min-width:0}
+.route-sk-search>.route-sk-field{flex:1;min-width:0}
+.route-sk-search>.route-sk-tabs{margin:0;flex:0 0 auto}
+.route-sk-market-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px 15px}
+.route-sk-market-cards>.route-sk-card{height:166px;box-sizing:border-box;padding:13px 15px;gap:9px;overflow:hidden}
+.route-sk-market-cards .route-sk-copy-group{gap:6px}
+.route-sk-market-cards .route-sk-identity .route-sk-short,.route-sk-market-cards .route-sk-card>.route-sk-short{display:none}
+.route-sk-market-cards .route-sk-card-foot{margin-top:auto}
+.route-sk-page-marketplace .route-sk-search>.route-sk-field,.route-sk-page-marketplace .route-sk-search>.route-sk-action,[data-skeleton-region="market-catalog"] .route-sk-search>.skeleton-block{height:44px}
+.route-sk-page-marketplace .route-sk-search,[data-skeleton-region="market-catalog"] .route-sk-search{gap:12px;margin-bottom:24px}
+.route-sk-table{width:100%;overflow:hidden}
+.route-sk-table-head,.route-sk-table-row{display:grid;grid-template-columns:minmax(140px,2fr) repeat(calc(var(--skeleton-columns) - 1),minmax(54px,1fr));align-items:center;gap:20px;min-height:82px;border-bottom:1px solid var(--border-default)}
+.route-sk-table-head{min-height:44px}
+.route-sk-table-head>*:first-child{width:80px}
+.route-sk-table-row .route-sk-copy-group{gap:8px}
+.route-sk-table-row .route-sk-copy-group>.route-sk-copy{width:75%}
+.route-sk-table-row .route-sk-short{display:none}
+.route-sk-detail-identity{margin:20px 0 36px}
+.route-sk-detail-columns{display:grid;grid-template-columns:minmax(0,1fr) 280px;gap:40px;align-items:start}
+.route-sk-paragraph{display:flex;flex-direction:column;gap:14px;margin-bottom:32px;min-width:0}
+.route-sk-paragraph>.route-sk-name{margin-bottom:10px}
+.route-sk-fields{display:flex;flex-direction:column;gap:24px}
+.route-sk-fields>div{display:grid;gap:10px}
+.route-sk-split,.route-sk-author{height:100%;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) minmax(320px,38%)}
+.route-sk-side{min-width:0;padding:28px 24px;box-sizing:border-box;border-left:1px solid var(--border-default);overflow:hidden}
+.route-sk-resource{display:grid;grid-template-columns:120px minmax(0,1fr);gap:24px}
+.route-sk-tree{display:flex;flex-direction:column;gap:20px;min-width:0}
+.route-sk-tree-row{width:88%;height:14px;margin-bottom:14px}
+.route-sk-skill-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 38px}
+.route-sk-skill-grid>.route-sk-row{height:72px;min-height:72px;padding:12px;gap:14px;border:0;border-radius:12px}
+[data-skeleton-region="skills"]{grid-column:1/-1;min-width:0}
+@container(max-width:780px){.route-sk-skill-grid{column-gap:24px}}
+@container(max-width:600px){.route-sk-skill-grid{grid-template-columns:minmax(0,1fr)}.route-sk-page-extensions .route-sk-content{padding:32px 24px 24px}}
+.route-sk-chat{display:flex;flex-direction:column;height:100%;min-height:440px;min-width:0;box-sizing:border-box;padding:24px 32px}
+.route-sk-chat .route-sk-heading{margin-bottom:32px}
+.route-sk-chat-body{flex:1;min-height:0;overflow:hidden;padding:24px max(0px,calc((100% - 760px)/2))}
+.route-sk-prompt{display:flex;flex-direction:column;justify-content:center;align-items:center;min-height:280px;gap:12px}
+.route-sk-prompt>div{display:flex;flex-wrap:wrap;justify-content:center;gap:10px;margin-top:16px}
+.route-sk-suggestion{width:100px;height:32px;border-radius:20px}
+.route-sk-composer{display:flex;flex-direction:column;gap:32px;border:1px solid var(--border-default);border-radius:18px;padding:20px;max-width:800px;width:100%;box-sizing:border-box;align-self:center;margin-top:24px}
+.route-sk-composer>div{display:flex;justify-content:space-between}
+
+
+.route-sk-balance{padding:28px;border:1px solid var(--border-default);border-radius:18px;display:flex;flex-direction:column;gap:20px;margin-bottom:32px}
+.route-sk-amount{width:220px;height:44px;max-width:85%}
+.route-sk-region .route-sk-paragraph:last-child{margin-bottom:0}
+.route-sk-history-row{display:flex;flex-direction:column;gap:10px;padding:16px 0;border-bottom:1px solid var(--border-default)}
+@media(max-width:1100px){.route-sk-market-cards{grid-template-columns:repeat(2,minmax(0,1fr))}.route-sk-detail-columns{grid-template-columns:minmax(0,1fr) 220px;gap:24px}.route-sk-split{grid-template-columns:minmax(0,1fr) 320px}.route-sk-mail>div:last-child{display:none}}
+@media(max-width:1050px){.route-sk-split,.route-sk-author{grid-template-columns:minmax(0,1fr)}.route-sk-split>.route-sk-page,.route-sk-split>.route-sk-chat,.route-sk-author>.route-sk-side{display:none}.route-sk-split>.route-sk-side{border-left:0}.route-sk-table-head,.route-sk-table-row{grid-template-columns:minmax(100px,2fr) repeat(2,minmax(54px,1fr));gap:16px}.route-sk-table-head>*:nth-child(n+4),.route-sk-table-row>*:nth-child(n+4){display:none}}
+@media(max-width:760px){.route-sk-content{padding:28px 24px 60px}.route-sk-heading{gap:16px}.route-sk-market-hero{grid-template-columns:1fr;gap:24px;padding:24px;min-height:200px}.route-sk-market-hero>div{gap:24px}.route-sk-hero-art{display:none}.route-sk-market-cards,.route-sk-detail-columns{grid-template-columns:minmax(0,1fr)}.route-sk-split,.route-sk-author{grid-template-columns:minmax(0,1fr)}.route-sk-split>.route-sk-page,.route-sk-split>.route-sk-chat{display:none}.route-sk-side{border-left:0}.route-sk-author>.route-sk-side{display:none}.route-sk-chat{padding:20px}.route-sk-table-head,.route-sk-table-row{grid-template-columns:minmax(100px,2fr) minmax(54px,1fr);gap:16px}.route-sk-table-head>*:nth-child(n+3),.route-sk-table-row>*:nth-child(n+3){display:none}.route-sk-search{flex-wrap:wrap}.route-sk-search>.route-sk-tabs{width:100%;gap:20px}.route-sk-mail>div:first-child{display:none}}
+/* Static chrome stays interactive; only request-owned regions shimmer. */
+.pending-page{height:100%;min-height:0;min-width:0;overflow:auto;box-sizing:border-box}
+.pending-page-full{height:100%;min-height:0;display:flex;flex-direction:column}
+.pending-page-data{min-width:0}
+.pending-page-split{height:100%;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) minmax(320px,38%)}
+.pending-page-side{border-left:1px solid var(--border-default)}
+.pending-page-side>.environment-content{padding:28px 24px}
+.pending-page .page-transition-state{min-height:220px;justify-content:center;display:flex;flex-direction:column;align-items:center;gap:12px}
+.pending-page .route-sk-region{min-width:0}
+.pending-page .account-billing-tabs>a{display:inline-flex;align-items:center;justify-content:center;padding:12px 0;color:var(--text-secondary);text-decoration:none;border-bottom:3px solid transparent}
+.pending-page .account-billing-tabs>a[aria-selected="true"]{color:var(--text-primary);border-bottom-color:var(--text-primary)}
+.pending-page .skills-create{display:inline-flex;align-items:center;text-decoration:none}
+.pending-page .marketplace-publish-back{text-decoration:none}
+.pending-pipeline{display:flex;flex-direction:column}
+.pending-pipeline>[data-pending-data]{flex:1;min-height:0;overflow:hidden}
+.pending-pipeline .board{height:100%}
+.pending-pipeline-new>.pending-page-data{display:flex;flex-direction:column}
+.pending-pipeline-new .home-workspace{flex:1;min-height:0}
+.boot-rail-account>[aria-hidden]{display:flex;gap:10px;align-items:center}
+@media(max-width:1050px){.pending-page-split{grid-template-columns:minmax(0,1fr)}.pending-page-split>.platform-skills-page{display:none}.pending-page-side{border-left:0}}
+
+/* Conversation chrome stays in its final header while identity is unknown. */
+.conversation-header-skeleton{display:flex;align-items:center;min-width:0;pointer-events:none;user-select:none}
+.conversation-header-skeleton-identity{display:flex;align-items:center;gap:12px;min-width:0}
+.conversation-header-skeleton-avatar{width:24px;height:24px;flex:none;border-radius:7px}
+.conversation-header-skeleton-title{width:160px;max-width:30vw;height:16px;border-radius:4px}
+.conversation-header-skeleton-actions{display:flex;align-items:center;gap:2px;margin-left:auto;flex:none;pointer-events:none;user-select:none}
+.conversation-header-skeleton-action{width:68px;height:28px;border-radius:8px}
+@media(max-width:560px){.conversation-header-skeleton-title{width:112px}.conversation-header-skeleton-action{width:28px}}
+
+/* Shared loading contract. Pure placeholders never accept input. Keep known
+   controls outside these scopes; aria-busy alone does not disable a surface. */
+:is(.skeleton-block,.route-sk-region,.route-sk-shapes,[data-skeleton-list],[data-skeleton-row],[data-settings-skeleton],.rail-list-skeleton,.rail-recent-skeleton),
+:is(.route-sk-region,.route-sk-shapes,[data-skeleton-list],[data-skeleton-row],[data-settings-skeleton],.rail-list-skeleton,.rail-recent-skeleton) *{pointer-events:none!important;user-select:none;cursor:default!important}
+
+/* Explicit list/row scopes also cover table cells and future custom list rows.
+   Transparent borders preserve dimensions; card and panel frames stay intact. */
+:is([data-skeleton-list],[data-skeleton-row]):is([data-skeleton-list],[data-skeleton-row]),
+:is([data-skeleton-list],[data-skeleton-row]):is([data-skeleton-list],[data-skeleton-row]) :not(.skeleton-block){border-top-color:transparent!important;border-bottom-color:transparent!important;background:transparent!important;box-shadow:none!important;transform:none!important}
+:is([data-skeleton-list],[data-skeleton-row]):is([data-skeleton-list],[data-skeleton-row])::before,
+:is([data-skeleton-list],[data-skeleton-row]):is([data-skeleton-list],[data-skeleton-row])::after,
+:is([data-skeleton-list],[data-skeleton-row]):is([data-skeleton-list],[data-skeleton-row]) *::before,
+:is([data-skeleton-list],[data-skeleton-row]):is([data-skeleton-list],[data-skeleton-row]) *::after{content:none!important}
+
+/* Partially loaded rows retain their confirmed buttons. Only the row's chrome
+   and the boundary touching an unknown row are suppressed, not sibling actions. */
+:is([data-skeleton-partial],.settings-row,.channel-card,.account-device-row,.settings-tool-row,.tools-mcp-row):has(.skeleton-block){border-top-color:transparent!important;border-bottom-color:transparent!important;background:transparent!important;box-shadow:none!important;cursor:default;transform:none!important}
+:is([data-skeleton-partial],.settings-row,.channel-card,.account-device-row,.settings-tool-row,.tools-mcp-row):has(.skeleton-block)::before,
+:is([data-skeleton-partial],.settings-row,.channel-card,.account-device-row,.settings-tool-row,.tools-mcp-row):has(.skeleton-block)::after,
+:is([data-skeleton-partial],.settings-row,.channel-card,.account-device-row,.settings-tool-row,.tools-mcp-row):has(.skeleton-block)+*::before,
+:is([data-skeleton-partial],.settings-row,.channel-card,.account-device-row,.settings-tool-row,.tools-mcp-row):has(+ :is([data-skeleton-partial],.settings-row,.channel-card,.account-device-row,.settings-tool-row,.tools-mcp-row) .skeleton-block)::after{content:none!important}
+:is([data-skeleton-partial],.settings-row,.channel-card,.account-device-row,.settings-tool-row,.tools-mcp-row):has(.skeleton-block)+*{border-top-color:transparent!important}
+:is([data-skeleton-partial],.settings-row,.channel-card,.account-device-row,.settings-tool-row,.tools-mcp-row):has(+ :is([data-skeleton-partial],.settings-row,.channel-card,.account-device-row,.settings-tool-row,.tools-mcp-row) .skeleton-block){border-bottom-color:transparent!important}
+/* Pure legacy page headings use the same boundary rule as their loading rows. */
+:is(.docs-table:has(.skeleton-docs-row)>.docs-thead,.skeleton-trash-page .trash-list-columns){border-top-color:transparent!important;border-bottom-color:transparent!important}
+
+[data-skeleton-region="employee-automations"]>div{display:flex;flex-direction:column;gap:14px}
+.route-sk-automation-row{display:grid;grid-template-columns:34px minmax(0,1fr) 26px;align-items:center;min-height:68px;padding:12px 0;box-sizing:border-box}
+.route-sk-automation-copy{display:flex;flex-direction:column;justify-content:center;gap:6px;min-width:0;min-height:43px;padding-left:12px}
+.route-sk-automation-toggle{width:24px;height:24px;justify-self:center}
+.route-sk-automation-more{width:14px;height:14px;justify-self:center}
+.route-sk-automation-name{width:150px;max-width:95%;height:14px}
+.route-sk-automation-time{width:90px;max-width:80%;height:11px}

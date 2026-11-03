@@ -1,0 +1,5 @@
+Contains unmodified Anthropic canvas-design skill resources.
+Copyright notices and complete Apache-2.0 license are retained in upstream/canvas-design/LICENSE.txt.
+Upstream: https://github.com/anthropics/skills/tree/dbd4588f9e1033efb41dad4bef2f7947c8993d44/skills/canvas-design
+RunTeams integration instructions are separately authored; no upstream endorsement is implied.
+Bundled fonts retain their individual SIL Open Font License texts.

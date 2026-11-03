@@ -1,0 +1,13 @@
+include VERSION
+include requirements*.txt
+recursive-include contracts *
+recursive-include web *
+recursive-include sdk *
+recursive-include agent_skills *
+recursive-include builtin_skills *
+recursive-include frontend *
+recursive-include dependencies *.json
+recursive-include supabase *.sql
+recursive-include desktop *
+recursive-include runtime *.rs *.toml *.lock *.plist *.js
+global-exclude *.pyc *.db *.sqlite3 .DS_Store

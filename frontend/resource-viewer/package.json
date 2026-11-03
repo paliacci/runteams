@@ -1,0 +1,26 @@
+{
+  "name": "@runteams/resource-viewer",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "dependencies": {
+    "@codemirror/lang-css": "6.3.1",
+    "@codemirror/lang-html": "6.4.12",
+    "@codemirror/lang-javascript": "6.2.5",
+    "@codemirror/lang-markdown": "6.3.4",
+    "@codemirror/lang-python": "6.2.1",
+    "@codemirror/language": "6.11.3",
+    "@codemirror/legacy-modes": "6.5.1",
+    "@codemirror/state": "6.5.2",
+    "@codemirror/view": "6.38.1",
+    "@codesandbox/sandpack-react": "2.20.0",
+    "@lezer/highlight": "1.2.3",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.9"
+  }
+}

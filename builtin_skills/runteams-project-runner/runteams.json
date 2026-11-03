@@ -1,0 +1,309 @@
+{
+  "schema": "runteams.package-extension/v3",
+  "display_name": "项目运行与试用",
+  "work": {
+    "name": "运行和试用项目",
+    "summary": "运行目标与待检查功能，交付真实运行证据、覆盖范围及清理结果。",
+    "objective": "每个通过结论对应实际测试或浏览器证据，未覆盖功能明确保留。",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "scenario": {
+          "type": "string",
+          "description": "运行目标与待检查功能"
+        }
+      },
+      "required": [
+        "scenario"
+      ],
+      "additionalProperties": false
+    },
+    "output_schema": {
+      "type": "object",
+      "properties": {
+        "evidence": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "scenario": {
+                "type": "string"
+              },
+              "observed": {
+                "type": "string"
+              },
+              "evidence_ref": {
+                "type": "string"
+              },
+              "status": {
+                "enum": [
+                  "passed",
+                  "failed",
+                  "unverified"
+                ]
+              }
+            },
+            "required": [
+              "scenario",
+              "observed",
+              "evidence_ref",
+              "status"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "cleanup": {
+          "type": "object",
+          "properties": {
+            "processes_stopped": {
+              "type": "boolean"
+            },
+            "ports_released": {
+              "type": "boolean"
+            },
+            "original_unchanged": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "processes_stopped",
+            "ports_released",
+            "original_unchanged"
+          ],
+          "additionalProperties": false
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "evidence",
+        "cleanup",
+        "limitations"
+      ],
+      "additionalProperties": false
+    },
+    "steps": [
+      {
+        "id": "step-1",
+        "instruction": "读取项目规则与启动说明，在授权副本建立临时数据和可停止的前台实例。"
+      },
+      {
+        "id": "step-2",
+        "instruction": "运行项目测试，按场景真实操作产品，记录请求、页面与可复现问题。"
+      },
+      {
+        "id": "step-3",
+        "instruction": "复验发现的问题，停止本任务进程并核实端口、临时目录和原件未改变。"
+      }
+    ],
+    "acceptance": [
+      {
+        "id": "check-1",
+        "label": "交付内容",
+        "criterion": "每个通过结论对应实际测试或浏览器证据，未覆盖功能明确保留。"
+      },
+      {
+        "id": "check-2",
+        "label": "核实与范围",
+        "criterion": "实例退出和端口释放有证据，项目原件指纹保持。"
+      }
+    ],
+    "deliverables": [
+      {
+        "path": "evidence/run-report.json",
+        "name": "项目运行与清理记录",
+        "required": true,
+        "type": "json"
+      }
+    ],
+    "assets": [
+      {
+        "name": "project",
+        "type": "folder",
+        "source": "local_asset",
+        "required": true,
+        "mode": "git"
+      }
+    ],
+    "result_actions": []
+  },
+  "tools": [
+    {
+      "id": "isolated-env",
+      "name": "建立隔离环境",
+      "description": "在工作区 .scratch/ 下建立独立的 HOME、临时目录、XDG 目录和数据目录，分配空闲的本机端口，生成 .scratch/env.sh。",
+      "entry": "scripts/isolated_env.py",
+      "runtime": {
+        "version": 3,
+        "runner": "python",
+        "effect": "operation",
+        "dependencies": [],
+        "healthcheck": {
+          "cases": [
+            {
+              "arguments": [
+                "--ports",
+                "1",
+                "--var",
+                "APP_DATA"
+              ],
+              "expected": "passed"
+            },
+            {
+              "arguments": [
+                "--var",
+                "bad name"
+              ],
+              "expected": "failed"
+            }
+          ]
+        }
+      },
+      "credentials": []
+    },
+    {
+      "id": "http-probe",
+      "name": "探测本机接口",
+      "description": "请求在工作区里启动的产品实例（只允许本机地址），校验状态码和响应内容，并把请求与响应保存为证据。",
+      "entry": "scripts/http_probe.py",
+      "runtime": {
+        "version": 3,
+        "runner": "python",
+        "effect": "diagnostic",
+        "dependencies": [],
+        "healthcheck": {
+          "fixture_files": {
+            "probe/index.html": "<h1>product ok</h1>"
+          },
+          "cases": [
+            {
+              "arguments": [
+                "file:probe/index.html",
+                "--contains",
+                "product ok"
+              ],
+              "expected": "passed"
+            },
+            {
+              "arguments": [
+                "file:probe/index.html",
+                "--contains",
+                "missing text"
+              ],
+              "expected": "failed"
+            },
+            {
+              "arguments": [
+                "https://example.com/"
+              ],
+              "expected": "failed"
+            }
+          ]
+        }
+      },
+      "credentials": []
+    },
+    {
+      "id": "prepare-runtime",
+      "name": "准备隔离依赖",
+      "description": "按项目 requirements.txt 安装依赖，或复用产品已验证安装的微软官方 Playwright CLI 及随附技能；任务内保持同一版本并记录锁文件，临时依赖在 .scratch。",
+      "entry": "scripts/prepare_runtime.py",
+      "runtime": {
+        "version": 3,
+        "runner": "python",
+        "effect": "operation",
+        "dependencies": [],
+        "healthcheck": {
+          "fixture_files": {
+            "fixture/requirements.txt": "# empty fixture"
+          },
+          "cases": [
+            {
+              "arguments": [
+                "project",
+                "--project",
+                "fixture",
+                "--check"
+              ],
+              "expected": "passed"
+            },
+            {
+              "arguments": [
+                "project",
+                "--project",
+                "missing",
+                "--check"
+              ],
+              "expected": "failed"
+            }
+          ]
+        },
+        "timeout_seconds": 900
+      },
+      "credentials": []
+    },
+    {
+      "id": "browser-cli",
+      "name": "调用官方浏览器 CLI",
+      "description": "在本任务隔离环境中执行官方 playwright-cli 参数，保存完整原始调用；浏览器操作直接复用微软 CLI 与当次官方技能。",
+      "entry": "scripts/browser_cli.py",
+      "runtime": {
+        "version": 3,
+        "runner": "python",
+        "effect": "operation",
+        "dependencies": [],
+        "healthcheck": {
+          "cases": [
+            {
+              "arguments": [
+                "list"
+              ],
+              "expected": "failed"
+            }
+          ]
+        }
+      },
+      "credentials": []
+    },
+    {
+      "id": "cleanup-verify",
+      "name": "核验清理",
+      "description": "提交前确认隔离目录已删除、没有进程仍在引用它、分配过的端口都已释放。",
+      "entry": "scripts/cleanup_verify.py",
+      "runtime": {
+        "version": 3,
+        "runner": "python",
+        "effect": "verifier",
+        "dependencies": [],
+        "healthcheck": {
+          "fixture_files": {
+            "clean/.keep": "",
+            "dirty/.scratch/leftover.txt": "left behind"
+          },
+          "cases": [
+            {
+              "arguments": [
+                "--workspace",
+                "clean"
+              ],
+              "expected": "passed"
+            },
+            {
+              "arguments": [
+                "--workspace",
+                "dirty"
+              ],
+              "expected": "failed"
+            }
+          ]
+        }
+      },
+      "credentials": []
+    }
+  ],
+  "execution": {}
+}

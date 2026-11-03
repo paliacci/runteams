@@ -1,0 +1,5 @@
+*.pdf binary
+web/rich-document/licenses/DEPENDENCIES.txt -whitespace
+web/vendor/licenses/RESOURCE_VIEWER_DEPENDENCIES.txt -whitespace
+web/fonts/hanken-grotesk-LICENSE.txt -whitespace
+web/vendor/resource-viewer.js.LEGAL.txt -whitespace

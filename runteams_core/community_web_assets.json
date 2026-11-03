@@ -1,0 +1,754 @@
+{
+  "/": [
+    "web/index.html",
+    "text/html; charset=utf-8"
+  ],
+  "/ui/avatars/admin-dark.svg": [
+    "web/ui/avatars/admin-dark.svg",
+    "image/svg+xml"
+  ],
+  "/ui/avatars/admin-light.svg": [
+    "web/ui/avatars/admin-light.svg",
+    "image/svg+xml"
+  ],
+  "/ui/avatars/developer-dark.svg": [
+    "web/ui/avatars/developer-dark.svg",
+    "image/svg+xml"
+  ],
+  "/ui/avatars/developer-light.svg": [
+    "web/ui/avatars/developer-light.svg",
+    "image/svg+xml"
+  ],
+  "/ui/avatars/marketing-dark.svg": [
+    "web/ui/avatars/marketing-dark.svg",
+    "image/svg+xml"
+  ],
+  "/ui/avatars/marketing-light.svg": [
+    "web/ui/avatars/marketing-light.svg",
+    "image/svg+xml"
+  ],
+  "/ui/avatars/sales-dark.svg": [
+    "web/ui/avatars/sales-dark.svg",
+    "image/svg+xml"
+  ],
+  "/ui/avatars/sales-light.svg": [
+    "web/ui/avatars/sales-light.svg",
+    "image/svg+xml"
+  ],
+  "/ui/avatars/website-dark.svg": [
+    "web/ui/avatars/website-dark.svg",
+    "image/svg+xml"
+  ],
+  "/ui/avatars/website-light.svg": [
+    "web/ui/avatars/website-light.svg",
+    "image/svg+xml"
+  ],
+  "/ui/brand/symbol-micro.svg": [
+    "web/ui/brand/symbol-micro.svg",
+    "image/svg+xml"
+  ],
+  "/ui/brand/symbol-primary.svg": [
+    "web/ui/brand/symbol-primary.svg",
+    "image/svg+xml"
+  ],
+  "/ui/brand/symbol-reverse.svg": [
+    "web/ui/brand/symbol-reverse.svg",
+    "image/svg+xml"
+  ],
+  "/ui/brand/wordmark-primary.svg": [
+    "web/ui/brand/wordmark-primary.svg",
+    "image/svg+xml"
+  ],
+  "/ui/brand/wordmark-reverse.svg": [
+    "web/ui/brand/wordmark-reverse.svg",
+    "image/svg+xml"
+  ],
+  "/ui/chat-activity.js": [
+    "web/ui/chat-activity.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/ui/configuration-fields.css": [
+    "web/ui/configuration-fields.css",
+    "text/css; charset=utf-8"
+  ],
+  "/ui/configuration-fields.js": [
+    "web/ui/configuration-fields.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/ui/controls.js": [
+    "web/ui/controls.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/ui/conversation-preview.css": [
+    "web/ui/conversation-preview.css",
+    "text/css; charset=utf-8"
+  ],
+  "/ui/conversation-preview.js": [
+    "web/ui/conversation-preview.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/ui/creator-author.css": [
+    "web/ui/creator-author.css",
+    "text/css; charset=utf-8"
+  ],
+  "/ui/creator-author.js": [
+    "web/ui/creator-author.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/ui/creator-work.css": [
+    "web/ui/creator-work.css",
+    "text/css; charset=utf-8"
+  ],
+  "/ui/creator-work.js": [
+    "web/ui/creator-work.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/ui/detail-workspace.js": [
+    "web/ui/detail-workspace.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/ui/document-fold-chevron.svg": [
+    "web/ui/document-fold-chevron.svg",
+    "image/svg+xml"
+  ],
+  "/ui/document-reader.css": [
+    "web/ui/document-reader.css",
+    "text/css; charset=utf-8"
+  ],
+  "/ui/employee-automation.css": [
+    "web/ui/employee-automation.css",
+    "text/css; charset=utf-8"
+  ],
+  "/ui/employee-automation.js": [
+    "web/ui/employee-automation.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/ui/employee-configuration.css": [
+    "web/ui/employee-configuration.css",
+    "text/css; charset=utf-8"
+  ],
+  "/ui/employee-configuration.js": [
+    "web/ui/employee-configuration.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/ui/employee-directory.js": [
+    "web/ui/employee-directory.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/ui/employee-drawer-header.css": [
+    "web/ui/employee-drawer-header.css",
+    "text/css; charset=utf-8"
+  ],
+  "/ui/employee-drawer-header.js": [
+    "web/ui/employee-drawer-header.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/ui/employee-windows.js": [
+    "web/ui/employee-windows.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/ui/empty-states.css": [
+    "web/ui/empty-states.css",
+    "text/css; charset=utf-8"
+  ],
+  "/ui/empty-states.js": [
+    "web/ui/empty-states.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/ui/icons/sidebar-next.svg": [
+    "web/ui/icons/sidebar-next.svg",
+    "image/svg+xml"
+  ],
+  "/ui/icons/sidebar-upgrade.svg": [
+    "web/ui/icons/sidebar-upgrade.svg",
+    "image/svg+xml"
+  ],
+  "/ui/illustrations.css": [
+    "web/ui/illustrations.css",
+    "text/css; charset=utf-8"
+  ],
+  "/ui/input-fields.css": [
+    "web/ui/input-fields.css",
+    "text/css; charset=utf-8"
+  ],
+  "/ui/kit/components/index.js": [
+    "web/ui/kit/components/index.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/ui/kit/components/internal/dom.js": [
+    "web/ui/kit/components/internal/dom.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/ui/kit/components/internal/panel-header.js": [
+    "web/ui/kit/components/internal/panel-header.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/ui/kit/components/styles.css": [
+    "web/ui/kit/components/styles.css",
+    "text/css; charset=utf-8"
+  ],
+  "/ui/kit/index.js": [
+    "web/ui/kit/index.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/ui/kit/theme.css": [
+    "web/ui/kit/theme.css",
+    "text/css; charset=utf-8"
+  ],
+  "/ui/light-polish.css": [
+    "web/ui/light-polish.css",
+    "text/css; charset=utf-8"
+  ],
+  "/ui/load-failure.css": [
+    "web/ui/load-failure.css",
+    "text/css; charset=utf-8"
+  ],
+  "/ui/load-failure.js": [
+    "web/ui/load-failure.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/ui/local-backups.js": [
+    "web/ui/local-backups.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/ui/locale-en.js": [
+    "web/ui/locale-en.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/ui/locale-zh-cn.js": [
+    "web/ui/locale-zh-cn.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/ui/locale.js": [
+    "web/ui/locale.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/ui/metrics.js": [
+    "web/ui/metrics.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/ui/model-channels.js": [
+    "web/ui/model-channels.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/ui/native-assets.js": [
+    "web/ui/native-assets.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/ui/page-routes.js": [
+    "web/ui/page-routes.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/ui/page-skeletons.css": [
+    "web/ui/page-skeletons.css",
+    "text/css; charset=utf-8"
+  ],
+  "/ui/page-skeletons.js": [
+    "web/ui/page-skeletons.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/ui/panel-motion.js": [
+    "web/ui/panel-motion.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/ui/reply-content-bundle.js": [
+    "web/ui/reply-content-bundle.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/ui/reply-content-preview.css": [
+    "web/ui/reply-content-preview.css",
+    "text/css; charset=utf-8"
+  ],
+  "/ui/reply-content-preview.js": [
+    "web/ui/reply-content-preview.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/ui/reply-content.js": [
+    "web/ui/reply-content.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/ui/requests.js": [
+    "web/ui/requests.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/ui/rich-documents.css": [
+    "web/ui/rich-documents.css",
+    "text/css; charset=utf-8"
+  ],
+  "/ui/rich-documents.js": [
+    "web/ui/rich-documents.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/ui/search-fields.css": [
+    "web/ui/search-fields.css",
+    "text/css; charset=utf-8"
+  ],
+  "/ui/shell.css": [
+    "web/ui/shell.css",
+    "text/css; charset=utf-8"
+  ],
+  "/ui/shell.js": [
+    "web/ui/shell.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/ui/sidebar-account.js": [
+    "web/ui/sidebar-account.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/ui/sidebar-views.js": [
+    "web/ui/sidebar-views.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/ui/source-pipeline-panels.js": [
+    "web/ui/source-pipeline-panels.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/ui/source-pipelines.css": [
+    "web/ui/source-pipelines.css",
+    "text/css; charset=utf-8"
+  ],
+  "/ui/source-pipelines.js": [
+    "web/ui/source-pipelines.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/ui/static-pages.js": [
+    "web/ui/static-pages.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/ui/tokens.css": [
+    "web/ui/tokens.css",
+    "text/css; charset=utf-8"
+  ],
+  "/ui/work-folder.js": [
+    "web/ui/work-folder.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/ui/work-host.js": [
+    "web/ui/work-host.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/ui/work-module-icons.js": [
+    "web/ui/work-module-icons.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/ui/work-page-host.js": [
+    "web/ui/work-page-host.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/ui/work-records.css": [
+    "web/ui/work-records.css",
+    "text/css; charset=utf-8"
+  ],
+  "/ui/work-records.js": [
+    "web/ui/work-records.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/ui/work-state.js": [
+    "web/ui/work-state.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/modules/account.css": [
+    "web/modules/account.css",
+    "text/css; charset=utf-8"
+  ],
+  "/modules/account.js": [
+    "web/modules/account.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/modules/conversation.css": [
+    "web/modules/conversation.css",
+    "text/css; charset=utf-8"
+  ],
+  "/modules/conversation.js": [
+    "web/modules/conversation.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/modules/employee.css": [
+    "web/modules/employee.css",
+    "text/css; charset=utf-8"
+  ],
+  "/modules/employee.js": [
+    "web/modules/employee.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/modules/skill-icons/soft-layer-v1/browser-test.png": [
+    "web/modules/skill-icons/soft-layer-v1/browser-test.png",
+    "image/png"
+  ],
+  "/modules/skill-icons/soft-layer-v1/calendar.png": [
+    "web/modules/skill-icons/soft-layer-v1/calendar.png",
+    "image/png"
+  ],
+  "/modules/skill-icons/soft-layer-v1/communication.png": [
+    "web/modules/skill-icons/soft-layer-v1/communication.png",
+    "image/png"
+  ],
+  "/modules/skill-icons/soft-layer-v1/data.png": [
+    "web/modules/skill-icons/soft-layer-v1/data.png",
+    "image/png"
+  ],
+  "/modules/skill-icons/soft-layer-v1/defect.png": [
+    "web/modules/skill-icons/soft-layer-v1/defect.png",
+    "image/png"
+  ],
+  "/modules/skill-icons/soft-layer-v1/document.png": [
+    "web/modules/skill-icons/soft-layer-v1/document.png",
+    "image/png"
+  ],
+  "/modules/skill-icons/soft-layer-v1/frontend.png": [
+    "web/modules/skill-icons/soft-layer-v1/frontend.png",
+    "image/png"
+  ],
+  "/modules/skill-icons/soft-layer-v1/git.png": [
+    "web/modules/skill-icons/soft-layer-v1/git.png",
+    "image/png"
+  ],
+  "/modules/skill-icons/soft-layer-v1/issues.png": [
+    "web/modules/skill-icons/soft-layer-v1/issues.png",
+    "image/png"
+  ],
+  "/modules/skill-icons/soft-layer-v1/layout.png": [
+    "web/modules/skill-icons/soft-layer-v1/layout.png",
+    "image/png"
+  ],
+  "/modules/skill-icons/soft-layer-v1/mail-reply.png": [
+    "web/modules/skill-icons/soft-layer-v1/mail-reply.png",
+    "image/png"
+  ],
+  "/modules/skill-icons/soft-layer-v1/mail-triage.png": [
+    "web/modules/skill-icons/soft-layer-v1/mail-triage.png",
+    "image/png"
+  ],
+  "/modules/skill-icons/soft-layer-v1/mailbox.png": [
+    "web/modules/skill-icons/soft-layer-v1/mailbox.png",
+    "image/png"
+  ],
+  "/modules/skill-icons/soft-layer-v1/manifest.json": [
+    "web/modules/skill-icons/soft-layer-v1/manifest.json",
+    "application/json"
+  ],
+  "/modules/skill-icons/soft-layer-v1/meeting.png": [
+    "web/modules/skill-icons/soft-layer-v1/meeting.png",
+    "image/png"
+  ],
+  "/modules/skill-icons/soft-layer-v1/poster.png": [
+    "web/modules/skill-icons/soft-layer-v1/poster.png",
+    "image/png"
+  ],
+  "/modules/skill-icons/soft-layer-v1/skill-create.png": [
+    "web/modules/skill-icons/soft-layer-v1/skill-create.png",
+    "image/png"
+  ],
+  "/modules/skill-icons/soft-layer-v1/skill.png": [
+    "web/modules/skill-icons/soft-layer-v1/skill.png",
+    "image/png"
+  ],
+  "/modules/skill-icons/soft-layer-v1/text.png": [
+    "web/modules/skill-icons/soft-layer-v1/text.png",
+    "image/png"
+  ],
+  "/modules/skills.css": [
+    "web/modules/skills.css",
+    "text/css; charset=utf-8"
+  ],
+  "/modules/skills.js": [
+    "web/modules/skills.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/vendor/marked.js": [
+    "web/vendor/marked.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/vendor/provider-icons.js": [
+    "web/vendor/provider-icons.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/vendor/purify.min.js": [
+    "web/vendor/purify.min.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/vendor/resource-viewer.css": [
+    "web/vendor/resource-viewer.css",
+    "text/css; charset=utf-8"
+  ],
+  "/vendor/resource-viewer.js": [
+    "web/vendor/resource-viewer.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/fonts/hanken-grotesk-latin.woff2": [
+    "web/fonts/hanken-grotesk-latin.woff2",
+    "font/woff2"
+  ],
+  "/fonts/ibm-plex-mono-400-latin.woff2": [
+    "web/fonts/ibm-plex-mono-400-latin.woff2",
+    "font/woff2"
+  ],
+  "/fonts/ibm-plex-mono-500-latin.woff2": [
+    "web/fonts/ibm-plex-mono-500-latin.woff2",
+    "font/woff2"
+  ],
+  "/fonts/ibm-plex-mono-600.woff2": [
+    "web/fonts/ibm-plex-mono-600.woff2",
+    "font/woff2"
+  ],
+  "/fonts/inter-variable.woff2": [
+    "web/fonts/inter-variable.woff2",
+    "font/woff2"
+  ],
+  "/fonts/jetbrains-mono-regular.woff2": [
+    "web/fonts/jetbrains-mono-regular.woff2",
+    "font/woff2"
+  ],
+  "/worker-avatars/bottts/ada.svg": [
+    "web/worker-avatars/bottts/ada.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/bottts/alan.svg": [
+    "web/worker-avatars/bottts/alan.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/bottts/aso-specialist.svg": [
+    "web/worker-avatars/bottts/aso-specialist.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/bottts/atlas.svg": [
+    "web/worker-avatars/bottts/atlas.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/bottts/commercial-manager.svg": [
+    "web/worker-avatars/bottts/commercial-manager.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/bottts/cora.svg": [
+    "web/worker-avatars/bottts/cora.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/bottts/echo.svg": [
+    "web/worker-avatars/bottts/echo.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/bottts/grace.svg": [
+    "web/worker-avatars/bottts/grace.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/bottts/juno.svg": [
+    "web/worker-avatars/bottts/juno.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/bottts/localization-specialist.svg": [
+    "web/worker-avatars/bottts/localization-specialist.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/bottts/market-analyst.svg": [
+    "web/worker-avatars/bottts/market-analyst.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/bottts/nova.svg": [
+    "web/worker-avatars/bottts/nova.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/bottts/product-manager.svg": [
+    "web/worker-avatars/bottts/product-manager.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/bottts/qa-engineer.svg": [
+    "web/worker-avatars/bottts/qa-engineer.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/bottts/software-architect.svg": [
+    "web/worker-avatars/bottts/software-architect.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/bottts/user-operations.svg": [
+    "web/worker-avatars/bottts/user-operations.svg",
+    "image/svg+xml"
+  ],
+  "/provider-icons/claude.svg": [
+    "web/provider-icons/claude.svg",
+    "image/svg+xml"
+  ],
+  "/provider-icons/codex-dark.png": [
+    "web/provider-icons/codex-dark.png",
+    "image/png"
+  ],
+  "/provider-icons/codex-light.png": [
+    "web/provider-icons/codex-light.png",
+    "image/png"
+  ],
+  "/rich-document/dist/assets/BarChart-CYiaPvle.js": [
+    "web/rich-document/dist/assets/BarChart-CYiaPvle.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/rich-document/dist/assets/KaTeX_AMS-Regular-BQhdFMY1.woff2": [
+    "web/rich-document/dist/assets/KaTeX_AMS-Regular-BQhdFMY1.woff2",
+    "font/woff2"
+  ],
+  "/rich-document/dist/assets/KaTeX_Caligraphic-Bold-Dq_IR9rO.woff2": [
+    "web/rich-document/dist/assets/KaTeX_Caligraphic-Bold-Dq_IR9rO.woff2",
+    "font/woff2"
+  ],
+  "/rich-document/dist/assets/KaTeX_Caligraphic-Regular-Di6jR-x-.woff2": [
+    "web/rich-document/dist/assets/KaTeX_Caligraphic-Regular-Di6jR-x-.woff2",
+    "font/woff2"
+  ],
+  "/rich-document/dist/assets/KaTeX_Fraktur-Bold-CL6g_b3V.woff2": [
+    "web/rich-document/dist/assets/KaTeX_Fraktur-Bold-CL6g_b3V.woff2",
+    "font/woff2"
+  ],
+  "/rich-document/dist/assets/KaTeX_Fraktur-Regular-CTYiF6lA.woff2": [
+    "web/rich-document/dist/assets/KaTeX_Fraktur-Regular-CTYiF6lA.woff2",
+    "font/woff2"
+  ],
+  "/rich-document/dist/assets/KaTeX_Main-Bold-Cx986IdX.woff2": [
+    "web/rich-document/dist/assets/KaTeX_Main-Bold-Cx986IdX.woff2",
+    "font/woff2"
+  ],
+  "/rich-document/dist/assets/KaTeX_Main-BoldItalic-DxDJ3AOS.woff2": [
+    "web/rich-document/dist/assets/KaTeX_Main-BoldItalic-DxDJ3AOS.woff2",
+    "font/woff2"
+  ],
+  "/rich-document/dist/assets/KaTeX_Main-Italic-NWA7e6Wa.woff2": [
+    "web/rich-document/dist/assets/KaTeX_Main-Italic-NWA7e6Wa.woff2",
+    "font/woff2"
+  ],
+  "/rich-document/dist/assets/KaTeX_Main-Regular-B22Nviop.woff2": [
+    "web/rich-document/dist/assets/KaTeX_Main-Regular-B22Nviop.woff2",
+    "font/woff2"
+  ],
+  "/rich-document/dist/assets/KaTeX_Math-BoldItalic-CZnvNsCZ.woff2": [
+    "web/rich-document/dist/assets/KaTeX_Math-BoldItalic-CZnvNsCZ.woff2",
+    "font/woff2"
+  ],
+  "/rich-document/dist/assets/KaTeX_Math-Italic-t53AETM-.woff2": [
+    "web/rich-document/dist/assets/KaTeX_Math-Italic-t53AETM-.woff2",
+    "font/woff2"
+  ],
+  "/rich-document/dist/assets/KaTeX_SansSerif-Bold-D1sUS0GD.woff2": [
+    "web/rich-document/dist/assets/KaTeX_SansSerif-Bold-D1sUS0GD.woff2",
+    "font/woff2"
+  ],
+  "/rich-document/dist/assets/KaTeX_SansSerif-Italic-C3H0VqGB.woff2": [
+    "web/rich-document/dist/assets/KaTeX_SansSerif-Italic-C3H0VqGB.woff2",
+    "font/woff2"
+  ],
+  "/rich-document/dist/assets/KaTeX_SansSerif-Regular-DDBCnlJ7.woff2": [
+    "web/rich-document/dist/assets/KaTeX_SansSerif-Regular-DDBCnlJ7.woff2",
+    "font/woff2"
+  ],
+  "/rich-document/dist/assets/KaTeX_Script-Regular-D3wIWfF6.woff2": [
+    "web/rich-document/dist/assets/KaTeX_Script-Regular-D3wIWfF6.woff2",
+    "font/woff2"
+  ],
+  "/rich-document/dist/assets/KaTeX_Size1-Regular-mCD8mA8B.woff2": [
+    "web/rich-document/dist/assets/KaTeX_Size1-Regular-mCD8mA8B.woff2",
+    "font/woff2"
+  ],
+  "/rich-document/dist/assets/KaTeX_Size2-Regular-Dy4dx90m.woff2": [
+    "web/rich-document/dist/assets/KaTeX_Size2-Regular-Dy4dx90m.woff2",
+    "font/woff2"
+  ],
+  "/rich-document/dist/assets/KaTeX_Size4-Regular-Dl5lxZxV.woff2": [
+    "web/rich-document/dist/assets/KaTeX_Size4-Regular-Dl5lxZxV.woff2",
+    "font/woff2"
+  ],
+  "/rich-document/dist/assets/KaTeX_Typewriter-Regular-CO6r4hn1.woff2": [
+    "web/rich-document/dist/assets/KaTeX_Typewriter-Regular-CO6r4hn1.woff2",
+    "font/woff2"
+  ],
+  "/rich-document/dist/assets/chunk-7TTQLYRW-DdScVLOQ.js": [
+    "web/rich-document/dist/assets/chunk-7TTQLYRW-DdScVLOQ.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/rich-document/dist/assets/highlighted-body-JLMTFACH-BnO0sWvB.js": [
+    "web/rich-document/dist/assets/highlighted-body-JLMTFACH-BnO0sWvB.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/rich-document/dist/assets/index-DiGDoklk.js": [
+    "web/rich-document/dist/assets/index-DiGDoklk.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/rich-document/dist/assets/index-vE3wjGR8.css": [
+    "web/rich-document/dist/assets/index-vE3wjGR8.css",
+    "text/css; charset=utf-8"
+  ],
+  "/rich-document/dist/assets/mermaid-WFAXDIZX-snJZmS1I.js": [
+    "web/rich-document/dist/assets/mermaid-WFAXDIZX-snJZmS1I.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/rich-document/dist/assets/module-BrWgIX20.js": [
+    "web/rich-document/dist/assets/module-BrWgIX20.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/rich-document/dist/assets/native-Cqs-2kTC.js": [
+    "web/rich-document/dist/assets/native-Cqs-2kTC.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/rich-document/dist/assets/reply-BkWPA1I6.css": [
+    "web/rich-document/dist/assets/reply-BkWPA1I6.css",
+    "text/css; charset=utf-8"
+  ],
+  "/rich-document/dist/assets/reply-CREW_NT8.js": [
+    "web/rich-document/dist/assets/reply-CREW_NT8.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/rich-document/dist/index.html": [
+    "web/rich-document/dist/index.html",
+    "text/html; charset=utf-8"
+  ],
+  "/runteams.css": [
+    "web/runteams.css",
+    "text/css; charset=utf-8"
+  ],
+  "/favicon.svg": [
+    "web/favicon.svg",
+    "image/svg+xml"
+  ],
+  "/community/application.js": [
+    "frontend/community/application.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/community/bootstrap.js": [
+    "frontend/community/bootstrap.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/community/client.js": [
+    "frontend/community/client.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/community/native.js": [
+    "frontend/community/native.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/chat/new": [
+    "web/index.html",
+    "text/html; charset=utf-8"
+  ],
+  "/chats/new": [
+    "web/index.html",
+    "text/html; charset=utf-8"
+  ],
+  "/docs": [
+    "web/index.html",
+    "text/html; charset=utf-8"
+  ],
+  "/documents": [
+    "web/index.html",
+    "text/html; charset=utf-8"
+  ],
+  "/trash": [
+    "web/index.html",
+    "text/html; charset=utf-8"
+  ],
+  "/pipelines": [
+    "web/index.html",
+    "text/html; charset=utf-8"
+  ],
+  "/pipelines/new": [
+    "web/index.html",
+    "text/html; charset=utf-8"
+  ],
+  "/ui/page-routes-contract.js": [
+    "contracts/page-routes.json",
+    "text/javascript; charset=utf-8"
+  ]
+}

@@ -1,0 +1,429 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$defs": {
+    "skill_extension": {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "const": "runteams.package-extension/v3"
+        },
+        "display_name": {
+          "type": "string",
+          "maxLength": 160,
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "work": {
+          "$ref": "#/$defs/work"
+        },
+        "tools": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/tool"
+          }
+        },
+        "execution": {
+          "$ref": "#/$defs/execution"
+        }
+      },
+      "required": [
+        "schema",
+        "display_name",
+        "tools",
+        "execution"
+      ],
+      "additionalProperties": false
+    },
+    "execution": {
+      "type": "object",
+      "properties": {
+        "max_concurrent_runs": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 32
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    },
+    "tool": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,119}$"
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 160,
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 1000
+        },
+        "entry": {
+          "type": "string",
+          "maxLength": 500,
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "runtime": {
+          "type": "object",
+          "required": [
+            "version",
+            "runner"
+          ],
+          "properties": {
+            "version": {
+              "const": 3
+            },
+            "runner": {
+              "enum": [
+                "python",
+                "node",
+                "local-process",
+                "portable"
+              ]
+            }
+          }
+        },
+        "credentials": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,119}$"
+          },
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "description",
+        "entry",
+        "runtime",
+        "credentials"
+      ],
+      "additionalProperties": false
+    },
+    "work": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "maxLength": 160,
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "summary": {
+          "type": "string",
+          "maxLength": 1000,
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "objective": {
+          "type": "string",
+          "maxLength": 2000,
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "input_schema": {
+          "$ref": "#/$defs/json_schema"
+        },
+        "output_schema": {
+          "$ref": "#/$defs/json_schema"
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/step"
+          },
+          "minItems": 1
+        },
+        "acceptance": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/acceptance"
+          },
+          "minItems": 1
+        },
+        "deliverables": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/deliverable"
+          }
+        },
+        "assets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/asset"
+          }
+        },
+        "result_actions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/result_action"
+          },
+          "maxItems": 20
+        },
+        "examples": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/work_example"
+          },
+          "maxItems": 6
+        },
+        "show_in_overview": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "name",
+        "summary",
+        "objective",
+        "input_schema",
+        "output_schema",
+        "steps",
+        "acceptance",
+        "deliverables",
+        "assets",
+        "result_actions"
+      ],
+      "additionalProperties": false
+    },
+    "step": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,79}$"
+        },
+        "instruction": {
+          "type": "string",
+          "maxLength": 8000,
+          "minLength": 1,
+          "pattern": "\\S"
+        }
+      },
+      "required": [
+        "id",
+        "instruction"
+      ],
+      "additionalProperties": false
+    },
+    "deliverable": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "maxLength": 500,
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 160,
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "type": {
+          "enum": [
+            "markdown",
+            "word",
+            "pdf",
+            "image",
+            "table",
+            "json",
+            "txt",
+            "folder"
+          ]
+        }
+      },
+      "required": [
+        "path",
+        "name",
+        "required"
+      ],
+      "additionalProperties": false
+    },
+    "asset": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,79}$"
+        },
+        "type": {
+          "enum": [
+            "file",
+            "folder"
+          ]
+        },
+        "source": {
+          "const": "local_asset"
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "mode": {
+          "enum": [
+            "git",
+            "snapshot"
+          ]
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160,
+          "pattern": "\\S"
+        },
+        "selection_hint": {
+          "type": "string",
+          "maxLength": 500
+        }
+      },
+      "required": [
+        "name",
+        "type",
+        "source",
+        "required"
+      ],
+      "additionalProperties": false
+    },
+    "work_example": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "pattern": "\\S"
+        },
+        "prompt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000,
+          "pattern": "\\S"
+        }
+      },
+      "required": [
+        "title",
+        "prompt"
+      ],
+      "additionalProperties": false
+    },
+    "result_action": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,79}$"
+        },
+        "label": {
+          "type": "string",
+          "maxLength": 80,
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 1000,
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "target": {
+          "type": "object",
+          "properties": {
+            "skill_key": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]{0,79}$"
+            }
+          },
+          "required": [
+            "skill_key"
+          ],
+          "additionalProperties": false
+        },
+        "input_schema": {
+          "$ref": "#/$defs/json_schema"
+        },
+        "bindings": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "^(|/.*)$"
+          }
+        },
+        "asset_bindings": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,79}$"
+          }
+        },
+        "include_artifacts": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "description",
+        "target",
+        "input_schema",
+        "bindings",
+        "asset_bindings",
+        "include_artifacts"
+      ],
+      "additionalProperties": false
+    },
+    "json_schema": {
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "const": "object"
+        }
+      }
+    },
+    "acceptance": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,79}$"
+        },
+        "label": {
+          "type": "string",
+          "maxLength": 80,
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "criterion": {
+          "type": "string",
+          "maxLength": 4000,
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "verifier": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,119}$"
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "criterion"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "$ref": "#/$defs/skill_extension"
+}

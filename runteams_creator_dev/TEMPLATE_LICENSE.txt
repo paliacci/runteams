@@ -1,0 +1,15 @@
+RunTeams authored-project template permission
+Copyright (c) 2026 RunTeams copyright holders.
+
+Permission is granted, free of charge, to use, copy, modify, distribute,
+sublicense and sell the files placed by RunTeams scaffolding into a new authored
+project's source/ directory and its example dev/tests.json, as part of your own
+independently authored employee, pipeline, skill, integration or other asset.
+You may choose your own license for your additions and modified template.
+
+This permission excludes _runteams/ tooling, product implementation, SDK and
+third-party libraries copied alongside the authored project. Those components
+retain their own licenses and notices. No trademark or official service rights
+are granted. The template is provided AS IS, without warranty; its copyright
+holders are not liable for claims or damages arising from its use to the maximum
+extent permitted by applicable law.

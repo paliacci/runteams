@@ -1,0 +1,87 @@
+{
+  "type": "object",
+  "properties": {
+    "schema": {
+      "const": "runteams.chat-context/4"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,63}$"
+    },
+    "chat_ref": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,63}$"
+    },
+    "task_ref": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,63}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "context_mode": {
+      "const": "employee"
+    },
+    "release_digest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "view": {
+      "type": "null"
+    },
+    "view_input": {
+      "type": "null"
+    },
+    "view_context": {
+      "type": "null"
+    },
+    "context_revision": {
+      "const": 0
+    },
+    "focus": {
+      "type": "null"
+    },
+    "selected": {
+      "type": "array",
+      "maxItems": 0
+    },
+    "objects": {
+      "type": "array",
+      "maxItems": 0
+    },
+    "state": {
+      "const": "submitted"
+    },
+    "input_hash": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "chat_input_ref": {
+      "type": "string",
+      "format": "uuid"
+    }
+  },
+  "required": [
+    "schema",
+    "id",
+    "chat_ref",
+    "task_ref",
+    "context_mode",
+    "release_digest",
+    "view",
+    "view_input",
+    "view_context",
+    "context_revision",
+    "focus",
+    "selected",
+    "objects",
+    "state",
+    "input_hash",
+    "chat_input_ref"
+  ],
+  "additionalProperties": false
+}

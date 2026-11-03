@@ -1,0 +1,85 @@
+{
+  "schema": "runteams.package-extension/v3",
+  "display_name": "内部沟通写作",
+  "work": {
+    "name": "撰写内部沟通稿",
+    "summary": "受众、事实、时间范围与语气，交付可审阅稿与待确认事实。",
+    "objective": "事实与来源一致，未批准计划和猜测不写成承诺。",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "brief": {
+          "type": "string",
+          "description": "受众、事实、时间范围与语气"
+        }
+      },
+      "required": [
+        "brief"
+      ],
+      "additionalProperties": false
+    },
+    "output_schema": {
+      "type": "object",
+      "properties": {
+        "draft": {
+          "type": "object",
+          "properties": {
+            "text": {
+              "type": "string"
+            },
+            "time_range": {
+              "type": "string"
+            },
+            "pending": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "text",
+            "time_range",
+            "pending"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "draft"
+      ],
+      "additionalProperties": false
+    },
+    "steps": [
+      {
+        "id": "step-1",
+        "instruction": "读取已授权事实，确定受众、文稿类型和报告时间范围。"
+      },
+      {
+        "id": "step-2",
+        "instruction": "区分成果、风险和下一步，制作适合该受众的沟通草稿。"
+      },
+      {
+        "id": "step-3",
+        "instruction": "逐项核对日期、数字和承诺，未知事项保留待确认，按来源修正。"
+      }
+    ],
+    "acceptance": [
+      {
+        "id": "check-1",
+        "label": "交付内容",
+        "criterion": "事实与来源一致，未批准计划和猜测不写成承诺。"
+      },
+      {
+        "id": "check-2",
+        "label": "核实与范围",
+        "criterion": "稿件优先显示结果和必要限制，未发送或发布的稿件明确为草稿。"
+      }
+    ],
+    "deliverables": [],
+    "assets": [],
+    "result_actions": []
+  },
+  "tools": [],
+  "execution": {}
+}

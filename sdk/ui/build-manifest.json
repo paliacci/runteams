@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "version": "0.1.0",
+  "canonicalTokens": "design/ui-tokens.json",
+  "tokensSha256": "fddd0d3839987955cad487ea6e203d3d2548d57ea1f59c91b30ffe78497ddd3b",
+  "files": {
+    "dist/foundation/theme.css": {
+      "source": "packages/ui-foundation/theme.css",
+      "sha256": "75c8252114020bca5c5bcf43fd228106747fab052b44f97bdc6855cdfdf008d3"
+    },
+    "dist/components/index.js": {
+      "source": "packages/ui-components/index.js",
+      "sha256": "4b02eeeadc82dad0674245bc36599dba1b77b911ab5b9892e49e2ce65e5fc787"
+    },
+    "dist/components/internal/dom.js": {
+      "source": "packages/ui-components/internal/dom.js",
+      "sha256": "4d57c96ffd753f5db3d6781893e3e6dd50369286c313fd844446a5b244c000f4"
+    },
+    "dist/components/internal/panel-header.js": {
+      "source": "packages/ui-components/internal/panel-header.js",
+      "sha256": "1ce844d84e1afdf0d5e774c10e0cfd27b81764694eecb527460f8fbda0ed3404"
+    },
+    "dist/components/styles.css": {
+      "source": "packages/ui-components/styles.css",
+      "sha256": "d03c3e6384c5653dc6583021b393465d9b454dc89db392bd3e138143c7abdf36"
+    }
+  }
+}

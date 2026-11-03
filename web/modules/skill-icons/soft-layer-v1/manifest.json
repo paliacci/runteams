@@ -1,0 +1,243 @@
+{
+  "style": "soft-layer-v1",
+  "source": "RunTeams original generated artwork",
+  "approved_reference": "oil-icon-samples-2026-10-13/raw/soft-layer-v4.png",
+  "provider": "Built-in image_gen",
+  "extraction": "oil-icon rembg",
+  "assets": {
+    "document": {
+      "size": [
+        256,
+        256
+      ],
+      "alpha_bbox": [
+        30,
+        16,
+        225,
+        240
+      ],
+      "sha256": "04614dd33dc06d4238b6e878e10fa97f8d9bc5f506483b8292fe02c8c8ac0293"
+    },
+    "mail-triage": {
+      "size": [
+        256,
+        256
+      ],
+      "alpha_bbox": [
+        22,
+        16,
+        233,
+        241
+      ],
+      "sha256": "2fb28ac60aa25c240f3f5d9fba27fd2d5406200e4112da9a9f126e7e0a196b75"
+    },
+    "git": {
+      "size": [
+        256,
+        256
+      ],
+      "alpha_bbox": [
+        23,
+        16,
+        231,
+        240
+      ],
+      "sha256": "044230b1ecbf0cebe3e66e1214c9e8331cd98723c20a7d2f736e93659aa8554f"
+    },
+    "skill": {
+      "size": [
+        256,
+        256
+      ],
+      "alpha_bbox": [
+        18,
+        16,
+        237,
+        241
+      ],
+      "sha256": "d5490fadd4590a7b5f850ed391525aaa53568f4bba4a6af40eea0e736db4c96c"
+    },
+    "skill-create": {
+      "size": [
+        256,
+        256
+      ],
+      "alpha_bbox": [
+        31,
+        17,
+        225,
+        238
+      ],
+      "sha256": "da84d1019f366e419a454e5c24202b3dcf2cb01596cc37716ac432f207569466"
+    },
+    "browser-test": {
+      "size": [
+        256,
+        256
+      ],
+      "alpha_bbox": [
+        19,
+        16,
+        236,
+        240
+      ],
+      "sha256": "7338582aa80c8eee59e7689b265fe48e15a52bb2c62fad9f247e081eed2f3384"
+    },
+    "frontend": {
+      "size": [
+        256,
+        256
+      ],
+      "alpha_bbox": [
+        20,
+        15,
+        236,
+        239
+      ],
+      "sha256": "a3907c69bdf34eedcfe9a19f45c9ab00d91d30f03f9e97db15d666a2cf963c2c"
+    },
+    "layout": {
+      "size": [
+        256,
+        256
+      ],
+      "alpha_bbox": [
+        19,
+        14,
+        237,
+        239
+      ],
+      "sha256": "8e5ee8e20657edb9560a5c3e499b323ed3f9e9d74143885e83ab282e958b4f53"
+    },
+    "communication": {
+      "size": [
+        256,
+        256
+      ],
+      "alpha_bbox": [
+        15,
+        20,
+        241,
+        233
+      ],
+      "sha256": "c2c35bfb0766cb1ec42df5d09dcfc33f7ea23271a414173a439a5af3f40482d7"
+    },
+    "poster": {
+      "size": [
+        256,
+        256
+      ],
+      "alpha_bbox": [
+        41,
+        15,
+        216,
+        240
+      ],
+      "sha256": "674db0ec780c206d6daa690d3e047931758c0ad555d71248cd55c5cb4d9d0892"
+    },
+    "defect": {
+      "size": [
+        256,
+        256
+      ],
+      "alpha_bbox": [
+        18,
+        14,
+        235,
+        240
+      ],
+      "sha256": "d6483813fab17ae92a0b3045f68dfec13f7e802225a57bf598275b5f9bc578fc"
+    },
+    "issues": {
+      "size": [
+        256,
+        256
+      ],
+      "alpha_bbox": [
+        29,
+        16,
+        227,
+        241
+      ],
+      "sha256": "4833341930f21bc870f44a7a1e94b46f8fc4de8210d30a00ba770f649a2a7bbb"
+    },
+    "mail-reply": {
+      "size": [
+        256,
+        256
+      ],
+      "alpha_bbox": [
+        15,
+        27,
+        241,
+        229
+      ],
+      "sha256": "1d2b3107b8d9348ab6f7402d00032066b0fc315c640e984ffc58d21e71af301c"
+    },
+    "mailbox": {
+      "size": [
+        256,
+        256
+      ],
+      "alpha_bbox": [
+        15,
+        23,
+        240,
+        231
+      ],
+      "sha256": "aba824c62a2046db144bb8b10338628cf055f825d05464d2152425145e41422e"
+    },
+    "meeting": {
+      "size": [
+        256,
+        256
+      ],
+      "alpha_bbox": [
+        15,
+        18,
+        241,
+        237
+      ],
+      "sha256": "ac48a27cde2776a04e69159b099fd2ffa64138abb47a5762754e2c61e16ffb61"
+    },
+    "data": {
+      "size": [
+        256,
+        256
+      ],
+      "alpha_bbox": [
+        20,
+        15,
+        236,
+        240
+      ],
+      "sha256": "fbc7e0932ca44d732f5d12ff5d876b206c0ac55bd92af5266f8437f4978bff0a"
+    },
+    "text": {
+      "size": [
+        256,
+        256
+      ],
+      "alpha_bbox": [
+        27,
+        14,
+        228,
+        241
+      ],
+      "sha256": "c258178735c58d92b86118f9a96882a41d89532adec724c31fc5a233a0cefbe6"
+    },
+    "calendar": {
+      "size": [
+        256,
+        256
+      ],
+      "alpha_bbox": [
+        28,
+        16,
+        228,
+        239
+      ],
+      "sha256": "147494533539a56c8235ecf226401c2dba937471257210a0a14367b92c372de4"
+    }
+  }
+}

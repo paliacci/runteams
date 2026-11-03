@@ -1,0 +1,18 @@
+{
+  "schema": "runteams.community-source-boundaries/1",
+  "owners": {
+    "employee-runtime": {
+      "description": "员工定义、运行、对话、配置、工作记录或执行服务，保留原会话范围。",
+      "requires_joint_work": true
+    },
+    "pipeline-runtime": {
+      "description": "流水线工作区、配置、控制与运行边界，保留原会话范围。",
+      "requires_joint_work": true
+    },
+    "sdk-authoring-contracts": {
+      "description": "SDK创作、源码、冻结合同、编译、发布或资源，保留原会话范围。",
+      "requires_joint_work": true
+    }
+  },
+  "modules": {}
+}

@@ -1,0 +1,91 @@
+{
+  "schema": "runteams.package-extension/v3",
+  "display_name": "文档协作",
+  "work": {
+    "name": "撰写和维护文档",
+    "summary": "文档目标、读者和已知事实，交付文档引用与未完成范围。",
+    "objective": "关键事实均有来源，未知点明确保留，内容符合目标读者。",
+    "input_schema": {
+      "type": "object",
+      "properties": {
+        "brief": {
+          "type": "string",
+          "description": "文档目标、读者和已知事实"
+        }
+      },
+      "required": [
+        "brief"
+      ],
+      "additionalProperties": false
+    },
+    "output_schema": {
+      "type": "object",
+      "properties": {
+        "document_refs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "scope": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "title"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "document_refs",
+        "limitations"
+      ],
+      "additionalProperties": false
+    },
+    "steps": [
+      {
+        "id": "step-1",
+        "instruction": "读取已有文档和用户资料，确认目标读者及事实来源。"
+      },
+      {
+        "id": "step-2",
+        "instruction": "按文档协作方法制作可独立阅读的稿件，使用产品文档工具持久保存。"
+      },
+      {
+        "id": "step-3",
+        "instruction": "重新读取保存正文，核对论据、遗漏和用户可编辑入口。"
+      }
+    ],
+    "acceptance": [
+      {
+        "id": "check-1",
+        "label": "交付内容",
+        "criterion": "关键事实均有来源，未知点明确保留，内容符合目标读者。"
+      },
+      {
+        "id": "check-2",
+        "label": "核实与范围",
+        "criterion": "保存后的正文与交付一致，文档引用可重新打开，业务状态不冒充文档正文。"
+      }
+    ],
+    "deliverables": [],
+    "assets": [],
+    "result_actions": []
+  },
+  "tools": [],
+  "execution": {}
+}

@@ -1,0 +1,28 @@
+/* Shared employee drawer chrome; geometry and icon paint have one owner. */
+:is(.creator-resources-drawer,.creator-work-drawer,.employee-automation-drawer){--employee-header-inset:10px;--employee-header-control:28px;--employee-header-icon:17px;--employee-header-leading:calc(var(--employee-header-inset) + (var(--employee-header-control) - var(--employee-header-icon))/2)}
+.employee-drawer-header-host{flex:none;min-width:0;height:38px;background:var(--panel)}
+[data-rt-ui] .employee-drawer-header{height:38px;padding:5px var(--employee-header-inset,10px);gap:8px;background:var(--panel)}
+[data-rt-ui] .employee-drawer-header .rt-drawer-collapse{display:grid;place-items:center;width:var(--employee-header-control,28px);height:var(--employee-header-control,28px);min-height:var(--employee-header-control,28px);padding:0;border-radius:7px;color:var(--text-secondary)}
+[data-rt-ui] .employee-drawer-header .rt-drawer-collapse svg{display:block;width:var(--employee-header-icon,17px);height:var(--employee-header-icon,17px)}
+[data-rt-ui] .employee-drawer-header .rt-drawer-text{font-size:14px;line-height:20px;font-weight:600;color:var(--text-primary)}
+[data-rt-ui] .employee-drawer-header .rt-drawer-actions{gap:4px}
+[data-rt-ui] .employee-drawer-header .rt-drawer-action{display:inline-flex;align-items:center;justify-content:center;gap:4px;height:28px;min-height:28px;min-width:0;padding:0 6px;font-size:12px;line-height:18px;border-radius:7px;box-shadow:none}
+[data-rt-ui] .employee-drawer-header .rt-drawer-action.is-primary{padding:0 8px}
+[data-rt-ui] .employee-drawer-header .rt-drawer-action.is-primary:is(:not(:disabled),[data-read-pending]){background:var(--action-primary);color:var(--action-on-primary)}
+/* Settings and automation share the same quiet, right-aligned toolbar actions. */
+[data-rt-ui] .employee-drawer-header:is([data-employee-header="automation"],[data-employee-header="settings"]) .rt-drawer-actions{max-width:none;gap:4px}
+[data-rt-ui] .employee-drawer-header:is([data-employee-header="automation"],[data-employee-header="settings"]) .rt-drawer-action{padding:0 4px;background:transparent;color:var(--text-secondary)}
+[data-rt-ui] .employee-drawer-header:is([data-employee-header="automation"],[data-employee-header="settings"]) .rt-drawer-action:not(:disabled):hover{background:var(--surface-hover);color:var(--text-primary)}
+[data-rt-ui] .employee-drawer-header:is([data-employee-header="automation"],[data-employee-header="settings"]) .rt-drawer-action:disabled{background:transparent;color:var(--text-muted);opacity:.45;cursor:default}
+.employee-drawer-action-icon{display:flex;align-items:center;justify-content:center;flex:none}
+.employee-drawer-action-icon .i{display:block;width:16px;height:16px}
+
+/* Fixed intro belongs to the drawer template. Consumers add no nested insets. */
+.detail-drawer-summary{flex:0 0 auto;padding:8px 20px 16px;background:var(--panel)}
+.detail-drawer-summary>.workspace-detail-head{padding:0}
+.detail-drawer-heading{min-width:0}
+.detail-drawer-summary .detail-drawer-title{margin:0;font-size:calc(22px * var(--interface-font-scale,1));line-height:32px;font-weight:600;letter-spacing:normal;white-space:normal;overflow-wrap:anywhere;color:var(--text-primary)}
+.detail-drawer-summary .detail-drawer-description{margin:8px 0 0;font-size:calc(12px * var(--interface-font-scale,1));line-height:18px;font-weight:400;white-space:normal;overflow-wrap:anywhere;color:var(--text-secondary)}
+
+/* Drawer body top spacing belongs to the header, regardless of content type. */
+.right-detail-drawer>.right-detail-body{padding-top:0!important}

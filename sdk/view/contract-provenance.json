@@ -1,0 +1,15 @@
+{
+  "schema": "runteams.sdk-contract-input/1",
+  "profile": "view",
+  "source": "contracts/creator-system/ui-v2/request.schema.json",
+  "sha256": "056fd7b814fe5eae90af8d13a7720d30a164cef2762879e5182e756f348b3d93",
+  "methods": [
+    "context.read",
+    "context.select",
+    "context.update",
+    "draft.set",
+    "draft.discard",
+    "operation.invoke"
+  ],
+  "generator_sha256": "f952fb22b526f7817aadb4783a49be077a08cea94591dd93ad3924c24e4ced76"
+}

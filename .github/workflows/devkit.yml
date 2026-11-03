@@ -1,0 +1,25 @@
+name: Offline macOS SDK development kit
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  devkit:
+    runs-on: macos-15
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.22.1'
+      - run: python -m pip install -r requirements-community.txt
+      - run: python -B -m runteams_core.devtools.ci_devkit --output "$RUNNER_TEMP/devkit-ci"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macOS-devkit
+          path: |
+            ${{ runner.temp }}/devkit-ci/runteams-devkit.zip
+            ${{ runner.temp }}/devkit-ci/verification.json

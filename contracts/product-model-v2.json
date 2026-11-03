@@ -1,0 +1,1973 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:runteams:product-model:v2",
+  "title": "RunTeams product model v2",
+  "$defs": {
+    "json_schema": {
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "type": {
+          "const": "object"
+        }
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "properties": {
+        "channel_id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "model": {
+          "type": "string",
+          "maxLength": 160
+        },
+        "effort": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "time_limit_minutes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1440
+        }
+      },
+      "required": [
+        "channel_id",
+        "model",
+        "effort"
+      ],
+      "additionalProperties": false
+    },
+    "runtime_snapshot": {
+      "type": "object",
+      "properties": {
+        "channel_id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "model": {
+          "type": "string",
+          "maxLength": 160
+        },
+        "effort": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "time_limit_minutes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1440
+        },
+        "provider": {
+          "enum": [
+            "codex",
+            "claude-code"
+          ]
+        }
+      },
+      "required": [
+        "channel_id",
+        "provider",
+        "model",
+        "effort"
+      ],
+      "additionalProperties": false
+    },
+    "skill_ref": {
+      "type": "object",
+      "properties": {
+        "package_key": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,79}$"
+        },
+        "revision_id": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "package_key",
+        "revision_id"
+      ],
+      "additionalProperties": false
+    },
+    "asset": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,79}$"
+        },
+        "type": {
+          "enum": [
+            "file",
+            "folder"
+          ]
+        },
+        "source": {
+          "const": "local_asset"
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "mode": {
+          "enum": [
+            "git",
+            "snapshot"
+          ]
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160,
+          "pattern": "\\S"
+        },
+        "selection_hint": {
+          "type": "string",
+          "maxLength": 500
+        }
+      },
+      "required": [
+        "name",
+        "type",
+        "source",
+        "required"
+      ],
+      "additionalProperties": false
+    },
+    "deliverable": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "maxLength": 500,
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 160,
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "type": {
+          "enum": [
+            "markdown",
+            "word",
+            "pdf",
+            "image",
+            "table",
+            "json",
+            "txt",
+            "folder"
+          ]
+        }
+      },
+      "required": [
+        "path",
+        "name",
+        "required"
+      ],
+      "additionalProperties": false
+    },
+    "step": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,79}$"
+        },
+        "instruction": {
+          "type": "string",
+          "maxLength": 8000,
+          "minLength": 1,
+          "pattern": "\\S"
+        }
+      },
+      "required": [
+        "id",
+        "instruction"
+      ],
+      "additionalProperties": false
+    },
+    "acceptance": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,79}$"
+        },
+        "label": {
+          "type": "string",
+          "maxLength": 80,
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "criterion": {
+          "type": "string",
+          "maxLength": 4000,
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "verifier": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,119}$"
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "criterion"
+      ],
+      "additionalProperties": false
+    },
+    "result_action": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,79}$"
+        },
+        "label": {
+          "type": "string",
+          "maxLength": 80,
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 1000,
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "target": {
+          "type": "object",
+          "properties": {
+            "skill_key": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]{0,79}$"
+            }
+          },
+          "required": [
+            "skill_key"
+          ],
+          "additionalProperties": false
+        },
+        "input_schema": {
+          "$ref": "#/$defs/json_schema"
+        },
+        "bindings": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "^(|/.*)$"
+          }
+        },
+        "asset_bindings": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,79}$"
+          }
+        },
+        "include_artifacts": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "id",
+        "label",
+        "description",
+        "target",
+        "input_schema",
+        "bindings",
+        "asset_bindings",
+        "include_artifacts"
+      ],
+      "additionalProperties": false
+    },
+    "work": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "maxLength": 160,
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "summary": {
+          "type": "string",
+          "maxLength": 1000,
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "objective": {
+          "type": "string",
+          "maxLength": 2000,
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "input_schema": {
+          "$ref": "#/$defs/json_schema"
+        },
+        "output_schema": {
+          "$ref": "#/$defs/json_schema"
+        },
+        "steps": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/step"
+          },
+          "minItems": 1
+        },
+        "acceptance": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/acceptance"
+          },
+          "minItems": 1
+        },
+        "deliverables": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/deliverable"
+          }
+        },
+        "assets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/asset"
+          }
+        },
+        "result_actions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/result_action"
+          },
+          "maxItems": 20
+        },
+        "examples": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/work_example"
+          },
+          "maxItems": 6
+        },
+        "show_in_overview": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "name",
+        "summary",
+        "objective",
+        "input_schema",
+        "output_schema",
+        "steps",
+        "acceptance",
+        "deliverables",
+        "assets",
+        "result_actions"
+      ],
+      "additionalProperties": false
+    },
+    "execution": {
+      "type": "object",
+      "properties": {
+        "max_concurrent_runs": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 32
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    },
+    "tool": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]{0,119}$"
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 160,
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 1000
+        },
+        "entry": {
+          "type": "string",
+          "maxLength": 500,
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "runtime": {
+          "type": "object",
+          "required": [
+            "version",
+            "runner"
+          ],
+          "properties": {
+            "version": {
+              "const": 3
+            },
+            "runner": {
+              "enum": [
+                "python",
+                "node",
+                "local-process",
+                "portable"
+              ]
+            }
+          }
+        },
+        "credentials": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,119}$"
+          },
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "description",
+        "entry",
+        "runtime",
+        "credentials"
+      ],
+      "additionalProperties": false
+    },
+    "file": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "maxLength": 500,
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "size": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "path",
+        "sha256",
+        "size"
+      ],
+      "additionalProperties": false
+    },
+    "skill_extension": {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "const": "runteams.package-extension/v3"
+        },
+        "display_name": {
+          "type": "string",
+          "maxLength": 160,
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "work": {
+          "$ref": "#/$defs/work"
+        },
+        "tools": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/tool"
+          }
+        },
+        "execution": {
+          "$ref": "#/$defs/execution"
+        }
+      },
+      "required": [
+        "schema",
+        "display_name",
+        "tools",
+        "execution"
+      ],
+      "additionalProperties": false
+    },
+    "skill_revision": {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "const": "runteams.skill-revision/v3"
+        },
+        "package_key": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,79}$"
+        },
+        "revision_id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "blob_ref": {
+          "type": "string",
+          "maxLength": 500,
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "display_name": {
+          "type": "string",
+          "maxLength": 160,
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "description": {
+          "type": "string",
+          "maxLength": 2000,
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/file"
+          },
+          "minItems": 1
+        },
+        "work": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/work"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "tools": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/tool"
+          }
+        },
+        "execution": {
+          "$ref": "#/$defs/execution"
+        }
+      },
+      "required": [
+        "schema",
+        "package_key",
+        "revision_id",
+        "digest",
+        "blob_ref",
+        "display_name",
+        "description",
+        "files",
+        "work",
+        "tools",
+        "execution"
+      ],
+      "additionalProperties": false
+    },
+    "employee_draft": {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "const": "runteams.employee-draft/v2"
+        },
+        "soul": {
+          "type": "string",
+          "maxLength": 120000
+        },
+        "skill_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/skill_ref"
+          },
+          "maxItems": 64
+        },
+        "runtime": {
+          "$ref": "#/$defs/runtime"
+        },
+        "direct_assignment": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "schema",
+        "soul",
+        "skill_refs",
+        "runtime",
+        "direct_assignment"
+      ],
+      "additionalProperties": false
+    },
+    "identity": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 160,
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "avatar": {
+          "type": "string",
+          "maxLength": 180,
+          "minLength": 1,
+          "pattern": "\\S"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "avatar"
+      ],
+      "additionalProperties": false
+    },
+    "origin": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "enum": [
+            "authored",
+            "marketplace"
+          ]
+        },
+        "author_id": {
+          "type": "string",
+          "maxLength": 160,
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "listing_id": {
+          "type": "string",
+          "maxLength": 160,
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "listing_version": {
+          "type": "string",
+          "maxLength": 80,
+          "minLength": 1,
+          "pattern": "\\S"
+        }
+      },
+      "required": [
+        "kind",
+        "author_id"
+      ],
+      "additionalProperties": false
+    },
+    "work_unit": {
+      "type": "object",
+      "properties": {
+        "skill_key": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,79}$"
+        },
+        "revision_id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "work": {
+          "$ref": "#/$defs/work"
+        },
+        "tool_ids": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]{0,119}$"
+          },
+          "uniqueItems": true
+        },
+        "execution": {
+          "$ref": "#/$defs/execution"
+        },
+        "schema": {
+          "const": "runteams.work-unit/3"
+        }
+      },
+      "required": [
+        "schema",
+        "skill_key",
+        "revision_id",
+        "work",
+        "tool_ids",
+        "execution"
+      ],
+      "additionalProperties": false
+    },
+    "employee_release": {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "const": "runteams.employee-release/v4"
+        },
+        "employee": {
+          "$ref": "#/$defs/identity"
+        },
+        "soul": {
+          "type": "string",
+          "maxLength": 120000
+        },
+        "runtime": {
+          "$ref": "#/$defs/runtime_snapshot"
+        },
+        "skill_revisions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/skill_revision"
+          },
+          "minItems": 1,
+          "maxItems": 64
+        },
+        "work_units": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/work_unit"
+          },
+          "minItems": 1,
+          "maxItems": 64
+        },
+        "skill_key_map": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,79}$"
+          },
+          "additionalProperties": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,79}$"
+          }
+        },
+        "skill_bundles": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 64,
+          "items": {
+            "$ref": "#/$defs/portable_skill_bundle"
+          }
+        }
+      },
+      "required": [
+        "schema",
+        "employee",
+        "soul",
+        "runtime",
+        "skill_revisions",
+        "work_units",
+        "skill_key_map",
+        "skill_bundles"
+      ],
+      "additionalProperties": false
+    },
+    "employee_summary": {
+      "type": "object",
+      "properties": {
+        "source_mode": {
+          "enum": [
+            "definition",
+            "folder"
+          ]
+        },
+        "rental_status": {
+          "enum": [
+            "active",
+            "canceled",
+            "expired",
+            "unavailable",
+            "unknown"
+          ]
+        },
+        "schema": {
+          "const": "runteams.employee-summary/v2"
+        },
+        "origin": {
+          "$ref": "#/$defs/origin"
+        },
+        "has_unpublished_changes": {
+          "type": "boolean"
+        },
+        "skills": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "package_key": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]{0,79}$"
+              },
+              "revision_id": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "name": {
+                "type": "string",
+                "maxLength": 160,
+                "minLength": 1,
+                "pattern": "\\S"
+              },
+              "summary": {
+                "type": "string",
+                "maxLength": 1000,
+                "minLength": 1,
+                "pattern": "\\S"
+              },
+              "examples": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/work_example"
+                },
+                "maxItems": 6
+              },
+              "show_in_overview": {
+                "type": "boolean"
+              },
+              "assets": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/asset"
+                }
+              }
+            },
+            "required": [
+              "package_key",
+              "revision_id",
+              "name",
+              "summary"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "editable": {
+          "type": "boolean"
+        },
+        "id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 160,
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "avatar": {
+          "type": "string",
+          "maxLength": 180,
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "active_release": {
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "version": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "digest": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "created_at": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "id",
+                "version",
+                "digest",
+                "created_at"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "schema",
+        "origin",
+        "has_unpublished_changes",
+        "skills",
+        "editable",
+        "id",
+        "name",
+        "avatar",
+        "active_release"
+      ],
+      "additionalProperties": false
+    },
+    "employee_edit": {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "const": "runteams.employee-edit/v2"
+        },
+        "draft": {
+          "$ref": "#/$defs/employee_draft"
+        },
+        "draft_revision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 160,
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "avatar": {
+          "type": "string",
+          "maxLength": 180,
+          "minLength": 1,
+          "pattern": "\\S"
+        }
+      },
+      "required": [
+        "schema",
+        "draft",
+        "draft_revision",
+        "id",
+        "name",
+        "avatar"
+      ],
+      "additionalProperties": false
+    },
+    "object_ref": {
+      "type": "object",
+      "properties": {
+        "module_id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,79}$"
+        },
+        "object_type": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,79}$"
+        },
+        "object_id": {
+          "type": "string",
+          "maxLength": 300,
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "account_id": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "module_id",
+        "object_type",
+        "object_id",
+        "account_id"
+      ],
+      "additionalProperties": false
+    },
+    "page": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "next_cursor": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "has_more": {
+          "type": "boolean"
+        },
+        "total": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "items",
+        "next_cursor",
+        "has_more"
+      ],
+      "additionalProperties": false
+    },
+    "action_receipt": {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "const": "runteams.action-receipt/v1"
+        },
+        "operation_key": {
+          "type": "string",
+          "maxLength": 120,
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "status": {
+          "enum": [
+            "pending",
+            "confirmed",
+            "unknown",
+            "canceled",
+            "failed"
+          ]
+        },
+        "resource_ref": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/object_ref"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "error": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 4000
+        }
+      },
+      "required": [
+        "schema",
+        "operation_key",
+        "status",
+        "resource_ref",
+        "error"
+      ],
+      "additionalProperties": false
+    },
+    "task_payload": {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "const": "runteams.task-input/v2"
+        },
+        "skill_key": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,79}$"
+        },
+        "objective": {
+          "type": "string",
+          "maxLength": 8000,
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "parameters": {
+          "type": "object"
+        },
+        "context": {
+          "type": "object"
+        },
+        "inputs": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "module_bindings": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,79}$"
+          },
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "asset_bindings": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,79}$"
+          },
+          "additionalProperties": {
+            "type": "string",
+            "maxLength": 160,
+            "minLength": 1,
+            "pattern": "\\S"
+          }
+        }
+      },
+      "required": [
+        "schema",
+        "objective",
+        "parameters",
+        "context",
+        "inputs",
+        "module_bindings",
+        "asset_bindings"
+      ],
+      "additionalProperties": false
+    },
+    "work_order": {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "const": "runteams.work-order/v2"
+        },
+        "task_id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "workflow_run_id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "employee_run_id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "employee_release_id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "skill_key": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,79}$"
+        },
+        "skill_revision_id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "objective": {
+          "type": "string",
+          "maxLength": 8000,
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "parameters": {
+          "type": "object"
+        },
+        "context": {
+          "type": "object"
+        },
+        "inputs": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "module_bindings": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,79}$"
+          },
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "asset_bindings": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,79}$"
+          },
+          "additionalProperties": {
+            "type": "string",
+            "maxLength": 160,
+            "minLength": 1,
+            "pattern": "\\S"
+          }
+        },
+        "recovery": {
+          "type": [
+            "object",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "schema",
+        "task_id",
+        "workflow_run_id",
+        "employee_run_id",
+        "employee_release_id",
+        "skill_key",
+        "skill_revision_id",
+        "objective",
+        "parameters",
+        "context",
+        "inputs",
+        "module_bindings",
+        "asset_bindings",
+        "recovery"
+      ],
+      "additionalProperties": false
+    },
+    "portable_skill_ref": {
+      "type": "object",
+      "properties": {
+        "package_key": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,79}$"
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "package_key",
+        "digest"
+      ],
+      "additionalProperties": false
+    },
+    "portable_runtime": {
+      "type": "object",
+      "properties": {
+        "provider": {
+          "enum": [
+            "codex",
+            "claude-code"
+          ]
+        },
+        "model": {
+          "type": "string",
+          "maxLength": 160
+        },
+        "effort": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "time_limit_minutes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1440
+        }
+      },
+      "required": [
+        "provider",
+        "model",
+        "effort"
+      ],
+      "additionalProperties": false
+    },
+    "employee_configuration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "groups"
+      ],
+      "properties": {
+        "schema": {
+          "const": "runteams.employee-configuration/1"
+        },
+        "groups": {
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "key",
+              "label",
+              "fields"
+            ],
+            "properties": {
+              "key": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80,
+                "pattern": "\\S"
+              },
+              "fields": {
+                "type": "array",
+                "maxItems": 64,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "key",
+                    "type",
+                    "label"
+                  ],
+                  "properties": {
+                    "key": {
+                      "type": "string",
+                      "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+                    },
+                    "type": {
+                      "enum": [
+                        "text",
+                        "textarea",
+                        "number",
+                        "select",
+                        "multiselect",
+                        "checklist",
+                        "checkbox",
+                        "date",
+                        "secret",
+                        "resource",
+                        "connection",
+                        "runtime"
+                      ]
+                    },
+                    "label": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 120,
+                      "pattern": "\\S"
+                    },
+                    "note": {
+                      "type": "string",
+                      "maxLength": 500
+                    },
+                    "required": {
+                      "type": "boolean"
+                    },
+                    "default": {},
+                    "options": {
+                      "type": "array",
+                      "maxItems": 200,
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "value",
+                          "label"
+                        ],
+                        "properties": {
+                          "value": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 160
+                          },
+                          "label": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 160
+                          }
+                        }
+                      }
+                    },
+                    "unit": {
+                      "type": "string",
+                      "maxLength": 24
+                    },
+                    "constraints": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "min": {
+                          "type": "number"
+                        },
+                        "max": {
+                          "type": "number"
+                        },
+                        "step": {
+                          "type": "number",
+                          "exclusiveMinimum": 0
+                        },
+                        "min_length": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 20000
+                        },
+                        "max_length": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "maximum": 20000
+                        }
+                      }
+                    },
+                    "binding": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "provider",
+                        "key"
+                      ],
+                      "properties": {
+                        "provider": {
+                          "enum": [
+                            "local_asset",
+                            "sdk_resource",
+                            "sdk_connection",
+                            "native_credential",
+                            "runtime",
+                            "local_collection"
+                          ]
+                        },
+                        "key": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 160
+                        },
+                        "resource_kind": {
+                          "enum": [
+                            "file",
+                            "folder",
+                            "document",
+                            "collection"
+                          ]
+                        },
+                        "access": {
+                          "enum": [
+                            "read",
+                            "read_write"
+                          ]
+                        },
+                        "record_schema": {
+                          "type": "object"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "managed_resources": {
+          "type": "array",
+          "maxItems": 32,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "key",
+              "label",
+              "binding"
+            ],
+            "properties": {
+              "key": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_-]{0,63}$"
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120,
+                "pattern": "\\S"
+              },
+              "binding": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "provider",
+                  "key"
+                ],
+                "properties": {
+                  "provider": {
+                    "const": "local_collection"
+                  },
+                  "key": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160
+                  },
+                  "resource_kind": {
+                    "const": "collection"
+                  },
+                  "access": {
+                    "enum": [
+                      "read",
+                      "read_write"
+                    ]
+                  },
+                  "record_schema": {
+                    "type": "object"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "portable_employee": {
+      "type": "object",
+      "properties": {
+        "configuration": {
+          "$ref": "#/$defs/employee_configuration"
+        },
+        "name": {
+          "type": "string",
+          "maxLength": 160,
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "avatar": {
+          "type": "string",
+          "maxLength": 180,
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "soul": {
+          "type": "string",
+          "maxLength": 120000
+        },
+        "skill_refs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/portable_skill_ref"
+          },
+          "minItems": 1
+        },
+        "runtime_requirement": {
+          "$ref": "#/$defs/portable_runtime"
+        }
+      },
+      "required": [
+        "name",
+        "avatar",
+        "soul",
+        "skill_refs",
+        "runtime_requirement"
+      ],
+      "additionalProperties": false
+    },
+    "bundle_file": {
+      "type": "object",
+      "properties": {
+        "path": {
+          "type": "string",
+          "maxLength": 500,
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "size": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "content_base64": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "sha256",
+        "size",
+        "content_base64"
+      ],
+      "additionalProperties": false
+    },
+    "portable_skill_bundle": {
+      "type": "object",
+      "properties": {
+        "package_key": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,79}$"
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/bundle_file"
+          },
+          "minItems": 1,
+          "maxItems": 1024
+        }
+      },
+      "required": [
+        "package_key",
+        "digest",
+        "files"
+      ],
+      "additionalProperties": false
+    },
+    "marketplace_employee_asset": {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "const": "runteams.marketplace-employee/v2"
+        },
+        "employee": {
+          "$ref": "#/$defs/portable_employee"
+        },
+        "skill_bundles": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/portable_skill_bundle"
+          },
+          "minItems": 1,
+          "maxItems": 64
+        },
+        "avatar_file": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "sha256",
+            "content_base64"
+          ],
+          "properties": {
+            "sha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "content_base64": {
+              "type": "string",
+              "maxLength": 6990508
+            }
+          }
+        }
+      },
+      "required": [
+        "schema",
+        "employee",
+        "skill_bundles"
+      ],
+      "additionalProperties": false
+    },
+    "pipeline_employee_position": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,79}$"
+        },
+        "kind": {
+          "const": "employee"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "employee_id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "skill_key": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,79}$"
+        }
+      },
+      "required": [
+        "key",
+        "kind",
+        "name",
+        "employee_id",
+        "skill_key"
+      ],
+      "additionalProperties": false
+    },
+    "dispatch_contract": {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "const": "runteams.dispatch-contract/v2"
+        },
+        "employee_release_id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "skill_key": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,79}$"
+        },
+        "revision_id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "input_schema": {
+          "$ref": "#/$defs/json_schema"
+        },
+        "output_schema": {
+          "$ref": "#/$defs/json_schema"
+        },
+        "assets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/asset"
+          }
+        },
+        "deliverables": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/deliverable"
+          }
+        },
+        "acceptance_labels": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      },
+      "required": [
+        "schema",
+        "employee_release_id",
+        "skill_key",
+        "revision_id",
+        "name",
+        "summary",
+        "input_schema",
+        "output_schema",
+        "assets",
+        "deliverables",
+        "acceptance_labels"
+      ],
+      "additionalProperties": false
+    },
+    "work_example": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "pattern": "\\S"
+        },
+        "prompt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000,
+          "pattern": "\\S"
+        }
+      },
+      "required": [
+        "title",
+        "prompt"
+      ],
+      "additionalProperties": false
+    },
+    "skill_source": {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "const": "runteams.skill-source/v2"
+        },
+        "package_key": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,79}$"
+        },
+        "revision_id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "files": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/file"
+          },
+          "minItems": 1
+        },
+        "display_name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "description": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema",
+        "package_key",
+        "revision_id",
+        "digest",
+        "files",
+        "display_name",
+        "description"
+      ],
+      "additionalProperties": false
+    },
+    "workspace_profile": {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "const": "runteams.workspace-profile/v2"
+        },
+        "product_model_version": {
+          "const": 2
+        },
+        "data_epoch": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        },
+        "actor_scope": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "schema",
+        "product_model_version",
+        "data_epoch",
+        "actor_scope"
+      ],
+      "additionalProperties": false
+    },
+    "skill_revision_summary": {
+      "type": "object",
+      "properties": {
+        "schema": {
+          "const": "runteams.skill-revision-summary/v2"
+        },
+        "package_key": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,79}$"
+        },
+        "revision_id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "digest": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "display_name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024
+        },
+        "has_work": {
+          "type": "boolean"
+        },
+        "work": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "maxLength": 160,
+                  "minLength": 1,
+                  "pattern": "\\S"
+                },
+                "summary": {
+                  "type": "string",
+                  "maxLength": 1000,
+                  "minLength": 1,
+                  "pattern": "\\S"
+                },
+                "input_schema": {
+                  "$ref": "#/$defs/json_schema"
+                },
+                "output_schema": {
+                  "$ref": "#/$defs/json_schema"
+                },
+                "assets": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/asset"
+                  }
+                },
+                "deliverables": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/deliverable"
+                  }
+                },
+                "examples": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/$defs/work_example"
+                  },
+                  "maxItems": 6
+                },
+                "show_in_overview": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "name",
+                "summary",
+                "input_schema",
+                "output_schema",
+                "assets",
+                "deliverables",
+                "examples",
+                "show_in_overview"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        }
+      },
+      "required": [
+        "schema",
+        "package_key",
+        "revision_id",
+        "digest",
+        "display_name",
+        "description",
+        "has_work",
+        "work"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

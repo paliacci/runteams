@@ -1,0 +1,36 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import vm from 'node:vm';
+import {JSDOM} from 'jsdom';
+import {createServer} from 'vite';
+const checks=[];
+const c={window:{},console,Map,Set,JSON,Number,String,requestAnimationFrame(){}};vm.createContext(c);vm.runInContext(await fs.readFile('../../web/ui/reply-content.js','utf8'),c);
+const api=c.window.RunTeamsReplyContent;
+const data={version:1,type:'table',title:'候选',columns:[{key:'name',label:'名称'},{key:'category',label:'分类'},{key:'value',label:'分数',format:'number'}],rows:[{name:'甲',category:'效率',value:2},{name:'乙',category:'旅行',value:10},{name:'丙',category:'效率',value:80}]};
+const fence=value=>'```runteams-view\n'+JSON.stringify(value)+'\n```';
+assert.deepEqual(Array.from(api.split('前文\n'+fence(data)+'\n后文'),p=>p.type),['text','view','text']);
+assert.equal(api.split('```runteams-view\n{"version":',true)[0].type,'loading');
+assert.equal(api.split('```runteams-view\n{"version":',false)[0].type,'text');checks.push('Mixed text order; incomplete stream waits; interrupted payload remains readable.');
+for(const value of [{...data,type:'html'},{...data,rows:[{name:{html:'x'}}]},{...data,rows:Array(501).fill({name:'x'})},{...data,columns:[{key:'__proto__',label:'x'}]},{...data,rows:[{value:'10'}]},{...data,type:'chart',x:'name',metrics:['missing']},{...data,type:'explorer',category:'missing',threshold:'value'}])assert.equal(api.split(fence(value))[0].type,'text');
+assert.equal(api.split('````text\n'+fence(data)+'\n````')[0].type,'text');checks.push('Unsupported code, invalid/oversized/nested data and nested Markdown examples retain legacy code rendering.');
+assert(!api.markup(fence({...data,title:'<script>alert(1)</script>'}),{key:'a'},s=>s).includes('<script>'));assert(api.plainText(fence(data)).includes('名称\t分类\t分数'));assert(!api.plainText(fence(data)).includes('runteams-view'));checks.push('Titles escaped and message copy exports readable data, not protocol JSON.');
+const dom=new JSDOM('<!doctype html><div id="test-root"></div>',{url:'http://localhost/'});
+for(const name of ['window','document','HTMLElement','Element','Node','HTMLInputElement','Event','MouseEvent','SVGElement'])Object.defineProperty(globalThis,name,{configurable:true,value:dom.window[name]});
+Object.defineProperty(globalThis,'navigator',{configurable:true,value:dom.window.navigator});globalThis.IS_REACT_ACT_ENVIRONMENT=true;
+globalThis.requestAnimationFrame=fn=>setTimeout(fn,0);globalThis.ResizeObserver=class{observe(){}unobserve(){}disconnect(){}};
+const {createElement,act}=await import('react');const {createRoot}=await import('react-dom/client');const server=await createServer({server:{middlewareMode:true},appType:'custom'});const root=createRoot(document.getElementById('test-root'));
+const click=async node=>{assert(node);await act(async()=>node.click());};const button=text=>[...document.querySelectorAll('button')].find(n=>n.textContent.replace(' ↕','').replace(' ↑','').replace(' ↓','').trim()===text);
+try{
+ const {ReplyView}=await server.ssrLoadModule('/src/reply-content.jsx');
+ await act(async()=>root.render(createElement(ReplyView,{data})));
+ await click(button('分数'));assert.deepEqual([...document.querySelectorAll('tbody tr')].map(r=>r.cells[2].textContent),['80','10','2']);
+ await click(button('分数'));assert.deepEqual([...document.querySelectorAll('tbody tr')].map(r=>r.cells[2].textContent),['2','10','80']);
+ await click(button('乙'));assert(document.querySelector('.reply-record').textContent.includes('旅行'));await click(button('收起'));assert.equal(document.querySelector('.reply-record'),null);checks.push('Actual TanStack table sorts numbers numerically and opens/closes record detail.');
+ await act(async()=>root.render(createElement(ReplyView,{data:{...data,type:'explorer',category:'category',threshold:'value'}})));
+ await click(button('效率'));assert.equal(document.querySelectorAll('tbody tr').length,2);await click(button('重置'));assert.equal(document.querySelectorAll('tbody tr').length,3);checks.push('Actual explorer filters categories and resets without network or business writes.');
+ const malicious={...data,rows:[{name:'<img src=x onerror=alert(1)>',category:'x',value:1}]};
+ await act(async()=>root.render(createElement(ReplyView,{data:malicious})));
+ assert.equal(document.querySelector('img'),null);assert(document.body.textContent.includes('<img src=x'));checks.push('Rendered cells remain text even when supplied markup.');
+ await act(async()=>root.render(createElement(ReplyView,{data:{...data,rows:[]}})));assert(document.body.textContent.includes('没有符合条件'));checks.push('Empty table state is explicit.');
+ console.log(JSON.stringify({passed:checks.length,checks},null,2));
+}finally{await act(async()=>root.unmount());await server.close();dom.window.close();}

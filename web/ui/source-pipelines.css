@@ -1,0 +1,38 @@
+/* Shared board and conversation geometry come from the product styles. */
+.source-pipeline-workspace{background:var(--panel)}
+.source-pipeline-empty{margin:28px;color:var(--text-muted);font-size:13px}
+.source-pipeline-drawer .db{padding:20px;overflow:auto;min-height:0}
+.source-pipeline-drawer .input{width:100%;margin:6px 0 18px}
+.source-pipeline-drawer textarea.input{min-height:90px;resize:vertical}
+.source-pipeline-drawer .core-workflow-section p{font-size:13px;line-height:1.7;white-space:pre-wrap;overflow-wrap:anywhere;color:var(--sub)}
+.source-pipeline-mode,.source-pipeline-controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.body.source-pipeline-layout #rgPipelineHead .conversation-panel-header{background:transparent;width:100%;min-width:0}
+.body.source-pipeline-layout #rgPipelineHead .conversation-panel-heading{min-width:0;flex:1}
+.body.source-pipeline-layout #rgPipelineHead .conversation-panel-controls{display:flex;gap:2px;flex:0 0 auto}
+.body.source-pipeline-layout #rgPipelineHead .conversation-header-action{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 8px;white-space:nowrap}
+.body.source-pipeline-layout #rgPipelineHead .conversation-header-action .i{width:15px;height:15px}
+.body.source-pipeline-layout #rgPipelineHead .conversation-session-switcher{width:28px;padding:0;justify-content:center}
+@media(max-width:700px){.body.source-pipeline-layout #rgPipelineHead .conversation-panel-controls .conversation-header-action span{display:none}.body.source-pipeline-layout #rgPipelineHead .conversation-panel-name{max-width:35vw}.body.source-pipeline-layout #rgPipelineHead .employee-desk-now{max-width:70px}}
+
+.source-pipeline-settings-drawer .configuration-surface textarea.inp{min-height:100px;resize:vertical;width:100%}
+.source-pipeline-settings-drawer .configuration-surface .inp{width:100%;min-width:0}
+.source-pipeline-config-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid var(--line)}
+.source-pipeline-config-row span{min-width:0;display:grid;gap:4px}
+.source-pipeline-config-row small{color:var(--text-muted);overflow-wrap:anywhere}
+.source-pipeline-rule{padding:12px 0;border-bottom:1px solid var(--line)}
+.source-pipeline-settings-drawer .creator-history-popover{position:absolute;top:42px;right:12px;max-width:calc(100% - 24px);z-index:3}
+.source-pipeline-add-role{margin:16px 24px}
+
+.source-pipeline-links{border:0;margin:12px 0;padding:0;display:grid;gap:8px}
+.source-pipeline-links label{display:flex;gap:8px;align-items:center}
+/* A selected detail owns a narrow pipeline workspace. Hidden board rows must
+   leave the grid, otherwise their implicit row clips the shared form body. */
+@media(max-width:760px){
+ .body.source-pipeline-layout[data-detail-open="true"]{grid-template-rows:minmax(0,1fr)}
+ .body.source-pipeline-layout[data-detail-open="true"]>#rgRail,
+ .body.source-pipeline-layout[data-detail-open="true"]>#rgWorkspaceTabs,
+ .body.source-pipeline-layout[data-detail-open="true"]>#rgPipelineHead,
+ .body.source-pipeline-layout[data-detail-open="true"]>#rgMid,
+ .body.source-pipeline-layout[data-detail-open="true"]>#rgRailControls{display:none}
+ .body.source-pipeline-layout[data-detail-open="true"]>#rgDrawer{grid-column:3;grid-row:1;height:100%}
+}

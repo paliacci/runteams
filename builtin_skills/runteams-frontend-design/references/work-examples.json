@@ -1,0 +1,19 @@
+{
+  "normal": {
+    "parameters": {
+      "brief": "为库存目录实现搜索；搜不存在的SKU展示空结果和清空入口，768px可操作。"
+    },
+    "expected": "实页搜索、清空与键盘均可用；截图不是交互证据。"
+  },
+  "boundary": {
+    "parameters": {
+      "brief": ""
+    },
+    "expected": "资料不足时说明缺项，不伪造事实、产物或完成。"
+  },
+  "failure": {
+    "parameters": {},
+    "expected": "输入校验拒绝缺少必填参数。"
+  },
+  "verification": "这些是方法验收样例；是否实际执行须另有产物和核对记录。"
+}

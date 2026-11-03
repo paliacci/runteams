@@ -1,0 +1,12 @@
+/* Existing light surfaces: neutral edges and a clear information hierarchy.
+   All colors derive from shared roles; dark mode and content remain intact. */
+html[data-theme="light"] .home-hero:before{opacity:.55}
+html[data-theme="light"] .home-hero h1 em{color:color-mix(in srgb,var(--accent-default) 65%,var(--text-primary))}
+html[data-theme="light"] .home-search .rt-search-field{background:var(--surface);border-color:color-mix(in srgb,var(--overlay-scrim) 30%,var(--surface));box-shadow:0 1px 3px color-mix(in srgb,var(--overlay-scrim) 3%,transparent)}html[data-theme="light"] .home-search .rt-search-field:focus-within{outline:none;box-shadow:none}
+@media(min-width:768px){
+ html[data-theme="light"] .home-hero{padding-top:64px}
+ html[data-theme="light"] .site-home .home-hero h1{font-size:52px;line-height:72px}
+ html[data-theme="light"] .home-hero>.site-container>p{font-size:17px;line-height:30px}
+}
+
+html[data-theme="light"] .website:has(.site-home) .site-header{border-bottom-color:color-mix(in srgb,var(--text-primary) 10%,var(--surface))}

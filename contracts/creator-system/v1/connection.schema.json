@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schema": {
+      "const": "runteams.connection/1"
+    },
+    "key": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_.-]{0,79}$"
+    },
+    "origin": {
+      "type": "string",
+      "pattern": "^https://[A-Za-z0-9.-]+(?::443)?$",
+      "maxLength": 240
+    },
+    "oauth": {
+      "type": "object",
+      "properties": {
+        "authorization_endpoint": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "token_endpoint": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "flow": {
+          "const": "authorization_code_pkce"
+        },
+        "scopes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 240
+          },
+          "maxItems": 16,
+          "uniqueItems": true
+        },
+        "client_binding": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_.-]{0,79}$"
+        }
+      },
+      "required": [
+        "authorization_endpoint",
+        "token_endpoint",
+        "flow",
+        "scopes",
+        "client_binding"
+      ],
+      "additionalProperties": false
+    },
+    "endpoints": {
+      "type": "object",
+      "minProperties": 1,
+      "maxProperties": 64,
+      "propertyNames": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_.-]{0,79}$"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "method": {
+            "enum": [
+              "GET",
+              "POST",
+              "PUT",
+              "PATCH",
+              "DELETE"
+            ]
+          },
+          "path": {
+            "type": "string",
+            "pattern": "^/[A-Za-z0-9_/{}/.-]+$",
+            "maxLength": 400
+          },
+          "effect": {
+            "enum": [
+              "read",
+              "write"
+            ]
+          },
+          "input": {
+            "type": "object"
+          },
+          "output": {
+            "type": "object"
+          },
+          "query": {
+            "type": "object",
+            "maxProperties": 16,
+            "additionalProperties": {
+              "type": "object"
+            }
+          }
+        },
+        "required": [
+          "method",
+          "path",
+          "effect",
+          "input",
+          "output",
+          "query"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "schema",
+    "key",
+    "origin",
+    "oauth",
+    "endpoints"
+  ],
+  "additionalProperties": false
+}

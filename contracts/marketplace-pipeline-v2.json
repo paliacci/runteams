@@ -1,0 +1,517 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:runteams:marketplace-pipeline:v2",
+  "title": "Immutable portable marketplace pipeline v2",
+  "$defs": {
+    "employee_position": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,79}$"
+        },
+        "kind": {
+          "const": "employee"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160,
+          "pattern": "\\S"
+        },
+        "employee_ref": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,79}$"
+        },
+        "skill_key": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,79}$"
+        },
+        "color": {
+          "enum": [
+            "gray",
+            "brown",
+            "orange",
+            "yellow",
+            "green",
+            "blue",
+            "purple",
+            "pink",
+            "red"
+          ]
+        }
+      },
+      "required": [
+        "key",
+        "kind",
+        "name",
+        "employee_ref",
+        "skill_key"
+      ],
+      "additionalProperties": false
+    },
+    "approval_position": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,79}$"
+        },
+        "kind": {
+          "const": "approval"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160,
+          "pattern": "\\S"
+        },
+        "prompt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000,
+          "pattern": "\\S"
+        },
+        "color": {
+          "enum": [
+            "gray",
+            "brown",
+            "orange",
+            "yellow",
+            "green",
+            "blue",
+            "purple",
+            "pink",
+            "red"
+          ]
+        }
+      },
+      "required": [
+        "key",
+        "kind",
+        "name"
+      ],
+      "additionalProperties": false
+    },
+    "state": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,79}$"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160,
+          "pattern": "\\S"
+        },
+        "kind": {
+          "enum": [
+            "pool",
+            "done",
+            "dropped"
+          ]
+        },
+        "color": {
+          "enum": [
+            "gray",
+            "brown",
+            "orange",
+            "yellow",
+            "green",
+            "blue",
+            "purple",
+            "pink",
+            "red"
+          ]
+        }
+      },
+      "required": [
+        "key",
+        "name",
+        "kind"
+      ],
+      "additionalProperties": false
+    },
+    "edge": {
+      "type": "object",
+      "properties": {
+        "from": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,79}$"
+        },
+        "to": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,79}$"
+        },
+        "when": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120,
+          "pattern": "\\S"
+        }
+      },
+      "required": [
+        "from",
+        "to"
+      ],
+      "additionalProperties": false
+    },
+    "parameter": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120,
+          "pattern": "\\S"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160,
+          "pattern": "\\S"
+        },
+        "type": {
+          "enum": [
+            "text",
+            "textarea",
+            "number",
+            "select",
+            "multiselect",
+            "checklist",
+            "checkbox",
+            "date",
+            "secret"
+          ]
+        },
+        "source": {
+          "enum": [
+            "user",
+            "employee"
+          ]
+        },
+        "display": {
+          "enum": [
+            "input",
+            "handoff",
+            "reference",
+            "output",
+            "setup"
+          ]
+        },
+        "note": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000,
+          "pattern": "\\S"
+        },
+        "options": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160,
+            "pattern": "\\S"
+          },
+          "uniqueItems": true
+        },
+        "default": {
+          "type": [
+            "string",
+            "number",
+            "boolean",
+            "array"
+          ],
+          "items": {
+            "type": [
+              "string",
+              "number",
+              "boolean"
+            ]
+          }
+        },
+        "writers": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,79}$"
+          },
+          "uniqueItems": true,
+          "maxItems": 64
+        },
+        "visible_to": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,79}$"
+          },
+          "uniqueItems": true,
+          "maxItems": 64
+        },
+        "producers": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,79}$"
+          },
+          "uniqueItems": true,
+          "maxItems": 64
+        }
+      },
+      "required": [
+        "key",
+        "label",
+        "type",
+        "source",
+        "display"
+      ],
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "secret"
+              }
+            }
+          },
+          "then": {
+            "not": {
+              "required": [
+                "default"
+              ]
+            },
+            "properties": {
+              "display": {
+                "const": "setup"
+              },
+              "key": {
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,119}$",
+                "not": {
+                  "enum": [
+                    "OPENAI_API_KEY",
+                    "ANTHROPIC_API_KEY",
+                    "CODEX_ACCESS_TOKEN"
+                  ]
+                }
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "key": {
+                "pattern": "^[a-z][a-z0-9_-]{0,79}$"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "standard": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,79}$"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160,
+          "pattern": "\\S"
+        },
+        "instructions": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 12000,
+          "pattern": "\\S"
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000,
+          "pattern": "\\S"
+        },
+        "employee_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,79}$"
+          },
+          "uniqueItems": true,
+          "maxItems": 64
+        }
+      },
+      "required": [
+        "key",
+        "name",
+        "instructions"
+      ],
+      "additionalProperties": false
+    },
+    "pipeline": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160,
+          "pattern": "\\S"
+        },
+        "positions": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              {
+                "$ref": "#/$defs/employee_position"
+              },
+              {
+                "$ref": "#/$defs/approval_position"
+              }
+            ]
+          },
+          "minItems": 1,
+          "maxItems": 64
+        },
+        "edges": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/edge"
+          },
+          "maxItems": 256
+        },
+        "states": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/state"
+          },
+          "maxItems": 64
+        },
+        "parameters": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/parameter"
+          },
+          "maxItems": 40
+        },
+        "standards": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/standard"
+          },
+          "maxItems": 100
+        }
+      },
+      "required": [
+        "name",
+        "positions",
+        "edges"
+      ],
+      "additionalProperties": false
+    },
+    "pipeline_program_source": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,79}$"
+        },
+        "source": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240
+        }
+      },
+      "required": [
+        "key",
+        "source"
+      ],
+      "additionalProperties": false
+    },
+    "pipeline_program_bundle": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,79}$"
+        },
+        "source": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "size": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 33554432
+        },
+        "content_base64": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 44739244
+        }
+      },
+      "required": [
+        "key",
+        "source",
+        "sha256",
+        "size",
+        "content_base64"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "type": "object",
+  "properties": {
+    "schema": {
+      "const": "runteams.marketplace-pipeline/v2"
+    },
+    "pipeline": {
+      "$ref": "#/$defs/pipeline"
+    },
+    "employees": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "ref": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{0,79}$"
+          },
+          "asset": {
+            "$ref": "urn:runteams:product-model:v2#/$defs/marketplace_employee_asset"
+          }
+        },
+        "required": [
+          "ref",
+          "asset"
+        ],
+        "additionalProperties": false
+      },
+      "minItems": 1,
+      "maxItems": 64
+    },
+    "program_bundles": {
+      "type": "array",
+      "maxItems": 64,
+      "items": {
+        "$ref": "#/$defs/pipeline_program_bundle"
+      }
+    },
+    "configuration": {
+      "$ref": "urn:runteams:product-model:v2#/$defs/employee_configuration"
+    }
+  },
+  "required": [
+    "schema",
+    "pipeline",
+    "employees"
+  ],
+  "additionalProperties": false
+}

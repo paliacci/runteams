@@ -1,0 +1,26 @@
+/* Foundation labels only; existing page copy is intentionally not translated. */
+globalThis.RUNTEAMS_LOCALES.en = {
+ 'language.title': 'Language',
+ 'language.interface': 'Interface language',
+ 'language.chinese': '简体中文',
+ 'language.english': 'English',
+ 'language.fallback': 'Screens without an English version will use Chinese.',
+ 'language.saveFailed': 'Language changed, but it could not be saved on this computer.',
+  "general.title": "General",
+  "general.interaction": "Input and interaction",
+  "general.send_mode": "Send messages with",
+  "general.enter": "Enter to send",
+  "general.metaEnter": "⌘Enter to send",
+  "general.allow_supplement": "Allow follow-up instructions while running",
+  "general.supplementHint": "When off, new messages are queued and sent in order after the current reply finishes.",
+  "general.runtime": "Startup and execution",
+  "general.launch_at_login": "Launch at login",
+  "general.restore_windows": "Restore previous tabs on startup",
+  "general.prevent_sleep": "Prevent automatic sleep while tasks are running",
+  "general.close_action": "When closing the window",
+  "general.background": "Keep running in the background",
+  "general.quit": "Quit the app",
+  "general.quitHint": "Execution on this computer stops when the app quits or the computer sleeps.",
+  "general.deviceOnly": "Saved on this computer only",
+  "general.desktopOnly": "Available in the desktop app."
+};

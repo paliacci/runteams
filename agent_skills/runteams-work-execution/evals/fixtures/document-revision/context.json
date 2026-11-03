@@ -1,0 +1,25 @@
+{
+  "scope": "isolated-evaluation-only",
+  "request": "沿用上次的整理条件处理批次 B，并把原说明中的汇总数字和适用范围更新；其他段落保持。",
+  "selected_function": {
+    "name": "整理表格",
+    "parameters": {"batch": "A", "dedupe_by": ["reference"], "preview_rows": 5},
+    "available": true,
+    "agent_callable": true
+  },
+  "capabilities": {
+    "prepare_batch": {"required": ["batch", "dedupe_by", "preview_rows"]},
+    "list_documents": {"read_only": true},
+    "read_document": {"read_only": true},
+    "save_document": {"operations": ["create", "update"]},
+    "employee_source_edit": false
+  },
+  "document": {
+    "id": "isolated-doc-17",
+    "revision": 3,
+    "internal_link": "/isolated-eval/docs/17",
+    "content": "范围：批次 A。汇总：共 10 行，去重后 8 行。\n\n规则：reference 相同视为重复，保留先到记录。\n\n限制：只处理本次提供的文件。"
+  },
+  "batch_result": {"batch": "B", "input_rows": 14, "output_rows": 11, "status": "completed"},
+  "document_save_receipt": {"state": "unknown", "operation_id": "isolated-save-29"}
+}
