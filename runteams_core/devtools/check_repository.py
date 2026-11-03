@@ -24,6 +24,17 @@ def check(root, namespace):
     names = [name for name in names if name]
     tracked = set(names)
     findings = []
+    domains = None
+    if namespace == 'runteams_core':
+        policy = root / 'tooling/core-domains.json'
+        if 'tooling/core-domains.json' not in tracked or not policy.is_file():
+            findings.append({'path': 'tooling/core-domains.json', 'reason': 'missing core domain ownership policy'})
+        else:
+            domains = json.loads(policy.read_text())
+            if domains.get('schema') != 'runteams.core-domains/1':
+                raise ValueError('Invalid core domain ownership policy')
+        if 'docs/core-domains.md' not in tracked:
+            findings.append({'path': 'docs/core-domains.md', 'reason': 'missing core domain navigation'})
     folded = {}
     for name in names:
         relative = Path(name)
@@ -33,6 +44,13 @@ def check(root, namespace):
             continue
         if namespace == 'runteams_core' and len(relative.parts) == 1 and relative.suffix == '.py' and relative.name != 'setup.py':
             findings.append({'path': name, 'reason': 'business Python source belongs in its package'})
+        if domains and relative.parts[0] == 'runteams_core':
+            if len(relative.parts) == 2 and relative.name not in domains['root_files']:
+                findings.append({'path': name, 'reason': 'core source belongs in its business domain'})
+            elif len(relative.parts) > 2:
+                owner = '/'.join(relative.parts[1:-1])
+                if owner not in domains['packages'] and owner not in domains['subpackages']:
+                    findings.append({'path': name, 'reason': 'undeclared core domain', 'owner': owner})
         if (set(relative.parts) & GENERATED or relative.parts[0] in {'build', 'dist', 'design'}
                 or any(part.endswith(('.egg-info', '.app')) for part in relative.parts)
                 or relative.suffix in PRIVATE_SUFFIXES
@@ -50,8 +68,11 @@ def check(root, namespace):
     for name in REQUIRED:
         if name not in tracked:
             findings.append({'path': name, 'reason': 'missing project documentation or contributor entry'})
-    for name in ['README.md', 'CONTRIBUTING.md', 'SECURITY.md', 'CHANGELOG.md',
-                 'docs/architecture.md', 'docs/development.md', 'docs/releasing.md']:
+    documents = ['README.md', 'CONTRIBUTING.md', 'SECURITY.md', 'CHANGELOG.md',
+                 'docs/architecture.md', 'docs/development.md', 'docs/releasing.md']
+    if namespace == 'runteams_core':
+        documents.append('docs/core-domains.md')
+    for name in documents:
         path = root / name
         if not path.is_file():
             continue

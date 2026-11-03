@@ -12,7 +12,7 @@ import sys
 
 ROOT=source_root()
 sys.path.insert(0,str(ROOT))
-from runteams_core.local_web import OFFICIAL_ASSETS
+from runteams_core.application.http.local_web import OFFICIAL_ASSETS
 
 
 def expected():
@@ -34,7 +34,7 @@ def expected():
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--check',action='store_true');args=parser.parse_args()
-    target=ROOT/'runteams_core/community_web_assets.json';contract=ROOT/'contracts/community-build.json'
+    target=ROOT/'runteams_core/application/http/community_web_assets.json';contract=ROOT/'contracts/community-build.json'
     assets=expected();sources=list(dict.fromkeys(row[0] for row in assets.values()));state=json.loads(contract.read_text())
     if args.check:
         if json.loads(target.read_text())!=assets or state['runtime_assets']!=sources:parser.exit(2,'Shared UI asset register changed; run this script before building.\n')

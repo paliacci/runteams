@@ -73,7 +73,7 @@ def load_contract(root=ROOT):
         if not isinstance(names,list) or any(not isinstance(n,str) for n in names) or len(set(names))!=len(names):
             raise ValueError('Invalid or duplicate community input group: '+group)
         for name in names:valid_path(root,name)
-    if value.get('entrypoint')!='runteams_core.community' or 'runteams_core/community.py' not in value['runtime_sources']:
+    if value.get('entrypoint')!='runteams_core.application.community' or 'runteams_core/application/community.py' not in value['runtime_sources']:
         raise ValueError('Community must declare its direct source entry')
     if value.get('native_build_entrypoint')!='desktop/community/build.py' or CONTRACT not in value['build_sources']:
         raise ValueError('Community must declare its direct standalone build entry and contract')
@@ -123,7 +123,7 @@ def python_edges(root,name,known=None):
 
 def worker_entrypoints(root, selected):
     """Audit the canonical subprocess registry as well as Python imports."""
-    registry='runteams_core/creator_worker_process.py'
+    registry='runteams_core/authoring/workers/creator_worker_process.py'
     if registry not in selected:return []
     module=ast.parse((Path(root)/registry).read_text())
     entries=[n for n in module.body if isinstance(n,ast.Assign) and any(
@@ -134,7 +134,7 @@ def worker_entrypoints(root, selected):
     result=[]
     for kind,name in sorted(values.items()):
         if (not isinstance(kind,str) or not re.fullmatch('[a-z]+',kind) or
-                not isinstance(name,str) or not re.fullmatch(r'[a-z_]+\.py',name)):
+                not isinstance(name,str) or not re.fullmatch(r'(?:[a-z_]+/)*[a-z_]+\.py',name)):
             raise ValueError('Invalid creator worker entry')
         target='runteams_core/'+name
         result.append({'kind':kind,'path':target,'included':target in selected})

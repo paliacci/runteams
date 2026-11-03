@@ -4,7 +4,7 @@ from pathlib import Path
 import re
 import shutil
 
-from runteams_core.creator_contracts import canonical, relative, strict_json
+from runteams_core.authoring.creator_contracts import canonical, relative, strict_json
 from .file_copy import copy_new
 
 

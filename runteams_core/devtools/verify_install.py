@@ -25,10 +25,23 @@ def main():
     with tempfile.TemporaryDirectory(prefix='runteams-community-install-') as directory:
         environment['HOME'] = directory
         subprocess.run([args.python, '-I', '-B', '-c',
-            "from pathlib import Path;from runteams_core import local_database; import os;p=Path(local_database.DB_PATH);assert p.is_relative_to(Path(os.environ['HOME']))"],
+            "from pathlib import Path;from runteams_core.storage import local_database; import os;p=Path(local_database.DB_PATH);assert p.is_relative_to(Path(os.environ['HOME']))"],
             cwd=directory, env=environment, check=True)
+        package_data_probe = '''import hashlib,json
+from pathlib import Path
+import runteams_core
+package=Path(runteams_core.__file__).parent
+identity=json.loads((package/'package_identity.json').read_text())
+for name in ('runteams_core/employees/mcp/native_connection_host.cjs',
+             'runteams_core/application/http/community_web_assets.json'):
+    source=package.parent/name
+    assert source.is_file(),name
+    assert hashlib.sha256(source.read_bytes()).hexdigest()==identity['inputs'][name],name
+'''
+        subprocess.run([args.python, '-I', '-B', '-c', package_data_probe],
+                       cwd=directory, env=environment, check=True)
         with tempfile.TemporaryFile(mode='w+') as errors:
-            process = subprocess.Popen([args.python, '-I', '-B', '-m', 'runteams_core.community',
+            process = subprocess.Popen([args.python, '-I', '-B', '-m', 'runteams_core.application.community',
                 '--port', '0', '--data-dir', str(Path(directory) / 'library'), '--owner-stdin'],
                 cwd=directory, env=environment, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                 stderr=errors, text=True)
@@ -46,7 +59,7 @@ def main():
                             assert b'<html' in body and b'/official-ui/' not in body
                         results[path] = {'status': response.status, 'bytes': len(body)}
                 subprocess.run([args.python, '-I', '-B', '-c',
-                    'import runteams_core.local_work_core, runteams_core.automation_scheduler, runteams_creator_dev.cli'],
+                    'import runteams_core.application.local_work_core, runteams_core.automation.automation_scheduler, runteams_creator_dev.cli'],
                     cwd=directory, env=environment, check=True)
                 print(json.dumps(results))
             finally:

@@ -18,6 +18,8 @@ npm ci --prefix tooling/js --ignore-scripts --no-audit --no-fund
 .venv/bin/python -B -m runteams_core.devtools.check_repository --root . --namespace runteams_core
 ```
 
+核心业务目录见[模块索引](core-domains.md)，新目录须在 `tooling/core-domains.json` 登记。
+
 仓库检查读取 Git 跟踪文件；新增、移动或删除源码后，先暂存拟提交文件。它检查生成物／私密文件、个人机器路径、目录大小写冲突、文档导航与工具清单。
 
 修改工具后重新生成清单：

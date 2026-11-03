@@ -3,7 +3,7 @@ from pathlib import Path
 import tempfile
 import unittest
 from PIL import Image
-from runteams_core import chat_attachments
+from runteams_core.conversations import chat_attachments
 
 
 class PDFAttachments(unittest.TestCase):

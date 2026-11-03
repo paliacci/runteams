@@ -10,9 +10,9 @@ import shutil
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from runteams_core.content_hashes import sha256 as sha
-from runteams_core.creator_contracts import canonical
-from runteams_core.creator_build_tools import load
+from runteams_core.foundation.content_hashes import sha256 as sha
+from runteams_core.authoring.creator_contracts import canonical
+from runteams_core.authoring.compilation.creator_build_tools import load
 
 
 def package(output, tools):

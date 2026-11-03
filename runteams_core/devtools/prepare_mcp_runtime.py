@@ -14,9 +14,9 @@ import sys
 
 ROOT = source_root()
 sys.path.insert(0, str(ROOT))
-from runteams_core.creator_contracts import canonical
-from runteams_core.employee_mcp_package import sha256
-from runteams_core.employee_mcp import ManagedMCPRuntime
+from runteams_core.authoring.creator_contracts import canonical
+from runteams_core.employees.mcp.employee_mcp_package import sha256
+from runteams_core.employees.mcp.employee_mcp import ManagedMCPRuntime
 
 
 def prepare(node, host, output, *, node_license=None):

@@ -1,7 +1,7 @@
 """Editable Node/MCP Apps starter, explicitly a development example."""
 from pathlib import Path
-from runteams_core.creator_contracts import canonical
-from runteams_core.employee_mcp_package import sha256
+from runteams_core.authoring.creator_contracts import canonical
+from runteams_core.employees.mcp.employee_mcp_package import sha256
 
 
 def make(key,name,libraries):

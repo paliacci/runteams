@@ -86,7 +86,7 @@ class Signer:
 
 def seal_runtime(root):
     """Reseal our verified staging copy after signing; upstream lock is unchanged."""
-    from runteams_core.agent_environment import payload_files, verify_runtime
+    from runteams_core.agents.environment.agent_environment import payload_files, verify_runtime
     root=Path(root);manifest=json.loads((root/'runtime.json').read_bytes())
     manifest['files']=payload_files(root)
     raw=json.dumps(manifest,sort_keys=True,separators=(',',':')).encode()
@@ -96,7 +96,7 @@ def seal_runtime(root):
 
 
 def sign_runtime(root,signer):
-    from runteams_core.agent_environment import verify_runtime
+    from runteams_core.agents.environment.agent_environment import verify_runtime
     verify_runtime(root)
     for path in sorted(Path(root).rglob('*')):
         if macho(path):signer.sign(path,executable=executable_macho(path))

@@ -21,3 +21,5 @@ Neither check is authorization to run real models, employee work or deployments.
 Repository layout and maintenance rules are in docs/architecture.md and docs/development.md. Run the tracked-file hygiene check before committing; keep experiment logs, local profiles and one-time repair scripts outside Git. Generated static UI resources and deterministic test inputs remain maintained source artifacts.
 
 All runtime Python modules belong under runteams_core; use qualified package imports. requirements/ owns dependency lists and docs/legal/ owns explanatory licensing and inventories. The root contains project/build metadata, not business modules.
+
+Core domains are documented in docs/core-domains.md and declared in tooling/core-domains.json. The package root owns only its public types. Import implementations from their actual business packages; do not add module re-exports, sys.modules aliases or root-level business files. Update worker/compilation source paths and manifests when moving code.

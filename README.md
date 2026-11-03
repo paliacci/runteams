@@ -22,6 +22,7 @@ macOS ARM64 自包含安装包携带 Python 和运行依赖，最低系统 macOS
 
 | 入口 | 内容 |
 | --- | --- |
+| [核心业务模块](docs/core-domains.md) | 应用、对话、文档、员工、流水线、资产与执行的代码归属 |
 | [架构与目录](docs/architecture.md) | 模块归属、源码与生成资源的边界 |
 | [开发指南](docs/development.md) | 环境、检查、SDK 开发包 |
 | [桌面构建与发布](docs/releasing.md) | 自包含构建、签名和发行范围 |

@@ -5,10 +5,9 @@ from pathlib import Path
 import stat
 import sys
 
-from runteams_core.content_hashes import sha256 as sha
-from runteams_core.creator_contracts import (MAX_BYTES, MAX_FILES, CreatorContractError,
-    canonical, compile_source, relative, source_files, strict_json, tree)
-from runteams_core.creator_definitions import definition_artifacts
+from runteams_core.foundation.content_hashes import sha256 as sha
+from runteams_core.authoring.creator_contracts import MAX_BYTES, MAX_FILES, CreatorContractError, canonical, compile_source, relative, source_files, strict_json, tree
+from runteams_core.authoring.creator_definitions import definition_artifacts
 from . import VERSION
 from .archive import inspect_file, pack
 
@@ -41,7 +40,7 @@ def read_source(folder):
 
 
 def check(files):
-    from runteams_core.creator_source_import import validate_source
+    from runteams_core.authoring.source.creator_source_import import validate_source
     return validate_source(files)
 
 
@@ -49,7 +48,7 @@ def toolchain(path):
     path = Path(path).resolve()
     config = strict_json(path.read_bytes())
     if config.get('schema')=='runteams.dev-toolchain/2':
-        from runteams_core.employee_mcp import ManagedMCPRuntime
+        from runteams_core.employees.mcp.employee_mcp import ManagedMCPRuntime
         value=config['runtime'];root=path.parent/relative(value['path'])
         runtime=ManagedMCPRuntime(root,value['manifest_sha256']);runtime.verify()
         entry=config['esbuild'];parser=path.parent/relative(entry['path'])
@@ -60,10 +59,10 @@ def toolchain(path):
 
 def build(files, configuration):
     check(files)
-    from runteams_core.creator_mcp_source import mcp_project
+    from runteams_core.authoring.compilation.creator_mcp_source import mcp_project
     if mcp_project(files):
-        from runteams_core.creator_mcp_build import MCPSourceBuilder
-        from runteams_core.creator_mcp_preview import MCPPreview
+        from runteams_core.authoring.compilation.creator_mcp_build import MCPSourceBuilder
+        from runteams_core.authoring.creator_mcp_preview import MCPPreview
         config,paths=toolchain(configuration)
         if config['schema']!='runteams.dev-toolchain/2':raise ValueError('mcp_toolchain_required')
         built=MCPSourceBuilder(paths['runtime'],esbuild=paths['esbuild'],esbuild_sha256=config['esbuild']['sha256']).build(files);built['files']=files

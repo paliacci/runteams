@@ -14,16 +14,16 @@ import sys
 
 ROOT = source_root()
 sys.path.insert(0, str(ROOT))
-from runteams_core.creator_contracts import canonical
-from runteams_core.creator_definitions import author_schema
+from runteams_core.authoring.creator_contracts import canonical
+from runteams_core.authoring.creator_definitions import author_schema
 from runteams_creator_dev.scaffold import inventory
 
 from runteams_core.devtools.python_sources import developer_sources
 
 
 def export_mcp(output,runtime_root,libraries,esbuild):
-    from runteams_core.employee_mcp import ManagedMCPRuntime
-    from runteams_core.creator_contracts import strict_json
+    from runteams_core.employees.mcp.employee_mcp import ManagedMCPRuntime
+    from runteams_core.authoring.creator_contracts import strict_json
     from runteams_creator_dev.mcp_template import make,scenarios as mcp_cases
     from runteams_creator_dev.file_copy import copy_new
     output=Path(output).absolute();runtime_root=Path(runtime_root).absolute();libraries=Path(libraries).absolute()

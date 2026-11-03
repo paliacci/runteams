@@ -22,7 +22,7 @@ dependencies = [
 ]
 
 [project.scripts]
-runteams-community = "runteams_core.community:main"
+runteams-community = "runteams_core.application.community:main"
 
 [tool.setuptools]
 py-modules = []
@@ -32,4 +32,4 @@ include-package-data = true
 include = ["runteams_core*", "runteams_creator_dev*"]
 
 [tool.setuptools.package-data]
-"*" = ["*.json", "*.js", "*.css", "*.html", "*.svg", "*.mjs", "*.sh", "*.ts", "*.md"]
+"*" = ["*.json", "*.js", "*.cjs", "*.css", "*.html", "*.svg", "*.mjs", "*.sh", "*.ts", "*.md"]

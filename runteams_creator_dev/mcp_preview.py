@@ -36,7 +36,7 @@ def serve(preview,port=0,*,ready=None):
                         self.headers.get('Content-Type')!='application/json' or self.headers.get('Transfer-Encoding')):raise PermissionError()
                 length=int(self.headers.get('Content-Length','0'))
                 if not 1<=length<=16384:raise ValueError()
-                from runteams_core.creator_contracts import strict_json
+                from runteams_core.authoring.creator_contracts import strict_json
                 value=strict_json(self.rfile.read(length))
                 if set(value)!={'method','params'} or not isinstance(value['params'],dict):raise ValueError()
                 result=preview.message(value['method'],value['params']);status=200

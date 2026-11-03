@@ -7,8 +7,8 @@ import hashlib
 import shutil
 from pathlib import Path
 
-from runteams_core.creator_build_tools import load
-from runteams_core.creator_contracts import canonical, strict_json
+from runteams_core.authoring.compilation.creator_build_tools import load
+from runteams_core.authoring.creator_contracts import canonical, strict_json
 from runteams_core.devtools.package_creator_builder import package as package_builder
 from runteams_core.devtools.package_mcp_runtime import verify as verify_mcp
 

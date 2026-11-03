@@ -49,13 +49,13 @@ struct CommunityBootstrap: Decodable {
             if info.isRegularFile == true || info.isSymbolicLink == true { actual.insert(relative) }
         }
         guard expected == actual,
-              expected.contains("core/runteams_core/community.py"),
+              expected.contains("core/runteams_core/application/community.py"),
               expected.contains("core/contracts/agent-python.lock.json"),
               expected.contains("python-packages/jsonschema/__init__.py") else { throw Failure.damaged }
         return value
     }
     enum Failure: Error { case invalid, damaged }
-    static let pythonEntry = "import sys;sys.path.insert(0,sys.argv.pop(1));sys.path.append(sys.argv.pop(1));from runteams_core.community import main;main(sys.argv[1:])"
+    static let pythonEntry = "import sys;sys.path.insert(0,sys.argv.pop(1));sys.path.append(sys.argv.pop(1));from runteams_core.application.community import main;main(sys.argv[1:])"
 }
 
 struct CommunityArguments {

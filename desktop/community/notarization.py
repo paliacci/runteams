@@ -20,7 +20,7 @@ def sha(path):return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
 def save(path,value):
-    from runteams_core.backup_files import replace_json
+    from runteams_core.storage.backups.backup_files import replace_json
     path=Path(path);path.parent.mkdir(parents=True,exist_ok=True)
     replace_json(path,value)
 
@@ -166,7 +166,7 @@ class Workflow:
         return self.report()
 
     def publish(self,stapled):
-        from runteams_core.backup_files import sync_directory
+        from runteams_core.storage.backups.backup_files import sync_directory
         expected=self.value['dmg_sha256']
         if self.dmg.exists():
             if sha(self.dmg)!=expected:raise ValueError('Final DMG destination contains different bytes; no overwrite')

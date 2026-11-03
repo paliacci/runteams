@@ -23,7 +23,7 @@ from urllib.request import Request, urlopen
 
 ROOT = source_root()
 sys.path.insert(0, str(ROOT))
-from runteams_core import agent_environment
+from runteams_core.agents.environment import agent_environment
 
 LOCK = ROOT / 'contracts/agent-python.lock.json'
 MODULES = ('tomllib', 'json', 'pathlib', 'sqlite3', 'ssl', 'venv', 'ensurepip', 'pip')

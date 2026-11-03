@@ -27,7 +27,12 @@ class Build(build_py):
         super().run()
         target = Path(self.build_lib) / 'runteams_core'
         assets = resource_inputs()
-        code = list(ROOT.glob('*.py')) + list((ROOT / 'runteams_core').rglob('*.py')) + [p for p in (ROOT / 'runteams_creator_dev').rglob('*') if p.is_file()]
+        code = list(ROOT.glob('*.py'))
+        package_suffixes = {'.py', '.json', '.js', '.cjs', '.mjs', '.css', '.html', '.svg', '.sh', '.ts', '.md', '.txt'}
+        for package in ('runteams_core', 'runteams_creator_dev'):
+            code.extend(p for p in (ROOT / package).rglob('*')
+                        if p.is_file() and p.suffix in package_suffixes
+                        and p.name != 'package_identity.json' and '_resources' not in p.relative_to(ROOT).parts)
         for folder in ('desktop', 'tooling', '.github/workflows'):
             code.extend(p for p in (ROOT / folder).rglob('*') if p.is_file() and not any(x in EXCLUDED for x in p.relative_to(ROOT).parts))
         files = sorted(set(assets + code + [ROOT / name for name in ('pyproject.toml','requirements/runtime.txt','requirements/build.txt','README.md','LICENSE','docs/legal/LICENSING.md','docs/legal/THIRD_PARTY_DOCUMENTS.md','docs/legal/THIRD_PARTY_INVENTORY.json','CONTRIBUTING.md','SECURITY.md')]))

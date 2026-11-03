@@ -15,8 +15,8 @@ import zipfile
 
 ROOT = source_root()
 sys.path.insert(0, str(ROOT))
-from runteams_core.creator_contracts import canonical, strict_json
-from runteams_core.employee_mcp import ManagedMCPRuntime
+from runteams_core.authoring.creator_contracts import canonical, strict_json
+from runteams_core.employees.mcp.employee_mcp import ManagedMCPRuntime
 
 FILES = {'node', 'worker.cjs', 'app-host.js', 'runtime.json', 'runtime.sha256',
          'provenance.json', 'NODE-LICENSE', 'THIRD_PARTY_NOTICES.txt',

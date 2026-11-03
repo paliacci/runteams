@@ -1,0 +1,41 @@
+{
+  "schema": "runteams.core-domains/1",
+  "root_files": [
+    "__init__.py"
+  ],
+  "packages": {
+    "foundation": "Shared contracts, immutable values, identities and infrastructure transports.",
+    "application": "Local application composition, native launch and HTTP entrypoints.",
+    "agents": "Agent execution, prompts and platform runtime integration.",
+    "assets": "Asset references, immutable files, skills and collection formats.",
+    "authoring": "Source authoring, validation, platform builds and isolated workers.",
+    "automation": "Schedule persistence, recurrence, dispatch and scheduled work.",
+    "configuration": "Runtime configuration, connection admission and credential providers.",
+    "conversations": "Chat execution, attachments, workspace context and project memory.",
+    "documents": "Rich documents, immutable revisions, document assets and tools.",
+    "employees": "Employee definitions, context, records and MCP program hosting.",
+    "pipelines": "Pipeline definitions, dependencies, workspaces and execution controls.",
+    "storage": "Local libraries, SQLite storage, persistence and backup orchestration.",
+    "work": "Execution ledger, work inputs, results, reports and host composition.",
+    "devtools": "Source, build, packaging and maintainer development commands."
+  },
+  "subpackages": {
+    "foundation/identity": "Scoped identifiers and ownership references.",
+    "foundation/transport": "Local RPC and native view transports.",
+    "application/http": "Local HTTP routing adapters.",
+    "agents/adapters": "Provider CLI execution adapters.",
+    "agents/models": "Model channels, capabilities and catalog display.",
+    "agents/environment": "Managed Python, project environments and CLI discovery.",
+    "agents/tools": "Platform tool registry and MCP transport.",
+    "assets/skills": "Skill bundles, metadata, provenance and icons.",
+    "assets/collections": "Collection formats and local collection assets.",
+    "authoring/source": "Canonical source trees, archives, revisions and import/export.",
+    "authoring/compilation": "Trusted builders, dependencies and staged build state.",
+    "authoring/workers": "Isolated source inspection, validation and build entrypoints.",
+    "configuration/credentials": "Credential providers, schemas and redaction.",
+    "configuration/connections": "Connection exchange and admission context.",
+    "employees/mcp": "Local employee MCP execution and native presentation.",
+    "storage/backups": "Library backup, restore and retention policy.",
+    "work/hosts": "Work execution and browser/native host lifecycles."
+  }
+}

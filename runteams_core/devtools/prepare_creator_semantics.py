@@ -16,17 +16,32 @@ import tarfile
 import zipfile
 
 ROOT = source_root()
-CANDIDATE = ROOT / 'supabase/candidates/creator-validation'
-LOCK = CANDIDATE / 'python-dependencies.lock.json'
-CORE = ('__init__ contracts creator_contracts creator_source_archive creator_definitions '
-        'creator_dependencies creator_schema_validation definition_contracts module_catalog '
-        'content_hashes packages skill_packages configuration_schema portable_employee skill_metadata skill_bundles collection_schema skill_provenance skill_icons marketplace_installation portable_pipeline').split()
+def platform_sources():
+    """Select the actual canonical compiler dependency closure and its resources."""
+    from .python_sources import closure
+    seeds = (
+        'runteams_core/authoring/creator_contracts.py',
+        'runteams_core/authoring/creator_definitions.py',
+        'runteams_core/authoring/creator_schema_validation.py',
+        'runteams_core/authoring/compilation/creator_dependencies.py',
+        'runteams_core/authoring/source/creator_source_archive.py',
+        'runteams_core/agents/capability_runtime.py',
+    )
+    sources = {name:(ROOT/name).read_bytes() for name in closure(ROOT,seeds)}
+    sources['VERSION'] = (ROOT/'VERSION').read_bytes()
+    for path in (ROOT/'contracts/creator-system').rglob('*.json'):
+        sources[path.relative_to(ROOT).as_posix()] = path.read_bytes()
+    for name in ('product-model-v2.json','marketplace-pipeline-v2.json'):
+        sources['contracts/'+name] = (ROOT/'contracts'/name).read_bytes()
+    return sources
 
 
-def prepare_semantics(stage):
+def prepare_semantics(stage, *, candidate):
+    candidate = Path(candidate).resolve(strict=True)
+    lock_file = candidate/'python-dependencies.lock.json'
     import httpx
     stage = Path(stage)
-    lock = json.loads(LOCK.read_text())
+    lock = json.loads(lock_file.read_text())
     inventory = {}
     members = {}
     def add(name, body):
@@ -100,22 +115,19 @@ def prepare_semantics(stage):
         stdlib = {name: archive.read(name) for name in archive.namelist() if not name.endswith('/')}
     bundle(stage/'_canonical/python-stdlib.bytecode.zip', bytecode(stdlib, '/lib/python312.zip', zip_import=True), compress=True)
     bundle(stage/'_canonical/python-dependencies.zip', bytecode(members, '/python-dependencies.zip', zip_import=True))
-    sources = {f'runteams_core/{name}.py': (ROOT/f'runteams_core/{name}.py').read_bytes() for name in CORE}
-    sources['runteams_core/capability_runtime.py'] = (ROOT/'runteams_core/capability_runtime.py').read_bytes()
-    for path in (ROOT/'contracts/creator-system').rglob('*.json'):
-        sources[str(path.relative_to(ROOT))] = path.read_bytes()
-    for name in ('product-model-v2.json','marketplace-pipeline-v2.json'):
-        sources['contracts/'+name] = (ROOT/'contracts'/name).read_bytes()
-    bundle(stage/'_canonical/platform-semantics.zip', bytecode(sources, '/platform'))
+    sources = platform_sources()
+    payload = {name:body for name,body in sources.items() if not name.endswith('.py')}
+    payload.update(bytecode(sources, '/platform'))
+    bundle(stage/'_canonical/platform-semantics.zip', payload)
     bytecode_info = {'builder': sys.version, 'magic': importlib.util.MAGIC_NUMBER.hex(),
         'cache_tag': sys.implementation.cache_tag, 'invalidation': 'checked-hash',
         'stdlib_source_sha256': hashlib.sha256((stage/'_runtime/python_stdlib.zip').read_bytes()).hexdigest()}
     (stage/'_canonical/bytecode.json').write_text(json.dumps(bytecode_info)+'\n')
     for name in ('semantic-runtime.ts','semantic-entry.ts'):
-        (stage/'shared'/name).write_bytes((CANDIDATE/name).read_bytes())
-    (stage/'_canonical/semantic_phase.py').write_bytes((CANDIDATE/'semantic_phase.py').read_bytes())
-    return {'bytecode': bytecode_info, 'lock_sha256': hashlib.sha256(LOCK.read_bytes()).hexdigest(), 'packages': inventory,
-        'candidate_sha256':{name:hashlib.sha256((CANDIDATE/name).read_bytes()).hexdigest()
+        (stage/'shared'/name).write_bytes((candidate/name).read_bytes())
+    (stage/'_canonical/semantic_phase.py').write_bytes((candidate/'semantic_phase.py').read_bytes())
+    return {'bytecode': bytecode_info, 'lock_sha256': hashlib.sha256(lock_file.read_bytes()).hexdigest(), 'packages': inventory,
+        'candidate_sha256':{name:hashlib.sha256((candidate/name).read_bytes()).hexdigest()
             for name in ('semantic-runtime.ts','semantic-entry.ts','semantic_phase.py')},
         'platform_sha256': {name:hashlib.sha256(body).hexdigest() for name,body in sources.items()},
         'artifacts':{name:hashlib.sha256((stage/'_canonical'/name).read_bytes()).hexdigest()

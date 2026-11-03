@@ -51,8 +51,8 @@ def closure(root, seeds):
 
 
 def developer_sources(root):
-    from runteams_core.creator_definitions import compiler_identity
-    from runteams_core.creator_worker_process import WORKERS
+    from runteams_core.authoring.creator_definitions import compiler_identity
+    from runteams_core.authoring.workers.creator_worker_process import WORKERS
     seeds = ['runteams_creator_dev/' + p.name for p in (Path(root) / 'runteams_creator_dev').glob('*.py')]
     seeds += ['runteams_core/' + name for name in compiler_identity()['implementation']]
     seeds = [str(Path(name)) if '..' not in Path(name).parts else

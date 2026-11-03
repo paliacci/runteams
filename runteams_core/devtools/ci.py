@@ -32,6 +32,9 @@ def main():
     subprocess.run([str(interpreter), '-I', '-B', '-m', 'unittest', 'discover', '-s',
                     str(ROOT / 'tests'), '-p', 'test_repository_hygiene.py'], cwd=output, check=True)
     report['repository_hygiene_tests'] = True
+    subprocess.run([str(interpreter), '-I', '-B', '-m', 'unittest', 'discover', '-s',
+                    str(ROOT / 'tests'), '-p', 'test_tool_transport.py'], cwd=output, check=True)
+    report['canonical_tool_transport'] = True
     subprocess.run([sys.executable, '-B', '-m', 'runteams_core.devtools.build_creator_sdk', '--check'], cwd=ROOT, check=True)
     if args.sdk_tsc:
         subprocess.run([sys.executable, '-B', '-m', 'runteams_core.devtools.check_creator_sdk', '--output',

@@ -14,8 +14,8 @@ import zipfile
 
 ROOT = source_root()
 sys.path.insert(0, str(ROOT))
-from runteams_core.creator_build_tools import load
-from runteams_core.creator_contracts import canonical, strict_json
+from runteams_core.authoring.compilation.creator_build_tools import load
+from runteams_core.authoring.creator_contracts import canonical, strict_json
 from runteams_creator_dev.file_copy import copy_new
 
 
@@ -62,9 +62,9 @@ def compiler_source_hashes():
     # Frozen Python modules live in PYZ. The compiler's existing provenance
     # contract hashes exact source bytes, so retain that explicit source set
     # as signed data too; never infer provenance from a missing source file.
-    from runteams_core.creator_definitions import compiler_identity
+    from runteams_core.authoring.creator_definitions import compiler_identity
     expected = compiler_identity()['implementation']
-    for name in ('creator_build.py','creator_dependencies.py','creator_mcp_build.py','creator_conversation_assets.py','creator_source_import.py','creator_local_build_worker.py'):
+    for name in ('authoring/compilation/creator_build.py','authoring/compilation/creator_dependencies.py','authoring/compilation/creator_mcp_build.py','authoring/creator_conversation_assets.py','authoring/source/creator_source_import.py','authoring/workers/creator_local_build_worker.py'):
         expected[name] = hashlib.sha256((ROOT/'runteams_core'/name).read_bytes()).hexdigest()
     return expected
 
@@ -84,6 +84,7 @@ def compiler_sources(output, *, verify=False):
     output = output.resolve();output.mkdir(parents=True)
     for name, sha256 in expected.items():
         target = output/name
+        target.parent.mkdir(parents=True,exist_ok=True)
         copy_new(ROOT/'runteams_core'/name, target)
         if hashlib.sha256(target.read_bytes()).hexdigest() != sha256:
             raise ValueError('compiler_source_integrity')

@@ -21,6 +21,10 @@ class RepositoryHygieneTests(unittest.TestCase):
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text('Project documentation\n')
         (self.root / 'tooling/commands.json').write_text(json.dumps(inventory(self.root, 'runteams_core')))
+        (self.root / 'tooling/core-domains.json').write_text(json.dumps({
+            'schema': 'runteams.core-domains/1', 'root_files': ['__init__.py'],
+            'packages': {'devtools': 'Maintainer tools'}, 'subpackages': {}}))
+        (self.root / 'docs/core-domains.md').write_text('Core domain navigation\n')
         self.stage()
 
     def stage(self):
@@ -52,6 +56,12 @@ class RepositoryHygieneTests(unittest.TestCase):
         (self.root / 'business.py').write_text('pass\n')
         self.stage()
         with self.assertRaisesRegex(ValueError, 'business Python source belongs in its package'):
+            check(self.root, 'runteams_core')
+
+    def test_rejects_core_modules_outside_an_owned_domain(self):
+        (self.root / 'runteams_core/chat.py').write_text('pass\n')
+        self.stage()
+        with self.assertRaisesRegex(ValueError, 'core source belongs in its business domain'):
             check(self.root, 'runteams_core')
 
 
