@@ -30,11 +30,11 @@ def main():
                     str(ROOT / 'tests'), '-p', 'test_ui_boundary.py'], cwd=ROOT, check=True)
     subprocess.run(['node', str(ROOT / 'tests/ui_host_ports.test.cjs')], cwd=ROOT, check=True)
     report['ui_host_contract_tests'] = True
+    subprocess.run([str(interpreter), '-I', '-m', 'pip', 'install', str(wheel)], check=True)
+    subprocess.run([str(interpreter), '-I', '-B', '-m', 'runteams_core.devtools.verify_install'], cwd=output, check=True)
     subprocess.run([str(interpreter), '-I', '-B', '-m', 'unittest', 'discover', '-s',
                     str(ROOT / 'tests'), '-p', 'test_library_settings.py'], cwd=output, check=True)
     report['library_settings_transactions'] = True
-    subprocess.run([str(interpreter), '-I', '-m', 'pip', 'install', str(wheel)], check=True)
-    subprocess.run([str(interpreter), '-I', '-B', '-m', 'runteams_core.devtools.verify_install'], cwd=output, check=True)
     subprocess.run([str(interpreter), '-I', '-B', '-m', 'unittest', 'discover', '-s',
                     str(ROOT / 'tests'), '-p', 'test_pdf_attachments.py'], cwd=output, check=True)
     report['pdf_attachment_tests'] = True

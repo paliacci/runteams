@@ -16,7 +16,8 @@ EXCLUDED = {'node_modules', '__pycache__', '.git'}
 RULES = {
     'private-host-symbol': re.compile(
         r'\b(?:RunTeamsOfficial\w*|RunTeamsProduct\w*|RunTeamsAccountShell|'
-        r'RunTeamsNativeAssets|RunTeamsDesktopLogin|RunTeamsSupport)\b'),
+        r'RunTeamsNativeAssets|RunTeamsDesktopLogin|RunTeamsSupport|RunTeamsSidebarViews|'
+        r'accountNotifyNativeReady|accountOpenWorkNotification)\b'),
     'private-host-path': re.compile(r'/official-ui/|runteams_official[/.]'),
     'product-account-access': re.compile(
         r'\b(?:S|state)\.account\??\.(?:signed_in|user_id|auth_issuer|device_data_scope|entitlements)\b|'

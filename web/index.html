@@ -1562,7 +1562,7 @@ function render(){
   if(_pipelineOpenTimer&&!S.pageTransition)return;
   if(S.booting){renderBootShell(S.bootRoute||parseAppRoute(),S.bootError);return;}
   if(!workspaceEnsureCurrent())return;
-  if(typeof accountNotifyNativeReady==='function')RunTeamsHost.lifecycle.notificationsReady?.();
+  RunTeamsHost.lifecycle.notificationsReady?.();
   const app=document.getElementById("app");
   const inAutomations = S.surface==="automations";
   const inTrash = S.surface==="trash";
