@@ -4,7 +4,7 @@ const html=fs.readFileSync('web/index.html','utf8');assert.ok(html.indexOf('/ui/
 const source=fs.readFileSync('web/ui/source-pipeline-panels.js','utf8');
 const part=source.slice(source.indexOf('const taskConfigurationKey='),source.indexOf('function workContent('));
 const store=new Map(),calls=[],timers=new Map();let reply,fail,showing=true;
-const s={storageScope:'device',reference:{source_id:'fixture'}},selection={id:'work',workflow:{id:1},taskConfiguration:{editable:true,revision:'a'.repeat(64),values:{backend_url:'https://example.test'},fields:[{key:'app_id',type:'text'},{key:'backend_url',type:'text',visible_to:['build']}]}};
+const s={storageScope:'device',reference:{source_id:'fixture'}},selection={id:'work',workflow:{id:1,snapshot_json:{pipeline_visit:1}},taskConfiguration:{editable:true,revision:'a'.repeat(64),values:{backend_url:'https://example.test'},fields:[{key:'app_id',type:'text'},{key:'backend_url',type:'text',visible_to:['build']}]}};
 const input={dataset:{key:'app_id'},value:'app-a'};
 const form={querySelector:()=>null,querySelectorAll:selector=>selector==='[data-key]'?[input]:[]};
 const c={console,structuredClone,requestAnimationFrame:()=>{},ICON:()=>'',csel:()=>'',S:{sel:selection},current:()=>showing?s:null,owned:x=>showing&&x===s,render:()=>{},workText:(_k,f)=>f,
@@ -14,6 +14,8 @@ const c={console,structuredClone,requestAnimationFrame:()=>{},ICON:()=>'',csel:(
  host:()=>({sameScope:x=>x===s,request:async(action,data)=>{calls.push({action,data:structuredClone(data)});if(fail)throw fail;return reply;}})};
 c.window=c;vm.createContext(c);
 for(const name of ['configuration-form','configuration-fields'])vm.runInContext(fs.readFileSync('web/ui/'+name+'.js','utf8'),c);
+// The task adapter reads the same frozen feedback/visit state as the full panel.
+vm.runInContext(source.slice(source.indexOf('const flowKey='),source.indexOf('async function flow(')),c);
 vm.runInContext(part,c);
 const grouping=c.taskConfigurationGroups([{key:'a',label:'A',type:'text'},{key:'b',label:'B',type:'text',group:'Pinned title'},{key:'c',label:'C',type:'number'}],{parameters:[{key:'a',type:'text',source:'user',display:'setup',group:'User defined service'},{key:'b',type:'text',source:'user',display:'setup',group:'New title'},{key:'c',type:'text',source:'user',display:'setup',group:'Wrong type'}]});
 assert.deepEqual(JSON.parse(JSON.stringify(grouping.map(g=>g.label))),['User defined service','Pinned title','C']);
