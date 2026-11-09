@@ -8,12 +8,14 @@ import hashlib
 import json
 import uuid
 import re
+from contextlib import nullcontext
 from pathlib import Path
 
 from runteams_core.foundation.contracts import ContractError
 from runteams_core.storage.repository import utc_now
 
 MODEL = 'rich-document'
+TASK_REPORT_SOURCE = 'pipeline_task_report'
 SCHEMA = 'runteams.rich-document/1'
 TEXT_TYPES = {'paragraph', 'heading', 'bulletListItem', 'numberedListItem',
               'checkListItem', 'toggleListItem', 'quote', 'codeBlock', 'table', 'divider'}
@@ -147,14 +149,19 @@ def narrative(value):
     return '\n\n'.join(part for part in lines(value['blocks']) if part)
 
 
-def write(core, *, name, document, document_id=None, base_revision=0, document_key=None, author='human', data_view=None, note=''):
+def write(core, *, name, document, document_id=None, base_revision=0, document_key=None, author='human', data_view=None, note='',
+          task_report=None, connection=None):
     title = str(name or '').strip()
     if not title or len(title)>200: raise ContractError('请填写文档名称，最多200个字。')
     if type(base_revision) is not int or base_revision < 0: raise ContractError('请先读取当前文档再保存。')
     body = encode(document).encode()
     from runteams_core.documents.document_service import _normalize_agent_document_key, _normalize_document_data_view
     data_view=_normalize_document_data_view(data_view)
-    with core.repository.definition_lock(), core.repository.connect() as c:
+    if task_report is not None and (connection is None or author != 'system'):
+        raise ContractError('任务汇报只能由任务记录生成。')
+    lock = core.repository.definition_lock() if connection is None else nullcontext()
+    transaction = core.repository.connect() if connection is None else nullcontext(connection)
+    with lock, transaction as c:
         current = None
         if document_id:
             chain = core._document_chain(c, document_id)
@@ -163,6 +170,8 @@ def write(core, *, name, document, document_id=None, base_revision=0, document_k
         elif document_key:
             current = core._find_agent_document(c, document_key)
         meta = json.loads(current['meta_json']) if current else {}
+        if current and meta.get('pipeline_task_report') != task_report:
+            raise ContractError('任务汇报只能由任务记录更新。')
         if data_view is None:data_view=meta.get('data_view')
         if current and (meta.get('content_model') != MODEL or not core.is_document_artifact(meta,current['name']) or current['trashed_at']):
             raise ContractError('这份内容不是当前文档格式，请新建文档。')
@@ -184,6 +193,8 @@ def write(core, *, name, document, document_id=None, base_revision=0, document_k
                    'source': meta.get('source','agent_chat'), 'purpose':'document', 'author':author,
                    'rich_asset_refs':asset_refs, 'data_view':data_view, 'note':str(note or '').strip()[:500],
                    **(core._document_employee_owner() if current is None else {})}
+        if task_report is not None:
+            updated.update(source=TASK_REPORT_SOURCE, pipeline_task_report=task_report)
         root = int(meta.get('revision_of') or current['id']) if current else None
         if root: updated['revision_of'] = root
         row_id = c.execute('INSERT INTO artifacts(employee_run_id,name,ref,meta_json,created_at) VALUES(?,?,?,?,?)',

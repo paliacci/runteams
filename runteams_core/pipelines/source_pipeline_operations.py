@@ -23,9 +23,22 @@ def dispatch(core,action,data,active_ids=(),wake=lambda:None):
             return workspace.workspace(core, data['reference'], active_ids), 200
         if action == 'preferences':
             return {'ui': workspace.preferences(data.get('reference'), data), 'storage_scope': 'device'}, 200
-        if action == 'conversation' and set(data) == {'reference', 'runtime'}:
-            return workspace.conversation(core, data['reference'], data['runtime']), 200
+        if action == 'conversation' and set(data) in ({'reference', 'runtime'},
+                                                     {'reference', 'runtime', 'signing_workflow_id'}):
+            result = workspace.conversation(core, data['reference'], data['runtime'])
+            if 'signing_workflow_id' in data:
+                from runteams_core.pipelines.pipeline_signing_assistance import bind
+                bind(core, result['session']['id'], data['reference'], data['signing_workflow_id'])
+            return result, 200
         raise ContractError('流水线工作区请求无效。')
+    if action == 'position-runtime':
+        from runteams_core.pipelines.pipeline_position_runtime import configuration
+        fields = {'reference', 'position_key'}
+        updates = {'selection', 'expected_selection', 'source_revision'}
+        if set(data) not in (fields, fields | updates):
+            raise ContractError('岗位模型设置请求无效。')
+        change = {key: data[key] for key in updates} if updates <= set(data) else None
+        return configuration(core, data['reference'], data['position_key'], change), 200
     if action in ('settings','edit','edit-operation','history','employee-configuration','configuration','records'):
         from runteams_core.pipelines import source_pipeline_settings as settings
         if action in ('settings','history','records') and set(data)=={'reference'}:
@@ -38,10 +51,22 @@ def dispatch(core,action,data,active_ids=(),wake=lambda:None):
             except ConfigurationConflict as error:return {'error':str(error),'code':'employee_configuration_conflict'},409
             except ConfigurationInvalid as error:return {'error':str(error),'code':'employee_configuration_invalid','fields':error.errors},422
         raise ContractError('流水线设置请求无效。')
+    if action == 'work-configuration':
+        from runteams_core.pipelines.pipeline_task_configuration import request, ConfigurationInvalid
+        try:result = request(core, data, active_ids)
+        except ConfigurationInvalid as error:
+            return {'error':str(error), 'code':'task_configuration_invalid', 'fields':error.fields},422
+        return result if isinstance(result, tuple) else (result, 200)
     if action in ('flow','flow-operation'):
-        from runteams_core.pipelines.source_pipeline_flow import command
-        result=command(core,data,active_ids,read_only=action=='flow-operation')
-        if action=='flow':wake()
+        from runteams_core.employees.employee_work_contracts import WorkPreparationRequired
+        from runteams_core.pipelines.source_pipeline_flow import WorkflowVisitChanged, command
+        try:
+            result=command(core,data,active_ids,read_only=action=='flow-operation')
+        except WorkflowVisitChanged as error:
+            return {'error':str(error), 'code':'workflow_visit_changed'},409
+        except WorkPreparationRequired as error:
+            return {'error':str(error), 'code':'work_preparation_required', 'reason':error.reason},409
+        if action=='flow' and data.get('action') not in ('suggest_responses','suggest_approval'):wake()
         return result,200
     if action in ('state','control','control-operation'):
         from runteams_core.pipelines import source_pipeline_control as control
@@ -65,4 +90,10 @@ def dispatch(core,action,data,active_ids=(),wake=lambda:None):
         return result, 200
     if action == 'work' and set(data) == {'reference', 'workflow_id'} and type(data['workflow_id']) is int:
         return pipelines.work(core, data['reference'], data['workflow_id']), 200
+    if (action == 'work-activity' and set(data) == {'reference', 'workflow_id', 'run_id'}
+            and all(type(data[key]) is int and 0 < data[key] < 2**53 for key in ('workflow_id', 'run_id'))):
+        return pipelines.work_activity(core, data['reference'], data['workflow_id'], data['run_id']), 200
+    if action == 'task-report' and set(data) == {'reference', 'workflow_id'} and type(data['workflow_id']) is int:
+        from runteams_core.pipelines.pipeline_task_report import open_report
+        return open_report(core, data['reference'], data['workflow_id']), 200
     raise ContractError('不支持的流水线工作操作。')

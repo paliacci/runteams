@@ -17,6 +17,8 @@ from runteams_core.storage import product_store as store
 _lock = threading.Lock()
 MAX_SECRET_BYTES = 512 * 1024
 _vault_scope = ContextVar('runteams_host_vault', default=None)
+# Empty names cannot be credential keys. Older readers ignore this metadata.
+_FILENAME_METADATA = ""
 
 
 @contextmanager
@@ -41,25 +43,33 @@ def vault_path():
     return _path()
 
 
-def _load():
+def _load_vault():
     try:
         with open(_path(), encoding="utf-8") as handle:
             data = json.load(handle)
     except (OSError, ValueError):
-        return {}
+        return {}, {}
     if not isinstance(data, dict):
-        return {}
-    return {str(name): str(value) for name, value in data.items()
-            if str(name).strip() and isinstance(value, (str, int, float, bool))}
+        data = {}
+    metadata = data.get(_FILENAME_METADATA)
+    filenames = {name: filename for name, filename in metadata.items() if isinstance(filename, str)} if isinstance(metadata, dict) else {}
+    values = {name: str(value) for name, value in data.items()
+              if name.strip() and isinstance(value, (str, int, float, bool))}
+    return values, filenames
 
 
-def _save(values):
+def _load():
+    return _load_vault()[0]
+
+
+def _save(values, filenames):
     path = _path()
     os.makedirs(os.path.dirname(path), mode=0o700, exist_ok=True)
     tmp = path + ".tmp"
     fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
     try:
-        os.write(fd, json.dumps(values, ensure_ascii=False).encode("utf-8"))
+        data = {**values, _FILENAME_METADATA: filenames} if filenames else values
+        os.write(fd, json.dumps(data, ensure_ascii=False).encode("utf-8"))
     finally:
         os.close(fd)
     os.chmod(tmp, 0o600)
@@ -83,7 +93,7 @@ def _mask(value):
     return value[:2] + "•" * max(2, min(8, len(value) - 6)) + value[-4:]
 
 
-def set_secret(name, value):
+def set_secret(name, value, *, filename=None):
     name = _clean_name(name)
     if not name:
         raise ValueError("密钥名不能为空")
@@ -91,12 +101,15 @@ def set_secret(name, value):
     if len(value.encode("utf-8")) > MAX_SECRET_BYTES:
         raise ValueError("凭据文件不能超过 512 KB")
     with _lock:
-        values = _load()
+        values, filenames = _load_vault()
+        if filename or name in values or name in filenames:
+            # An explicit empty name supersedes any legacy configuration label.
+            filenames[name] = filename or ""
         if value == "":
             values.pop(name, None)
         else:
             values[name] = value
-        _save(values)
+        _save(values, filenames)
     return {"name": name, "set": value != ""}
 
 
@@ -116,9 +129,12 @@ def set_secrets(values):
             raise ValueError("凭据文件不能超过 512 KB")
         cleaned[name] = value
     with _lock:
-        current = _load()
+        current, filenames = _load_vault()
+        for name in cleaned:
+            if name in current or name in filenames:
+                filenames[name] = ""
         current.update(cleaned)
-        _save(current)
+        _save(current, filenames)
     return [{"name": name, "set": True} for name in cleaned]
 
 
@@ -131,6 +147,11 @@ def list_masked():
 def names():
     """返回当前已填写的 Key；用于发布和启动前的可运行性检查。"""
     return set(_load())
+
+
+def file_name(name):
+    """Return filename metadata only. None denotes a legacy entry."""
+    return _load_vault()[1].get(name)
 
 
 def resolve(requested):

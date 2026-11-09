@@ -568,10 +568,15 @@
 .account-settings-page #settingsModelDefaults .settings-row-control{max-width:70%}
 .channel-login-command{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .channel-login-command code{min-width:0;overflow-wrap:anywhere}
+.modal:is(.channel-instructions-dialog,.channel-login-dialog){width:min(520px,calc(100vw - 32px))}
 @media(max-width:600px){
+ .account-settings-page{grid-template-columns:min(var(--rail-width),34vw) minmax(0,1fr)}
  :is(.account-settings-page,.model-channel-guide) .channel-card{grid-template-columns:16px minmax(0,1fr) auto;gap:8px;min-height:64px}
  :is(.account-settings-page,.model-channel-guide) .channel-name{flex-direction:column;align-items:flex-start;gap:0}
  :is(.account-settings-page,.model-channel-guide) .channel-actions{gap:6px}
+ :is(.account-settings-page,.model-channel-guide) .channel-more.btn{flex:0 0 32px}
+ .account-settings-page .channel-card:has(.channel-usage-inline){row-gap:2px;padding-block:8px}
+ .account-settings-page .channel-card:has(.channel-usage-inline) .channel-actions{grid-column:2/-1}
  :is(.account-settings-page,.model-channel-guide) .channel-control-skeleton{gap:6px}
  :is(.account-settings-page,.model-channel-guide) .channel-usage-inline{gap:6px;flex-direction:column;align-items:flex-end}
  .account-settings-page #settingsModelDefaults .settings-row{flex-wrap:nowrap;gap:8px}

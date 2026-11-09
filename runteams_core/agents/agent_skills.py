@@ -22,12 +22,13 @@ EMPLOYEE_SKILLS = ('runteams-work-execution', 'runteams-task-dispatch',
                    'runteams-work-item-triage', 'runteams-reply-content')
 
 
-def catalog(names):
+def catalog(names, *, root=None):
+    skill_root = ROOT if root is None else Path(root)
     result = []
     for name in names:
         if not isinstance(name, str) or '/' in name or '\\' in name or name.startswith('.'):
             raise ValueError('平台技能名称无效')
-        path = ROOT / name / 'SKILL.md'
+        path = skill_root / name / 'SKILL.md'
         metadata = _frontmatter(path.read_text(encoding='utf-8'))
         if metadata['name'] != name:
             raise ValueError('平台技能目录与标准名称不一致')
@@ -36,22 +37,23 @@ def catalog(names):
     return result
 
 
-def revision(names=CHAT_SKILLS):
+def revision(names=CHAT_SKILLS, *, root=None):
     """Invalidate resumed native contexts when loaded workflow bytes change."""
     digest = hashlib.sha256()
     from runteams_core.agents.agent_guidance import BASE_AGENT_INSTRUCTION
     digest.update(BASE_AGENT_INSTRUCTION.encode('utf-8'))
-    for item in catalog(names):
+    skill_root = ROOT if root is None else Path(root)
+    for item in catalog(names, root=skill_root):
         directory = Path(item['location']).parent
         for path in sorted(directory.rglob('*')):
             if path.is_file():
-                digest.update(str(path.relative_to(ROOT.resolve())).encode())
+                digest.update(str(path.relative_to(skill_root.resolve())).encode())
                 digest.update(b'\0' + path.read_bytes() + b'\0')
     return digest.hexdigest()
 
 
-def instructions(names=CHAT_SKILLS, *, required=None):
-    skills = catalog(names)
+def instructions(names=CHAT_SKILLS, *, required=None, root=None):
+    skills = catalog(names, root=root)
     if required and required not in {item['name'] for item in skills}:
         raise ValueError('本轮必需的技能未提供')
     return ('# RunTeams 专业技能\n'

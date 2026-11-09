@@ -5,30 +5,72 @@ questions and turn diagnostics. This adapter only consumes its normal events.
 No alternate model client, tool executor or automatic approval is introduced.
 """
 import json
+import sqlite3
 import threading
 
 from runteams_core.storage import device_data
 from runteams_core.foundation.contracts import ContractError
 
 
-def outcome(chat_id,after_message_id=None):
+FAILURE_IN_CHAT = '请查看原工作对话。'
+
+
+def _failure_notice(metadata):
+    notice = metadata.get('system_notice') or {}
+    if not isinstance(notice, dict) or notice.get('kind') not in ('error', 'runtime_interrupted'):
+        return ''
+    text = notice.get('execution_reason') or notice.get('text')
+    return text.strip()[:500] if isinstance(text, str) else ''
+
+
+def recorded_failure_reason(chat_id, started_at, ended_at):
+    """Read an older failure from the exact device chat and execution window."""
+    if type(chat_id) is not int or chat_id < device_data.LOCAL_CHAT_ID_MIN or not started_at or not ended_at:
+        return ''
+    try:
+        with device_data.connect(readonly=True) as connection:
+            rows = connection.execute(
+                "SELECT metadata FROM chat_messages WHERE chat_id=? AND role IN ('bot','assistant') "
+                "AND julianday(ts) BETWEEN julianday(?) AND julianday(?) "
+                "AND (json_extract(metadata,'$.trace.failed')=1 OR json_extract(metadata,'$.incomplete')=1) "
+                "LIMIT 2", (chat_id, started_at, ended_at)).fetchall()
+        return _failure_notice(json.loads(rows[0][0])) if len(rows) == 1 else ''
+    except (OSError, sqlite3.Error, ValueError):
+        return ''
+
+
+def outcome(chat_id,after_message_id=None,*,response_message_id=None):
+    """Read a turn's status and return its reply only for a confirmed response ID."""
     from runteams_core.storage import product_store as store
     session = store.get_chat(chat_id)
     if not session:
         return 'interrupted', '原工作对话需要核对，不会自动重做。'
-    bot = next((m for m in reversed(session.get('messages') or [])
-        if m['role'] in ('bot', 'assistant') and
-        (after_message_id is None or m['id']>after_message_id)), None)
+    messages = session.get('messages') or []
+    if after_message_id is not None:
+        current = []
+        for message in messages:
+            if message['id'] <= after_message_id:
+                continue
+            if message['role'] == 'user':
+                metadata = message.get('metadata') or {}
+                if not (metadata.get('question_request_id') or metadata.get('steer_request_id')):
+                    break
+            current.append(message)
+        messages = current
+    bot = next((m for m in reversed(messages) if m['role'] in ('bot', 'assistant') and
+                (response_message_id is None or m['id'] == response_message_id)), None)
     if bot:
         metadata = bot.get('metadata') or {}
         trace = metadata.get('trace') or {}
         if metadata.get('pending'):
             return 'blocked', '工作需要确认，请查看原对话。'
         if trace.get('cancelled'):
-            return 'cancelled', '请查看原工作对话。'
+            return 'cancelled', (metadata.get('system_notice') or {}).get('text') or FAILURE_IN_CHAT
         if trace.get('failed') or metadata.get('incomplete'):
-            return 'failed', '请查看原工作对话。'
+            return 'failed', _failure_notice(metadata) or FAILURE_IN_CHAT
         if trace.get('complete'):
+            if response_message_id is not None and not metadata.get('system_notice'):
+                return 'completed', bot.get('text') or ''
             return 'completed', ''
     return 'interrupted', '原工作未确认完成，请查看对话，不会自动重做。'
 
@@ -66,6 +108,6 @@ def consume(host,backend,job,chat_id,payload,cancel_event=None):
     from runteams_core.employees.employee_context import current
     status,reason=current().scheduled_turn(host,backend.scope,job['operation_id'],chat_id,prompt,cancel_event)
     with backend.connection(write=True) as c:
-        c.execute('UPDATE occurrences SET status=?,reason=? WHERE id=?',(status,reason,job['id']))
+        c.execute('UPDATE occurrences SET status=?,reason=? WHERE id=?',(status,'' if status == 'completed' else reason,job['id']))
 
 

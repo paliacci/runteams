@@ -7,6 +7,8 @@ exact validated bytes; presentation data URLs are derived, never saved identity.
 import base64
 import hashlib
 import io
+import json
+from functools import lru_cache
 from pathlib import Path, PurePosixPath
 import re
 import sys
@@ -17,9 +19,38 @@ from runteams_core.authoring.creator_contracts import CreatorContractError, rela
 MAX_BYTES = 512 * 1024
 MEDIA = {'.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
          '.webp': 'image/webp', '.svg': 'image/svg+xml'}
-PRESETS = ('ada', 'alan', 'aso-specialist', 'atlas', 'commercial-manager', 'cora',
-           'echo', 'grace', 'juno', 'localization-specialist', 'market-analyst',
-           'nova', 'product-manager', 'qa-engineer', 'software-architect', 'user-operations')
+@lru_cache(maxsize=1)
+def preset_catalog():
+    return json.loads((resource_root() / 'web/worker-avatars/presets.json').read_text())
+
+
+PRESETS = tuple(item['id'] for item in preset_catalog()['presets'])
+DEFAULT_PRESET = preset_catalog()['default']
+LEGACY_PRESETS = {item['id']: item['target'] for item in preset_catalog()['legacy']}
+LEGACY_PICTURES = {item['sha256']: item['target'] for item in preset_catalog()['legacy']}
+
+
+def preset_reference(preset_id):
+    if preset_id not in PRESETS:
+        raise ValueError('预设头像不存在。')
+    return 'preset:colleague:' + preset_id
+
+
+def canonical_preset(reference):
+    """Resolve immutable old picture identities without rewriting saved sources."""
+    if reference.startswith('preset:colleague:') and reference[17:] in PRESETS:
+        return reference
+    if reference.startswith('preset:bottts:'):
+        key = LEGACY_PRESETS.get(reference[14:])
+        return preset_reference(key) if key else None
+    match = re.fullmatch(r'assets/avatars/([a-f0-9]{64})\.svg', reference)
+    key = LEGACY_PICTURES.get(match[1]) if match else None
+    return preset_reference(key) if key else None
+
+
+def preset_src(reference):
+    value = canonical_preset(reference)
+    return '/worker-avatars/colleague/' + value[17:] + '.svg' if value else ''
 
 
 def bundled(reference):
@@ -79,7 +110,7 @@ def validate_image(path, body):
 
 def attachment(reference, files):
     if not bundled(reference):
-        if reference.startswith('preset:') and reference not in {'preset:bottts:' + key for key in PRESETS}:
+        if reference.startswith('preset:') and not canonical_preset(reference):
             raise CreatorContractError('invalid_employee_avatar', '预设头像不存在。')
         if reference.startswith('upload:') and not re.fullmatch(r'upload:[a-f0-9]{64}\.webp', reference):
             raise CreatorContractError('invalid_employee_avatar', '上传头像引用无效。')
@@ -109,6 +140,12 @@ def identity(employee, *, files=None, avatar_file=None):
     if bundled(result['avatar']):
         value = attachment(result['avatar'], files) if files is not None else avatar_file
         result['avatar_src'] = verify_attachment(result['avatar'], value)
+        # Validate original bytes first. Only exact bundled robot images receive
+        # the new presentation; portable sources and custom pictures stay intact.
+        replacement = LEGACY_PICTURES.get(value['sha256'])
+        if replacement:
+            _, picture = prepare_picture(preset_reference(replacement))
+            result['avatar_src'] = 'data:image/svg+xml;base64,' + base64.b64encode(picture).decode('ascii')
     return result
 
 
@@ -123,19 +160,23 @@ def validate_sources(files):
 
 
 def preset_items():
-    return [{'id': key, 'avatar': 'preset:bottts:' + key,
-             'asset_avatar': prepare_picture('preset:bottts:' + key)[0],
-             'src': '/worker-avatars/bottts/' + key + '.svg'} for key in PRESETS]
+    catalog = preset_catalog()
+    items = {item['id']: item for item in catalog['presets']}
+    return [{'id': item['id'], 'label': item['label'], 'avatar': preset_reference(item['id']),
+             'asset_avatar': prepare_picture(preset_reference(item['id']))[0],
+             'src': preset_src(preset_reference(item['id']))} for item in
+            (items[key] for key in catalog['featured'])]
 
 
 def prepare_picture(value):
     """UI selection is converted to portable bytes before the atomic revision."""
-    if isinstance(value, str) and value.startswith('preset:bottts:'):
-        key = value.removeprefix('preset:bottts:')
-        if key not in PRESETS:
+    if isinstance(value, str) and value.startswith('preset:'):
+        canonical = canonical_preset(value)
+        if not canonical:
             raise ValueError('预设头像不存在。')
+        key = canonical[17:]
         root = resource_root()
-        body = (root / 'web/worker-avatars/bottts' / (key + '.svg')).read_bytes()
+        body = (root / 'web/worker-avatars/colleague' / (key + '.svg')).read_bytes()
         suffix = '.svg'
     elif isinstance(value, dict) and set(value) == {'content_base64'}:
         encoded = value['content_base64']
@@ -154,7 +195,7 @@ def prepare_picture(value):
                 output = io.BytesIO(); image.save(output, 'WEBP', quality=88, method=6)
                 body = output.getvalue(); suffix = '.webp'
         except (ValueError, OSError, Image.DecompressionBombError) as error:
-            raise ValueError('头像图片无效或尺寸过大。') from error
+            raise CreatorContractError('invalid_employee_avatar', '头像图片无效或尺寸不符合要求。') from error
     else:
         raise ValueError('头像选择无效。')
     path = 'assets/avatars/' + hashlib.sha256(body).hexdigest() + suffix
@@ -175,7 +216,7 @@ def edit(store, source_id, body):
         raise PermissionError('这份员工不属于当前工程。')
     employee = strict_json(files[path]); avatar = body['avatar']
     if avatar != employee.get('avatar'):
-        if isinstance(avatar, dict) or isinstance(avatar, str) and avatar.startswith('preset:bottts:'):
+        if isinstance(avatar, dict) or isinstance(avatar, str) and avatar.startswith('preset:'):
             avatar, picture = prepare_picture(avatar); files[avatar] = picture
         elif not bundled(avatar):
             raise ValueError('请选择图片或使用包内头像。')

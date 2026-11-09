@@ -51,9 +51,13 @@ async function loadCoreEmployeeDetail(id){
   return result;
 }
 
+function employeeIdentityError(key,message){
+  return Object.assign(new Error(message),{messageKey:"employeeSettings."+key});
+}
+
 /* module-function:employeeWrite */
 async function employeeWrite(value,change){
- const entry=RunTeamsEmployeeDirectory.entryFor(value)||RunTeamsEmployeeDirectory.assetEntry(value);if(!entry)throw Error('员工目录已变化，请重新打开。');
+ const entry=RunTeamsEmployeeDirectory.entryFor(value)||RunTeamsEmployeeDirectory.assetEntry(value);if(!entry)throw employeeIdentityError('missingEmployee','找不到这名员工。');
  const sequence=_employeeBusinessScopeSequence,previous=_employeeSourceWrites.get(entry.key)||Promise.resolve();
  const pending=previous.catch(()=>{}).then(()=>employeeWriteSource(entry,change,sequence));_employeeSourceWrites.set(entry.key,pending);
  try{return await pending;}finally{if(_employeeSourceWrites.get(entry.key)===pending)_employeeSourceWrites.delete(entry.key);}
@@ -64,13 +68,24 @@ async function employeeWriteSource(entry,change,sequence){
   const local=entry;
   const opened=local?.source?{session:{employee:local,context:{creator_local_source_id:local.source.id,creator_employee_source:local.source.path}}}:await RunTeamsHost.assets.authoring(entry.asset?.id||entry.work?.id,draftRuntimeConfig());employeeAssertBusinessScope(sequence);
   const context=opened.session?.context,source=context?.creator_local_source_id,path=context?.creator_employee_source;
-  if(!source||!path)throw Error('员工缺少原 SDK 源码。');
+  if(!source||!path)throw employeeIdentityError('identityUnavailable','这名员工的源码不可用。');
   const root='/api/creator-source/drafts/'+source;
-  const request=async(suffix,body)=>{employeeAssertBusinessScope(sequence);const response=await fetch(root+suffix,{method:body?'POST':'GET',headers:{...sourceHeaders,...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{})});const result=await response.json();employeeAssertBusinessScope(sequence);if(!response.ok||result.error)throw Object.assign(Error(result.error||'源码未能保存。'),{rejected:response.status>=400&&response.status<500});return result;};
+  const request=async(suffix,body)=>{
+    employeeAssertBusinessScope(sequence);
+    const response=await fetch(root+suffix,{method:body?'POST':'GET',headers:{...sourceHeaders,...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{})});
+    const result=await response.json();employeeAssertBusinessScope(sequence);
+    if(!response.ok||result.error){
+      const error=suffix==='/identity'&&result.code==='invalid_employee_avatar'
+        ?employeeIdentityError('avatarInvalid','无法使用这张图片。请选择另一张 PNG、JPEG 或 WebP 图片。')
+        :Error(result.error||'源码未能保存。');
+      throw Object.assign(error,{rejected:response.status>=400&&response.status<500});
+    }
+    return result;
+  };
   const storageKey='runteams.employee.sdk.source-edit.'+entry.key;
   let original=JSON.parse(RunTeamsBusinessStorage.getItem(storageKey)||'null');
   if(original){
-    if(original.source!==source||original.path!==path||!(original.body?.employee_source===path||original.body?.changes?.length===1&&original.body.changes[0].path===path))throw Error('原源码保存请求需要在原工程中核对。');
+    if(original.source!==source||original.path!==path||!(original.body?.employee_source===path||original.body?.changes?.length===1&&original.body.changes[0].path===path))throw employeeIdentityError('identityPrevious','请在原项目中核对上次保存的结果。');
     const receipt=await request('/receipt?operation_key='+encodeURIComponent(original.body.operation_key));
     if(receipt.state!=='confirmed'){
       try{await request(original.body.employee_source?'/identity':'/edit',original.body);}catch(error){employeeAssertBusinessScope(sequence);if(error.rejected)RunTeamsBusinessStorage.removeItem(storageKey);throw error;}
@@ -78,9 +93,9 @@ async function employeeWriteSource(entry,change,sequence){
     RunTeamsBusinessStorage.removeItem(storageKey);
   }
   const workspace=await request('/workspace'),file=await request('/file?path='+encodeURIComponent(path));
-  if(workspace.source.files.find(row=>row.path===path)?.sha256!==file.sha256)throw Error('源码已更新，请重新打开后修改。');
+  if(workspace.source.files.find(row=>row.path===path)?.sha256!==file.sha256)throw employeeIdentityError('identityChanged','源码已更新。请重新打开员工设置后再修改。');
   const value=JSON.parse(file.content),identity={name:value.name,avatar:value.avatar};change(identity);
-  if(Object.keys(identity).some(key=>!['name','avatar'].includes(key))||typeof identity.name!=='string'||!identity.name.trim()||identity.name.length>160||!(typeof identity.avatar==='string'&&identity.avatar||identity.avatar&&typeof identity.avatar==='object'&&Object.keys(identity.avatar).length===1&&typeof identity.avatar.content_base64==='string'))throw Error('员工名称或头像无效。');
+  if(Object.keys(identity).some(key=>!['name','avatar'].includes(key))||typeof identity.name!=='string'||!identity.name.trim()||identity.name.length>160||!(typeof identity.avatar==='string'&&identity.avatar||identity.avatar&&typeof identity.avatar==='object'&&Object.keys(identity.avatar).length===1&&typeof identity.avatar.content_base64==='string'))throw employeeIdentityError('identityInvalid','请检查员工名称和头像。');
   if(original?.body.employee_source===path&&JSON.stringify(identity.avatar)===JSON.stringify(original.body.avatar))identity.avatar=value.avatar;
   if(identity.name===value.name&&identity.avatar===value.avatar){
     const saved=await request('/identity?employee_source='+encodeURIComponent(path));
@@ -89,26 +104,35 @@ async function employeeWriteSource(entry,change,sequence){
   }
   const body={base_revision:workspace.revision,operation_key:crypto.randomUUID(),employee_source:path,...identity};
   RunTeamsBusinessStorage.setItem(storageKey,JSON.stringify({source,path,body}));
-  let result;try{result=await request('/identity',body);}catch(error){employeeAssertBusinessScope(sequence);if(error.rejected)RunTeamsBusinessStorage.removeItem(storageKey);throw error;}
-  if(!result.identity||typeof result.identity.name!=='string'||typeof result.identity.avatar!=='string')throw Error('员工资料保存回执无效，请重新读取。');
+  let result;
+  try{result=await request('/identity',body);}
+  catch(error){
+    employeeAssertBusinessScope(sequence);
+    if(error.rejected){RunTeamsBusinessStorage.removeItem(storageKey);throw error;}
+    throw employeeIdentityError('identityUnknown','暂时无法确认是否已保存。再次保存前会先核对上次结果。');
+  }
+  if(!result.identity||typeof result.identity.name!=='string'||typeof result.identity.avatar!=='string')throw employeeIdentityError('identityUnknown','暂时无法确认是否已保存。再次保存前会先核对上次结果。');
   RunTeamsBusinessStorage.removeItem(storageKey);
   if(typeof RunTeamsCreatorAuthor!=='undefined')queueMicrotask(()=>void RunTeamsCreatorAuthor.sync());
   RunTeamsEmployeeDirectory.accept({...opened.session.employee,record:{...opened.session.employee.record,avatar_src:null,...result.identity}});
-  toast('员工设置已保存。','ok');return {...result.identity,source_revision:result.revision};
+  toast('员工资料已保存。','ok','employeeSettings.identitySaved');return {...result.identity,source_revision:result.revision};
 }
 /* module-function:coreEmployeeRuntimeChannel */
 function coreEmployeeRuntimeChannel(runtime){return (S.channels||[]).find(item=>Number(item.id)===Number(runtime?.channel_id))||null;}
 
+function employeeSettingsCopy(key,fallback){
+ return window.RunTeamsLocale?.t('employeeSettings.'+key,{},fallback)??fallback;
+}
 /* module-function:trashCoreEmployee */
-function trashCoreEmployee(id){const scope=_employeeBusinessScopeSequence,item=RunTeamsEmployeeDirectory.assets().find(row=>Number(row.id)===Number(id));if(!item)return;confirmModal("将这名员工移到垃圾箱？","员工草稿和发布版本保留在云端垃圾箱，可恢复。本机已有工作和文件不受影响。",async()=>{try{const out=await employeeScopedApi(`/api/core/employees/${Number(id)}/trash`,"POST",{},scope);if(out.error){toast(out.error,"err");return;}await refreshCoreTeam();employeeAssertBusinessScope(scope);render();toast("员工已移到垃圾箱","ok");}catch(error){if(scope===_employeeBusinessScopeSequence)toast(error.message||'员工未能移到垃圾箱','err');}},true);}
+function trashCoreEmployee(id){const scope=_employeeBusinessScopeSequence,item=RunTeamsEmployeeDirectory.assets().find(row=>Number(row.id)===Number(id));if(!item)return;confirmModal(employeeSettingsCopy("trashTitle","将这名员工移到垃圾箱？"),employeeSettingsCopy("trashDetails","可以从云端垃圾箱恢复员工草稿和发布版本。本机已有工作和文件会保留。"),async()=>{try{const out=await employeeScopedApi(`/api/core/employees/${Number(id)}/trash`,"POST",{},scope);if(out.error){toast(out.error,"err");return;}await refreshCoreTeam();employeeAssertBusinessScope(scope);render();toast(employeeSettingsCopy("trashed","已将员工移到垃圾箱"),"ok");}catch(error){if(scope===_employeeBusinessScopeSequence)toast(error.message||employeeSettingsCopy('trashFailed','无法将员工移到垃圾箱'),'err');}},true,{action:employeeSettingsCopy("trash","移到垃圾箱"),cancel:employeeSettingsCopy("cancel","取消"),close:employeeSettingsCopy("closeDialog","关闭弹窗"),titleKey:"employeeSettings.trashTitle",messageKey:"employeeSettings.trashDetails",actionKey:"employeeSettings.trash",cancelKey:"employeeSettings.cancel",closeKey:"employeeSettings.closeDialog"});}
 
 /* module-function:coreEmployeeRowMenu */
-function coreEmployeeRowMenu(event,id){event.preventDefault();event.stopPropagation();const item=employeeSummary(id);if(!item)return;const items=[{label:'员工设置',icon:'settings',fn:()=>openCoreEmployeeEditor(id)},{label:'工作记录',icon:'clock',fn:()=>openContextResults({employee_id:Number(id)})},{divider:true},{label:'移到垃圾箱',icon:'trash',fn:()=>trashCoreEmployee(id)}];openMenu(event.currentTarget,items,{variant:'workerAction',...(event.type==='contextmenu'?{at:{x:event.clientX,y:event.clientY}}:{})});}
+function coreEmployeeRowMenu(event,id){event.preventDefault();event.stopPropagation();const item=employeeSummary(id);if(!item)return;const items=[{label:employeeSettingsCopy('title','员工设置'),labelKey:'employeeSettings.title',icon:'settings',fn:()=>openCoreEmployeeEditor(id)},{label:employeeSettingsCopy('records','工作记录'),labelKey:'employeeSettings.records',icon:'clock',fn:()=>openContextResults({employee_id:Number(id)})},{divider:true},{label:employeeSettingsCopy('trash','移到垃圾箱'),labelKey:'employeeSettings.trash',icon:'trash',fn:()=>trashCoreEmployee(id)}];openMenu(event.currentTarget,items,{variant:'workerAction',...(event.type==='contextmenu'?{at:{x:event.clientX,y:event.clientY}}:{})});}
 /* module-function:openCoreEmployeeEditor */
 async function openCoreEmployeeEditor(id){
   const entry=RunTeamsEmployeeDirectory.entryFor(id)||RunTeamsEmployeeDirectory.assetEntry(id);
   if(entry)return RunTeamsEmployeeConfiguration.open(entry);
-  const scope=_employeeBusinessScopeSequence;id=employeeSettingsTargetId(id);if(!id||!employeeSummary(id))return toast('员工不存在','err');
+  const scope=_employeeBusinessScopeSequence;id=employeeSettingsTargetId(id);if(!id||!employeeSummary(id))return toast('找不到这名员工。','err','employeeSettings.missingEmployee');
   const summary=employeeSummary(id);if(RunTeamsEmployeeDirectory.sourceFor(id)||summary?.schema==='runteams.native-employee-summary/v1'&&employeeCanEdit(summary))return RunTeamsCreatorAuthor.openEmployee(id);
   if(S.sel?.type!=='core-employee-editor')_coreEmployeeEditorReturn=null;
   closeTransientMenus();if(document.getElementById('modalHost'))closeModal();
@@ -121,13 +145,17 @@ async function openCoreEmployeeEditor(id){
 function coreEmployeeEditorDrawer(){
   const id=Number(S.sel?.id)||0,item=employeeSummary(id)||{},loading=S.sel?.status==='loading',failed=S.sel?.status==='error';
   const identity=detailDrawerEmployeeIdentity({...item,skills:[],description:item.description||''});
-  const body=loading?RunTeamsSkeletons.region('detail'):failed?RunTeamsLoadFailure.markup({variant:'modal',title:'设置暂时无法加载',retry:`openCoreEmployeeEditor(${id})`,error:S.sel?.error}):employeeLifecycleSection(item,id)+employeeMCPSection(item,id)+(window.RunTeamsWorkResources?.section(item,id)||'');
-  return `<aside class="drawer right-detail-drawer employee-settings-drawer" data-rt-ui aria-label="员工设置"${loading?' aria-busy="true"':''}><div id="employee_settings_header"></div><div class="employee-settings-identity detail-employee-summary">${identity}</div><div class="employee-settings-content" data-sdk-settings-slot>${body}</div></aside>`;
+  const body=loading?RunTeamsSkeletons.region('detail',undefined,'employeeSettings.loading'):failed?RunTeamsLoadFailure.markup({variant:'modal',title:'无法读取员工设置',titleKey:'employeeSettings.legacyUnavailable',labelKey:'employeeSettings.reload',busyLabelKey:'employeeSettings.loading',retry:`openCoreEmployeeEditor(${id})`,error:S.sel?.error}):employeeLifecycleSection(item,id)+(window.RunTeamsWorkResources?.section(item,id)||'');
+  const header={toolbar:'<div id="employee_settings_header"></div>',intro:identity};
+  return detailDrawerShell({className:'employee-settings-drawer',header,introClass:'employee-settings-identity detail-employee-summary',body:`<div data-sdk-settings-slot>${body}</div>`,bodyClass:'employee-settings-content',attrs:'data-rt-ui data-app-i18n-aria-label="employeeSettings.title" aria-label="员工设置"'+(loading?' aria-busy="true"':'')});
 }
 function decorateCoreEmployeeSettings(){
   const node=document.getElementById('employee_settings_header');if(!node){_employeeSettingsHeader?.dispose();_employeeSettingsHeader=null;return;}
   if(!window.RunTeamsUIComponents)return;
   if(!_employeeSettingsHeader)_employeeSettingsHeader=RunTeamsEmployeeDrawerHeader.create({kind:'author',onCollapse:closeCoreEmployeeEditor});
+  const close=_employeeSettingsHeader.collapseButton;
+  close.setAttribute('data-app-i18n-aria-label','employeeSettings.close');
+  close.setAttribute('data-app-i18n-title','employeeSettings.close');
   const id=Number(S.sel?.id),item=employeeSummary(id);
   _employeeSettingsHeader.setExtras({actions:[],text:!employeeCanEdit(item)&&item?.active_release?String(item.origin?.listing_version||pipelineReleaseSemanticVersion(item.active_release)):''});
   if(node.firstChild!==_employeeSettingsHeader.element)node.replaceChildren(_employeeSettingsHeader.element);
@@ -142,158 +170,278 @@ function closeCoreEmployeeEditor(){return closeDetailWorkspace();}
 if(typeof window!=='undefined')window.addEventListener?.('runteams-ui-ready',()=>decorateCoreEmployeeSettings());
 
 function employeeLifecycleSection(item,id){
-  return `<section class="employee-lifecycle rt-section">${item?.active_release?`<button type="button" class="btn" onclick="employeeStartWork(${id})">交办工作</button>`:''}</section>`;
+  return `<section class="employee-lifecycle rt-section">${item?.active_release?`<button type="button" class="btn" onclick="employeeStartWork(${id})" data-app-i18n="employeeSettings.assignWork">交办工作</button>`:''}</section>`;
 }
 async function employeeStartWork(id){if(employeeSummary(id)?.active_release)return openBotConversation(id,{forceNew:true});}
 
 /* Current-work dialogs share the same service consent component. */
 function employeeWorkChat(value){const panel=S.conversationPanel,entry=RunTeamsEmployeeDirectory.entryFor(value)||RunTeamsEmployeeDirectory.assetEntry(value);return panel?.kind==='general'&&entry&&RunTeamsEmployeeDirectory.matches(entry,panel)?panel:null;}
-function employeeConnectionMarkup(d,s,index,row,prefix='employee_mcp_connection',handler='employeeMCPConnection',subject='员工'){
-  const pending=row.pending,authorized=row.authorized;let body='';
-      body+=`<section class="employee-sdk-connection" data-connection="${esc(row.key)}"><div class="employee-sdk-connection-heading"><h3>${esc(new URL(row.origin).hostname)}</h3><span>${authorized?'本机已授权':pending?'授权结果待核对':'尚未授权'}</span></div><p class="employee-sdk-note">访问地址：${esc(row.origin)}</p><p class="employee-sdk-note">授权范围：${row.scopes.map(esc).join('，')||'无额外范围'}</p>`;
-      if(row.program_name)body+=`<p class="employee-sdk-note">使用程序：${esc(row.program_name)}</p>`;
-      if(authorized)body+=`<p class="employee-sdk-note">本次授权至 ${esc(new Date(row.expires_at*1000).toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'}))}，到期后需重新授权。</p><button type="button" class="btn" onclick="${handler}Revoke(${index})" ${s.busy?'disabled':''}>撤销授权</button>`;
-      else if(pending)body+=`<button class="btn" type="button" onclick="${handler}Resume(${index})" ${s.busy?'disabled':''}>继续原授权操作</button>`;
+function employeeConsentText(key,fallback,parameters={}){
+ const vars=Object.keys(parameters).length?' data-app-i18n-vars="'+esc(JSON.stringify(parameters))+'"':'';
+ const value=window.RunTeamsLocale?.t('employeeConsent.'+key,parameters,fallback)??fallback.replace('{time}',parameters.time??'');
+ return '<span data-app-i18n="employeeConsent.'+key+'"'+vars+'>'+esc(value)+'</span>';
+}
+function employeeConsentExpiry(timestamp){
+ const options={month:'short',day:'numeric',hour:'numeric',minute:'2-digit'};
+ const locale=globalThis.RunTeamsLocale;
+ return locale?locale.formatDate(timestamp,options):new Intl.DateTimeFormat('zh-CN',options).format(timestamp);
+}
+globalThis.RunTeamsLocale?.onChange(()=>{
+ for(const row of document.querySelectorAll('[data-employee-consent-expiry]')){
+  const label=row.querySelector('[data-app-i18n="employeeConsent.expires"]');
+  if(!label)continue;
+  label.dataset.appI18nVars=JSON.stringify({time:employeeConsentExpiry(Number(row.dataset.employeeConsentExpiry))});
+  globalThis.RunTeamsLocale.apply(label);
+ }
+});
+function employeeConnectionMarkup(d,s,index,row,prefix='employee_mcp_connection',handler='workResources',subject='员工'){
+  const action=verb=>typeof handler==='function'?handler(verb,index):handler+verb+'('+index+')';
+  const pending=row.pending,authorized=row.authorized,locked=s.busy||s.connectionPending;
+  const awaiting=s.connectionPending&&s.connectionPending.package===row.package&&s.connectionPending.key===row.key;
+  const status=awaiting&&s.connectionPending.revoke?employeeConsentText('revokePending','尚未确认撤销结果'):
+    awaiting||pending&&!authorized?employeeConsentText('pending','尚未确认授权结果'):
+    authorized?employeeConsentText('authorized','已在本机授权'):employeeConsentText('unauthorized','尚未授权');
+  let body=`<section class="employee-sdk-connection" data-connection="${esc(row.key)}"><div class="employee-sdk-connection-heading"><h3>${esc(new URL(row.origin).hostname)}</h3><span>${status}</span></div><p class="employee-sdk-note">${employeeConsentText("address","访问地址：")}${esc(row.origin)}</p><p class="employee-sdk-note">${employeeConsentText("scope","授权范围：")}${row.scopes.map(esc).join('，')||employeeConsentText("noScope","无额外权限")}</p>`;
+      if(row.program_name)body+=`<p class="employee-sdk-note">${employeeConsentText("program","使用程序：")}${esc(row.program_name)}</p>`;
+      if(awaiting)return body+'</section>';
+      if(authorized){
+        const expiresAt=Number(row.expires_at)*1000;
+        if(Number.isFinite(expiresAt)&&expiresAt>0&&expiresAt<=8.64e15)body+=`<p class="employee-sdk-note" data-employee-consent-expiry="${expiresAt}">${employeeConsentText('expires','授权将于 {time} 到期。到期后需要重新授权。',{time:employeeConsentExpiry(expiresAt)})}</p>`;
+        body+=`<button type="button" class="btn" onclick="${action('Revoke')}" ${locked?'disabled':''}>${employeeConsentText("revoke","撤销授权")}</button>`;
+      }else if(pending)body+=`<button class="btn" type="button" onclick="${action('Read')}" ${s.busy?'disabled':''}>${employeeConsentText("checkResult","核对结果")}</button>`;
       else{
-        body+=`<div class="field"><label for="${prefix}_credential_${index}">本机凭据</label><select class="inp" id="${prefix}_credential_${index}" onchange="${handler}Credential(${index})" ${s.busy?'disabled':''}><option value="">选择本机凭据</option>${d.credential_names.map((name,i)=>`<option value="${i}">${esc(name)}</option>`).join('')}<option value="new">添加访问令牌</option></select></div><div class="field" id="${prefix}_token_field_${index}" hidden><label for="${prefix}_token_${index}">访问令牌</label><input class="inp" id="${prefix}_token_${index}" type="password" autocomplete="off" spellcheck="false" maxlength="8192" oninput="${handler}Enable(${index})" ${s.busy?'disabled':''}><p class="employee-sdk-note">仅存入本机凭据保险箱，不进入作品或工作备份。</p></div><label class="employee-sdk-consent"><input type="checkbox" id="${prefix}_consent_${index}" onchange="${handler}Enable(${index})" ${s.busy?'disabled':''}><span>允许此${subject}使用所选凭据访问此服务，最长1小时。实际可用性以服务响应为准。</span></label><button class="btn pri" type="button" id="${prefix}_authorize_${index}" onclick="${handler}Authorize(${index})" disabled>授权此连接</button>`;
+        body+=`<div class="field"><label for="${prefix}_credential_${index}">${employeeConsentText("credential","本机凭据")}</label><select class="inp" id="${prefix}_credential_${index}" onchange="${action('Credential')}" ${locked?'disabled':''}><option value="" data-app-i18n="employeeConsent.chooseCredential">选择本机凭据</option>${d.credential_names.map((name,i)=>`<option value="${i}">${esc(name)}</option>`).join('')}<option value="new" data-app-i18n="employeeConsent.addToken">添加访问令牌</option></select></div><div class="field" id="${prefix}_token_field_${index}" hidden><label for="${prefix}_token_${index}">${employeeConsentText("token","访问令牌")}</label><input class="inp" id="${prefix}_token_${index}" type="password" autocomplete="off" spellcheck="false" maxlength="8192" oninput="${action('Enable')}" ${locked?'disabled':''}><p class="employee-sdk-note">${employeeConsentText("tokenStorage","访问令牌仅保存在这台电脑的凭据保险箱中，不会加入作品或工作备份。")}</p></div><label class="employee-sdk-consent"><input type="checkbox" id="${prefix}_consent_${index}" onchange="${action('Enable')}" ${locked?'disabled':''}><span>${subject==='流水线'?employeeConsentText('allowPipeline','允许此流水线使用所选凭据访问此服务，最长 1 小时。'):employeeConsentText('allowEmployee','允许此员工使用所选凭据访问此服务，最长 1 小时。')}</span></label><button class="btn pri" type="button" id="${prefix}_authorize_${index}" onclick="${action('Authorize')}" disabled>${employeeConsentText("authorize","授权连接")}</button>`;
       }
       body+='</section>';
   return body;
 }
 
-/* Current employee version: local extension trust and official confirmations. */
-let _employeeMCPDialog=null,_employeeMCPPolling=false;
-function employeeMCPSection(item,id){
-  if(!item?.local_mcp||RunTeamsHost.session.workspace(S))return '';
-  const chat=employeeWorkChat(id);
-  return `<section class="employee-sdk-section rt-section"><div class="rt-section-heading"><h3 class="rt-section-heading-label">本机功能</h3><button type="button" class="rt-button rt-section-action" onclick="${chat?`employeeMCPOpen(${id},this)`:`openBotConversation(${id})`}">${chat?'管理':'打开对话'}</button></div></section>`;
-}
-async function employeeMCPRequest(s,body,observe=false){
-  employeeAssertBusinessScope(s.scope);
-  employeeMCPAssertPrivateWork(s);
-  const path=`/api/chat/${s.chat}/${s.pipeline?'pipeline-mcp':'employee-mcp'}${observe?'?observe=1':''}`;
-  if(S.localLibrary){const result=await api(path,body?'POST':'GET',body||undefined);employeeAssertBusinessScope(s.scope);employeeMCPAssertPrivateWork(s);if(result.error)throw Error(result.error);return result;}
-  const response=await RunTeamsRequests.request(path,{method:body?'POST':'GET',device:true,readCurrent:!body,
-    headers:{'Content-Type':'application/json','X-RunTeams-Device-Scope':s.deviceScope},...(body?{body:JSON.stringify(body)}:{})},s.deviceScope);
-  employeeAssertBusinessScope(s.scope);employeeMCPAssertPrivateWork(s);
-  const value=JSON.parse(response.text);
-  if(response.status!==200||value.error)throw Error(value.error||'本机功能暂时无法核对。');
-  return value;
-}
-function employeeMCPAssertPrivateWork(s){
-  if(s.privateWork&&window.RunTeamsSourcePipelinePanels?.programContext()!==s.privateWork)throw Error('岗位工作已改变，请从原工作记录重新打开。');
-}
-async function employeeMCPOpen(id,trigger,pipelinePanel=null,privateWork=null){
-  if(privateWork&&privateWork!==window.RunTeamsSourcePipelinePanels?.programContext())return;
-  const pipeline=pipelinePanel&&pipelinePanel===window.RunTeamsSourcePipelines?.workContext()&&!RunTeamsHost.session.workspace(S);
-  const panel=S.conversationPanel,chat=privateWork&&!RunTeamsHost.session.workspace(S)?privateWork:pipeline?pipelinePanel:id==null&&RunTeamsEmployeeDirectory.employeePanel(panel)&&panel.identity?.local_mcp&&!RunTeamsHost.session.workspace(S)?panel:employeeWorkChat(id);if(!chat)return;
-  const s={chat:chat.id,id,pipeline:!!pipeline,privateWork,scope:_employeeBusinessScopeSequence,deviceScope:RunTeamsHost.session.deviceScope(S),trigger,loading:true,busy:false,error:'',data:null};
-  _employeeMCPDialog=s;openDialog(employeeMCPOptions());await employeeMCPRead(s);
-}
-function employeeMCPOptions(){
-  const s=_employeeMCPDialog,d=s?.data;if(!s)return {};
-  const pending=d?.approvals?.[0];let body=s.loading?'<p class="employee-sdk-note" role="status">正在读取本机功能…</p>':'';
-  if(d){
-    if(!d.available)body+=`<p class="modal-copy">此${s.pipeline?'流水线':'员工'}版本没有本机程序。</p>`;
-    else if(!d.enabled){
-      body+=`<p class="modal-copy">此版本包含本机程序，启用后会以你的普通用户身份在这台电脑运行。它可能访问本机文件和网络，访问范围受系统权限与实际运行条件影响。</p><p class="employee-sdk-note">${d.packages.map(p=>esc(p.name)+' '+esc(p.version)).join('、')}。第三方账号和平台业务仍需各自授权。</p>`;
-      const credentialKeys=[...new Set(d.packages.flatMap(p=>p.credential_keys||[]))];
-      if(credentialKeys.length)body+=`<p class="employee-sdk-note">启用后，此版本可使用你在配置中明确选择的同名本机凭据。</p><details><summary>查看所需凭据</summary><p class="employee-sdk-note">${credentialKeys.map(esc).join('、')}</p></details>`;
-      body+=s.pipeline&&(!d.applied||d.pipeline_status!=='running')?'<p class="employee-sdk-note">请先在流水线设置中应用更新并启动流水线。</p>':d.runtime_available?'<label class="employee-sdk-consent"><input id="employee_mcp_consent" type="checkbox" onchange="document.getElementById(\'employee_mcp_enable\').disabled=!this.checked"><span>我信任并允许此'+(s.pipeline?'流水线':'员工')+'版本在本机运行。</span></label>':'<p class="employee-sdk-error" role="alert">当前应用尚未包含所需运行资源。</p>';
-    }else{
-      body+=`<p class="modal-copy" role="status">${d.suspended?'本次运行已关闭。':'此版本的本机功能已启用。'}</p><p class="employee-sdk-note">关闭运行会保留本机工作和已有结果；下次打开不重做结果未知的操作。</p>`;
-      if(d.calls.some(c=>c.state==='unknown'))body+='<p class="employee-sdk-error" role="alert">有操作的结果尚未确认。请核对原结果，系统不会自动重做。</p>';
-    }
-    const services=(d.connection_services||[]).flatMap(service=>service.connections.map(row=>({...row,package:service.package,program_name:service.program_name,credential_names:service.credential_names})));
-    for(const [index,row] of services.entries())body+=employeeConnectionMarkup({credential_names:row.credential_names},s,index,row,'employee_mcp_connection','employeeMCPConnection',s.pipeline?'流水线':'员工');
-    if(window.RunTeamsWorkResources)body+=RunTeamsWorkResources.entry(s);
-    if(pending){
-      const p=pending.params||{},officialTool=p._meta?.codex_approval_kind==='mcp_tool_call',description=(officialTool?p._meta.tool_description:p.reason||p.message||p.request?.message||p.questions?.map(q=>q.question).join('；')||p.name)||'此操作需要你的确认。',arguments_=p.arguments??p._meta?.tool_params;
-      body+=`<section class="rt-section"><h3 class="rt-section-heading-label">操作确认</h3><p class="modal-copy">${esc(description)}</p>${p.command?`<pre class="employee-mcp-args">${esc(Array.isArray(p.command)?p.command.join(' '):p.command)}</pre>`:''}${arguments_?`<details><summary>查看操作内容</summary><pre class="employee-mcp-args">${esc(JSON.stringify(arguments_,null,2))}</pre></details>`:''}<p class="employee-sdk-note">只确认本次操作，不授予后续操作永久权限。</p>${pending.can_accept===false?'<p class="employee-sdk-error" role="alert">此操作需要的确认方式尚未接通，暂时无法执行。</p>':''}</section>`;
-    }
-  }
-  if(s.error)body+=`<p class="employee-sdk-error" role="alert">${esc(s.error)}</p>`;
-  let actions='';
-  if(pending)actions=`<button class="btn" type="button" onclick="employeeMCPAnswer('decline')" ${s.busy?'disabled':''}>拒绝</button><button class="btn pri" type="button" onclick="employeeMCPAnswer('accept')" ${s.busy||pending.can_accept===false?'disabled':''}>允许本次操作</button>`;
-  else if(d?.available&&!d.enabled&&d.runtime_available&&(!s.pipeline||d.applied&&d.pipeline_status==='running'))actions='<button class="btn pri" id="employee_mcp_enable" type="button" onclick="employeeMCPAction({action:\'enable\',confirm:true})" disabled>启用本机功能</button>';
-  else if(d?.enabled)actions=`<button class="btn ghost" type="button" onclick="employeeMCPAction({action:'disable'})" ${s.busy?'disabled':''}>停用此版本</button><button class="btn" type="button" onclick="employeeMCPAction({action:'${d.suspended?'resume':'close'}'})" ${s.busy||!d.suspended&&!d.running||s.pipeline&&d.suspended&&d.pipeline_status!=='running'?'disabled':''}>${d.suspended?'继续运行':'关闭运行'}</button>`;
-  return {className:'employee-sdk-setup',title:'本机功能',body,closeAction:'employeeMCPClose()',attrs:'role="dialog" aria-modal="true" aria-label="本机功能" onkeydown="employeeMCPKey(event)"',footer:`<button class="btn" type="button" onclick="employeeMCPClose()" ${s.busy?'disabled':''}>关闭</button><div class="grow"></div>${s.error?'<button class="btn" type="button" onclick="employeeMCPConnectionRead()" '+(s.busy?'disabled':'')+'>核对结果</button>':''}${actions}`};
-}
-function employeeMCPPaint(){if(_employeeMCPDialog){replaceDialog(employeeMCPOptions());document.querySelector('.employee-sdk-setup .modal-x')?.focus();}}
-async function employeeMCPRead(s){
-  if(s.connectionEditing&&!s.busy)return;
-  const sequence=s.readSequence=(s.readSequence||0)+1,current=()=>_employeeMCPDialog===s&&s.readSequence===sequence;
-  try{const data=await employeeMCPRequest(s);if(!current())return;if(data.schema!==(s.pipeline?'runteams.pipeline-mcp-work/1':'runteams.employee-mcp-work/1')||data.chat_id!==s.chat)throw Error('工作引用已变化。');const changed=JSON.stringify(data)!==JSON.stringify(s.data);s.data=data;s.loading=false;s.error='';if(changed)employeeMCPPaint();}
-  catch(e){if(current()){s.loading=false;s.error=e.message;employeeMCPPaint();}}
-}
-async function employeeMCPAction(body){
-  const s=_employeeMCPDialog;if(!s?.data||s.busy)return;
-  if(body.action==='enable'&&!document.getElementById('employee_mcp_consent')?.checked)return;
-  s.readSequence=(s.readSequence||0)+1;s.busy=true;s.error='';employeeMCPPaint();
-  try{await employeeMCPRequest(s,{...body,binding_sha256:s.data.binding_sha256});if(_employeeMCPDialog===s){await employeeMCPRead(s);if(['enable','resume'].includes(body.action))window.RunTeamsCreatorWork?.sync();}}
-  catch(e){if(_employeeMCPDialog===s)s.error=e.message;}
-  finally{if(_employeeMCPDialog===s){s.busy=false;employeeMCPPaint();}}
-}
-function employeeMCPConnectionRow(index){return (_employeeMCPDialog?.data?.connection_services||[]).flatMap(service=>service.connections.map(row=>({...row,package:service.package,program_name:service.program_name,credential_names:service.credential_names})))[index];}
-function employeeMCPConnectionCredential(index){
- const s=_employeeMCPDialog;if(!s||s.busy)return;s.connectionEditing=true;
- const select=document.getElementById('employee_mcp_connection_credential_'+index),field=document.getElementById('employee_mcp_connection_token_field_'+index),input=document.getElementById('employee_mcp_connection_token_'+index);
- if(field)field.hidden=select.value!=='new';if(input)input.value='';employeeMCPConnectionEnable(index);if(select.value==='new')input?.focus();
-}
-function employeeMCPConnectionEnable(index){
- const s=_employeeMCPDialog;if(!s||s.busy)return;s.connectionEditing=true;
- const choice=document.getElementById('employee_mcp_connection_credential_'+index)?.value,token=document.getElementById('employee_mcp_connection_token_'+index)?.value,consent=document.getElementById('employee_mcp_connection_consent_'+index)?.checked,button=document.getElementById('employee_mcp_connection_authorize_'+index);
- if(button)button.disabled=!consent||!choice||choice==='new'&&!token;
-}
-async function employeeMCPConnectionRead(){const s=_employeeMCPDialog;if(!s||s.busy)return;s.connectionEditing=false;await employeeMCPRead(s);}
-async function employeeMCPConnectionAction(index,body){
- const s=_employeeMCPDialog,row=employeeMCPConnectionRow(index);if(!s||!row||s.busy)return;
- s.busy=true;s.connectionEditing=false;s.readSequence=(s.readSequence||0)+1;s.error='';employeeMCPPaint();
- try{await employeeMCPRequest(s,{...body,package:row.package,connection:row.key,binding_sha256:row.binding_sha256});if(_employeeMCPDialog===s)await employeeMCPRead(s);}
- catch(error){if(_employeeMCPDialog===s)s.error='授权结果未能确认，请先核对结果。';}
- finally{if(body.token)body.token='';if(_employeeMCPDialog===s){s.busy=false;employeeMCPPaint();}}
-}
-function employeeMCPConnectionAuthorize(index){
- const row=employeeMCPConnectionRow(index),select=document.getElementById('employee_mcp_connection_credential_'+index),input=document.getElementById('employee_mcp_connection_token_'+index);
- if(!row||document.getElementById('employee_mcp_connection_authorize_'+index)?.disabled)return;
- const body={action:'connection-authorize',confirm:document.getElementById('employee_mcp_connection_consent_'+index)?.checked===true,...(select.value==='new'?{token:input.value}:{credential_name:row.credential_names[Number(select.value)]})};
- if(input)input.value='';return employeeMCPConnectionAction(index,body);
-}
-function employeeMCPConnectionRevoke(index){const row=employeeMCPConnectionRow(index);if(row?.authorized)return employeeMCPConnectionAction(index,{action:'connection-revoke'});}
-
-function employeeMCPAnswer(decision){const row=_employeeMCPDialog?.data?.approvals?.[0];if(row)return employeeMCPAction({action:'answer',id:row.id,decision});}
-async function employeeMCPClose(){const s=_employeeMCPDialog;if(s?.busy)return;if(s?.data?.approvals?.length)await employeeMCPAnswer('cancel');if(_employeeMCPDialog!==s)return;_employeeMCPDialog=null;closeModal();if(s?.trigger?.isConnected)s.trigger.focus();}
-function employeeMCPKey(event){if(event.key==='Escape'){event.preventDefault();event.stopPropagation();void employeeMCPClose();return;}if(event.key==='Tab'){const nodes=[...document.querySelectorAll('.employee-sdk-setup button:not([disabled]),.employee-sdk-setup input:not([disabled]),.employee-sdk-setup select:not([disabled]),.employee-sdk-setup summary')].filter(n=>n.getClientRects().length),first=nodes[0],last=nodes.at(-1);if(event.shiftKey&&document.activeElement===first){event.preventDefault();last?.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first?.focus();}}}
-function employeeMCPContext(){
+/* Work authorization belongs to the initiating work and its settings. */
+window.RunTeamsWorkAuthorization=(()=>{
+ const states=new Map();let sequence=0,dialog=null,polling=false,boardIndex=0;
+ const text=(key,fallback)=>RunTeamsLocale?.t('workAuthorization.'+key,{},fallback)||fallback;
+ const copy=(key,fallback)=>'<span data-app-i18n="workAuthorization.'+key+'">'+esc(text(key,fallback))+'</span>';
+ const equal=(a,b)=>!!a&&!!b&&JSON.stringify(a)===JSON.stringify(b);
+ function context(){
   if(RunTeamsHost.session.workspace(S))return null;
   const privateWork=window.RunTeamsSourcePipelinePanels?.programContext();
-  if(privateWork)return {panel:privateWork,pipeline:false,privateWork};
-  const own=window.RunTeamsSourcePipelines?.workContext();
-  if(own)return {panel:own,pipeline:true};
+  if(privateWork)return {panel:privateWork,privateWork,pipeline:false};
+  const own=window.RunTeamsSourcePipelines?.workContext();if(own)return {panel:own,pipeline:true};
   const panel=S.conversationPanel,item=downloadedEmployeeSummary(panel?.context?.target_employee_id);
   return Number.isSafeInteger(panel?.id)&&(item?.local_mcp||panel?.identity?.local_mcp)?{panel,pipeline:false}:null;
-}
-async function employeeMCPNotify(chat){
-  const current=employeeMCPContext(),p=current?.panel;
-  if(Number(p?.id)!==Number(chat)||document.getElementById('modalHost'))return;
-  return employeeMCPOpen(current.privateWork?null:current.pipeline?null:p.context?.local_employee_package?null:Number(p.context?.target_employee_id),null,current.pipeline?p:null,current.privateWork||null);
-}
-if(typeof window!=='undefined'){
-  window.addEventListener?.('runteams:business-scope-changed',()=>{if(_employeeMCPDialog){_employeeMCPDialog=null;closeModal();}});
-  // Read-only polling also delivers direct App confirmations while no model is
-  // running. It neither starts author code nor grants or replays an operation.
-  window.setInterval?.(async()=>{
-    const current=employeeMCPContext(),p=current?.panel;
-    if(_employeeMCPPolling||!p)return;
-    _employeeMCPPolling=true;
-    try{
-      if(_employeeMCPDialog?.busy)return;
-      const s=_employeeMCPDialog||{chat:p.id,pipeline:current.pipeline,privateWork:current.privateWork,scope:_employeeBusinessScopeSequence,deviceScope:RunTeamsHost.session.deviceScope(S)};
-      if(s.chat!==p.id||s.pipeline!==current.pipeline)return;
-      const d=await employeeMCPRequest(s,null,true),latest=employeeMCPContext();
-      if(latest?.panel!==p||latest.pipeline!==current.pipeline||d.schema!=='runteams.mcp-observation/1'||d.chat_id!==p.id||d.owner!==(current.pipeline?'pipeline':'employee')||typeof d.version!=='string')return;
-      if(_employeeMCPDialog===s){if(d.version!==s.data?.notification_version||(s.data?.connection_services||[]).some(service=>service.connections.some(row=>row.authorized&&row.expires_at<=Date.now()/1000)))await employeeMCPRead(s);}
-      else if(!_employeeMCPDialog&&d.pending)await employeeMCPNotify(p.id);
-    }catch(e){}finally{_employeeMCPPolling=false;}
-  },1200);
-}
+ }
+ function assertCurrent(s){
+  employeeAssertBusinessScope(s.scope);
+  if(Number(s.panel?.id)!==Number(s.chat))throw Error(text('changed','工作已变化，请返回原工作重新打开。'));
+  if(s.deviceScope!==RunTeamsHost.session.deviceScope(S))throw Error(text('changed','工作已变化，请返回原工作重新打开。'));
+  if(s.boardOwner){if(window.RunTeamsSourcePipelines?.current()!==s.boardOwner||!s.boardOwner.data?.workflows?.some(w=>w.id===s.workflowId&&w.work_chat_id===s.chat))throw Error(text('changed','工作已变化，请返回原工作重新打开。'));return;}
+  if(s.privateWork){if(window.RunTeamsSourcePipelinePanels?.programContext()!==s.privateWork)throw Error(text('changed','工作已变化，请返回原工作重新打开。'));}
+  else if(s.panel!==(s.pipeline?window.RunTeamsSourcePipelines?.workContext():S.conversationPanel))throw Error(text('changed','工作已变化，请返回原工作重新打开。'));
+ }
+ function state(c){
+  if(!c?.panel)return null;
+  let s=[...states.values()].find(s=>s.panel===c.panel&&s.scope===_employeeBusinessScopeSequence&&s.deviceScope===RunTeamsHost.session.deviceScope(S));
+  if(!s){s={...c,key:++sequence,chat:c.panel.id,scope:_employeeBusinessScopeSequence,deviceScope:RunTeamsHost.session.deviceScope(S),data:null,loading:false,busy:false,error:''};states.set(s.key,s);}
+  return s;
+ }
+ async function request(s,body,observe=false){
+  assertCurrent(s);
+  const path=`/api/chat/${s.chat}/${s.pipeline?'pipeline-mcp':'employee-mcp'}${observe?'?observe=1':''}`;
+  let value;
+  if(S.localLibrary)value=await api(path,body?'POST':'GET',body||undefined);
+  else{
+   const response=await RunTeamsRequests.request(path,{method:body?'POST':'GET',device:true,readCurrent:!body,headers:{'Content-Type':'application/json','X-RunTeams-Device-Scope':s.deviceScope},...(body?{body:JSON.stringify(body)}:{})},s.deviceScope);
+   value=JSON.parse(response.text);if(response.status!==200)throw Error(text('unavailable','无法读取工作授权，请重试。'));
+  }
+  assertCurrent(s);if(value.error)throw Error(value.error);return value;
+ }
+ const services=s=>(s.data?.connection_services||[]).flatMap(service=>service.connections.map(row=>({...row,package:service.package,program_name:service.program_name,credential_names:service.credential_names})));
+ function settingsBody(s){
+  if(s.loading&&!s.data)return '';
+  const d=s.data;let body='';
+  if(d?.available){
+   if(d.enabled)body=`<button class="detail-head-more" type="button" data-menu-trigger="quiet" aria-haspopup="menu" aria-expanded="false" aria-label="更多操作" data-app-i18n-aria-label="automationList.more" onclick="RunTeamsWorkAuthorization.settingsMenu(${s.key},this)" ${s.busy?'disabled':''}>${ICON('more')}</button>`;
+   if(d.calls?.some(row=>row.state==='unknown'))body+='<p class="employee-sdk-error" role="alert">'+employeeConsentText('unknownResult','有操作的结果尚未确认。请核对结果。')+'</p>';
+   for(const [index,row] of services(s).entries())body+=employeeConnectionMarkup({credential_names:row.credential_names},s,index,row,'work_connection_'+s.key,(verb,i)=>`RunTeamsWorkAuthorization.connection${verb}(${s.key},${i})`,s.pipeline?'流水线':'员工');
+  }
+  body+=window.RunTeamsWorkResources?.entry(s,s.key)||'';
+  if(s.error)body+=`<p class="employee-sdk-error" role="alert">${esc(s.error)}</p>`;
+  if(s.error||s.connectionPending)body+=`<button class="btn sm" type="button" onclick="RunTeamsWorkAuthorization.read(${s.key})" ${s.busy?'disabled':''}>${employeeConsentText('checkResult','核对结果')}</button>`;
+  return body;
+ }
+ function settingsMenu(id,anchor){
+  const s=states.get(id);if(!s||s.busy||!s.data?.enabled)return;
+  try{assertCurrent(s);}catch{return;}
+  openMenu(anchor,[{label:text('revoke','撤销授权'),labelKey:'workAuthorization.revoke',fn:()=>revoke(id)}]);
+ }
+ function paint(s){
+  for(const node of document.querySelectorAll('[data-work-authorization="'+s.key+'"]')){
+   if(s.editing&&!s.busy)continue;
+   const focused=node.contains(document.activeElement)?document.activeElement.id:null;
+   node.innerHTML=settingsBody(s);window.RunTeamsLocale?.apply(node);
+   if(focused)node.querySelector('#'+CSS.escape(focused))?.focus({preventScroll:true});
+  }
+  if(dialog?.state===s){replaceDialog(dialogOptions());}
+ }
+ async function read(value){
+  const s=typeof value==='object'?value:states.get(value);if(!s)return;
+  if(s.reading)return s.reading;
+  s.editing=false;s.loading=true;
+  const revision=s.readRevision=(s.readRevision||0)+1,current=()=>s.readRevision===revision;
+  s.reading=(async()=>{
+   try{
+    const d=await request(s);if(!current())return s.data;
+    if(d.schema!==(s.pipeline?'runteams.pipeline-mcp-work/1':'runteams.employee-mcp-work/1')||d.chat_id!==s.chat)throw Error(text('changed','工作已变化，请返回原工作重新打开。'));
+    s.data=d;s.error='';s.uncertain=false;s.connectionPending=null;
+   }catch(error){if(current())s.error=error.message||text('unavailable','无法读取工作授权，请重试。');}
+   finally{if(current()){s.loading=false;s.reading=null;paint(s);}}
+   return s.data;
+  })();return s.reading;
+ }
+ function invalidate(s){s.readRevision=(s.readRevision||0)+1;s.reading=null;s.loading=false;}
+ function settings(entry){
+  let s=entry.authorizationContext;
+  if(!s){
+   const own=entry.pipeline_own&&window.RunTeamsSourcePipelines?.workContext();
+   const c=own?{panel:own,pipeline:true}:context();if(!c)return '';
+   if(entry.pipeline_own){if(!c.pipeline||!equal(c.panel.context?.source_pipeline_workspace,entry.pipeline_reference))return '';}
+   else if(c.privateWork){if(!entry.pipeline_reference||!equal(c.privateWork.snapshot?.package?.reference,entry.source?.reference))return '';}
+   else if(c.pipeline||entry.pipeline_reference)return '';
+   else if(entry.chat_id!==c.panel.id&&RunTeamsEmployeeDirectory.forPanel(c.panel)?.key!==entry.key)return '';
+   s=state(c);
+  }
+  try{assertCurrent(s);}catch{return '';}
+  if(!s.data&&!s.error&&!s.reading)requestAnimationFrame(()=>{if(document.querySelector('[data-work-authorization="'+s.key+'"]'))void read(s);});
+  return '<section class="work-authorization-settings" data-work-authorization="'+s.key+'">'+settingsBody(s)+'</section>';
+ }
+ async function configure(s){
+  assertCurrent(s);
+  if(s.privateWork)return RunTeamsSourcePipelinePanels.configureWork(s.privateWork,s);
+  if(s.pipeline)return RunTeamsSourcePipelinePanels.configureOwn(s);
+  const entry=RunTeamsEmployeeConfiguration.workTarget(s.panel)||RunTeamsEmployeeDirectory.forPanel(s.panel);
+  if(entry)return RunTeamsEmployeeConfiguration.openConversation({...entry,authorizationContext:s},RunTeamsEmployeeDirectory.forPanel(s.panel));
+ }
+ function pending(s){return s.data?.approvals?.[0];}
+ function trust(s){return dialog?.kind==='trust'||pending(s)?.method==='runteams/work-authorization';}
+ function dialogOptions(){
+  const s=dialog.state,d=s.data,row=pending(s),isTrust=trust(s),title=isTrust?text('trustTitle','允许运行此版本？'):text('operationTitle','确认操作');
+  let body='',actions='';
+  if(isTrust){
+   body=`<p class="modal-copy">${esc(d?.subject||s.panel.identity?.name||s.panel.title||'')}</p><p class="modal-copy">${copy('risk','此版本包含在电脑上运行的程序，可按系统权限访问文件和网络，并使用你在设置中为它配置的凭据。')}</p><p class="employee-sdk-note">${(d?.packages||[]).map(p=>esc(p.name)+' '+esc(p.version)).join('、')}</p><p class="employee-sdk-note">${copy('versionScope','授权仅适用于此版本，可在设置中撤销。')}</p>`;
+   if(!d?.runtime_available)body+='<p class="employee-sdk-error" role="alert">'+employeeConsentText('runtimeMissing','此版本的应用缺少运行所需的组件。')+'</p>';
+   actions=`<button class="btn pri" type="button" onclick="RunTeamsWorkAuthorization.confirm()" ${s.busy||s.loading||s.uncertain||!d?.runtime_available?'disabled':''}>${copy('allowContinue','允许并继续')}</button>`;
+  }else if(row){
+   const p=row.params||{},official=p._meta?.codex_approval_kind==='mcp_tool_call',description=official?p._meta.tool_description:p.reason||p.message||p.request?.message||p.questions?.map(q=>q.question).join('；')||p.name,args=p.arguments??p._meta?.tool_params;
+   body=`<p class="modal-copy">${description?esc(description):employeeConsentText('approvalPrompt','此操作需要你的确认。')}</p>${p.command?`<pre class="employee-mcp-args">${esc(Array.isArray(p.command)?p.command.join(' '):p.command)}</pre>`:''}${args?`<details><summary>${employeeConsentText('viewDetails','查看操作内容')}</summary><pre class="employee-mcp-args">${esc(JSON.stringify(args,null,2))}</pre></details>`:''}<p class="employee-sdk-note">${employeeConsentText('once','授权仅适用于本次操作。')}</p>`;
+   actions=`<button class="btn pri" type="button" onclick="RunTeamsWorkAuthorization.confirm()" ${s.busy||s.uncertain||row.can_accept===false?'disabled':''}>${employeeConsentText('allowOnce','允许本次操作')}</button>`;
+  }else body='<p class="modal-copy">'+copy('resolved','本次确认已处理或已失效。')+'</p>';
+  if(s.error)body+='<p class="employee-sdk-error" role="alert">'+esc(s.error)+'</p>';
+  const retry=s.error?`<button class="btn" type="button" onclick="RunTeamsWorkAuthorization.check()" ${s.busy?'disabled':''}>${employeeConsentText('checkResult','核对结果')}</button>`:'';
+  return {className:'employee-sdk-setup work-authorization-dialog',title,body,closeAction:'RunTeamsWorkAuthorization.close()',attrs:'role="dialog" aria-modal="true" aria-label="'+esc(title)+'" onkeydown="RunTeamsWorkAuthorization.key(event)"',footer:`<button class="btn" type="button" onclick="RunTeamsWorkAuthorization.close()" ${s.busy?'disabled':''}>${isTrust?copy('cancel','暂不运行'):employeeConsentText('decline','拒绝')}</button><div class="grow"></div>${retry}${actions}`};
+ }
+ function dismiss(accepted=false){const old=dialog;if(!old)return;dialog=null;closeModal();old.resolve?.(accepted);old.trigger?.isConnected&&old.trigger.focus();}
+ function show(s,kind){
+  if(dialog)return dialog.state===s?dialog.promise:Promise.resolve(false);
+  if(document.getElementById('modalHost'))return Promise.resolve(false);
+  const previous=document.activeElement;
+  let resolve;const promise=new Promise(done=>{resolve=done;});dialog={state:s,kind,promise,resolve,trigger:previous};openDialog(dialogOptions());return promise;
+ }
+ async function confirm(){
+  const current=dialog,s=current?.state;if(!s||s.busy||s.loading||s.uncertain)return;
+  const row=pending(s),isTrust=trust(s);if(!isTrust&&!row)return;
+  invalidate(s);s.busy=true;s.error='';paint(s);
+  try{
+   await request(s,{...(row?{action:'answer',id:row.id,decision:'accept'}:{action:'enable',confirm:true}),binding_sha256:s.data.binding_sha256});
+   await read(s);if(dialog!==current)return;
+   if(s.error)return;
+   if(isTrust&&!s.data.enabled)throw Error(text('unconfirmed','尚未确认授权结果，请核对状态。'));
+   if(row&&pending(s)?.id===row.id)throw Error(text('unconfirmed','尚未确认授权结果，请核对状态。'));
+   dismiss(true);
+  }catch(error){s.uncertain=true;s.error=text('unconfirmed','尚未确认授权结果，请核对状态。');}
+  finally{s.busy=false;paint(s);}
+ }
+ async function check(){
+  const current=dialog;if(!current||current.state.busy)return;
+  const previous=pending(current.state)?.id;await read(current.state);if(dialog!==current||current.state.error)return;
+  if(current.kind==='trust'&&current.state.data.enabled)dismiss(true);
+  else if(previous&&pending(current.state)?.id!==previous)dismiss(false);
+ }
+ async function close(){
+  const current=dialog,s=current?.state;if(!s||s.busy)return;
+  const row=pending(s);
+  if(row){invalidate(s);s.busy=true;paint(s);try{await request(s,{action:'answer',id:row.id,decision:'cancel',binding_sha256:s.data.binding_sha256});}catch{ s.error=text('unconfirmed','尚未确认授权结果，请核对状态。');s.busy=false;paint(s);return; }s.busy=false;}
+  if(dialog===current)dismiss(false);
+ }
+ function key(event){
+  if(event.key==='Escape'){event.preventDefault();event.stopPropagation();void close();}
+  if(event.key!=='Tab')return;
+  const nodes=[...document.querySelectorAll('.work-authorization-dialog button:not([disabled]),.work-authorization-dialog summary')].filter(n=>n.getClientRects().length),first=nodes[0],last=nodes.at(-1);
+  if(event.shiftKey&&document.activeElement===first){event.preventDefault();last?.focus();}else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first?.focus();}
+ }
+ async function prepare(c=context()){
+  const s=state(c);if(!s)return true;
+  await read(s);try{assertCurrent(s);}catch{return false;}if(s.error){await configure(s);return false;}
+  if(!s.data.available)return true;
+  if(!s.data.enabled&&!await show(s,'trust'))return false;
+  try{assertCurrent(s);}catch{return false;}
+  if(services(s).some(row=>row.required!==false&&(!row.authorized||row.expires_at&&row.expires_at<=Date.now()/1000))){await configure(s);return false;}
+  // A prior stop is resumed by this explicit work action, never by polling.
+  if(s.data.suspended){try{await request(s,{action:'resume',binding_sha256:s.data.binding_sha256});await read(s);}catch(error){s.error=error.message;await configure(s);return false;}}
+  return !s.error;
+ }
+ async function beforeSend(id){const c=context();return Number(c?.panel.id)===Number(id)?prepare(c):true;}
+ async function notify(chat){
+  const c=context();if(Number(c?.panel.id)!==Number(chat)||dialog||document.getElementById('modalHost'))return;
+  const s=state(c);await read(s);
+  try{assertCurrent(s);}catch{return;}
+  if(!s.error&&pending(s))void show(s,'operation');
+ }
+ async function revoke(id){
+  const s=states.get(id);if(!s?.data?.enabled||s.busy)return;invalidate(s);s.busy=true;s.error='';paint(s);
+  try{await request(s,{action:'disable',binding_sha256:s.data.binding_sha256});await read(s);}catch{s.error=text('unconfirmed','尚未确认授权结果，请核对状态。');}
+  finally{s.busy=false;paint(s);}
+ }
+ const element=(s,part,index)=>document.getElementById('work_connection_'+s.key+'_'+part+'_'+index);
+ function connectionCredential(id,index){const s=states.get(id);if(!s||s.busy)return;s.editing=true;const select=element(s,'credential',index),field=element(s,'token_field',index),input=element(s,'token',index);if(field)field.hidden=select.value!=='new';if(input)input.value='';connectionEnable(id,index);if(select.value==='new')input?.focus();}
+ function connectionEnable(id,index){const s=states.get(id);if(!s||s.busy)return;s.editing=true;const choice=element(s,'credential',index)?.value,token=element(s,'token',index)?.value,consent=element(s,'consent',index)?.checked,button=element(s,'authorize',index);if(button)button.disabled=!consent||!choice||choice==='new'&&!token;}
+ async function connectionAction(id,index,body){
+  const s=states.get(id),row=s&&services(s)[index];if(!row||s.busy||s.connectionPending)return;
+  invalidate(s);s.busy=true;s.editing=false;s.error='';s.connectionPending={package:row.package,key:row.key,revoke:body.action==='connection-revoke'};paint(s);
+  try{await request(s,{...body,package:row.package,connection:row.key,binding_sha256:row.binding_sha256});await read(s);}catch{s.error=text('unconfirmed','尚未确认授权结果，请核对状态。');}
+  finally{if(body.token)body.token='';s.busy=false;paint(s);}
+ }
+ function connectionAuthorize(id,index){const s=states.get(id),row=s&&services(s)[index];if(!row||element(s,'authorize',index)?.disabled)return;const select=element(s,'credential',index),input=element(s,'token',index),body={action:'connection-authorize',confirm:element(s,'consent',index)?.checked===true,...(select.value==='new'?{token:input.value}:{credential_name:row.credential_names[Number(select.value)]})};if(input)input.value='';return connectionAction(id,index,body);}
+ function connectionRevoke(id,index){return connectionAction(id,index,{action:'connection-revoke'});}
+ async function boardConfirmation(){
+  const owner=window.RunTeamsSourcePipelines?.current();
+  if(!owner||S.sel||dialog||document.getElementById('modalHost'))return;
+  const rows=(owner.data?.workflows||[]).filter(row=>row.state==='running'&&Number.isSafeInteger(row.work_chat_id));
+  if(!rows.length)return;
+  const row=rows[(boardIndex++)%rows.length],selection=S.sel;
+  const s={panel:{id:row.work_chat_id},chat:row.work_chat_id,boardOwner:owner,workflowId:row.id,pipeline:false,scope:_employeeBusinessScopeSequence,deviceScope:RunTeamsHost.session.deviceScope(S)};
+  const hint=await request(s,null,true);
+  if(hint.schema!=='runteams.mcp-observation/1'||hint.owner!=='employee'||hint.chat_id!==s.chat||!hint.pending||S.sel!==selection||dialog||document.getElementById('modalHost'))return;
+  await RunTeamsSourcePipelines.openWork(row.id);
+  if(window.RunTeamsSourcePipelines.current()===owner&&S.sel?.workflowId===row.id)await notify(s.chat);
+ }
+ window.addEventListener('runteams:business-scope-changed',()=>{dismiss(false);states.clear();});
+ window.setInterval(async()=>{
+  if(polling)return;
+  if(dialog){try{assertCurrent(dialog.state);}catch{dismiss(false);}}
+  polling=true;let s;
+  try{
+   await boardConfirmation();
+   const c=context();if(!c)return;s=state(c);
+   assertCurrent(s);
+   if(dialog&&dialog.state!==s){dismiss(false);}
+   if(s.busy||s.editing)return;
+   const hint=await request(s,null,true);
+   if(hint.schema!=='runteams.mcp-observation/1'||hint.chat_id!==s.chat||hint.owner!==(s.pipeline?'pipeline':'employee'))return;
+   if(hint.pending&&!dialog&&!document.getElementById('modalHost'))await notify(s.chat);
+   else if(dialog?.state===s||document.querySelector('[data-work-authorization="'+s.key+'"]')){
+    if(hint.version!==s.data?.notification_version||services(s).some(row=>row.authorized&&row.expires_at<=Date.now()/1000))await read(s);
+   }
+  }catch{if(s&&dialog?.state===s)dismiss(false);}finally{polling=false;}
+ },1200);
+ return {request,assertCurrent,context,settings,settingsMenu,state,read,configure,prepare,beforeSend,notify,revoke,confirm,check,close,key,get:id=>states.get(id),connectionCredential,connectionEnable,connectionAuthorize,connectionRevoke,connectionRead:read};
+})();

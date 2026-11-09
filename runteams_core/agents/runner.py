@@ -35,7 +35,7 @@ class AgentResult:
 
 
 def run_agent(adapter, prompt, *, execution_profile, mode="judge", model,
-              reasoning_effort=None, timeout_sec,
+              reasoning_effort=None, timeout_sec=None,
               extra_args=None, on_activity=None, transcript_path=None, cwd=None,
               cancel_event=None, require_final_text=True, environment_context=None, work_context=None):
     """用指定 adapter 无头运行一次 Agent CLI。
@@ -109,7 +109,8 @@ def run_agent(adapter, prompt, *, execution_profile, mode="judge", model,
             if remaining <= 0:
                 _kill()
                 return
-    threading.Thread(target=_watch_timeout, daemon=True).start()
+    if timeout_sec is not None:
+        threading.Thread(target=_watch_timeout, daemon=True).start()
     last_activity = [time.monotonic()]
     event_handler = getattr(on_activity, "on_event", None)
 
@@ -139,7 +140,7 @@ def run_agent(adapter, prompt, *, execution_profile, mode="judge", model,
                         "kind": "step", "id": "agent-stall", "step_kind": "status",
                         "label": "员工已约 {} 分钟无新动作".format(
                             max(1, int(silent // 60))),
-                        "status": "running", "detail": "{} 秒后触发超时终止".format(timeout_sec),
+                        "status": "running", "detail": "仍在运行，可手动停止。",
                         "output": "",
                     })
                 except Exception:
@@ -160,8 +161,7 @@ def run_agent(adapter, prompt, *, execution_profile, mode="judge", model,
     cancel_watcher = threading.Thread(target=_watch_cancel, daemon=True)
     cancel_watcher.start()
 
-    # 只有真正有人在看活动流(on_activity 存在)且超时窗口够长,才值得起空转监视线程。
-    if on_activity is not None and timeout_sec > STALL_WARN_SEC:
+    if on_activity is not None and (timeout_sec is None or timeout_sec > STALL_WARN_SEC):
         threading.Thread(target=_watch_stall, daemon=True).start()
 
     # stderr 单独抽干,防管道塞满死锁;同时留作错误分类的证据。

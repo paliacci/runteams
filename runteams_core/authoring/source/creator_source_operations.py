@@ -61,11 +61,16 @@ def read(store, identity, file, query):
 
 
 def write(store, identity, file, body, scope, serialize):
-    if file=='/configuration' and isinstance(body,dict) and set(body)=={'employee_source','action','field','definition_sha256','value'} and body['action']=='credential':
+    if file=='/configuration' and isinstance(body,dict) and body.get('action') in ('credential','reveal-credential'):
+        action=body['action']
+        fields={'employee_source','action','field','definition_sha256'}
+        if set(body) != (fields|{'value'} if action=='credential' else fields):
+            raise ValueError('凭据配置参数无效。')
         from runteams_core.employees.source_employee_runtime import reference
         from runteams_core.configuration.employee_configuration import for_source
         with for_source(reference(identity,body['employee_source'])) as config:
-            value=config.credential(**{k:v for k,v in body.items() if k not in ('employee_source','action')})
+            credential=config.credential if action=='credential' else config.reveal_credential
+            value=credential(**{k:v for k,v in body.items() if k not in ('employee_source','action')})
     elif file=='/configuration':
         if not isinstance(body,dict) or set(body) not in ({'employee_source','operation_id','expected_revision','definition_sha256','values'},{'employee_source','operation_id','expected_revision','definition_sha256','values','bindings'}):raise ValueError('配置保存参数无效。')
         from runteams_core.employees.source_employee_runtime import reference

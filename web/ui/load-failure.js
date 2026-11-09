@@ -13,28 +13,44 @@ const token=key=>scope()+'|'+key;
 const keyOf=o=>String(o.key||o.retry||o.title||'read');
 function button(options={}){
  const key=keyOf(options),busy=!!options.busy||active.has(token(key)),local=options.variant==='local',label=options.label||(local?'重试':'重新加载');
+ const labelKey=busy?options.busyLabelKey:options.labelKey;
  const action=String(options.retry||'');if(!action)return '';
- return `<button type="button" class="rt-failure-retry${local?' rt-failure-retry--secondary':''}${label.length>(local?3:4)?' rt-failure-retry--wide':''}${options.compact?' rt-failure-retry--compact':''}${options.buttonClassName?' '+esc(options.buttonClassName):''}" data-read-scope="${esc(scope())}" data-read-retry="${esc(key)}" data-read-label="${esc(label)}" data-read-aria-label="${esc(options.ariaLabel||label)}" aria-label="${esc(busy?'加载中':options.ariaLabel||label)}" ${busy?'disabled aria-busy="true"':''} onclick="RunTeamsLoadFailure.retry(this,event,() => (${esc(action)}))"><span class="rt-failure-retry-icon" aria-hidden="true">${busy?spinner:refresh}</span><span class="rt-failure-retry-label">${esc(busy?'加载中':label)}</span></button>`;
+ return `<button type="button" class="rt-failure-retry${local?' rt-failure-retry--secondary':''}${label.length>(local?3:4)?' rt-failure-retry--wide':''}${options.compact?' rt-failure-retry--compact':''}${options.buttonClassName?' '+esc(options.buttonClassName):''}" data-read-scope="${esc(scope())}" data-read-retry="${esc(key)}" data-read-label="${esc(label)}"${options.labelKey?` data-read-label-key="${esc(options.labelKey)}" data-read-busy-label-key="${esc(options.busyLabelKey||"")}"`:""}${labelKey?` data-app-i18n-aria-label="${esc(labelKey)}"`:""}${options.focusFallback?` data-read-focus-fallback="${esc(options.focusFallback)}"`:""} data-read-aria-label="${esc(options.ariaLabel||label)}" aria-label="${esc(busy?'加载中':options.ariaLabel||label)}" ${busy?'disabled aria-busy="true"':''} onclick="RunTeamsLoadFailure.retry(this,event,() => (${esc(action)}))"><span class="rt-failure-retry-icon" aria-hidden="true">${busy?spinner:refresh}</span><span class="rt-failure-retry-label"${labelKey?` data-app-i18n="${esc(labelKey)}"`:""}>${esc(busy?'加载中':label)}</span></button>`;
 }
 function markup(options={}){
  const cacheKey=token(keyOf(options));if(!options.busy){last.set(cacheKey,{...options});if(last.size>200)last.delete(last.keys().next().value);}
  const variant=['page','modal','local'].includes(options.variant)?options.variant:'page',key=keyOf(options),title=String(options.title||'内容暂时无法加载');
  const note=options.note||'';
  const art=variant==='local'?`<span class="rt-failure-info">${info}</span>`:`<div class="rt-failure-art">${ART}</div>`;
- return `<div class="rt-load-failure rt-load-failure--${variant}${options.compact?' rt-load-failure--compact':''}${options.className?' '+esc(options.className):''}" data-load-failure="${variant}" data-read-state="${esc(key)}" role="alert">${art}<div class="rt-failure-copy"><b>${esc(title)}</b>${note?`<p>${esc(note)}</p>`:''}</div>${button({...options,key,variant})}</div>`;
+ return `<div class="rt-load-failure rt-load-failure--${variant}${options.compact?' rt-load-failure--compact':''}${options.className?' '+esc(options.className):''}" data-load-failure="${variant}" data-read-state="${esc(key)}" role="alert">${art}<div class="rt-failure-copy"><b${options.titleKey?` data-app-i18n="${esc(options.titleKey)}"`:""}>${esc(title)}</b>${note?`<p${options.noteKey?` data-app-i18n="${esc(options.noteKey)}"`:""}>${esc(note)}</p>`:''}</div>${button({...options,key,variant})}</div>`;
 }
 function showBusy(button,busy){
  if(!button?.isConnected)return;button.disabled=busy;button.setAttribute('aria-busy',String(busy));
  const label=busy?'加载中':button.dataset.readLabel;button.setAttribute('aria-label',busy?label:button.dataset.readAriaLabel||label);
  const icon=button.querySelector('.rt-failure-retry-icon');if(icon)icon.innerHTML=busy?spinner:refresh;
  const text=button.querySelector('.rt-failure-retry-label');if(text)text.textContent=label;
+ const labelKey=busy?button.dataset.readBusyLabelKey:button.dataset.readLabelKey;
+ if(labelKey){
+  button.setAttribute('data-app-i18n-aria-label',labelKey);
+  text?.setAttribute('data-app-i18n',labelKey);
+  global.RunTeamsLocale?.apply(button);
+ }
+
 }
 async function retry(button,event,action){
  event?.preventDefault();event?.stopPropagation();const key=button?.dataset.readRetry||'',id=token(key);if(button?.disabled||active.has(id)||button?.dataset.readScope!==undefined&&button.dataset.readScope!==scope())return;
  const focus=global.document?.activeElement===button,oldScope=scope();active.set(id,true);showBusy(button,true);
  try{return await action();}finally{
   active.delete(id);if(scope()===oldScope){const matches=Array.from(global.document?.querySelectorAll?.('[data-read-retry]')||[]).filter(n=>n.dataset.readRetry===key);matches.forEach(n=>showBusy(n,false));
-   const restore=()=>{if(!focus||scope()!==oldScope)return;const candidates=Array.from(global.document?.querySelectorAll?.('[data-read-retry]')||[]).filter(n=>n.dataset.readRetry===key),target=candidates.find(n=>n.dataset.readLabel===button.dataset.readLabel)||candidates[0];if(target&&(!global.document.activeElement||global.document.activeElement===global.document.body||global.document.activeElement===button))target.focus({preventScroll:true});};
+   const restore=()=>{
+    if(!focus||scope()!==oldScope)return;
+    const doc=global.document;
+    if(doc.activeElement&&doc.activeElement!==doc.body&&doc.activeElement!==button)return;
+    const candidates=Array.from(doc.querySelectorAll('[data-read-retry]')).filter(node=>node.dataset.readRetry===key);
+    const fallback=button.dataset.readFocusFallback;
+    const target=candidates.find(node=>node.dataset.readLabel===button.dataset.readLabel)||candidates[0]||(fallback?doc.querySelector(fallback):null);
+    target?.focus({preventScroll:true});
+   };
    // React and host pages may replace the button in the final render.
    if(global.requestAnimationFrame)global.requestAnimationFrame(restore);else restore();
   }

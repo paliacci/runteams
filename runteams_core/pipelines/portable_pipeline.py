@@ -69,9 +69,6 @@ def _local_definition(pipeline, employee_ids, skill_maps):
         ref = position.pop('employee_ref')
         position['employee_id'] = employee_ids[ref]
         position['skill_key'] = skill_maps[ref][position['skill_key']]
-    for standard in result.get('standards', []):
-        if 'employee_refs' in standard:
-            standard['employee_ids'] = [employee_ids[ref] for ref in standard.pop('employee_refs')]
     # Validate against the same authority as authored pipelines. Return the exact
     # mapped structure so declared fields are not silently discarded/coerced.
     normalize_pipeline_definition(result)
@@ -89,7 +86,6 @@ def validate_pipeline_bindings(pipeline, skills):
     positions, states = pipeline['positions'], pipeline.get('states', [])
     _unique(positions+states, 'key', '流水线列键')
     _unique(pipeline.get('parameters', []), 'key', '流水线参数')
-    _unique(pipeline.get('standards', []), 'key', '流水线标准')
     position_keys = {position['key'] for position in positions}
     used = set()
     maps = {ref: {key: key for key in keys} for ref, keys in skills.items()}
@@ -105,9 +101,6 @@ def validate_pipeline_bindings(pipeline, skills):
             if set(parameter.get(field, []))-position_keys:
                 raise ContractError('流水线参数引用了无效岗位')
         if 'default' in parameter: _default_is_portable(parameter['default'])
-    for standard in pipeline.get('standards', []):
-        if set(standard.get('employee_refs', []))-used:
-            raise ContractError('流水线标准引用了无效员工')
     ids = {ref:index+1 for index,ref in enumerate(maps)}
     _local_definition(pipeline, ids, maps)
 
@@ -150,7 +143,7 @@ def localize_pipeline(asset, employee_ids, skill_maps):
 
 def portable_definition(pipeline, employee_refs):
     """Map a trusted frozen local definition; assets are attached by the exporter."""
-    if set(pipeline)-{'schema','name','origin','positions','edges','states','parameters','standards'}:
+    if set(pipeline)-{'schema','name','origin','positions','edges','states','parameters','team_standard','routing_policy'}:
         raise ContractError('流水线包含未知导出字段')
     result = copy.deepcopy(pipeline)
     result.pop('schema',None);result.pop('origin',None)
@@ -163,8 +156,4 @@ def portable_definition(pipeline, employee_refs):
     for parameter in result.get('parameters', []):
         if parameter.get('type') == 'secret' and 'default' in parameter:
             raise ContractError('秘密参数不能携带默认值')
-    for standard in result.get('standards', []):
-        if 'employee_ids' in standard:
-            try: standard['employee_refs'] = [employee_refs[employee_id] for employee_id in standard.pop('employee_ids')]
-            except KeyError: raise ContractError('流水线标准引用了未导出员工') from None
     return result

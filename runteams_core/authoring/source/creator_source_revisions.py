@@ -16,7 +16,7 @@ import tempfile
 
 from runteams_core.authoring.creator_contracts import canonical, digest, source_files, strict_json, tree
 from runteams_core.authoring.source.creator_local_source import _read, _sync
-from runteams_core.authoring.source.creator_source_archive import inspect, pack
+from runteams_core.authoring.source.creator_source_archive import display_files, inspect, pack
 
 REV = re.compile(r'r-[a-f0-9]{64}')
 
@@ -25,10 +25,16 @@ class SourceConflict(ValueError):
     pass
 
 
+def _operation_revision(operation_key):
+    if not isinstance(operation_key, str) or not re.fullmatch(r'[A-Za-z0-9_-]{8,128}', operation_key):
+        raise ValueError('源码保存标识无效。')
+    return 'r-' + hashlib.sha256(operation_key.encode()).hexdigest()
+
+
 class Revisions:
-    def __init__(self, store, identity):
+    def __init__(self, store, identity, *, display_only=False):
         self.store, self.identity = store, identity
-        self.original = store.describe(identity)
+        self.original = store.describe(identity, verify=not display_only)
         self.root = store._directory(identity)
 
     @contextmanager
@@ -54,7 +60,7 @@ class Revisions:
             raise ValueError('源码修订记录无效。')
         return head['revision']
 
-    def _revision(self, revision):
+    def _revision_metadata(self, revision):
         if not isinstance(revision, str) or not REV.fullmatch(revision):
             raise ValueError('源码修订无效。')
         directory = self.root / 'revisions' / revision
@@ -69,6 +75,10 @@ class Revisions:
                     for k in ('request_sha256','archive_sha256')) or not isinstance(meta.get('created_at'),str)):
             raise ValueError('源码修订记录无效。')
         datetime.fromisoformat(meta['created_at'])
+        return directory, meta
+
+    def _revision(self, revision):
+        directory, meta = self._revision_metadata(revision)
         raw = _read(directory / 'source.zip', 33 * 1024 * 1024)
         if hashlib.sha256(raw).hexdigest() != meta.get('archive_sha256'):
             raise ValueError('源码修订校验失败，原版本已保留。')
@@ -89,6 +99,17 @@ class Revisions:
     def files(self):
         with self.locked():
             return self._files(self._head())
+
+    @contextmanager
+    def display_files(self):
+        # A writer publishes the immutable revision before atomically replacing
+        # the head. The roster can read the captured head while a save runs.
+        self.store.check_scope()
+        head = self._head()
+        directory, meta = (self.root, self.original) if head == self.identity else self._revision_metadata(head)
+        with display_files(directory / 'source.zip', meta['source']) as files:
+            yield files
+        self.store.check_scope()
 
     def files_at(self, revision):
         with self.locked():
@@ -124,19 +145,24 @@ class Revisions:
                     'original_revision': self.identity, 'revision': self._head()}
 
     def receipt(self, operation_key):
-        if not isinstance(operation_key, str) or not re.fullmatch(r'[A-Za-z0-9_-]{8,128}', operation_key):
-            raise ValueError('源码保存标识无效。')
-        revision = 'r-' + hashlib.sha256(operation_key.encode()).hexdigest()
+        revision = _operation_revision(operation_key)
         with self.locked():
             previous = next((m for m in self._history() if m['revision'] == revision), None)
             return {'state': 'confirmed', 'result': {'revision': revision, 'source': previous['source'],
                     'original_revision': self.identity}} if previous else {'state': 'unknown'}
 
+    def operation_files(self, operation_key):
+        """Read an operation's exact bytes, including a staged write awaiting its head."""
+        revision = _operation_revision(operation_key)
+        with self.locked():
+            directory = self.root / 'revisions' / revision
+            if directory.exists() or directory.is_symlink():
+                return self._revision(revision)[1]
+            return None
+
     def commit(self, files, base, operation_key):
         files = source_files(files)
-        if not isinstance(operation_key, str) or not re.fullmatch(r'[A-Za-z0-9_-]{8,128}', operation_key):
-            raise ValueError('源码保存标识无效。')
-        revision = 'r-' + hashlib.sha256(operation_key.encode()).hexdigest()
+        revision = _operation_revision(operation_key)
         source = tree(files)
         request_hash = digest({'base': base, 'source': source})
         with self.locked():

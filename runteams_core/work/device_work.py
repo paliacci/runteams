@@ -23,7 +23,9 @@ from runteams_core.foundation.contracts import ContractError
 DIRECTORY = 'work'
 DATABASE = 'runteams.db'
 FILE_PREFIX = 'device-work-file://'
-VERSION = 4
+VERSION = 5
+PREVIOUS_VERSION = 4
+TASK_REPORT_STRUCTURE = (('index', 'device_work_task_report'), ('trigger', 'device_work_delete_task_report'))
 ID_MIN = 2**48
 ID_MAX = 2**53 - 1
 RESOURCES = ('tasks', 'workflow_runs', 'employee_runs', 'artifacts')
@@ -37,9 +39,12 @@ def schema():
     return (directory/'device-work.sql').read_text()
 
 
-def verify_structure(connection):
+def verify_structure(connection, version=VERSION):
     from runteams_core.storage.device_schema import expected, structure
-    actual, required = structure(connection), expected(schema())
+    actual, required = structure(connection), expected(schema()).copy()
+    if version == PREVIOUS_VERSION:
+        for key in TASK_REPORT_STRUCTURE:
+            required.pop(key)
     if any(actual.get(key)!=value for key,value in required.items()) or set(actual)-set(required):
         raise ContractError('本机工作数据结构不受支持，原资料保持不变。')
 
@@ -193,10 +198,15 @@ class DeviceWorkStorage:
             Path(self.path).chmod(0o600)
             try:
                 version = connection.execute('PRAGMA user_version').fetchone()[0]
-                if version == 3:
+                if version in (3, PREVIOUS_VERSION):
                     self._verify_scope(connection)
                     connection.execute('BEGIN IMMEDIATE')
-                    connection.execute('DROP TABLE IF EXISTS document_native_links')
+                    if version == 3:
+                        connection.execute('DROP TABLE IF EXISTS document_native_links')
+                    verify_structure(connection, PREVIOUS_VERSION)
+                    from runteams_core.storage.device_schema import expected
+                    for key in TASK_REPORT_STRUCTURE:
+                        connection.execute(expected(schema())[key])
                     verify_structure(connection)
                     connection.execute('PRAGMA user_version=' + str(VERSION))
                     self.check_scope()
@@ -313,17 +323,24 @@ class DeviceWorkStorage:
                 raise ContractError('这是从备份恢复的工作，请先核对原工作与外部操作结果再继续。')
 
     def canonical_data(self, value):
+        # The recursive conversion uses this storage's fixed root.
         self.check_scope()
-        if isinstance(value, dict):
-            return {key: self.canonical_data(item) for key, item in value.items()}
-        if isinstance(value, list):
-            return [self.canonical_data(item) for item in value]
-        if isinstance(value, str) and value.startswith(str(Path(self.path).parent) + os.sep) and not any(c in value for c in ('\n', '\r', '\0')):
-            relative = Path(value).relative_to(Path(self.path).parent).as_posix()
-            from runteams_core.assets.cloud_files import safe_relative
-            safe_relative(relative)
-            return FILE_PREFIX + relative
-        return value
+        root = Path(self.path).parent
+        prefix = str(root) + os.sep
+
+        def convert(item):
+            if isinstance(item, dict):
+                return {key: convert(child) for key, child in item.items()}
+            if isinstance(item, list):
+                return [convert(child) for child in item]
+            if isinstance(item, str) and item.startswith(prefix) and not any(c in item for c in ('\n', '\r', '\0')):
+                from runteams_core.assets.cloud_files import safe_relative
+                relative = Path(item).relative_to(root).as_posix()
+                safe_relative(relative)
+                return FILE_PREFIX + relative
+            return item
+
+        return convert(value)
 
     def file_path(self, reference):
         if not isinstance(reference, str) or not reference.startswith(FILE_PREFIX):
@@ -415,11 +432,12 @@ def verify(directory, scope):
     if path.parent.is_symlink() or path.is_symlink() or any(p.is_symlink() for p in path.parent.rglob('*')):
         raise ContractError('本机工作备份路径无效。')
     with sqlite3.connect(path.resolve().as_uri() + '?mode=ro&immutable=1', uri=True) as connection:
-        if (connection.execute('PRAGMA user_version').fetchone()[0] != VERSION
+        version = connection.execute('PRAGMA user_version').fetchone()[0]
+        if (version not in (PREVIOUS_VERSION, VERSION)
                 or connection.execute('PRAGMA integrity_check').fetchone()[0] != 'ok'
                 or connection.execute('PRAGMA foreign_key_check').fetchone()):
             raise ContractError('本机工作备份数据库无效。')
-        verify_structure(connection)
+        verify_structure(connection, version)
         row = connection.execute('SELECT binding_json,data_epoch FROM device_work_scope WHERE singleton=1').fetchone()
         # Backup manifests use the original storage URL, even after transport
         # changes; account/deployment/namespace remain the durable identity.

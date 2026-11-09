@@ -7,7 +7,10 @@
  const valid=value=>['system','zh-CN','en'].includes(value);
  const catalogs=Object.create(null),listeners=new Set();
  const has=(object,key)=>Object.prototype.hasOwnProperty.call(object,key);
- function loadPreference(){try{const value=localStorage.getItem(storageKey);return valid(value)?value:'system';}catch{return 'system';}}
+ function loadPreference(){
+  try{const value=localStorage.getItem(storageKey);if(valid(value))return value;}catch{}
+  return valid(window.runteamsNativeLanguage)?window.runteamsNativeLanguage:'system';
+ }
  function resolve(value){
   if(value!=='system')return value;
   for(const language of navigator.languages?.length?navigator.languages:[navigator.language||'']){
@@ -28,7 +31,7 @@
   const locale=messageLocale(key),value=locale?catalogs[locale][key]:defaultText;
   return String(value).replace(/\{([A-Za-z][A-Za-z0-9_]*)\}/g,(token,name)=>has(parameters,name)&&['string','number'].includes(typeof parameters[name])?String(parameters[name]):token);
  }
- const targets={'data-app-i18n':null,'data-app-i18n-title':'title','data-app-i18n-aria-label':'aria-label','data-app-i18n-placeholder':'placeholder','data-app-i18n-data-placeholder':'data-placeholder'};
+ const targets={'data-app-i18n':null,'data-app-i18n-title':'title','data-app-i18n-alt':'alt','data-app-i18n-aria-label':'aria-label','data-app-i18n-aria-valuetext':'aria-valuetext','data-app-i18n-placeholder':'placeholder','data-app-i18n-data-placeholder':'data-placeholder'};
  const selector=Object.keys(targets).map(key=>'['+key+']').join(',');
  function apply(root){
   if(!root)return;
@@ -64,7 +67,9 @@
   if(!valid(value))throw new RangeError('Unsupported language preference');
   let persisted=true;try{localStorage.setItem(storageKey,value);persisted=localStorage.getItem(storageKey)===value;}catch{persisted=false;}
   const previous=language;preference=value;language=resolve(value);publish(previous,'selection');
-  return Object.freeze({preference,language,persisted});
+  const nativeStorage=window.webkit?.messageHandlers?.runteamsLanguage;
+  const nativeSave=nativeStorage?Promise.resolve().then(()=>nativeStorage.postMessage(value)).then(result=>result===true,()=>false):null;
+  return Object.freeze({preference,language,persisted,...(nativeSave?{nativeSave}:{})});
  }
  function sync(source){const previous=language;preference=loadPreference();language=resolve(preference);publish(previous,source);}
  const api={storageKey,fallback,t,register,apply,messageLocale,setPreference,
@@ -77,6 +82,8 @@
  for(const [locale,messages]of Object.entries(globalThis.RUNTEAMS_LOCALES||{}))register(locale,messages);
  document.documentElement.dataset.appLanguage=language;
  document.documentElement.dataset.appLanguagePreference=preference;
+ // Localize the document title before the desktop host exposes its web area.
+ apply(document.head);
  window.addEventListener('storage',event=>{if(event.key===storageKey||event.key===null)sync('storage');});
  window.addEventListener('languagechange',()=>{if(preference==='system'){const previous=language;language=resolve(preference);publish(previous,'system');}});
  function start(){

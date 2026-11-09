@@ -18,9 +18,11 @@ export async function request(path,method='GET',body,options={}){
  }
  finally{if(writing)pending--;}
 }
-export async function stream(path,body,onEvent){
- await connect();if(closing)throw Error('窗口正在关闭。');pending++;
- try{return await client.stream(path,body,onEvent);}
+export async function stream(path,body,onEvent,options){
+ await connect();if(closing)throw Error('窗口正在关闭。');
+ if(options?.observe)return client.stream(path,body,onEvent,options);
+ pending++;
+ try{return await client.stream(path,body,onEvent,options);}
  finally{pending--;}
 }
 export async function uploadBackup(file,operationId){

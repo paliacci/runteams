@@ -1,6 +1,7 @@
 """Small canonical contracts shared by storage, UI and Agent Runtime adapters."""
 
 import copy
+import math
 import hashlib
 import json
 from pathlib import PurePosixPath
@@ -22,6 +23,10 @@ class DocumentLossError(ContractError):
 _KEY = re.compile(r"^[a-z][a-z0-9-]{0,79}$")
 _CREDENTIAL_KEY = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,119}$")
 _RUN_STATES = ("completed", "blocked", "needs_human", "failed")
+PIPELINE_STATUS_FIRST = "status-first"
+PIPELINE_WAIT_FOR_INPUT = "wait-for-input"
+PIPELINE_OUTCOME_PREFIX = "outcome:"
+PIPELINE_APPROVAL_DECISIONS = ("approved", "rejected")
 _PIPELINE_COLUMN_COLORS = {
     "gray", "brown", "orange", "yellow", "green", "blue", "purple", "pink", "red",
 }
@@ -46,7 +51,7 @@ HANDOFF_TYPE_EXTENSIONS = {
     ".json": "json",
     ".txt": "txt", ".log": "txt",
 }
-DEFAULT_EMPLOYEE_AVATAR = "preset:bottts:nova"
+DEFAULT_EMPLOYEE_AVATAR = "preset:colleague:colleague-001"
 
 
 def canonical_json(value):
@@ -136,9 +141,36 @@ def normalize_pipeline_parameters(value, position_keys):
             "source": source,
             "display": "setup" if parameter_type == "secret" else display,
         }
+        group = _text(item.get("group"), "配置组名称", required=False, limit=160)
+        if group:
+            normalized["group"] = group
+        if "required" in item:
+            if type(item["required"]) is not bool:raise ContractError("必填标记必须是布尔值")
+            normalized["required"] = item["required"]
+        required_when = _text(item.get("required_when"), "必填场景", required=False, limit=1000)
+        if required_when:normalized["required_when"] = required_when
+        if "constraints" in item:
+            limits = _object(item["constraints"], "参数限制")
+            allowed = {"min", "max", "step"} if parameter_type == "number" else {"min_length", "max_length", "pattern"} if parameter_type in ("text", "textarea") else set()
+            if set(limits)-allowed:raise ContractError("参数限制不适用于此类型")
+            for name, value in limits.items():
+                if name == "pattern":
+                    if not isinstance(value,str) or not 1 <= len(value) <= 512:raise ContractError("参数格式规则无效")
+                    try:re.compile(value)
+                    except re.error:raise ContractError("参数格式规则无效") from None
+                elif type(value) not in (int,float) or not math.isfinite(value):raise ContractError("参数限制必须是有限数字")
+                elif name.endswith("length") and (type(value) is not int or value < (1 if name == "max_length" else 0) or value > 8192):raise ContractError("参数长度限制无效")
+                elif name == "step" and value <= 0:raise ContractError("参数步长必须大于零")
+            if limits.get("min_length",0) > limits.get("max_length",8192) or limits.get("min",-math.inf) > limits.get("max",math.inf):raise ContractError("参数限制范围无效")
+            normalized["constraints"] = copy.deepcopy(limits)
         note = _text(item.get("note"), "参数说明", required=False, limit=1000)
         if note:
             normalized["note"] = note
+        if 'scope_parameter' in item:
+            scope_parameter = _text(item['scope_parameter'], '凭据项目字段', limit=120)
+            if parameter_type != 'secret' or source != 'user' or not _PIPELINE_PARAMETER_KEY.fullmatch(scope_parameter):
+                raise ContractError('只有任务凭据可以绑定项目字段')
+            normalized['scope_parameter'] = scope_parameter
         if parameter_type in ("select", "multiselect", "checklist"):
             options = []
             for option in item.get("options") or []:
@@ -161,45 +193,10 @@ def normalize_pipeline_parameters(value, position_keys):
         result.append(normalized)
         if len(result) >= 40:
             break
-    return result
-
-
-def normalize_pipeline_standards(value):
-    """Normalize pipeline-owned working rules shared by its employees."""
-    result, seen = [], set()
-    for raw in value or []:
-        item = _object(raw, "团队规范")
-        key = _key(item.get("key"), "团队规范 key")
-        if key in seen:
-            raise ContractError("团队规范 key 重复：{}".format(key))
-        seen.add(key)
-        standard = {
-            "key": key,
-            "name": _text(item.get("name"), "团队规范名称", limit=160),
-            "instructions": _text(
-                item.get("instructions"), "团队规范内容", limit=12000),
-        }
-        description = _text(
-            item.get("description"), "团队规范使用场景",
-            required=False, limit=1000)
-        if description:
-            standard["description"] = description
-        employee_ids, selected = [], set()
-        for raw_employee_id in item.get("employee_ids") or []:
-            try:
-                employee_id = int(raw_employee_id)
-            except (TypeError, ValueError):
-                raise ContractError("团队规范引用了无效员工")
-            if employee_id <= 0:
-                raise ContractError("团队规范引用了无效员工")
-            if employee_id not in selected:
-                selected.add(employee_id)
-                employee_ids.append(employee_id)
-        if employee_ids:
-            standard["employee_ids"] = employee_ids
-        result.append(standard)
-        if len(result) >= 100:
-            break
+    for parameter in result:
+        if 'scope_parameter' in parameter and not any(p['key'] == parameter['scope_parameter'] and
+                p['type'] == 'text' and p['source'] == 'user' and p['display'] == 'setup' for p in result):
+            raise ContractError('任务凭据必须绑定已声明的任务项目配置')
     return result
 
 
@@ -267,6 +264,11 @@ def json_schema_violations(value, schema, path="$", limit=50):
 
 def normalize_pipeline_definition(value):
     value = _object(value, "流水线定义")
+    if "standards" in value:
+        raise ContractError("团队规范请使用单个 team_standard 文本字段")
+    status_first = "routing_policy" in value
+    if status_first and value["routing_policy"] != PIPELINE_STATUS_FIRST:
+        raise ContractError("流水线流转规则版本无效")
     positions, position_keys = [], set()
     for raw in value.get("positions") or []:
         item = _object(raw, "岗位")
@@ -285,6 +287,9 @@ def normalize_pipeline_definition(value):
                 raise ContractError("员工岗位必须引用员工")
             position["kind"] = "employee"
             position["employee_id"] = employee_id
+            description = _text(item.get("description"), "岗位说明", required=False, limit=300)
+            if description:
+                position["description"] = description
             skill_key = _text(item.get("skill_key"), "岗位技能", required=False, limit=80)
             if skill_key:
                 position["skill_key"] = normalize_package_key(skill_key)
@@ -322,15 +327,36 @@ def normalize_pipeline_definition(value):
             raise ContractError("状态列颜色无效：{}".format(color))
         if color:
             state["color"] = color
+        if "records_only" in item:
+            if type(item["records_only"]) is not bool or (item["records_only"] and kind != "done"):
+                raise ContractError("仅保留执行记录只适用于完成位置")
+            state["records_only"] = item["records_only"]
         states.append(state)
     route_keys = position_keys | state_keys
+    if status_first and PIPELINE_WAIT_FOR_INPUT in route_keys:
+        raise ContractError("待人工处理是岗位内状态，不能作为列名标识")
+    position_kinds = {position["key"]: position["kind"] for position in positions}
+    parameters = normalize_pipeline_parameters(value.get("parameters"), position_keys)
+    configuration = {field["key"]: field for field in parameters if field["source"] == "user"
+                     and field["display"] == "setup" and field["type"] != "secret"}
     edges, edge_keys = [], set()
     for raw in value.get("edges") or []:
         item = _object(raw, "交接关系")
         source, target = _key(item.get("from"), "上游岗位"), _key(item.get("to"), "下游环节")
-        if source not in position_keys or target not in route_keys or source == target:
+        wait_here = status_first and target == PIPELINE_WAIT_FOR_INPUT and position_kinds.get(source) == "employee"
+        if source not in position_keys or (target not in route_keys and not wait_here) or source == target:
             raise ContractError("交接关系引用了无效环节")
-        when = _text(item.get("when"), "交接条件", required=False, limit=120)
+        limit = 120 + len(PIPELINE_OUTCOME_PREFIX) if status_first else 120
+        when = _text(item.get("when"), "交接条件", required=False, limit=limit)
+        if status_first:
+            condition = when or "completed"
+            if position_kinds[source] == "approval":
+                if condition not in PIPELINE_APPROVAL_DECISIONS:
+                    raise ContractError("人工决定只能按通过或退回设置去向")
+            elif condition not in (*_RUN_STATES, "exception", "always"):
+                outcome = condition.removeprefix(PIPELINE_OUTCOME_PREFIX)
+                if outcome == condition or not outcome or outcome != outcome.strip():
+                    raise ContractError("技能结果条件须使用 outcome: 前缀")
         marker = (source, when or "completed")
         if marker in edge_keys:
             raise ContractError("同一岗位的交接条件不能重复")
@@ -338,6 +364,15 @@ def normalize_pipeline_definition(value):
         edge = {"from": source, "to": target}
         if when and when != "completed":
             edge["when"] = when
+        if "configuration_fields" in item:
+            fields = item["configuration_fields"]
+            if (not wait_here or not isinstance(fields, list) or not 1 <= len(fields) <= 40
+                    or any(not isinstance(key, str) or key not in configuration for key in fields)
+                    or len(set(fields)) != len(fields)
+                    or any(configuration[key].get("visible_to") and source not in configuration[key]["visible_to"]
+                           for key in fields)):
+                raise ContractError("待配置字段必须是原岗位可见的任务配置")
+            edge["configuration_fields"] = fields.copy()
         edges.append(edge)
     targets = {edge["to"] for edge in edges if edge["to"] in position_keys}
     starts = [item["key"] for item in positions if item["key"] not in targets]
@@ -356,14 +391,17 @@ def normalize_pipeline_definition(value):
     if reachable != position_keys:
         raise ContractError("流水线存在无法到达的岗位")
     result = {"schema": "runteams.pipeline/v1", "positions": positions, "edges": edges}
+    if status_first:
+        result["routing_policy"] = PIPELINE_STATUS_FIRST
     if states:
         result["states"] = states
-    parameters = normalize_pipeline_parameters(value.get("parameters"), position_keys)
     if parameters:
         result["parameters"] = parameters
-    standards = normalize_pipeline_standards(value.get("standards"))
-    if standards:
-        result["standards"] = standards
+    if "team_standard" in value:
+        standard = value["team_standard"]
+        if not isinstance(standard, str) or not standard.strip() or len(standard) > 12000:
+            raise ContractError("团队规范必须是 1 至 12000 字符的非空文本")
+        result["team_standard"] = standard
     return result
 
 
@@ -385,6 +423,8 @@ def repair_pipeline_definition(value, drop_keys=None):
         for item in list(value.get("states") or [])
         if str(item.get("key") or "").strip()
     }
+    if value.get("routing_policy") == PIPELINE_STATUS_FIRST:
+        route_live.add(PIPELINE_WAIT_FOR_INPUT)
     edges, seen = [], set()
     for raw in value.get("edges") or []:
         if not isinstance(raw, dict):
@@ -401,6 +441,8 @@ def repair_pipeline_definition(value, drop_keys=None):
         edge = {"from": source, "to": target}
         if when != "completed":
             edge["when"] = when
+        if "configuration_fields" in raw:
+            edge["configuration_fields"] = raw["configuration_fields"]
         edges.append(edge)
     parameters = []
     for raw in value.get("parameters") or []:
@@ -425,9 +467,14 @@ def repair_pipeline_definition(value, drop_keys=None):
     try:
         return normalize_pipeline_definition(updated)
     except ContractError:
-        order = [str(item.get("key") or "").strip() for item in positions]
-        linear = [{"from": source, "to": target}
-                  for source, target in zip(order, order[1:]) if source and target]
+        linear = []
+        for source, target in zip(positions, positions[1:]):
+            start, end = (str(item.get("key") or "").strip() for item in (source, target))
+            if start and end:
+                edge = {"from": start, "to": end}
+                if updated.get("routing_policy") == PIPELINE_STATUS_FIRST and source.get("kind") == "approval":
+                    edge["when"] = "approved"
+                linear.append(edge)
         return normalize_pipeline_definition(dict(updated, edges=linear))
 
 

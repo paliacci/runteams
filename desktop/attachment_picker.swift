@@ -17,22 +17,32 @@ let application = NSApplication.shared
 // the native chooser visible to accessibility/UI automation as well as users.
 application.setActivationPolicy(.regular)
 
+let preferenceDomain = Bundle.main.object(forInfoDictionaryKey: "RunTeamsLanguagePreferenceDomain") as? String
+let preference = preferenceDomain.flatMap {
+    UserDefaults.standard.persistentDomain(forName: $0)?["runteams_language_preference"] as? String
+}
+let systemLanguages = Locale.preferredLanguages.compactMap { $0.split(separator: "-").first?.lowercased() }
+let systemLanguage = systemLanguages.first { $0 == "zh" || $0 == "en" }
+let chinese = preference == "zh-CN" || (preference != "en" && systemLanguage == "zh")
+func localized(_ zh: String, _ en: String) -> String { chinese ? zh : en }
+
 let panel = NSOpenPanel()
-panel.title = "选择文件和文件夹"
-panel.prompt = "添加"
-panel.message = "可同时选择文件或文件夹"
+panel.title = localized("选择文件和文件夹", "Choose Files and Folders")
+panel.prompt = localized("添加", "Add")
 panel.canChooseFiles = true
 panel.canChooseDirectories = true
 panel.allowsMultipleSelection = !CommandLine.arguments.contains("--single")
 if CommandLine.arguments.contains("--files-only") {
-    panel.title = "选择文件"
-    panel.message = "请选择你要使用的文件"
+    panel.title = panel.allowsMultipleSelection ? localized("选择文件", "Choose Files") : localized("选择文件", "Choose a File")
     panel.canChooseDirectories = false
 }
 if CommandLine.arguments.contains("--folders-only") {
-    panel.title = "选择文件夹"
-    panel.message = "请选择你要使用的文件夹"
+    panel.title = panel.allowsMultipleSelection ? localized("选择文件夹", "Choose Folders") : localized("选择文件夹", "Choose a Folder")
     panel.canChooseFiles = false
+}
+if CommandLine.arguments.contains("--work-folder") {
+    panel.title = localized("选择工作文件夹", "Choose a Work Folder")
+    panel.prompt = localized("选择", "Choose")
 }
 panel.resolvesAliases = true
 panel.treatsFilePackagesAsDirectories = false
@@ -47,7 +57,7 @@ func finish(_ response: NSApplication.ModalResponse) {
         FileHandle.standardOutput.write(Data("\n".utf8))
         application.terminate(nil)
     } catch {
-        FileHandle.standardError.write(Data("无法生成选择结果\n".utf8))
+        FileHandle.standardError.write(Data((localized("无法读取所选项目。请重新选择。", "Couldn’t read the selection. Choose again.") + "\n").utf8))
         exit(1)
     }
 }

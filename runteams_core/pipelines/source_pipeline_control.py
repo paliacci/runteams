@@ -4,6 +4,7 @@ Commands, applied employee/configuration snapshots and receipts share the normal
 event transaction. A pause drains admitted turns; it never kills an independent
 employee or replays an uncertain external effect.
 """
+from runteams_core.assets import rented_references
 from runteams_core.pipelines import pipeline_references
 import copy
 import json
@@ -13,7 +14,7 @@ from contextlib import nullcontext
 
 from runteams_core.pipelines import source_pipeline_work as work
 from runteams_core.work import workflow_policy
-from runteams_core.foundation.contracts import ContractError
+from runteams_core.foundation.contracts import ContractError, PIPELINE_WAIT_FOR_INPUT
 from runteams_core.authoring.creator_contracts import canonical, digest
 from runteams_core.storage.repository import utc_now
 
@@ -29,7 +30,7 @@ def stream(ref):
 def read(core, ref, connection=None):
     ref = pipeline_references.checked_reference(ref)
     if connection is None:
-        with core.repository.connect() as connection:
+        with core.repository.read_snapshot() as connection:
             return read(core, ref, connection)
     row = connection.execute('SELECT data_json FROM events WHERE stream=? AND type=? ORDER BY id DESC LIMIT 1',
         (stream(ref), STATE_EVENT)).fetchone()
@@ -47,7 +48,7 @@ def _write(core, connection, state):
 
 def _rows(connection, ref):
     return connection.execute("SELECT w.*,t.payload_json,t.trashed_at FROM workflow_runs w JOIN tasks t ON t.id=w.task_id "
-        "WHERE json_extract(w.snapshot_json,'$.pipeline_work.reference.source_id')=? "
+        "WHERE t.trashed_at IS NULL AND json_extract(w.snapshot_json,'$.pipeline_work.reference.source_id')=? "
         "AND json_extract(w.snapshot_json,'$.pipeline_work.reference.pipeline_source')=? ORDER BY w.id",
         (ref['source_id'], ref['pipeline_source'])).fetchall()
 
@@ -67,9 +68,9 @@ def _owned_entry(ref):
         raise ContractError('流水线不属于当前源码工程。')
 
 
-def state(core, ref, active_ids=()):
+def state(core, ref, active_ids=(), *, connection=None):
     core._actor(); ref = pipeline_references.checked_reference(ref)
-    with core.repository.connect() as connection:
+    with (core.repository.read_snapshot() if connection is None else nullcontext(connection)) as connection:
         saved = read(core, ref, connection); rows = _rows(connection, ref)
     if saved['revision']==0:_owned_entry(ref)
     live = _live(rows, active_ids)
@@ -94,33 +95,58 @@ def state(core, ref, active_ids=()):
         'pause_error': saved.get('pause_error', ''), 'storage_scope': 'device'}
 
 
-def _role(package, context):
+def member_configuration_snapshot(package, context, *, defer_credentials=False):
     from runteams_core.employees.employee_context import current as employee_context
     from runteams_core.pipelines.pipeline_context import current as pipeline_context
+    from runteams_core.configuration.configuration_schema import fields
+    from runteams_core.configuration.credentials.configuration_credentials import supports
+    from runteams_core.configuration.employee_configuration import ConfigurationInvalid
+
+    definition = employee_context().package_asset(package)['employee'].get('configuration')
+    if not definition:
+        return None
+    if defer_credentials and any(field.get('required') and supports(field) for field in fields(definition)):
+        return None
+    try:
+        return pipeline_context().member_configuration(context['reference'], package).snapshot()
+    except ConfigurationInvalid as error:
+        if defer_credentials:
+            raise
+        labels = [field['label'] for field in fields(definition) if field['key'] in error.errors]
+        if labels:
+            raise ContractError('请在流水线设置中核对当前岗位的配置：' + '、'.join(labels)) from error
+        raise
+
+
+def _role(package, context):
+    from runteams_core.employees.employee_context import current as employee_context
     employee_context().validate_package(package)
-    employee = employee_context().package_asset(package)
     return {'package': package, 'context': context,
-        'configuration': pipeline_context().member_configuration(context['reference'], package).snapshot() if employee['employee'].get('configuration') else None}
+        'configuration': member_configuration_snapshot(package, context, defer_credentials=True)}
 
 
-def admission_candidate(core, context, package):
-    current = read(core, context['reference'])
-    if current['status'] != 'running':
-        raise ContractError('流水线已暂停，不能开始新工作。')
-    if current['bundle']:
-        if current['bundle']['revision'] != context.get('source_revision', package['revision']):
-            raise ContractError('流水线源码已有更新，请先暂停、应用更新后启动；不会混用版本。')
-        return current['bundle']
-    bundle=prepare_bundle(context['reference'], package['build_operation_key'], context.get('source_revision', package['revision']))
-    bundle['generation']=1
+def bundle_for_work(core, connection, frozen):
+    ref = pipeline_references.checked_reference(frozen['pipeline_work']['reference'])
+    generation = frozen['pipeline_generation']
+    row = connection.execute(
+        "SELECT json_extract(data_json,'$.bundle') FROM events WHERE stream=? AND type=? "
+        "AND json_extract(data_json,'$.bundle.generation')=? ORDER BY id DESC LIMIT 1",
+        (stream(ref), STATE_EVENT, generation)).fetchone()
+    if row is None:
+        raise ContractError('无法读取这项工作的原流水线版本。')
+    bundle = json.loads(row[0])
+    if bundle['asset'] != frozen['pipeline_work']['asset']:
+        raise ContractError('原工作与流水线版本不一致。')
     return bundle
 
 
 def dispatch_contract(core, ref,start_column_key=None):
-    """New work follows the applied snapshot, even while the author edits a draft."""
+    """Describe the current configuration for new work."""
     core._actor(); ref = pipeline_references.checked_reference(ref)
     saved = read(core, ref)
-    if not saved['bundle']:
+    from runteams_core.pipelines.pipeline_context import current as pipeline_context
+    revision, _ = pipeline_context().definition(ref)
+    if not saved['bundle'] or saved['bundle']['revision'] != revision:
         return work.describe(ref,start_column_key)
     bundle = saved['bundle']; position, member = work._selection(bundle['asset'],start_column_key)
     role = bundle['roles'][position['key']]
@@ -143,12 +169,14 @@ def admit(connection, core, ref, candidate,start_column_key=None):
     current = read(core, ref, connection)
     if current['status'] != 'running':
         raise ContractError('流水线已暂停，不能开始新工作。')
-    if current['bundle'] is None:
-        current.update(bundle=candidate, revision=current['revision'] + 1)
-        _write(core, connection, current)
     bundle = current['bundle']
-    if bundle['revision'] != candidate['revision'] or bundle['generation']!=candidate['generation']:
-        raise ContractError('流水线运行版本已变化，请核对原工作。')
+    runtime_changed = bundle and {
+        key: role['package']['runtime'] for key, role in bundle['roles'].items()
+    } != {key: role['package']['runtime'] for key, role in candidate['roles'].items()}
+    if bundle is None or bundle['revision'] != candidate['revision'] or runtime_changed:
+        bundle = {**candidate, 'generation': (bundle['generation'] if bundle else 0) + 1}
+        current.update(bundle=bundle, revision=current['revision'] + 1)
+        _write(core, connection, current)
     position, _ = work._selection(bundle['asset'],start_column_key)
     return bundle['roles'][position['key']], bundle['generation']
 
@@ -176,15 +204,24 @@ def prepare_bundle(ref, operation_id, revision):
             except BlockingIOError:
                 if time.monotonic() >= deadline: raise ContractError('流水线运行包正在准备，请沿原操作核对。') from None
                 time.sleep(.05)
+    from runteams_core.pipelines import pipeline_position_runtime as position_runtime
+    from runteams_core.pipelines.pipeline_employee_dependencies import member_reference
+    members = {member['ref']: member for member in asset['employees']}
+    selections = {} if rented_references.is_rented(ref) else position_runtime.selections(ref, {
+        position['key']: member_reference(ref, members[position['employee_ref']])
+        for position in asset['pipeline']['positions'] if position['kind'] == 'employee'})
     roles = {}; packages = {}; configurations={}
     for position in asset['pipeline']['positions']:
         if position['kind'] != 'employee':
             continue
-        member = next(row for row in asset['employees'] if row['ref'] == position['employee_ref'])
+        member = members[position['employee_ref']]
         employee_key = member_key(member)
-        if employee_key not in packages:
-            packages[employee_key] = work.prepare_member(ref, selector(member), operation_id, revision)
-        package = packages[employee_key]
+        selection = selections.get(position['key'])
+        package_key = (employee_key, canonical(selection))
+        if package_key not in packages:
+            options = {'runtime_selection': selection} if selection is not None else {}
+            packages[package_key] = work.prepare_member(ref, selector(member), operation_id, revision, **options)
+        package = packages[package_key]
         context = work._context(ref, package, position['key'], revision if has_dependencies else None)
         if employee_key not in configurations:
             configurations[employee_key] = _role(package, context)['configuration']
@@ -237,7 +274,7 @@ def own_program_chats(ref):
 
 
 def settle_pause(core, ref):
-    with core.repository.connect() as connection:
+    with core.repository.read_snapshot() as connection:
         current = read(core, ref, connection); rows = _rows(connection, ref)
     if current['status'] != 'paused' or current['quiesced_revision'] == current['revision'] or _live(rows):
         return
@@ -294,10 +331,10 @@ def _receipt(connection, key, request):
 
 def control_operation(core, data, active_ids=()):
     core._actor(); key, request = _request(data)
-    with core.repository.connect() as connection:
+    with core.repository.read_snapshot() as connection:
         receipt = _receipt(connection, key, request)
-    return {'operation_id': key, 'status': 'committed' if receipt else 'unknown',
-        **({'receipt': receipt, 'state': state(core, request['reference'], active_ids)} if receipt else {})}
+        return {'operation_id': key, 'status': 'committed' if receipt else 'unknown',
+            **({'receipt': receipt, 'state': state(core, request['reference'], active_ids, connection=connection)} if receipt else {})}
 
 
 def _project(core, data, active_ids):
@@ -309,39 +346,99 @@ def _project(core, data, active_ids):
         raise work.WorkAdmissionUnknown(data['operation_id']) from error
 
 
-def _updated(core, row, bundle):
-    previous = json.loads(row['snapshot_json']); key = previous['pipeline_work']['position_key']
+def _updated(core, row, bundle, previous):
+    key = previous['pipeline_work']['position_key']
+    prior = (previous.get('pipeline_pause') or {}).get('previous_state', row['state'])
+    waiting = previous.get('pipeline_waiting') or {}
+    result = (previous.get('pipeline_submission') or {}).get('result')
+    old_definition = previous['pipeline_work']['asset']['pipeline']
+    redirect = None
+    material_wait = None
+    pool = any(s['key'] == row['cursor_key'] and s['kind'] == 'pool' for s in old_definition.get('states', []))
+    if (prior in ('blocked', 'needs_human') and result and (not waiting or waiting.get('kind') == 'result')
+            and previous.get('pipeline_applied_result') and not previous.get('pipeline_unresolved')
+            and pool):
+        old_edge = core._matching_edge(old_definition, key, result)
+        new_edge = core._matching_edge(bundle['asset']['pipeline'], key, result)
+        if old_edge and new_edge and old_edge['to'] == row['cursor_key'] and old_edge.get('when') == new_edge.get('when'):
+            if new_edge['to'] == PIPELINE_WAIT_FOR_INPUT and previous.get('employee_run_id'):
+                from runteams_core.pipelines.source_pipeline_flow import apply_wait_configuration_fields, wait_for_input
+                material_wait = wait_for_input(previous, key, result, previous['employee_run_id'],
+                                               new_edge.get('configuration_fields', ()))
+                if waiting.get('human_request'):
+                    material_wait['human_request'] = copy.deepcopy(waiting['human_request'])
+                    apply_wait_configuration_fields(material_wait, new_edge.get('configuration_fields'))
+            elif not waiting and result['status'] == 'completed' and new_edge['to'] in bundle['roles']:
+                redirect = new_edge
+                key = redirect['to']
+    if pool and not (material_wait or redirect) and not any(
+            state['key'] == row['cursor_key'] for state in bundle['asset']['pipeline'].get('states', [])):
+        raise ContractError('工作 {} 仍停在待删除的状态列，请先为原岗位配置去向。'.format(row['id']))
     role = bundle['roles'].get(key)
     if role is None:
         raise ContractError('工作 {} 的原岗位 {} 已删除或改为人工决定。'.format(row['id'], key))
     frozen = work.stage_snapshot(role['package'], role['context'], role['configuration'])
-    from runteams_core.pipelines.source_pipeline_flow import archive
+    from runteams_core.pipelines.source_pipeline_flow import archive, _lineage
     frozen.update(pipeline_visit=previous['pipeline_visit']+1,
         **{k:copy.deepcopy(previous[k]) for k in ('pipeline_input','pipeline_lineage','pipeline_feedback','pipeline_response','pipeline_waiting') if k in previous})
-    waiting=previous.get('pipeline_waiting') or {}
+    frozen['pipeline_history'] = archive(previous)
+    if material_wait:
+        frozen['pipeline_waiting'] = material_wait
+    if redirect:
+        frozen['pipeline_feedback'] = {'from':previous['pipeline_work']['position_key'],
+            'employee_run_id':previous['employee_run_id'],'summary':result['summary'],
+            'issues':result['issues'],'route':result['output'].get('route','')}
     if waiting.get('kind')=='approval' and not any(p['key']==waiting['position_key'] and p['kind']=='approval' for p in bundle['asset']['pipeline']['positions']):
         raise ContractError('工作 {} 正在等待的人工决定岗位已删除或变更。'.format(row['id']))
+    if waiting.get('approval_request'):
+        approval_key = waiting['position_key']
+        new_definition = bundle['asset']['pipeline']
+        old_gate = next(p for p in old_definition['positions'] if p['key'] == approval_key)
+        new_gate = next(p for p in new_definition['positions'] if p['key'] == approval_key)
+        old_edges = [edge for edge in old_definition['edges'] if edge['from'] == approval_key]
+        new_edges = [edge for edge in new_definition['edges'] if edge['from'] == approval_key]
+        if old_gate != new_gate or old_edges != new_edges:
+            frozen['pipeline_waiting'].pop('approval_request', None)
+    if (not material_wait and waiting.get('kind') == 'result' and waiting.get('state') == 'needs_human'
+            and row['cursor_key'] != key and not any(
+                state['key'] == row['cursor_key'] and state['kind'] == 'pool'
+                for state in bundle['asset']['pipeline'].get('states', []))):
+        raise ContractError('工作 {} 正在使用的等待列已删除或变更。'.format(row['id']))
     try:
         from runteams_core.pipelines.source_pipeline_flow import payload_for
         with core.repository.connect() as connection:
+            if waiting.get('configuration_before') and not material_wait:
+                source = connection.execute('SELECT output_json FROM employee_runs WHERE id=? AND workflow_run_id=?',
+                                            (waiting.get('source_run_id'), row['id'])).fetchone()
+                edge = core._matching_edge(bundle['asset']['pipeline'], key, json.loads(source[0])) if source else None
+                if edge and edge['to'] == PIPELINE_WAIT_FOR_INPUT:
+                    from runteams_core.pipelines.source_pipeline_flow import apply_wait_configuration_fields
+                    apply_wait_configuration_fields(frozen['pipeline_waiting'], edge.get('configuration_fields'))
+            if redirect:
+                _lineage(connection, frozen, key)
             payload=json.loads(row['payload_json']) if waiting.get('kind')=='approval' else payload_for(core,connection,frozen,role)
     except ContractError as error:
         raise ContractError('工作 {} 不符合更新后的岗位输入：{}'.format(row['id'], error)) from error
-    frozen['pipeline_history'] = archive(previous)
     frozen['pipeline_generation'] = bundle['generation']
     frozen['source'] = previous['source']
     unresolved = bool(previous.get('send_admitted') and not previous.get('pipeline_applied_result') or previous.get('pipeline_unresolved'))
     if unresolved:
         frozen['pipeline_unresolved'] = True
-    prior = (previous.get('pipeline_pause') or {}).get('previous_state', row['state'])
     frozen['pipeline_pause'] = {'previous_state': prior if unresolved and prior not in ('paused', 'running', 'ready') else
         'interrupted' if unresolved else 'ready'}
-    return frozen, payload
+    if material_wait:
+        redirect = {'from': row['cursor_key'], 'to': key, 'when': 'needs_human'}
+    return frozen, payload, redirect
+
+
+def _retired_position(bundle, frozen):
+    return (bundle and frozen['pipeline_work']['position_key'] not in bundle['roles']
+        and (frozen.get('pipeline_waiting') or {}).get('kind') != 'approval')
 
 
 def command(core, data, active_ids=()):
     core._actor(); key, request = _request(data); ref = request['reference']; action = request['action']
-    with core.repository.connect() as connection:
+    with core.repository.read_snapshot() as connection:
         receipt = _receipt(connection, key, request)
     if receipt:
         if action == 'pause': settle_pause(core, ref)
@@ -353,7 +450,7 @@ def command(core, data, active_ids=()):
         settle_pause(core, ref)
         current = state(core, ref, active_ids)
         if current['status'] != 'paused' or current['revision'] != request['expected_revision']:
-            with core.repository.connect() as connection:committed=_receipt(connection,key,request)
+            with core.repository.read_snapshot() as connection:committed=_receipt(connection,key,request)
             if committed:return _project(core,data,active_ids)
             if current['status'] != 'paused':
                 raise ContractError('请先暂停流水线，并等待岗位执行确实结束后再更新或启动。')
@@ -362,21 +459,21 @@ def command(core, data, active_ids=()):
             candidate = prepare_bundle(ref, key, request['source_revision'])
         else:
             saved=read(core,ref);bundle=saved['bundle']
-            if not bundle:raise ContractError('请先应用当前保存的流水线更新，再启动。')
-            work._selection(bundle['asset'])
+            if bundle:
+                work._selection(bundle['asset'])
             from runteams_core.employees.employee_context import current as employee_context
 
-            for role in bundle['roles'].values():
+            for role in (bundle['roles'].values() if bundle else ()):
                 employee_context().validate_package(role['package']);work.verify_context(role['context'],role['package'],read_build=True)
                 if role['configuration'] is not None:employee_context().validate_package_configuration(role['package'],role['configuration'])
-            if 'configuration' in bundle:
+            if bundle and 'configuration' in bundle:
 
                 employee_context().validate_configuration_snapshot(bundle['asset']['configuration'], ref, bundle['revision'], bundle['configuration'])
             validated_bundle=digest(bundle)
-            with core.repository.connect() as connection:rows=_rows(connection,ref)
+            with core.repository.read_snapshot() as connection:rows=_rows(connection,ref)
             ready_chats=[f['work_chat_id'] for r in rows if r['state']=='paused'
                 for f in [json.loads(r['snapshot_json'])] if f.get('work_chat_id') and
-                not f.get('pipeline_unresolved') and not f.get('send_admitted')]
+                not f.get('pipeline_unresolved') and not f.get('send_admitted') and not _retired_position(bundle, f)]
             callback=getattr(core,'pipeline_program_control',None)
             if callable(callback):callback('start',sorted(set(ready_chats) | set(own_program_chats(ref))))
     revisions = work.source(ref) if action == 'update' else None
@@ -400,8 +497,20 @@ def command(core, data, active_ids=()):
                     if revisions._head() != candidate['revision']:
                         raise ContractError('源码在准备期间已有更新，请核对原版本。')
                     candidate['generation'] = (saved['bundle']['generation'] if saved['bundle'] else 0) + 1
-                    changes = [(r, *_updated(core, r, candidate)) for r in rows if r['state'] not in TERMINAL and not r['trashed_at']]
-                    for row, frozen, payload in changes:
+                    policy = candidate['asset']['pipeline'].get('routing_policy')
+                    changes = []
+                    for row in rows:
+                        if row['state'] in TERMINAL or row['trashed_at']:
+                            continue
+                        previous = json.loads(row['snapshot_json'])
+                        if row['state']=='paused' and _retired_position(candidate, previous):
+                            continue
+                        if previous['pipeline_work']['asset']['pipeline'].get('routing_policy') == policy:
+                            changes.append((row, *_updated(core, row, candidate, previous)))
+                    for row, frozen, payload, redirect in changes:
+                        if redirect:
+                            run_id = (frozen.get('pipeline_waiting') or {}).get('source_run_id')
+                            core._route_workflow(row['id'], redirect, run_id or frozen['pipeline_feedback']['employee_run_id'])
                         connection.execute('UPDATE workflow_runs SET snapshot_json=?,updated_at=? WHERE id=?',
                             (canonical(frozen).decode(), utc_now(), row['id']))
                         connection.execute('UPDATE tasks SET employee_reference=?,payload_json=?,pipeline_snapshot_json=?,updated_at=? WHERE id=?',
@@ -411,14 +520,15 @@ def command(core, data, active_ids=()):
                     saved['bundle'] = candidate
                 else:
                     bundle = saved['bundle']
-                    if not bundle or digest(bundle)!=validated_bundle:
+                    if digest(bundle)!=validated_bundle:
                         raise ContractError('流水线应用版本已变化，请核对原操作。')
-                    work._selection(bundle['asset'])
                     for row in rows:
-                        if row['state'] not in TERMINAL:core.repository.storage.assert_executable(row['id'])
-                    for row in rows:
-                        if row['state'] != 'paused': continue
+                        if row['state'] in TERMINAL: continue
                         frozen = json.loads(row['snapshot_json'])
+                        if row['state']=='paused' and _retired_position(bundle, frozen):
+                            continue
+                        core.repository.storage.assert_executable(row['id'])
+                        if row['state'] != 'paused': continue
                         target = frozen.pop('pipeline_pause', {}).get('previous_state', 'ready')
                         if frozen.get('pipeline_waiting'):
                             target='needs_approval' if frozen['pipeline_waiting']['kind']=='approval' else frozen['pipeline_waiting']['state']
@@ -471,8 +581,7 @@ def begin_execution(core, identifier):
             return None
         if frozen.get('pipeline_unresolved'):
             raise ContractError('原工作结果尚未确认，不会重新发送。')
-        if not saved['bundle'] or frozen.get('pipeline_generation')!=saved['bundle']['generation']:
-            raise ContractError('岗位工作尚未应用当前流水线版本，不会执行旧版本。')
+        bundle_for_work(core, connection, frozen)
         if (frozen.get('pipeline_execution') or {}).get('active'):
             return None
         token = str(uuid.uuid4()); frozen['pipeline_execution'] = {'active': True, 'token': token}
@@ -497,11 +606,12 @@ def check_chat_operation(chat_id):
     if not context.get('pipeline_work'): return
     from runteams_core.work.device_work_services import current as device_work_service
     core = device_work_service(); identifier = context.get('employee_work', {}).get('workflow_id')
-    with core.repository.connect() as connection:
+    with core.repository.read_snapshot() as connection:
         row = connection.execute('SELECT state,snapshot_json FROM workflow_runs WHERE id=?', (identifier,)).fetchone()
-        frozen = json.loads(row['snapshot_json']) if row else {}; saved = read(core, context['pipeline_work']['reference'], connection)
-    if (not saved['bundle'] or frozen.get('pipeline_generation')!=saved['bundle']['generation'] or
-            frozen.get('work_chat_id') != chat_id or frozen.get('pipeline_generation') != context.get('pipeline_generation') or
+        frozen = json.loads(row['snapshot_json']) if row else {}
+        if frozen.get('pipeline_work'):
+            bundle_for_work(core, connection, frozen)
+    if (frozen.get('work_chat_id') != chat_id or frozen.get('pipeline_generation') != context.get('pipeline_generation') or
             frozen.get('pipeline_unresolved') or not row or row['state']!='running' or
             not (frozen.get('pipeline_execution') or {}).get('active')):
         raise PermissionError('流水线已暂停或岗位版本已更新，原工作现场不能继续执行。')

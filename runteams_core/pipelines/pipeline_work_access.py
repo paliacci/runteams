@@ -47,7 +47,6 @@ def _validate(schema, arguments):
 
 def _asset(core, ref):
     saved=control.read(core,ref)
-    if saved['bundle']:return saved,saved['bundle']['asset'],saved['bundle']['revision']
     from runteams_core.pipelines.pipeline_context import current as pipeline_context
     revision,asset=pipeline_context().definition(ref)
     return saved,asset,revision

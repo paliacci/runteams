@@ -178,8 +178,12 @@ def execute(core, identifier, frozen, runtime=None):
         if current.get('pipeline_submission') and not current.get('pipeline_applied_result'):
             from runteams_core.pipelines.source_pipeline_flow import defer_settlement
             return defer_settlement(core,identifier,current['pipeline_visit'],error)
-        admitted = json.loads(row['snapshot_json']).get('send_admitted')
-        return finish(core, identifier, 'interrupted' if admitted else 'blocked', str(error),visit=frozen.get('pipeline_visit'))
+        admitted = current.get('send_admitted')
+        reason = str(error)
+        from runteams_core.authoring.creator_contracts import CreatorContractError
+        if not admitted and isinstance(error, CreatorContractError):
+            reason += f' ({error.code})'
+        return finish(core, identifier, 'interrupted' if admitted else 'blocked', reason,visit=frozen.get('pipeline_visit'))
     finally:
         control.end_execution(core, identifier, token)
 
@@ -204,6 +208,15 @@ def _execute(core, identifier, frozen, runtime=None):
         if frozen.get('send_admitted'):
             return finish(core, identifier, 'interrupted',
                 '原工作结果需要核对，请查看工作记录。' if frozen.get('pipeline_work') else '原工作结果需要核对，请查看工作对话。',visit=frozen.get('pipeline_visit'))
+        if frozen.get('pipeline_work') and 'configuration' not in frozen:
+            from runteams_core.configuration.employee_configuration import validate_snapshot
+            from runteams_core.pipelines.source_pipeline_control import member_configuration_snapshot
+            configuration = member_configuration_snapshot(frozen['package'], frozen['pipeline_work'])
+            if configuration is not None:
+                if frozen.get('work_chat_id'):
+                    raise ContractError('原工作对话缺少已冻结的岗位配置，请核对原工作。')
+                validate_snapshot(frozen['package'], configuration)
+                frozen['configuration'] = configuration
         payload = json.loads(row['payload_json'])
         work_context={'employee_work':{'workflow_id':identifier,'task_id':row['task_id']},
             'pipeline_work':frozen['pipeline_work'],'pipeline_generation':frozen['pipeline_generation']} if frozen.get('pipeline_work') else None
@@ -235,6 +248,8 @@ def _execute(core, identifier, frozen, runtime=None):
                 if waiting.get('pipeline_visit')!=frozen['pipeline_visit'] or waiting.get('send_admitted'):
                     raise ContractError('原岗位已经变化，请核对当前工作。') from error
                 waiting['pipeline_setup_required']={'chat_id':chat_id,'message':str(error)[:1000]}
+                if error.reason:
+                    waiting['pipeline_setup_required']['reason']=error.reason
                 connection.execute('UPDATE workflow_runs SET snapshot_json=? WHERE id=?',(json.dumps(waiting),identifier))
             raise
         frozen.pop('pipeline_setup_required',None)
@@ -262,6 +277,10 @@ def _execute(core, identifier, frozen, runtime=None):
             current = connection.execute('SELECT state,snapshot_json FROM workflow_runs WHERE id=?', (identifier,)).fetchone()
             if current['state'] != 'running' or json.loads(current['snapshot_json']).get('send_admitted'):
                 return current['state']
+            from runteams_core.pipelines.source_pipeline_flow import add_approval_history, stage_assignment, stage_prompt
+            stage = payload['context']['pipeline_stage']
+            stage.update(stage_assignment(frozen))
+            add_approval_history(connection, identifier, frozen['pipeline_work'], stage)
         frozen['send_admitted']=True
         order={'schema':'runteams.employee-chat-order/v1','employee_reference':frozen['employee_reference'],
                'package':frozen['package'],'payload':payload,'chat_id':chat_id}
@@ -276,22 +295,28 @@ def _execute(core, identifier, frozen, runtime=None):
             (identifier,position_key,attempt,'running',json.dumps(order),'{}',utc_now(),utc_now())).lastrowid
         connection.execute('UPDATE workflow_runs SET snapshot_json=? WHERE id=?',(json.dumps(frozen),identifier))
     prompt = payload['objective']
+    if frozen.get('pipeline_work'):
+        prompt = stage_prompt(payload['context']['pipeline_stage'])
     details = {key: value for key, value in payload.items() if key not in ('schema', 'objective') and value}
     if details:
         prompt += '\n\n工作资料：\n' + json.dumps(details, ensure_ascii=False)
-    result = executor(chat_id, prompt, core._cancel_event(identifier), 'employee-work:'+str(identifier))
-    if grants:
-        from runteams_core.assets import local_assets
-        changed=[name for name,entry in grants.items() if local_assets.diff_fingerprints(entry['before'],local_assets.fingerprint(entry['grant']))]
-        if changed:
-            result=('blocked','工作资料已变化，请核对：'+'、'.join(changed))
-            if frozen.get('pipeline_work'):
-                from runteams_core.pipelines.source_pipeline_flow import invalidate_result
-                invalidate_result(core,identifier,frozen['pipeline_visit'],result[1])
-    return finish(core, identifier, *result,visit=frozen.get('pipeline_visit'))
+    from runteams_core.pipelines.pipeline_execution_activity import capture
+    with capture(core, identifier, frozen):
+        result = executor(chat_id, prompt, core._cancel_event(identifier), 'employee-work:'+str(identifier))
+        if grants:
+            from runteams_core.assets import local_assets
+            changed=[name for name,entry in grants.items() if local_assets.diff_fingerprints(entry['before'],local_assets.fingerprint(entry['grant']))]
+            if changed:
+                result=('blocked','工作资料已变化，请核对：'+'、'.join(changed))
+                if frozen.get('pipeline_work'):
+                    from runteams_core.pipelines.source_pipeline_flow import invalidate_result
+                    invalidate_result(core,identifier,frozen['pipeline_visit'],result[1])
+        status, detail = result
+        return finish(core, identifier, status, '' if status == 'completed' else detail,
+                      summary=detail if status == 'completed' else '', visit=frozen.get('pipeline_visit'))
 
 
-def finish(core, identifier, status, reason='', *, visit=None):
+def finish(core, identifier, status, reason='', *, summary='', visit=None):
     frozen=snapshot(core,identifier)
     if frozen and frozen.get('pipeline_work'):
         from runteams_core.pipelines.source_pipeline_flow import finish_turn
@@ -314,10 +339,8 @@ def finish(core, identifier, status, reason='', *, visit=None):
         if frozen.get('pipeline_work'):
             c.execute('UPDATE workflow_runs SET snapshot_json=? WHERE id=?',(json.dumps(frozen),identifier))
         if frozen.get('employee_run_id'):
-            from runteams_core.storage import product_store
-            session=product_store.get_chat(frozen.get('work_chat_id')) or {}
-            reply=next((m.get('text') or '' for m in reversed(session.get('messages') or []) if m['role']=='bot'),'')
-            output={'status':execution_state,'summary':reply,'output':{},'issues':[reason] if reason else [],'artifacts':[]}
+            output={'status':execution_state,'summary':summary if execution_state=='completed' else '',
+                    'output':{},'issues':[reason] if reason else [],'artifacts':[]}
             c.execute('UPDATE employee_runs SET state=?,output_json=?,updated_at=? WHERE id=?',
                 (execution_state,json.dumps(output),now,frozen['employee_run_id']))
         core.repository.event('workflow_run:'+str(identifier), 'workflow.'+state,
@@ -330,7 +353,15 @@ def documents(core,reference,workflow_id=None):
     reference=checked_reference(reference);owners=related_references(reference)
     rows=[];seen=set()
     with core.repository.connect() as connection:
-        values=connection.execute('SELECT a.*,r.employee_release_id,r.workflow_run_id AS run_workflow_id FROM artifacts a LEFT JOIN employee_runs r ON r.id=a.employee_run_id WHERE a.trashed_at IS NULL ORDER BY a.id DESC').fetchall()
+        # A task drawer needs only that work's artifacts. Filtering before
+        # fetching also avoids resolving every unrelated artifact file through
+        # the scoped storage adapter. Keep the owner/precedence checks below.
+        statement='SELECT a.*,r.employee_release_id,r.workflow_run_id AS run_workflow_id FROM artifacts a LEFT JOIN employee_runs r ON r.id=a.employee_run_id WHERE a.trashed_at IS NULL'
+        parameters=()
+        if workflow_id is not None:
+            statement+=" AND (json_extract(a.meta_json,'$.workflow_id')=? OR json_extract(a.meta_json,'$.workflow_run_id')=? OR r.workflow_run_id=?)"
+            parameters=(workflow_id,)*3
+        values=connection.execute(statement+' ORDER BY a.id DESC',parameters).fetchall()
         releases=connection.execute('SELECT id,employee_id,source_ref_json FROM employee_releases').fetchall()
     release_ids=set();asset_ids=set()
     for release in releases:

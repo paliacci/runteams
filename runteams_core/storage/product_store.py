@@ -848,6 +848,15 @@ def create_agent_session(kind, title, channel_id, model, reasoning_effort,
         return chat_id
 
 
+def project_local_turn_text(text, metadata):
+    """Present older local terminal text as a notice without rewriting stored messages."""
+    if metadata.get('local_turn_id') and not metadata.get('system_notice') and text:
+        if metadata.get('stopped') or metadata.get('failed'):
+            kind = 'stopped' if metadata.get('stopped') else 'error'
+            return '', {**metadata, 'system_notice': {'kind': kind, 'text': text}}
+    return text, metadata
+
+
 def _message(row):
     item = dict(row)
     if item.get('ts'):
@@ -858,6 +867,8 @@ def _message(row):
             item[key] = json.loads(item.get(key) or json.dumps(fallback))
         except (TypeError, ValueError) as exc:
             raise ValueError('云端消息资源记录无效，请重新读取或修复。') from exc
+    if item['role'] == 'bot':
+        item['text'], item['metadata'] = project_local_turn_text(item['text'], item['metadata'])
     if item['metadata'].get('response_feedback_case'):
         from runteams_core.storage.storage_context import current_provider
         item['metadata']['response_feedback_case']=current_provider().project_reply_feedback_case(item['metadata']['response_feedback_case'])
@@ -1022,7 +1033,7 @@ def set_chat_message_feedback(chat_id, message_id, rating, *, environment=None):
         if not row or row['role'] != 'bot':
             raise ValueError('这条回复已不存在或不能评价。')
         metadata = json.loads(row['metadata'] or '{}')
-        if not isinstance(metadata, dict) or metadata.get('failed') or metadata.get('system_notice'):
+        if not isinstance(metadata, dict) or any(metadata.get(key) for key in ('failed', 'stopped', 'system_notice')):
             raise ValueError('这条消息不能评价。')
         from runteams_core.storage.storage_context import current_provider
         case = current_provider().record_reply_feedback_case(chat_id, message_id, rating, environment or {})

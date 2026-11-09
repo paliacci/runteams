@@ -151,7 +151,10 @@ class LocalHandler(BaseHTTPRequestHandler):
             return self._json(400, {'error': 'invalid_request_target'})
         if parsed.scheme or parsed.netloc or parsed.fragment:
             return self._json(400, {'error': 'invalid_request_target'})
-        if self.command == 'GET' and (parsed.path in ('/documents','/trash') or re.fullmatch(r'/(?:chats|documents)/local-[a-f0-9]{32}', parsed.path)):
+        if self.command == 'GET' and (
+                parsed.path in ('/documents', '/trash')
+                or re.fullmatch(r'/(?:chats|documents)/local-[a-f0-9]{32}', parsed.path)
+                or re.fullmatch(r'/pipelines/local/[a-f0-9]{64}/[A-Za-z0-9_-]{1,1280}', parsed.path)):
             return self._static('/')
         if self.command == 'GET' and parsed.path in ASSETS and (not parsed.query or
                 ASSETS[parsed.path][0] == 'web/index.html' or set(parse_qs(parsed.query)) <= {'v'}):
@@ -228,6 +231,13 @@ class LocalHandler(BaseHTTPRequestHandler):
                 with self.server.application.request(request_scope),self.server.application.runtime.scope():
                     return self._json(200,self.server.application.runtime.browser_work(data,self.server.origin))
             result = self.server.application.dispatch(self.command, parsed.path, data, scope=request_scope)
+            from runteams_core.application.http import pipeline_activity_http
+            if parsed.path == pipeline_activity_http.PATH:
+                application = self.server.application
+                def check_activity_scope():
+                    application.check_request_scope(request_scope)
+                    application.check()
+                return pipeline_activity_http.send(self, result, check_activity_scope)
             if source_request:
                 from runteams_core.authoring.source.creator_source_operations import SourceDownload
                 if isinstance(result, SourceDownload):
@@ -282,7 +292,13 @@ class LocalHandler(BaseHTTPRequestHandler):
                 if isinstance(error,ConfigurationInvalid):return self._json(422,{'error':str(error),'code':'employee_configuration_invalid','fields':error.errors})
                 if isinstance(error,ConfigurationConflict):return self._json(409,{'error':str(error),'code':'employee_configuration_conflict'})
             return self._json(400, {'error': 'invalid_request'})
-        except (OSError, sqlite3.Error):
+        except sqlite3.Error as error:
+            if self.command == 'GET':
+                from runteams_core.storage.local_read_errors import read_failure
+                payload, status = read_failure(error)
+                return self._json(status, payload)
+            return self._json(503, {'error': 'local_storage_unavailable'})
+        except OSError:
             return self._json(503, {'error': 'local_storage_unavailable'})
 
     def _backup_download(self, result, scope):

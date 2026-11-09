@@ -38,30 +38,81 @@ def source(session):
     return Revisions(store, context['creator_local_source_id'])
 
 
-def session_for(store, identity, scope, runtime, *, employee_source=None):
+def session_for(store, identity, scope, runtime, *, employee_source=None, title=None, operation_id=None):
     import json
     from runteams_core.storage import product_store as product
     from runteams_core.storage import device_data
+
     original = store.describe(identity)
-    # The existing device transaction serializes duplicate/lost-reply opens.
+    receipt_key = None
+    target = {'source': identity, 'employee_source': employee_source}
+    current_key = 'employee-conversation-current:' + digest(target) if employee_source else None
+    if operation_id is not None:
+        if (employee_source is None or not isinstance(operation_id, str)
+                or str(uuid.UUID(operation_id)) != operation_id):
+            raise ValueError('新对话操作编号无效。')
+        receipt_key = 'employee-conversation-open:' + operation_id
+    # The receipt and the chat share the same transaction. Reopening a
+    # particular employee never depends on the latest SDK build or package.
     with device_data.connect() as connection:
-        for row in connection.execute("SELECT id,context_json FROM chats WHERE kind='employee_design' ORDER BY id"):
-            context = json.loads(row['context_json'])
-            if (context.get('creator_local_source_id') == identity and context.get('creator_local_scope') == scope
-                    and (employee_source is None or context.get('creator_employee_source') in (None,employee_source))):
-                if employee_source is not None:
-                    context['creator_employee_source']=employee_source
-                    product.update_agent_session_context(row['id'],context)
-                return product.get_chat(row['id'])
-        channel = product.get_channel(runtime.get('channel_id')) or product.get_default_channel() or {'id':None}
-        context = {'context_type':'worker','intent':'create','phase':'design',
-            'label':original['project']['name'], 'creator_local_source_id':identity,
-            'creator_local_scope':scope, 'creator_authoring':True}
-        if employee_source is not None:context['creator_employee_source']=employee_source
-        cid = product.create_agent_session('employee_design','创作：'+original['project']['name'],channel['id'],
-            str(runtime.get('model') or ''),str(runtime.get('reasoning_effort') or ''),None,context)
+        if receipt_key:
+            receipt = connection.execute('SELECT value FROM device_settings WHERE key=?',
+                                         (receipt_key,)).fetchone()
+            if receipt:
+                previous = json.loads(receipt[0])
+                if previous['target'] != target:
+                    raise ValueError('新对话请求已绑定另一名员工。')
+                session = product.get_chat(previous['chat_id'])
+                if not session:
+                    raise ValueError('这段对话已移除，请重新发起新对话。')
+                return session
+        else:
+            if current_key:
+                current = connection.execute('SELECT value FROM device_settings WHERE key=?',
+                                             (current_key,)).fetchone()
+                if current:
+                    session = product.get_chat(json.loads(current[0]))
+                    context = (session or {}).get('context') or {}
+                    if (session and session['kind'] == 'employee_design'
+                            and context.get('creator_local_scope') == scope
+                            and context.get('creator_local_source_id') == identity
+                            and context.get('creator_employee_source') == employee_source):
+                        return session
+            rows = connection.execute("SELECT id,context_json FROM chats WHERE kind='employee_design' "
+                                      "ORDER BY updated_at DESC,id DESC").fetchall()
+            unassigned = None
+            for row in rows:
+                context = json.loads(row['context_json'])
+                if (context.get('creator_local_source_id') != identity
+                        or context.get('creator_local_scope') != scope):
+                    continue
+                if employee_source is None or context.get('creator_employee_source') == employee_source:
+                    return product.get_chat(row['id'])
+                if context.get('creator_employee_source') is None and unassigned is None:
+                    unassigned = (row['id'], context)
+            if unassigned:
+                project = strict_json(Revisions(store, identity).files()['project.json'])
+                if project['entrypoints']['employees'] == [employee_source]:
+                    chat_id, context = unassigned
+                    connection.execute('UPDATE chats SET context_json=? WHERE id=?',
+                                       (json.dumps({**context, 'creator_employee_source': employee_source}), chat_id))
+                    return product.get_chat(chat_id)
+        channel = product.get_channel(runtime.get('channel_id')) or product.get_default_channel() or {'id': None}
+        context = {'context_type': 'worker', 'intent': 'create', 'phase': 'design',
+                   'label': title or original['project']['name'], 'creator_local_source_id': identity,
+                   'creator_local_scope': scope, 'creator_authoring': True}
+        if employee_source is not None:
+            context['creator_employee_source'] = employee_source
+        chat_id = product.create_agent_session('employee_design', title or '创作：'+original['project']['name'],
+            channel['id'], str(runtime.get('model') or ''), str(runtime.get('reasoning_effort') or ''), None, context)
+        if receipt_key:
+            connection.execute('INSERT INTO device_settings(key,value) VALUES(?,?)',
+                               (receipt_key, json.dumps({'target': target, 'chat_id': chat_id})))
+            connection.execute('INSERT INTO device_settings(key,value) VALUES(?,?) '
+                               'ON CONFLICT(key) DO UPDATE SET value=excluded.value',
+                               (current_key, json.dumps(chat_id)))
         store.check_scope()
-        return product.get_chat(cid)
+        return product.get_chat(chat_id)
 
 
 def _work_root(revisions, session_id):

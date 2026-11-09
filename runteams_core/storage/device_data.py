@@ -164,11 +164,30 @@ def page_ids():
         raise PermissionError('请在个人工作区打开本机对话。')
     scope = identity()
     with connect(readonly=True) as c:
-        rows = c.execute('SELECT chat_id,identity FROM device_chat_index WHERE deleted=0').fetchall()
+        rows = c.execute(
+            'SELECT i.chat_id,i.identity,c.kind,c.context_json,'
+            'EXISTS(SELECT 1 FROM chat_messages m WHERE m.chat_id=i.chat_id) AS has_messages '
+            'FROM device_chat_index i JOIN chats c ON c.id=i.chat_id WHERE i.deleted=0'
+        ).fetchall()
+    items, layouts = [], {}
+    for row in rows:
+        public_id = 'local-'+row['identity'].replace('-','')
+        items.append({'resource':'chats','id':str(row['chat_id']),'public_id':public_id})
+        if row['has_messages']:
+            layouts[public_id] = 'history'
+        elif row['kind'] == 'general':
+            try:
+                context = json.loads(row['context_json'] or '{}')
+            except (TypeError, ValueError):
+                continue
+            if not isinstance(context, dict):
+                continue
+            layouts[public_id] = ('pipeline' if context.get('source_pipeline_workspace') else
+                                  'employee' if context.get('context_type') == 'worker' else
+                                  'create-employee' if context.get('purpose') == 'create-employee' else 'general')
     return {'version':1,'library_id':_binding().library_id,
-        **({'account_id':scope['account_id']} if 'account_id' in scope else {}),'items':[
-        {'resource':'chats','id':str(row['chat_id']),'public_id':'local-'+row['identity'].replace('-','')}
-        for row in rows]}
+        **({'account_id':scope['account_id']} if 'account_id' in scope else {}),
+        'items':items, 'conversation_layouts':layouts}
 
 
 def public_id(chat_id):

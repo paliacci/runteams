@@ -37,7 +37,13 @@
   const value=client(state),identifier=String(number(id));if(!value.read.has(identifier)){const row=(state.chats||[]).find(item=>number(item.id)===number(id));value.read.set(identifier,number(row?.last_bot_message_id));save(value);}return true;
  }
  function status(state,row){const value=client(state);if(!identity(state))return '';const fact=facts(value,row);if(fact.waiting)return 'waiting';if(fact.running)return 'running';return fact.reply.completed&&fact.reply.id>(value.read.get(String(number(row.id)))??fact.reply.id)?'unread':'';}
- function markup(state,row){const kind=status(state,row);if(kind==='waiting')return '<span class="rail-chat-pending" title="待用户处理">待用户处理</span>';return kind?`<span class="rail-chat-status ${kind}" role="img" aria-label="${kind==='running'?'正在回复':'有未读回复'}" title="${kind==='running'?'正在回复':'有未读回复'}"></span>`:'';}
+ function markup(state,row){
+  const kind=status(state,row);
+  if(kind==='waiting')return '<span class="rail-chat-pending" title="等待确认" data-app-i18n-title="conversationDetail.activityWaiting" data-app-i18n="conversationDetail.activityWaitingShort">等待确认</span>';
+  if(!kind)return '';
+  const running=kind==='running',label=running?'正在回复':'有未读回复',key=running?'conversationDetail.activityRunning':'conversationDetail.activityUnread';
+  return `<span class="rail-chat-status ${kind}" role="img" aria-label="${label}" title="${label}" data-app-i18n-aria-label="${key}" data-app-i18n-title="${key}"></span>`;
+ }
  function needsRefresh(state,id,panel){const row=(state.chats||[]).find(item=>number(item.id)===number(id));return !!(row&&panel&&!panel.busy&&(facts(client(state),row).waiting||number(row.last_bot_message_id)>(lastReply(panel)?.id||0)));}
  async function refreshWaiting(state,read){
   if(!identity(state))return false;

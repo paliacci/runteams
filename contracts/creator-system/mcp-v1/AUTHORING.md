@@ -9,7 +9,7 @@
 每份包含 `pipeline` 和 `employees`，可选稳定 `key` 在工程内不能重复。
 `employees` 使用 `{ "ref": "reviewer", "source": "employees/main.json" }` 引用同工程已声明员工。
 岗位使用 `employee_ref` 和该员工实际随包技能的 `skill_key`；审批岗位不绑定员工。
-流转继续使用原 `positions`、`states`、`edges`、`when`，以及已有参数和团队规范字段。
+流转继续使用 `positions`、`states`、`edges`、`when` 和参数。流水线可声明一个 `pipeline.team_standard` 文本字段，适用于所有员工岗位，最多 12000 个字符。没有团队规范时省略该字段。
 编译会检查完整引用、技能、起点、可达性、重复条件及跨岗字段，沿用原生图规则支持配置的退回连线。
 
 本机默认构建与桌面构建均输出对话运行目录：员工仍为原来的
@@ -24,6 +24,12 @@ submit 以稳定 operation_id 提交原 WorkResult（status、summary、output �
 这不会使旧产出重新成为当前参数，也不允许覆盖旧报告或读取另一项工作。
 宿主校验后才推进，员工不能另行派工或代替人工决定；普通 Skill 没有 work 声明时仍可处理工作并提交摘要与对象结果，
 不需要伪造正式发布合同。工作汇报继续通过原 runteams_work_report 保存，不能用汇报正文修改工作状态。
+岗位应先完成已获准工具可执行的工作，只为用户掌握的信息、权限或业务决定请求人工处理。
+需要反馈时在 `result.human_request` 中提交一个具体问题和一至四个可行选项；用户可同时选择并补充说明。
+每个选项可独立声明 `configuration_fields`，只引用 `read` 返回的 `stage.feedback_configuration_fields` 中的键。
+宿主按本岗位可见、非秘密的任务配置校验，不根据缺项文字或业务出口猜测所有选项需要的字段。
+`blocked`、`needs_human` 结果可附反馈；`completed` 业务结果仅在实际匹配的连线指向 `wait-for-input` 时可附反馈。
+这样保留业务核查已完成的事实，同时在当前岗位等待，避免生成虚假的缺项或让用户承担素材加工等员工工作。
 本机控制接口支持先暂停、等待当前执行收尾，再原子应用全部岗位和未完成工作的更新，最后启动。
 源码与配置保存不自动切换运行版本；已执行事实保持，未知发送结果不重发，员工独立工作不改绑。
 接口、回执与恢复边界见仓库 `design/PIPELINE_REFACTOR_PLAN.md` 的 R03—R05 记录；构建成功不代表工作已执行。
@@ -198,7 +204,8 @@ python runteams.py open /absolute/employee-source.zip ../continued-employee
 `avatar` 可以使用工程根目录相对路径，例如 `assets/avatar.webp`。图片必须包含在
 源码树中；支持不超过 512 KB、边长不超过 4096 的静态 PNG、JPEG、WebP，以及
 无脚本、无外部资源的静态 SVG。构建将精确图片字节及摘要纳入员工包，导出、
-导入和备份均随包保留。`preset:bottts:nova` 可作为应用默认头像；SDK 不另带头像库。
+导入和备份均随包保留。`preset:colleague:colleague-001` 是应用默认头像。选择器精选 14 款人物头像，
+选择后同样以静态图片随员工源码保存。资源库保留全部 60 款，已使用其他款式的员工继续显示原头像。
 
 用户要求换头像时优先使用当前对话上传的图片或已有工程图片；有可用生图能力时
 才生成新图片。没有图片或生成失败时保留原头像，不声称已完成。预设选择器及

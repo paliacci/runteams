@@ -44,7 +44,7 @@
    observed=!!probe?.status&&probe.status!=='unknown',
    installationKnown=!!probe&&(typeof probe.installed==='boolean'||!!probe.version||observed&&['ready','missing','incompatible','login_required','not_connected','disabled'].includes(probe.status)),
    idleDisabled=!channel._settingsPlaceholder&&[false,0].includes(channel.enabled),
-   installationPending=!installationKnown&&!idleDisabled&&!failed,
+   installationPending=!installationKnown&&!idleDisabled&&!failed&&!channel.removeUnknown,
    connectionPending=installationPending||!failed&&(checking||!channel._settingsPlaceholder&&!connection(state,channel).known&&!idleDisabled),
    value=usage(state,channel.id),usageObserved=currentObservation(state,state.channelUsage)&&!!state.channelUsage,usageRead=readState(state,'usage');
   return {installationPending,connectionPending,usagePending:usageRead?usageRead.status==='loading':!!state.channelUsageLoading||!value&&!usageObserved,usage:value,failed};
@@ -106,7 +106,7 @@
   else if(channel&&known.known&&!known.ready)status='disconnected';
   else if(row&&!row.error&&(!row.status||row.status==='ready')&&Array.isArray(row.models))status=row.models.some(m=>same(m.value,choice.model))?'ready':'removed';
   const failed=status==='error'||!!row?.refresh_error||state.modelCatalogReadState==='error';
-  return {selected:true,status,displayOnly:status==='pending',label:(model?.display_name||cached?.names?.[choice.channel_id+'::'+choice.model]||choice.model)+(status==='disconnected'?'（未连接）':status==='removed'?'（不可用）':''),effort:choice.reasoning_effort||'',model,failed};
+  return {selected:true,status,displayOnly:status==='pending',label:model?.display_name||cached?.names?.[choice.channel_id+'::'+choice.model]||choice.model,effort:choice.reasoning_effort||'',model,failed};
  }
  function syncEnvironment(state,environment){
   if(!Array.isArray(environment?.channels)||!currentObservation(state,environment,false))return;

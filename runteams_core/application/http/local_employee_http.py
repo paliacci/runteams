@@ -5,8 +5,14 @@ def handles(path):
     return path in {'/api/employee-directory','/api/employee-directory/open','/api/employee-configuration/resources','/api/employee-configuration/resources/import','/api/local-references/pick','/api/local-references/confirm','/api/device/work/results','/api/device/work/files'} or bool(re.fullmatch(r'/api/chat/[1-9][0-9]*/(?:employee-configuration|employee-mcp|pipeline-mcp|pipeline-work|work)',path) or re.fullmatch(r'/api/device/work/chats/[1-9][0-9]*',path) or re.fullmatch(r'/api/(?:core|device/work)/workflows/[1-9][0-9]*(?:/(?:cancel|retry))?',path))
 
 def dispatch(runtime,method,path,data):
-    from runteams_core.employees.employee_directory import read, open_entry
-    if path=='/api/employee-directory' and method=='GET' and not data:return read()
+    from runteams_core.employees.employee_directory import read, open_entry, with_activity
+    if path=='/api/employee-directory' and method=='GET' and data in ({},{'view':'local'}):
+        directory=read()
+        if not data:return directory
+        with runtime.lock:
+            active=runtime.active.copy()
+        return with_activity(directory, {cid:bool(turn['cancel'].questions.pending(turn['cancel'].questions.owner))
+                                         for cid,turn in active.items() if not turn['cancel'].is_set()})
     if path=='/api/employee-directory/open' and method=='POST':return open_entry(data)
     work=re.fullmatch(r'/api/(?:chat/([1-9][0-9]*)/work|device/work/chats/([1-9][0-9]*))',path)
     if work and method=='GET' and not data:
@@ -24,6 +30,10 @@ def dispatch(runtime,method,path,data):
             if method=='GET':
                 if not data:return config.read()
                 if set(data)=={'operation_id'}:return config.receipt(data['operation_id'])
+            if method=='POST' and set(data)=={'action','field','definition_sha256'} and data['action']=='reveal-credential':
+                return config.reveal_credential(field=data['field'],definition_sha256=data['definition_sha256'])
+            if method=='POST' and set(data)=={'action','field','definition_sha256','value'} and data['action']=='credential':
+                return config.credential(field=data['field'],definition_sha256=data['definition_sha256'],value=data['value'])
             if method=='POST' and set(data) in ({'operation_id','expected_revision','definition_sha256','values'},{'operation_id','expected_revision','definition_sha256','values','bindings'}):return config.save(**data)
         elif match[2]=='pipeline-work':
             from runteams_core.pipelines.pipeline_work_access import read

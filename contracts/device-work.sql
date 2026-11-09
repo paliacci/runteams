@@ -52,6 +52,14 @@ CREATE TABLE artifacts(
   employee_run_id INTEGER REFERENCES employee_runs(id), name TEXT NOT NULL,
   ref TEXT NOT NULL, meta_json TEXT NOT NULL CHECK(json_valid(meta_json)),
   created_at TEXT NOT NULL, trashed_at TEXT);
+CREATE UNIQUE INDEX device_work_task_report ON artifacts(json_extract(meta_json,'$.pipeline_task_report.task_id'))
+  WHERE json_extract(meta_json,'$.source')='pipeline_task_report'
+    AND json_extract(meta_json,'$.revision_of')=id;
+CREATE TRIGGER device_work_delete_task_report AFTER DELETE ON tasks
+BEGIN
+  DELETE FROM artifacts WHERE json_extract(meta_json,'$.source')='pipeline_task_report'
+    AND json_extract(meta_json,'$.pipeline_task_report.task_id')=OLD.id;
+END;
 CREATE TABLE events(
   id INTEGER PRIMARY KEY AUTOINCREMENT, stream TEXT NOT NULL, type TEXT NOT NULL,
   data_json TEXT NOT NULL CHECK(json_valid(data_json)), created_at TEXT NOT NULL,

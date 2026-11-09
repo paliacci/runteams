@@ -1,13 +1,13 @@
 /* Trusted local content renderer. Product APIs, identity and navigation stay in the host. */
 (()=>{
  'use strict';
- const channel='runteams-rich-document/1',reports=new Map(),pending=new Map(),readyFrames=new WeakSet();
+ const channel='runteams-rich-document/1',reports=new Map(),pending=new Map(),readyFrames=new WeakSet(),observedReportRoots=new WeakSet();
  const theme=()=>document.documentElement.dataset.theme==='dark'||!document.documentElement.dataset.theme&&matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';
  function supported(doc){return !doc?.data_view&&!/data-type=["']NodeAttributeView["']/.test(doc?.content||'')&&!doc?.task_input&&!doc?.work_artifact&&['rich-document','markdown','json'].includes(doc?.content_model);}
- function frame(token,embedded=false){return `<div class="rich-frame-shell"><div class="rich-frame-loading">${documentReaderSkeletonMarkup(true)}</div><iframe onload="RunTeamsRichDocuments.loaded(this)" class="rich-document-frame${embedded?' rich-report-frame':''}" ${embedded?'':'id="rich_document_frame"'} data-rich-token="${esc(token)}" title="${embedded?'工作汇报':'文档内容'}" src="/rich-document/dist/index.html#${esc(token)}" referrerpolicy="no-referrer" allow="clipboard-write"></iframe></div>`;}
+ function frame(token,embedded=false){return `<div class="rich-frame-shell"><div class="rich-frame-loading">${documentReaderSkeletonMarkup(true,false,embedded?'workRecordDetail.reportLoading':undefined)}</div><iframe onload="RunTeamsRichDocuments.loaded(this)" class="rich-document-frame${embedded?' rich-report-frame':''}" ${embedded?'':'id="rich_document_frame"'} data-rich-token="${esc(token)}" title="${embedded?'工作汇报':'文档内容'}" data-app-i18n-title="documentReader.${embedded?'reportFrame':'contentFrame'}" src="/rich-document/dist/index.html#${esc(token)}" referrerpolicy="no-referrer" allow="clipboard-write"></iframe></div>`;}
  function outlineMarkup(state){
-  const collapsed=!!S.docOutlineCollapsed,label=collapsed?'展开大纲':'收起大纲',outline=state.richOutline||{items:[],name:state.doc.name,active_id:''};
-  return `<div class="rich-document-outline-list">${outline.items.map(item=>`<button type="button" class="doc-outline-link level-h${item.level}${outline.active_id===item.id?' on':''}" data-outline-id="${esc(item.id)}" title="${esc(item.text)}"${outline.active_id===item.id?' aria-current="location"':''} onclick="RunTeamsRichDocuments.jumpOutline(this.dataset.outlineId)">${esc(item.text)}</button>`).join('')}</div><div class="rich-document-outline-footer"><button type="button" class="detail-panel-collapse" title="${label}" aria-label="${label}" aria-expanded="${!collapsed}" onclick="RunTeamsRichDocuments.toggleOutline()">${ICON(collapsed?'panel-left-open':'panel-left-close')}</button></div>`;
+  const collapsed=!!S.docOutlineCollapsed,label=collapsed?'展开大纲':'收起大纲',labelKey=collapsed?'documentReader.showOutline':'documentReader.hideOutline',outline=state.richOutline||{items:[],name:state.doc.name,active_id:''};
+  return `<div class="rich-document-outline-list">${outline.items.map(item=>`<button type="button" class="doc-outline-link level-h${item.level}${outline.active_id===item.id?' on':''}" data-outline-id="${esc(item.id)}" title="${esc(item.text)}"${outline.active_id===item.id?' aria-current="location"':''} onclick="RunTeamsRichDocuments.jumpOutline(this.dataset.outlineId)">${esc(item.text)}</button>`).join('')}</div><div class="rich-document-outline-footer"><button type="button" class="detail-panel-collapse" title="${label}" aria-label="${label}" data-app-i18n-aria-label="${labelKey}" data-app-i18n-title="${labelKey}" aria-expanded="${!collapsed}" onclick="RunTeamsRichDocuments.toggleOutline()">${ICON(collapsed?'panel-left-open':'panel-left-close')}</button></div>`;
  }
  function updateOutline(state,data){
   if(!Array.isArray(data.items)||data.items.length>500||data.items.some(item=>!item||typeof item.id!=='string'||item.id.length>128||typeof item.text!=='string'||item.text.length>500||![1,2,3].includes(item.level)))return;
@@ -33,7 +33,8 @@
  }
  function main(state){
   state.richToken||=crypto.randomUUID();state.richAccount||=workspaceAccountCacheToken();
-  return `<main class="environment-page doc-reader-page rich-document-page"><header class="doc-reader-bar" oncontextmenu="documentReaderMoreMenu(event)"><button type="button" class="doc-reader-back" aria-label="返回" onclick="closeDocumentReader()">${ICON('chev')}<span>文档</span></button><div class="doc-reader-bar-copy"><span class="doc-reader-bar-title" id="doc_bar_title">${esc(state.doc.name||'文档')}</span></div><div class="doc-reader-actions" id="doc_reader_actions">${documentReaderActionsMarkup(state.doc)}</div></header><div class="rich-document-layout"><aside class="rich-document-outline-slot${S.docOutlineCollapsed?' is-collapsed':''}" id="rich_document_outline_slot"><nav class="doc-reader-outline open rich-document-outline${S.docOutlineCollapsed?' is-collapsed':''}" id="rich_document_outline" aria-label="文档大纲">${outlineMarkup(state)}</nav></aside><div class="rich-document-body">${frame(state.richToken)}</div><div class="doc-reader-versions-slot ${S.docVersionsOpen?'':'is-hidden'}" id="doc_reader_versions_slot"><nav class="doc-reader-versions" id="doc_reader_versions" aria-label="历史版本">${documentReaderVersionsMarkup()}</nav></div></div></main>`;
+  const title=documentDisplayTitle(state.doc);
+  return `<main class="environment-page doc-reader-page rich-document-page"><header class="doc-reader-bar" oncontextmenu="documentReaderMoreMenu(event)">${documentReaderBackMarkup(state.doc)}<div class="doc-reader-bar-copy"><span class="doc-reader-bar-title" id="doc_bar_title"${documentReaderTitleAttributes(title)}>${esc(title.title)}</span></div><div class="doc-reader-actions" id="doc_reader_actions">${documentReaderActionsMarkup(state.doc)}</div></header><div class="rich-document-layout"><aside class="rich-document-outline-slot${S.docOutlineCollapsed?' is-collapsed':''}" id="rich_document_outline_slot"><nav class="doc-reader-outline open rich-document-outline${S.docOutlineCollapsed?' is-collapsed':''}" id="rich_document_outline" aria-label="文档大纲" data-app-i18n-aria-label="documentReader.outline">${outlineMarkup(state)}</nav></aside><div class="rich-document-body">${frame(state.richToken)}</div><div class="doc-reader-versions-slot ${S.docVersionsOpen?'':'is-hidden'}" id="doc_reader_versions_slot"><nav class="doc-reader-versions" id="doc_reader_versions" aria-label="历史版本" data-app-i18n-aria-label="employeeHistory.title">${documentReaderVersionsMarkup()}</nav></div></div></main>`;
  }
  function reportMarkup(doc,id){
   const key=workspaceAccountCacheToken()+':'+id+':'+doc.revision;
@@ -62,7 +63,14 @@
     if(S.docReader!==state||account!==workspaceAccountCacheToken()||!frame.isConnected)return false;
     if(response?.error||response?.conflict)throw Error(response.error||'文档已变化，请重新打开后核对。');
     state.doc={...state.doc,...response};state.text=JSON.stringify(data.document);if(state.richProtocol!==2)state.richDirty=false;state.saveStatus='saved';state.saveError='';
-    const title=document.getElementById('doc_bar_title');if(title)title.textContent=state.doc.name||'文档';
+    const title=document.getElementById('doc_bar_title');
+    if(title){
+     const parts=documentDisplayTitle(state.doc);
+     title.textContent=parts.title;
+     if(parts.titleKey)title.dataset.appI18n=parts.titleKey;
+     else title.removeAttribute('data-app-i18n');
+     RunTeamsLocale.apply(title);
+    }
     post(frame,'saved',{request_id:data.request_id,revision:response.revision});ok=true;loadDocumentRevisions(state.doc);
    }catch(error){if(S.docReader===state&&account===workspaceAccountCacheToken()){state.saveStatus='error';state.saveError=error.message||'保存失败，请重试。';post(frame,'saved',{request_id:data.request_id,error:state.saveError});}}
    finally{const wait=pending.get(state.richToken);if(wait&&state.richProtocol!==2){pending.delete(state.richToken);wait.done(ok);}}
@@ -70,8 +78,11 @@
   })();state.richSaving=run;try{return await run;}finally{if(state.richSaving===run)state.richSaving=null;}
  }
  function flush(state){
-  if(!state.richDirty&&!state.richSaving)return Promise.resolve(true);
-  const frame=currentFrame(state.richToken);if(!frame)return Promise.resolve(false);
+  const frame=currentFrame(state.richToken);
+  // A live editor may have queued a dirty notification that the host hasn't received yet.
+  const liveEditor=state.richProtocol===2&&state.doc.editable&&frame&&readyFrames.has(frame);
+  if(!liveEditor&&!state.richDirty&&!state.richSaving)return Promise.resolve(true);
+  if(!frame)return Promise.resolve(false);
   const current=pending.get(state.richToken);if(current)return current.promise;
   if(state.richProtocol!==2&&state.richSaving)return state.richSaving;
   const flush_id=crypto.randomUUID();let finish;
@@ -88,6 +99,18 @@
   post(frame,'header-action',{action});
  }
  function exportCurrent(){editorAction('export');}
+ async function exportSaved(id){
+  const scope=documentsBinding();
+  try{
+   const response=await fetch(`/api/device/work/documents/${id}/download`,{headers:RunTeamsHost.session.headers(S),redirect:'error'});
+   const filename=response.headers.get('Content-Disposition')?.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
+   if(!response.ok||!filename)throw Error();
+   const blob=await response.blob();
+   if(scope===documentsBinding())download(blob,decodeURIComponent(filename));
+  }catch{
+   if(scope===documentsBinding())toast('无法导出文件。请重试。','err','fileBrowser.exportFailed');
+  }
+ }
  function retrySave(){editorAction('retry-save');}
  async function resource(frame,target,data){
   const account=workspaceAccountCacheToken(),state=target.state;
@@ -106,26 +129,99 @@
    if(response?.error)throw Error(response.error);
    if(account!==workspaceAccountCacheToken()||!frame.isConnected||state&&S.docReader!==state)return;
    if(operation==='asset-download'){const raw=atob(response.data.split(',')[1]),blob=new Blob([Uint8Array.from(raw,c=>c.charCodeAt(0))],{type:response.type});download(blob,response.name);response={download:true};}
-   if(operation==='export-download'){if(data.document?.schema!=='runteams.rich-document/1')throw Error('导出内容不完整。');const blob=new Blob([JSON.stringify(data.document,null,2)],{type:'application/json'});if(blob.size>128*1024*1024)throw Error('导出内容过大，请单独下载附件。');download(blob,(data.name||target.doc.name)+'.json');}
+   if(operation==='export-download'){if(data.document?.schema!=='runteams.rich-document/1')throw Error('导出内容不完整。');const blob=new Blob([JSON.stringify(data.document,null,2)],{type:'application/json'});if(blob.size>128*1024*1024)throw Object.assign(Error('导出内容过大，请单独下载附件。'),{code:'export-too-large'});download(blob,(data.name||target.doc.name)+'.json');}
    post(frame,'resource-result',{request_id:data.request_id,result:response});
-  }catch(error){if(account===workspaceAccountCacheToken()&&frame.isConnected&&(!state||S.docReader===state))post(frame,'resource-result',{request_id:data.request_id,error:error.message||'操作未完成，请重试。'});}
+  }catch(error){if(account===workspaceAccountCacheToken()&&frame.isConnected&&(!state||S.docReader===state))post(frame,'resource-result',{request_id:data.request_id,error:error.message||'操作未完成，请重试。',code:error.code});}
  }
 
- function loaded(frame){if(readyFrames.has(frame))return;setTimeout(()=>{if(!frame.isConnected||readyFrames.has(frame))return;const label=frame.closest('.rich-frame-shell')?.querySelector('.rich-frame-loading');if(label){label.classList.add('is-error');label.setAttribute('role','alert');label.innerHTML='<span>内容界面暂时未能打开，已保存的文档仍保留。</span><button type="button" class="btn" onclick="RunTeamsRichDocuments.retry(this)">重试</button>';}},15000);}
- function retry(button){const shell=button.closest('.rich-frame-shell'),frame=shell?.querySelector('iframe');if(!frame)return;readyFrames.delete(frame);const label=shell.querySelector('.rich-frame-loading');label.classList.remove('is-error');label.removeAttribute('role');label.innerHTML=documentReaderSkeletonMarkup(true);frame.src=frame.src;}
+ function loaded(frame){if(readyFrames.has(frame))return;setTimeout(()=>{if(!frame.isConnected||readyFrames.has(frame))return;const label=frame.closest('.rich-frame-shell')?.querySelector('.rich-frame-loading');if(label){label.classList.add('is-error');label.setAttribute('role','alert');label.innerHTML='<span data-app-i18n="documentReader.editorLoadFailed">无法打开编辑器。已保存的内容仍在。</span><button type="button" class="btn" data-app-i18n="employeeHistory.retry" onclick="RunTeamsRichDocuments.retry(this)">重试</button>';}},15000);}
+ function retry(button){const shell=button.closest('.rich-frame-shell'),frame=shell?.querySelector('iframe');if(!frame)return;readyFrames.delete(frame);const label=shell.querySelector('.rich-frame-loading');label.classList.remove('is-error');label.removeAttribute('role');label.innerHTML=documentReaderSkeletonMarkup(true,false,frame.classList.contains('rich-report-frame')?'workRecordDetail.reportLoading':undefined);frame.src=frame.src;}
+ let creation=null;
+ function createButtonCopy(){
+  if(creation?.busy)return ['documentList.creating','正在创建文档…'];
+  if(creation?.payload)return ['documentList.retryCreate','核对并打开文档'];
+  return ['documentList.new','新建文档'];
+ }
+ function createButtonMarkup(){
+  const [key,label]=createButtonCopy();
+  return `<button type="button" class="btn" data-document-create ${creation?.busy?'disabled aria-busy="true"':''} onclick="RunTeamsRichDocuments.create()">${ICON('plus')}<span data-app-i18n="${key}">${label}</span></button>`;
+ }
+ function syncCreateButton(){
+  const button=document.querySelector('[data-document-create]');
+  if(!button)return;
+  const [key,label]=createButtonCopy(),text=button.querySelector('span[data-app-i18n]');
+  button.disabled=!!creation?.busy;
+  if(creation?.busy)button.setAttribute('aria-busy','true');
+  else button.removeAttribute('aria-busy');
+  text.dataset.appI18n=key;text.textContent=label;RunTeamsLocale.apply(text);
+ }
  async function create(){
-  if(RunTeamsHost.session.workspace(S))return;
-  if(S._richDocumentCreating)return;S._richDocumentCreating=true;
-  try{if(!await flushDocument())return;const doc=await api('/api/device/work/documents','POST',{name:'未命名文档',content_model:'rich-document',base_revision:0,document_key:'document-'+crypto.randomUUID(),document:{schema:'runteams.rich-document/1',blocks:[{id:crypto.randomUUID(),type:'paragraph',props:{},content:[],children:[]}],sources:{}}});if(doc.error)throw Error(doc.error);await openDocumentReader({...doc,rich_new_document:true});}
-  catch(error){toast(error.message||'文档创建失败，请重试。','err');}finally{S._richDocumentCreating=false;}
+  if(RunTeamsHost.session.workspace(S)||creation?.busy)return;
+  const account=workspaceAccountCacheToken(),source=S.docReader,surface=S.surface,url=location.href;
+  if(creation?.account!==account)creation={account,payload:null,busy:false};
+  const operation=creation,current=()=>creation===operation&&workspaceAccountCacheToken()===account;
+  const samePage=()=>S.docReader===source&&S.surface===surface&&location.href===url;
+  operation.busy=true;syncCreateButton();
+  try{
+   if(!await flushDocument()||!current()||!samePage())return;
+   operation.payload||={
+    name:RunTeamsLocale.t('documentList.untitled',{},'未命名文档'),content_model:'rich-document',base_revision:0,
+    document_key:'document-'+crypto.randomUUID(),
+    document:{schema:'runteams.rich-document/1',blocks:[{id:crypto.randomUUID(),type:'paragraph',props:{},content:[],children:[]}],sources:{}}
+   };
+   let doc;
+   try{
+    doc=await api('/api/device/work/documents','POST',operation.payload);
+    if(doc?.error)throw Object.assign(Error(doc.error),{status:doc.status,code:doc.code});
+    if(!Number.isSafeInteger(doc?.id)||doc.id<1||doc.document_key!==operation.payload.document_key)throw Error('Invalid document receipt');
+   }catch(error){
+    if(!current())return;
+    const rejected=error.status>=400&&error.status<500&&![408,409].includes(error.status)&&error.code!=='mutation_outcome_unknown';
+    if(rejected)operation.payload=null;
+    if(samePage()){
+     if(rejected)toast('无法创建文档。请重试。','err','documentList.createFailed');
+     else toast('未能确认文档是否已创建。请选择「核对并打开文档」。','err','documentList.createUnconfirmed');
+    }
+    return;
+   }
+   if(!current())return;
+   operation.payload=null;
+   if(!samePage())return;
+   try{if(await openDocumentReader({...doc,rich_new_document:true}))return;}catch{}
+   if(current()&&samePage())toast('文档已创建，但无法打开。请从文档列表打开。','err','documentList.createdOpenFailed');
+  }catch{
+   if(current()&&samePage())toast('未能确认当前文档已保存。','err','documentReader.leavingUnconfirmed');
+  }finally{
+   if(current()){operation.busy=false;if(!operation.payload)creation=null;syncCreateButton();}
+  }
+ }
+ function observeReportSize(frame){
+  const root=frame.contentDocument?.getElementById('root');
+  if(!root||observedReportRoots.has(root))return;
+  const resize=()=>{
+   if(!frame.isConnected||!root.isConnected){observer.disconnect();return;}
+   const height=root.getBoundingClientRect().height;
+   if(!height)return;
+   // The intrinsic height includes fractional pixels that scrollHeight rounds away.
+   const fitted=Math.max(160,Math.ceil(height),root.scrollHeight+1)+'px';
+   if(frame.style.height!==fitted)frame.style.height=fitted;
+  };
+  const observer=new frame.contentWindow.ResizeObserver(resize);
+  observedReportRoots.add(root);
+  observer.observe(root);
+  resize();
  }
  window.addEventListener('message',event=>{
   const data=event.data;if(event.origin!==location.origin||data?.channel!==channel)return;
   const frame=currentFrame(data.token);if(!frame||event.source!==frame.contentWindow)return;
   const target=resolve(data.token);if(!target)return;
-  if(data.type==='ready'){if(target.state)target.state.richProtocol=data.protocol===2?2:1;if(data.render_ack!==true){readyFrames.add(frame);frame.closest('.rich-frame-shell')?.querySelector('.rich-frame-loading')?.remove();}let document_url='';try{document_url=new URL(documentInternalLinkHref(target.state?.workspaceDocumentId||target.doc.id),location.origin).href;}catch{}post(frame,'open',{payload:{doc:{...target.doc,host_protocol:2,header_in_host:!target.embedded,outline_enabled:!target.embedded,resources_available:!RunTeamsHost.session.workspace(S),document_url,initial_block:target.state?.anchor||''},embedded:target.embedded,theme:theme()}});return;}
-  if(data.type==='rendered'){readyFrames.add(frame);frame.closest('.rich-frame-shell')?.querySelector('.rich-frame-loading')?.remove();return;}
-  if(data.type==='height'&&target.embedded){const height=Number(data.height);if(Number.isFinite(height))frame.style.height=Math.max(160,Math.min(15000,height))+'px';return;}
+  if(data.type==='ready'){if(target.state)target.state.richProtocol=data.protocol===2?2:1;if(data.render_ack!==true){readyFrames.add(frame);frame.closest('.rich-frame-shell')?.querySelector('.rich-frame-loading')?.remove();}let document_url='';try{document_url=new URL(documentInternalLinkHref(target.state?.workspaceDocumentId||target.doc.id),location.origin).href;}catch{}post(frame,'open',{payload:{doc:{...target.doc,host_protocol:2,header_in_host:!target.embedded,outline_enabled:!target.embedded,resources_available:!RunTeamsHost.session.workspace(S),document_url,initial_block:target.state?.anchor||''},embedded:target.embedded,theme:theme(),language:RunTeamsLocale.language}});return;}
+  if(data.type==='rendered'){
+   readyFrames.add(frame);
+   frame.closest('.rich-frame-shell')?.querySelector('.rich-frame-loading')?.remove();
+   if(target.embedded)observeReportSize(frame);
+   return;
+  }
   if(data.type==='resource'){void resource(frame,target,data);return;}
   if(data.type==='link'){if(typeof data.href==='string')void openMarkdownLink(data.href);return;}
   if(target.embedded)return;
@@ -139,7 +235,10 @@
   if(data.type==='versions')toggleRichDocumentVersions();
  });
  new MutationObserver(()=>{for(const frame of document.querySelectorAll('iframe[data-rich-token]'))post(frame,'theme',{theme:theme()});}).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+ RunTeamsLocale.onChange(({language})=>{
+  for(const frame of document.querySelectorAll('iframe[data-rich-token]'))if(resolve(frame.dataset.richToken))post(frame,'language',{language});
+ });
  window.addEventListener('beforeunload',event=>{if(S.docReader?.richDirty){event.preventDefault();event.returnValue='';}});
- window.addEventListener('runteams:business-scope-will-change',()=>{reports.clear();for(const item of pending.values())item.done(false);pending.clear();});
- window.RunTeamsRichDocuments=Object.freeze({supported,main,reportMarkup,flush,create,loaded,retry,exportCurrent,retrySave,toggleOutline,jumpOutline});
+ window.addEventListener('runteams:business-scope-will-change',()=>{creation=null;syncCreateButton();reports.clear();for(const item of pending.values())item.done(false);pending.clear();});
+ window.RunTeamsRichDocuments=Object.freeze({supported,main,reportMarkup,flush,create,createButtonMarkup,loaded,retry,exportCurrent,exportSaved,retrySave,toggleOutline,jumpOutline});
 })();

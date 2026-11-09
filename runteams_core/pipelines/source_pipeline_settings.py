@@ -70,11 +70,13 @@ def own_configuration_store(ref):
 def own_configuration(core, data):
     core._actor()
     action = data.get('action')
-    extra = {'read': set(), 'receipt': {'operation_id'}, 'credential':{'field','definition_sha256','value'}, 'save': {
+    extra = {'read': set(), 'receipt': {'operation_id'}, 'credential':{'field','definition_sha256','value'},
+        'reveal-credential': {'field','definition_sha256'}, 'save': {
         'operation_id', 'expected_revision', 'definition_sha256', 'values', 'bindings'}}.get(action)
     if extra is None or set(data) != {'reference', 'action'} | extra:
         raise ContractError('流水线配置请求无效。')
     with own_configuration_store(data['reference']) as config:
+        if action == 'reveal-credential': return config.reveal_credential(**{k:data[k] for k in extra})
         if action == 'credential': return config.credential(**{k:data[k] for k in extra})
         if action == 'read': return config.read()
         if action == 'receipt': return config.receipt(data['operation_id'])
@@ -129,7 +131,8 @@ def employee_configuration(core, data):
     core._actor()
     allowed = {'reference', 'employee_source', 'action'}
     action = data.get('action')
-    extra = {'read': set(), 'receipt': {'operation_id'}, 'credential':{'field','definition_sha256','value'}, 'save': {
+    extra = {'read': set(), 'receipt': {'operation_id'}, 'credential':{'field','definition_sha256','value'},
+        'reveal-credential': {'field','definition_sha256'}, 'save': {
         'operation_id', 'expected_revision', 'definition_sha256', 'values', 'bindings'}}.get(action)
     if extra is None or set(data) != allowed | extra:
         raise ContractError('流水线员工配置请求无效。')
@@ -147,6 +150,7 @@ def employee_configuration(core, data):
         if member is None: raise PermissionError('配置回执的员工引用不存在。')
         return PipelineConfiguration(ref, member_reference(ref, member), EMPTY, None).receipt(data['operation_id'])
     with configuration(data['reference'], data['employee_source']) as config:
+        if action == 'reveal-credential': return config.reveal_credential(**{k:data[k] for k in extra})
         if action == 'credential': return config.credential(**{k:data[k] for k in extra})
         if action == 'read': return config.read()
         return config.save(**{k: v for k, v in data.items() if k in extra})
@@ -159,20 +163,22 @@ def read(core, ref):
     from runteams_core.pipelines.pipeline_employee_dependencies import describe as describe_member, member_reference
     from runteams_core.pipelines.pipeline_dependency_contracts import selector
     from runteams_core.configuration.configuration_schema import fields
+    from runteams_core.pipelines.source_pipeline_workspace import skill_description
     employees = []
     for member in asset['employees']:
         positions = [p for p in asset['pipeline']['positions'] if p.get('employee_ref') == member['ref']]
         if not positions: continue
         try:
-            description = (describe_member(ref, member, revision) if 'dependency' in member else
-                {'reference': member_reference(ref, member), 'revision': revision,
-                 'asset': {'employee': strict_json(files[member['source']])}})
+            description = describe_member(ref, member, revision)
             employee = description['asset']['employee']
             row = {'reference': description['reference'], 'name': employee['name'], 'revision': description['revision'],
-                   'field_count': len(fields(employee.get('configuration', EMPTY)))}
+                   'field_count': len(fields(employee.get('configuration', EMPTY))),
+                   'member_ref': member['ref'],
+                   'skills': [skill for bundle in description['asset'].get('skill_bundles', [])
+                              if (skill := skill_description(bundle)) is not None]}
         except (ValueError, OSError, PermissionError) as error:
             row = {'reference': member_reference(ref, member), 'name': positions[0]['name'],
-                   'field_count': 0, 'error': str(error)}
+                   'field_count': 0, 'member_ref': member['ref'], 'error': str(error)}
         employees.append({'source': selector(member), 'positions': [p['name'] for p in positions], **row})
     return {'reference': ref, 'source_revision': revision, 'asset': asset,
             'employees': employees, 'storage_scope': 'device'}
@@ -196,6 +202,9 @@ def edit(core, data):
         asset = _asset(revisions.files_at(data['restore_revision']), ref)
     if not isinstance(asset, dict) or asset.get('key') != previous.get('key'):
         raise ContractError('流水线身份不能在编辑中改变。')
+    graph = asset.get('pipeline')
+    if not isinstance(graph, dict) or graph.get('routing_policy') != previous['pipeline'].get('routing_policy'):
+        raise ContractError('流水线流转规则版本不能在常规编辑中改变。')
     from runteams_core.authoring.source.creator_source_import import validate_source
     from runteams_core.authoring.creator_conversation_assets import compile_catalog
     original = compile_catalog(files, validate_source(files))
@@ -208,7 +217,8 @@ def edit(core, data):
         if 'dependency' in member:
             describe_member(ref, member, data['base_revision'])
     result = revisions.commit(files, data['base_revision'], 'pipeline-edit-' + digest(ref)[:32] + '-' + data['operation_id'])
-    return {'reference': ref, 'revision': result['revision'], 'storage_scope': 'device'}
+    return {'reference': ref, 'revision': result['revision'], 'pipeline': checked['pipelines'][ref['pipeline_source']]['pipeline'],
+            'storage_scope': 'device'}
 
 
 def edit_receipt(core, data):
@@ -237,6 +247,7 @@ def history(core, ref):
             asset = strict_json(files[ref['pipeline_source']]); fingerprint = digest(asset)
             if fingerprint == previous: continue
             result.append({'revision': row['revision'], 'created_at': row['created_at'],
+                'revision_number': len(result) + 1, 'notes_kind': 'pipeline_definition',
                 'version': '修订 ' + str(len(result) + 1), 'notes': '流水线定义和团队规范；员工资产保持独立。'})
             previous = fingerprint
     return {'items': list(reversed(result)), 'storage_scope': 'device'}
@@ -244,17 +255,18 @@ def history(core, ref):
 
 def records(core, ref):
     from runteams_core.pipelines.source_pipeline_workspace import workspace
-    ref = pipeline_references.checked_reference(ref); rows = workspace(core, ref)['workflows']
-    from runteams_core.employees.employee_chat_work import delivery
-    from runteams_core.work.work_reports import catalog as report_catalog
-    report_groups = {}
-    for report in report_catalog(core): report_groups.setdefault(report['binding'].get('workflow_id'), []).append(report)
-    deliveries = []
-    for row in reversed(rows):
-        detail = work.work(core, ref, row['id'])['workflow']
-        projected = delivery(core, {**row, 'workflow_id': row['id'], 'updated_at': detail['updated_at']},
-                             report_groups.get(row['id'], []))
-        projected['origin'] = {'kind':'workflow','workflow_id':row['id']}
-        deliveries.append(projected)
-    return {'schema': 'runteams.result-view/v1', 'scope': {'source_pipeline_reference': ref},
-            'results': deliveries, 'storage_scope': 'device'}
+    with core.repository.read_snapshot():
+        ref = pipeline_references.checked_reference(ref); rows = workspace(core, ref)['workflows']
+        from runteams_core.employees.employee_chat_work import delivery
+        from runteams_core.work.work_reports import catalog as report_catalog
+        report_groups = {}
+        for report in report_catalog(core): report_groups.setdefault(report['binding'].get('workflow_id'), []).append(report)
+        deliveries = []
+        for row in reversed(rows):
+            detail = work.work(core, ref, row['id'])['workflow']
+            projected = delivery(core, {**row, 'workflow_id': row['id'], 'updated_at': detail['updated_at']},
+                                 report_groups.get(row['id'], []))
+            projected['origin'] = {'kind':'workflow','workflow_id':row['id']}
+            deliveries.append(projected)
+        return {'schema': 'runteams.result-view/v1', 'scope': {'source_pipeline_reference': ref},
+                'results': deliveries, 'storage_scope': 'device'}

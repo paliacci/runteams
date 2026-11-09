@@ -323,12 +323,13 @@ class ConfigurationStore:
             return {'revision': 0, 'values': {}, 'types': {}, 'retained': {}, 'bindings': {}}
         value = strict_json(row[0].encode())
         if (not isinstance(value, dict)
-                or set(value)-{'managed_seeds'} not in ({'schema', 'reference', 'revision', 'definition_sha256', 'values', 'types', 'retained'},
+                or set(value)-{'managed_seeds','credential_files'} not in ({'schema', 'reference', 'revision', 'definition_sha256', 'values', 'types', 'retained'},
                                      {'schema', 'reference', 'revision', 'definition_sha256', 'values', 'types', 'retained', 'bindings'})
                 or value.get('reference') != self.reference or value.get('schema') != STATE
                 or type(value['revision']) is not int or value['revision'] < 1
                 or any(not isinstance(value[k], dict) for k in ('values', 'types', 'retained'))):
             raise ValueError('已保存配置的身份无效，原值保持不变。')
+        if not isinstance(value.get('credential_files',{}),dict):raise ValueError('密钥文件记录无效。')
         value.setdefault('bindings', {})
         if not isinstance(value['bindings'], dict):
             raise ValueError('资料配置无效，原值保持不变。')
@@ -387,12 +388,27 @@ class ConfigurationStore:
 
     def _view(self, row, runtime_states=None):
         values, retained, states, ready = self._project(row, self._runtime_states() if runtime_states is None else runtime_states)
+        credential_fields = {}
+        for field in _configuration_schema.fields(self.definition):
+            if configuration_credentials.supports(field):
+                key = field['key']
+                legacy_filename = row.get('credential_files', {}).get(key, '')
+                credential_fields[key] = {
+                    'available': configuration_credentials.available(field),
+                    'filename': configuration_credentials.filename(field, legacy_filename) if states[key] == 'configured' else '',
+                }
+                if states[key] == 'configured' and not field.get('file_input'):
+                    try:
+                        value = configuration_credentials.reveal_text(field, row['bindings'][key], self.scope)
+                        credential_fields[key]['mask_length'] = len(value)
+                    except (ValueError, PermissionError, OSError):
+                        pass
         return {'schema': STATE, 'reference': copy.deepcopy(self.reference),
                 'revision': row['revision'], 'definition_revision': self.definition_revision,
                 'definition_sha256': self.definition_sha256, 'definition': copy.deepcopy(self.definition),
                 'values': values, 'states': states, 'ready': ready,
                 'connection_fields':self.connection_fields(),
-                'credential_fields':{field['key']:{'available':configuration_credentials.available(field)} for field in _configuration_schema.fields(self.definition) if configuration_credentials.supports(field)},
+                'credential_fields':credential_fields,
                 'runtime_fields':[field['key'] for field in _configuration_schema.fields(self.definition) if configuration_runtime.supports(field)],
                 'bindings': {key: copy.deepcopy(value) for key, value in row.get('bindings', {}).items()
                              if any(f['key'] == key and (f['type'] == 'resource' or configuration_credentials.supports(f) or configuration_connections.supports(f)) for f in _configuration_schema.fields(self.definition))},
@@ -414,13 +430,52 @@ class ConfigurationStore:
         self._check()
         return result
 
+    def reveal_credential(self, *, field, definition_sha256):
+        self._check()
+        if definition_sha256 != self.definition_sha256:
+            raise ConfigurationConflict('配置定义已更新，请重新核对。')
+        declaration = next((f for f in _configuration_schema.fields(self.definition) if f['key'] == field), None)
+        if declaration is None or not configuration_credentials.supports(declaration):
+            raise ValueError('凭据配置项已变化。')
+        with device_data.connect(readonly=True) as connection:
+            selection = self._load(connection)['bindings'].get(field)
+            value = configuration_credentials.reveal_text(declaration, selection, self.scope)
+        self._check()
+        return {'value': value}
+
     def credential(self, *, field, definition_sha256, value):
         self._check()
-        if definition_sha256!=self.definition_sha256:raise ConfigurationConflict('配置定义已更新，请重新核对。')
-        selected=next((f for f in _configuration_schema.fields(self.definition) if f['key']==field),None)
-        if selected is None:raise ValueError('凭据配置项已变化。')
-        result=configuration_credentials.update(selected,value)
-        self._check();return result
+        if definition_sha256 != self.definition_sha256:
+            raise ConfigurationConflict('配置定义已更新，请重新核对。')
+        selected = next((f for f in _configuration_schema.fields(self.definition) if f['key'] == field), None)
+        if selected is None or not configuration_credentials.supports(selected):
+            raise ValueError('凭据配置项已变化。')
+        runtime_states = self._runtime_states()
+        with device_data.connect() as connection:
+            row = self._load(connection)
+            bindings = row.get('bindings', {})
+            credential_files = row.get('credential_files', {})
+            if value == '':
+                # Deselect only for this owner. Other employees may use the same key.
+                selection = None
+                bindings.pop(field, None)
+                credential_files.pop(field, None)
+            else:
+                if value is None:
+                    selection = configuration_credentials.select(selected, {'key': selected['binding']['key']})
+                else:
+                    saved = configuration_credentials.update(selected, value)
+                    selection = saved['selection']
+                    if saved.get('filename'):credential_files[field] = saved['filename']
+                bindings[field] = selection
+            if credential_files:row['credential_files'] = credential_files
+            else:row.pop('credential_files', None)
+            row.update(schema=STATE, reference=self.reference, revision=row['revision'] + 1,
+                       definition_sha256=self.definition_sha256, bindings=bindings)
+            connection.execute('INSERT INTO device_settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value',
+                               (self.key, json.dumps(row, ensure_ascii=False, allow_nan=False)))
+            self._check()
+        return self._view(row, runtime_states)
 
     def receipt(self, operation_id):
         self._check()
@@ -484,6 +539,7 @@ class ConfigurationStore:
                           'definition_sha256': self.definition_sha256, 'values': checked,
                           'types': {f['key']: f['type'] for f in _configuration_schema.fields(self.definition) if f['key'] in checked},
                           'retained': retained, 'bindings': resolved}
+            if row.get('credential_files'):result_row['credential_files']=copy.deepcopy(row['credential_files'])
             managed_keys={f['key'] for f in _configuration_schema.managed_fields(self.definition)}
             seeds={**row.get('managed_seeds',{}),**{key:value for key,value in row.get('bindings',{}).items() if key in managed_keys}}
             if seeds:result_row['managed_seeds']=seeds
@@ -494,9 +550,24 @@ class ConfigurationStore:
             self._check()
         return result
 
-    def snapshot(self):
+    def snapshot(self, *, task_values=None):
         """Admission may freeze this result; it neither starts nor resumes work."""
-        value = self.read()
+        if task_values is None:
+            value = self.read()
+        else:
+            self._check()
+            checked = validate_values(self.definition, task_values, complete=False)
+            types = {field['key']: field['type'] for field in _configuration_schema.fields(self.definition)
+                     if field['type'] not in _configuration_schema.PRIVATE}
+            if set(checked) - set(types):
+                raise ValueError('任务只可补齐公开配置。')
+            with device_data.connect(readonly=True) as connection:
+                row = self._load(connection)
+            for key, supplied in checked.items():
+                if row['values'].get(key) not in (None, '', supplied):
+                    raise ConfigurationConflict('已保存的签名团队与本次验证不一致，请核对岗位配置。')
+            value = self._view({**row, 'values': {**row['values'], **checked},
+                                'types': {**row['types'], **{key: types[key] for key in checked}}})
         if not value['ready']:
             raise ConfigurationInvalid({key: '此项还需核对。' for key, state in value['states'].items()
                                         if state != 'configured'})

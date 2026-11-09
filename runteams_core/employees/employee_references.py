@@ -9,6 +9,13 @@ SOURCE_SCHEMA = 'runteams.local-employee-reference/1'
 ACQUIRED_SCHEMA = 'runteams.acquired-employee-reference/1'
 
 
+def source_reference(source_id, employee_source):
+    from runteams_core.foundation.identity.work_identity import source_scope
+    value = {'schema': SOURCE_SCHEMA, 'source_id': source_id, 'employee_source': employee_source,
+             **source_scope(device_data.identity())}
+    return checked_reference(value)
+
+
 def checked_reference(value):
     actual=device_data.identity()
     if actual.get('storage_kind')=='local' and (not isinstance(value,dict) or value.get('schema')!=SOURCE_SCHEMA or value.get('storage_kind')!='local'):

@@ -17,7 +17,7 @@ import { shell } from "@codemirror/legacy-modes/mode/shell";
 import { toml } from "@codemirror/legacy-modes/mode/toml";
 import { yaml } from "@codemirror/legacy-modes/mode/yaml";
 import { tags } from "@lezer/highlight";
-import { EditorState } from "@codemirror/state";
+import { Compartment, EditorState } from "@codemirror/state";
 import { EditorView, lineNumbers } from "@codemirror/view";
 import "./resource-viewer.css";
 import { formatJsonForDisplay, isJsonPath } from "./json-display.mjs";
@@ -113,34 +113,35 @@ function MarkdownPreview({ source, onOpenFile }) {
     if (!window.marked || !window.DOMPurify) return "";
     return window.DOMPurify.sanitize(window.marked.parse(markdownBody(source)));
   }, [source]);
-  if (!html) return <div className="rt-resource-empty">这个文档没有可预览的内容。</div>;
+  if (!html) return <div className="rt-resource-empty" data-app-i18n="employeeResource.emptyDocument">此文档没有可预览的内容。</div>;
   return <article className="rt-resource-markdown" onClick={event=>{const link=event.target.closest("a[href]");if(link&&onOpenFile?.(link.getAttribute("href")))event.preventDefault();}} dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
 // Uses the same themed artwork, disclosure and controls as the host pages.
-function ReadFailure({ title, error, busy = false, onRetry }) {
+function ReadFailure({ title, titleKey, busyLabelKey = "employeeResource.loadingFile", error, busy = false, onRetry }) {
   const readId = useId();
   const host = useRef(null);
   useEffect(() => {
     const button = host.current?.querySelector('[data-read-retry]');
     if (button) button.onclick = event => window.RunTeamsLoadFailure.retry(button, event, onRetry);
   }, [title, error, busy, onRetry]);
-  return <div ref={host} className="rt-resource-read-failure" dangerouslySetInnerHTML={{ __html: window.RunTeamsLoadFailure.markup({ variant: 'modal', title, error, busy, retry: 'void 0', key: 'resource:' + readId }) }} />;
+  return <div ref={host} className="rt-resource-read-failure" dangerouslySetInnerHTML={{ __html: window.RunTeamsLoadFailure.markup({ variant: 'modal', title, titleKey, labelKey: titleKey?'employeeHistory.retry':undefined, busyLabelKey: titleKey?busyLabelKey:undefined, error, busy, retry: 'void 0', key: 'resource:' + readId }) }} />;
 }
 
 function ImagePreview({ source, path, scale, onRetry }) {
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
   useEffect(() => setFailed(false), [source]);
-  if (failed) return <ReadFailure title="图片暂时无法加载" onRetry={() => { if (onRetry) return onRetry(); setAttempt(value => value + 1); setFailed(false); }} />;
+  if (failed) return <ReadFailure title="无法加载图片" titleKey="employeeResource.imageFailed" busyLabelKey="employeeResource.loadingImage" onRetry={() => { if (onRetry) return onRetry(); setAttempt(value => value + 1); setFailed(false); }} />;
   return (
     <div className={`rt-resource-image-stage ${scale}`}>
-      <img key={attempt} src={source} alt={`${path} 预览`} onError={() => setFailed(true)} />
+      <img key={attempt} src={source} alt={`${path} 预览`} data-app-i18n-alt="employeeResource.imageAlt" data-app-i18n-vars={JSON.stringify({path})} onError={() => setFailed(true)} />
     </div>
   );
 }
 
 function ResourcePane({ loadFile, initialLoaded }) {
+  const pane = useRef(null);
   const errorFile = useRef(null);
   const retryCompletion = useRef(null);
   const { sandpack } = useSandpack();
@@ -150,6 +151,7 @@ function ResourcePane({ loadFile, initialLoaded }) {
   const [retry, setRetry] = useState(0);
   const [imageScale, setImageScale] = useState("fit");
   const [images, setImages] = useState({});
+  const [unavailableFiles, setUnavailableFiles] = useState({});
   const loaded = useRef(new Set(initialLoaded));
   const activeFile = sandpack.activeFile;
   const path = cleanPath(activeFile);
@@ -157,6 +159,25 @@ function ResourcePane({ loadFile, initialLoaded }) {
   const markdownFile = isMarkdown(path);
   const imageFile = isRasterImage(path);
   const image = images[activeFile];
+  const unavailable = unavailableFiles[activeFile];
+
+  useEffect(() => {
+    const root = pane.current;
+    if (!root) return undefined;
+    // Sandpack puts its own English editor labels inside translate="no".
+    // Update only the accessibility labels and leave source text intact.
+    const nameSource = () => {
+      const label = window.RunTeamsLocale?.t("settingsTools.codePreview", {path}, path + " 代码预览") ?? path + " 代码预览";
+      root.querySelectorAll(".rt-resource-source [role='textbox']").forEach(node => {
+        if (node.getAttribute("aria-label") !== label) node.setAttribute("aria-label", label);
+      });
+    };
+    nameSource();
+    const observer = new MutationObserver(nameSource);
+    observer.observe(root, { childList:true, subtree:true, attributes:true, attributeFilter:["aria-label"] });
+    const unsubscribe = window.RunTeamsLocale?.onChange(nameSource);
+    return () => { observer.disconnect(); unsubscribe?.(); };
+  }, [path]);
 
   useEffect(() => {
     setMode(markdownFile ? "preview" : "source");
@@ -187,7 +208,9 @@ function ResourcePane({ loadFile, initialLoaded }) {
     if (errorFile.current !== activeFile) setLoadError("");
     Promise.resolve().then(() => loadFile(cleanPath(activeFile))).then((result) => {
       if (!current) return;
-      if (result?.imageUrl) {
+      if (result?.unavailable) {
+        setUnavailableFiles(value => ({ ...value, [activeFile]: result.unavailable }));
+      } else if (result?.imageUrl) {
         setImages((value) => ({ ...value, [activeFile]: result.imageUrl }));
         sandpack.updateFile(activeFile, "", false);
       } else {
@@ -206,7 +229,7 @@ function ResourcePane({ loadFile, initialLoaded }) {
   }, [activeFile, loadFile, retry]);
 
   return (
-    <section className="rt-resource-pane">
+    <section className="rt-resource-pane" ref={pane}>
       <header className="rt-resource-pane-header">
         <div className="rt-resource-path" title={path}>
           {path.split("/").map((part, index) => (
@@ -216,24 +239,29 @@ function ResourcePane({ loadFile, initialLoaded }) {
             </React.Fragment>
           ))}
         </div>
-        {markdownFile && (
-          <nav className="rt-resource-modes" aria-label="文档显示方式">
-            <button type="button" className={mode === "preview" ? "active" : ""} onClick={() => setMode("preview")}>预览</button>
-            <button type="button" className={mode === "source" ? "active" : ""} onClick={() => setMode("source")}>源码</button>
+        {markdownFile && !unavailable && (
+          <nav className="rt-resource-modes" aria-label="文档显示方式" data-app-i18n-aria-label="employeeResource.documentMode">
+            <button type="button" className={mode === "preview" ? "active" : ""} aria-pressed={mode === "preview"} onClick={() => setMode("preview")}><span data-app-i18n="employeeResource.preview">预览</span></button>
+            <button type="button" className={mode === "source" ? "active" : ""} aria-pressed={mode === "source"} onClick={() => setMode("source")}><span data-app-i18n="employeeResource.source">源码</span></button>
           </nav>
         )}
         {imageFile && image && (
-          <nav className="rt-resource-modes" aria-label="图片显示方式">
-            <button type="button" className={imageScale === "fit" ? "active" : ""} onClick={() => setImageScale("fit")}>适应</button>
-            <button type="button" className={imageScale === "actual" ? "active" : ""} onClick={() => setImageScale("actual")}>原始</button>
+          <nav className="rt-resource-modes" aria-label="图片显示方式" data-app-i18n-aria-label="employeeResource.imageMode">
+            <button type="button" className={imageScale === "fit" ? "active" : ""} aria-pressed={imageScale === "fit"} onClick={() => setImageScale("fit")}><span data-app-i18n="employeeResource.fit">适应</span></button>
+            <button type="button" className={imageScale === "actual" ? "active" : ""} aria-pressed={imageScale === "actual"} onClick={() => setImageScale("actual")}><span data-app-i18n="employeeResource.actual">原始</span></button>
           </nav>
         )}
       </header>
-      <div className="rt-resource-pane-body" tabIndex={0} aria-label="文件预览内容">
+      <div className="rt-resource-pane-body" tabIndex={0} aria-label="文件预览内容" data-app-i18n-aria-label="employeeResource.previewBody" aria-busy={loading}>
         {loadError && errorFile.current === activeFile ? (
-          <ReadFailure title="文件暂时无法加载" error={loadError} busy={loading} onRetry={retryFile} />
+          <ReadFailure title="文件暂时无法加载" titleKey="employeeResource.fileUnavailable" error={loadError} busy={loading} onRetry={retryFile} />
         ) : loading ? (
-          <div className="rt-resource-loading"><span></span><b>正在读取文件…</b></div>
+          <div className="rt-resource-loading" role="status"><span aria-hidden="true"></span><b data-app-i18n="employeeResource.loadingFile">正在读取文件…</b></div>
+        ) : unavailable ? (
+          <div className="rt-resource-empty">
+            {unavailable.kind === "large" ? <span data-app-i18n="settingsTools.largeResource">文件过大，无法预览。</span> : <span data-app-i18n="settingsTools.binaryResource">无法预览二进制文件。</span>}
+            <p data-app-i18n="settingsTools.resourceSize" data-app-i18n-vars={JSON.stringify({size:unavailable.size})}>大小 {unavailable.size}</p>
+          </div>
         ) : imageFile && image ? (
           <ImagePreview source={image} path={path} scale={imageScale} onRetry={loadFile ? retryFile : undefined} />
         ) : mode === "preview" && markdownFile ? (
@@ -249,6 +277,7 @@ function ResourcePane({ loadFile, initialLoaded }) {
           <CodePreview path={path} code={file?.code || ""} />
         ) : (
           <SandpackCodeEditor
+            className="rt-resource-source"
             additionalLanguages={additionalLanguages}
             extensions={readOnlyExtensions}
             readOnly={false}
@@ -265,13 +294,24 @@ function ResourcePane({ loadFile, initialLoaded }) {
 }
 
 function ResourceViewer({ files, activeFile, loadFile }) {
+  const explorer = useRef(null);
+  useEffect(() => {
+    const tree = explorer.current;
+    if (!tree) return undefined;
+    // File and folder names already label the controls. Hide decorative icons.
+    const hideIcons = () => tree.querySelectorAll("button svg:not([aria-hidden])").forEach(icon => icon.setAttribute("aria-hidden", "true"));
+    hideIcons();
+    const observer = new MutationObserver(hideIcons);
+    observer.observe(tree, { childList:true, subtree:true });
+    return () => observer.disconnect();
+  }, []);
   const paths = Object.keys(files);
   const firstFile = activeFile && files[activeFile] ? activeFile : paths[0];
   const initialLoaded = useMemo(() => paths.filter((path) => files[path]?.loaded !== false), [files]);
   const sandpackFiles = useMemo(() => Object.fromEntries(paths.map((path) => [path, {
     code: String(files[path]?.code || ""),
   }])), [files]);
-  if (!firstFile) return <div className="rt-resource-empty">这个扩展没有可浏览的文件。</div>;
+  if (!firstFile) return <div className="rt-resource-empty" data-app-i18n="settingsTools.resourceEmpty">此工具没有可浏览的文件。</div>;
   return (
     <SandpackProvider
       customSetup={{ entry: firstFile }}
@@ -282,8 +322,8 @@ function ResourceViewer({ files, activeFile, loadFile }) {
     >
       <div className="rt-resource-viewer">
         <SandpackLayout className="rt-resource-layout">
-          <aside className="rt-resource-explorer">
-            <div className="rt-resource-explorer-title">资源</div>
+          <aside ref={explorer} className="rt-resource-explorer" aria-label="资源文件" data-app-i18n-aria-label="settingsTools.resourceFiles">
+            <div className="rt-resource-explorer-title" data-app-i18n="settingsTools.resourceFiles">资源文件</div>
             <SandpackFileExplorer
               autoHiddenFiles
               initialCollapsedFolder={folderPaths(paths)}
@@ -300,6 +340,11 @@ function CodePreview({ path, code }) {
   const host = useRef(null);
   useEffect(() => {
     if (!host.current) return undefined;
+    const fileName = cleanPath(path);
+    const attributes = new Compartment();
+    const accessibleName = () => EditorView.contentAttributes.of({
+      "aria-label": window.RunTeamsLocale?.t("settingsTools.codePreview", {path: fileName}, `${fileName} 代码预览`) ?? `${fileName} 代码预览`,
+    });
     const extension = String(path || "").split(".").pop().toLowerCase();
     const language = ({
       js: () => javascript(), jsx: () => javascript({ jsx: true }),
@@ -326,12 +371,18 @@ function CodePreview({ path, code }) {
       parent: host.current,
       state: EditorState.create({
         doc: formatJsonForDisplay(path, code),
-        extensions: [lineNumbers(), EditorState.readOnly.of(true), EditorView.editable.of(false), syntaxHighlighting(style), ...(language ? [language] : [])],
+        extensions: [lineNumbers(), EditorState.readOnly.of(true), EditorView.editable.of(false), attributes.of(accessibleName()), syntaxHighlighting(style), ...(language ? [language] : [])],
       }),
     });
-    return () => view.destroy();
+    const unsubscribe = window.RunTeamsLocale?.onChange(() => {
+      view.dispatch({ effects: attributes.reconfigure(accessibleName()) });
+    });
+    return () => {
+      unsubscribe?.();
+      view.destroy();
+    };
   }, [path, code]);
-  return <div ref={host} className="rt-code-preview" aria-label={`${cleanPath(path)} 代码预览`} />;
+  return <div ref={host} className="rt-code-preview" />;
 }
 
 export function mount(element, props) {
@@ -370,10 +421,15 @@ function FileViewer({path, file, initialState={}, compact=false}) {
   },[path,mode,scale]);
   const md=isMarkdown(path) && file?.kind==="text",image=file?.kind==="image";
   return <section ref={host} className={`rt-file-viewer${compact?" compact":""}`} data-mode={mode} data-scale={scale}>
-    {(md||image)&&<nav className="rt-resource-modes" aria-label={md?"文档显示方式":"图片显示方式"}>
-      {(md?["preview","source"]:["fit","actual"]).map(value=><button type="button" key={value} className={(md?mode:scale)===value?"active":""} onClick={()=>md?setMode(value):setScale(value)}>{({preview:"预览",source:"源码",fit:"适应",actual:"原始"})[value]}</button>)}
+    {(md||image)&&<nav className="rt-resource-modes" data-app-i18n-aria-label={md?"employeeResource.documentMode":"employeeResource.imageMode"} aria-label={md?"文档显示方式":"图片显示方式"}>
+      {(md?["preview","source"]:["fit","actual"]).map(value=>{
+        const selected = (md ? mode : scale) === value;
+        return <button type="button" key={value} className={selected ? "active" : ""} aria-pressed={selected} onClick={()=>md?setMode(value):setScale(value)}>
+          <span data-app-i18n={`employeeResource.${value}`}>{({preview:"预览",source:"源码",fit:"适应",actual:"原始"})[value]}</span>
+        </button>;
+      })}
     </nav>}
-    <div className="rt-file-body" tabIndex={0} aria-label="文件预览内容">{image?<ImagePreview source={file.data_url} path={path} scale={scale}/>:file?.kind!=="text"?<div className="rt-resource-empty">此文件暂不支持预览。</div>:md&&mode==="preview"?<MarkdownPreview source={file.content}/>:<CodePreview path={path} code={file.content}/>}</div>
+    <div className="rt-file-body" tabIndex={0} aria-label="文件预览内容" data-app-i18n-aria-label="employeeResource.previewBody">{image?<ImagePreview source={file.data_url} path={path} scale={scale}/>:file?.kind!=="text"?<div className="rt-resource-empty" data-app-i18n="employeeResource.previewUnavailable">此文件暂不支持预览。</div>:md&&mode==="preview"?<MarkdownPreview source={file.content}/>:<CodePreview path={path} code={file.content}/>}</div>
   </section>;
 }
 export function mountFile(element,props){

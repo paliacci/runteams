@@ -25,6 +25,10 @@
 
 文档使用 React／BlockNote 编辑器、本机内容模型和不可变修订。编辑器前端在 `frontend/rich-document`，发布静态资源在 `web/rich-document`。
 
+员工的采样数量、请求预算等执行策略由脚本维护。配置页只呈现需要使用者提供或决定的项目资料与外部接入项。内部候选记录和巡检台账由员工通过 `runteams_employee_document` 按稳定文档标识创建、读取和修订，不要求使用者选择集合或存储位置。文档归属由宿主绑定的员工身份决定，跨对话和源码更新保持；更新使用原文档修订，冲突须重读合并。跨岗通过真实文档链接与工作汇报交接，各岗只修改自己的文档。
+
+侦察、巡检等工作正常完成但没有可推进的产出时，可以将对应完成位置设为 `records_only: true`。看板不显示该完成列与已完成卡片，执行记录、报告和结构化提交仍保留；普通完成、失败、等待处理和已放弃的任务不应因此消失。此设置只适用于 `kind: done`，属于流水线定义，不依赖窗口的隐藏分组偏好。已有候选的证据不足或否决结果应保留其处理路径，不能混入无候选的记录位置。
+
 共用业务与 UI 只在本仓库维护。官方账号、云服务与收费代码不进入免费源码依赖；私有工程通过精确固定的核心 wheel 组合官方扩展，不复制共用实现。
 
 共享 UI 通过通用宿主接口接入身份、设置和页面扩展，不判断发行版，也不内置隐藏的商业页面。代码归属、接口及源码／产物检查见[界面宿主边界](ui-host-boundary.md)。
@@ -36,3 +40,11 @@
 不要为一次性的截图或调试记录添加新的正式命令。维护者工具归 `runteams_core.devtools`，修改后更新 `tooling/commands.json`。目录调整必须同时更新真实调用者，不保留旧路径转发。仓库根目录保留项目文档和构建配置；核心包根只保留公开类型入口，业务模块按领域维护。仓库检查拒绝在仓库根或核心包根新增散落的业务文件。
 
 返回 [项目首页](../README.md)。
+
+Task-specific application identifiers and client settings belong to the task detail panel, never a shared pipeline employee configuration. Non-secret pipeline parameters with `source: user` and `display: setup` form this task configuration. Values stay in the native task input, obey declared position visibility, and survive subsequent visits. Saving uses the exact frozen task revision, does not run or resume work, and cannot rewrite an admitted run or a completed task. Shared configuration is reserved for team service connections and credentials.
+
+Task configuration sections use the parameter definition’s optional `group` title and the same configuration section/field components as pipeline settings. Do not replace meaningful group titles with a fixed “Task configuration” wrapper. Frozen tasks retain their field/value contract; a missing presentation group may use a current declaration with the same key and type.
+
+Configuration field markers and information hints come from declarations (`required`, conditional `required_when`, `note`, and `constraints`). Conditional markers explain when a field is needed and allow staged setup; they must not turn an unused integration into a mandatory dependency. Task configuration edits validate declared value limits in the native save API and show field errors without echoing submitted values. Missing legacy field metadata can inherit from a matching current declaration; the effective declarations participate in the save revision to reject concurrent rule changes.
+
+员工设置、岗位设置、流水线设置与任务详情的同类元素必须只有一个实现。抽屉头部与折叠组使用 `employee-drawer-header.js/css`，配置字段、说明图标、必填标识、限制及字段错误使用 `configuration-fields.js/css`，配置组、表单、保存栏、草稿比较和保存／回执状态使用 `configuration-form.js`。普通字段默认使用同一说明图标；通用字段样式不得放回员工或任务专用样式表。面板只适配字段定义、作用域、权限、存储、API 和专有业务；不得复制公共 HTML、CSS 或另写一份保存状态流程。任务值仍归当前任务，团队凭据仍归团队配置，凭据入口及资源授权保留专用处理。修改公共组件必须通过 `tests/configuration_form.test.cjs` 的四入口一致性与异常恢复检查，以及任务保存协议检查；两项已纳入核心 CI。

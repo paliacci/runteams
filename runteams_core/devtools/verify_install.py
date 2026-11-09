@@ -37,9 +37,10 @@ for name in ('runteams_core/employees/mcp/native_connection_host.cjs',
     source=package.parent/name
     assert source.is_file(),name
     assert hashlib.sha256(source.read_bytes()).hexdigest()==identity['inputs'][name],name
+print(identity['version'])
 '''
-        subprocess.run([args.python, '-I', '-B', '-c', package_data_probe],
-                       cwd=directory, env=environment, check=True)
+        expected_version = subprocess.check_output([args.python, '-I', '-B', '-c', package_data_probe],
+                                                   cwd=directory, env=environment, text=True).strip()
         with tempfile.TemporaryFile(mode='w+') as errors:
             process = subprocess.Popen([args.python, '-I', '-B', '-m', 'runteams_core.application.community',
                 '--port', '0', '--data-dir', str(Path(directory) / 'library'), '--owner-stdin'],
@@ -49,14 +50,19 @@ for name in ('runteams_core/employees/mcp/native_connection_host.cjs',
                 descriptor = json.loads(process.stdout.readline())
                 opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
                 results = {}
-                for path in ('/api/health', '/', '/ui/work-page-host.js', '/rich-document/dist/index.html', '/api/library'):
-                    request = urllib.request.Request(descriptor['origin'] + path,
-                        headers={'Authorization': 'Bearer ' + descriptor['session_token']})
+                pipeline_page = '/pipelines/local/' + '0' * 64 + '/cGlwZWxpbmVzL21haW4uanNvbg'
+                for path in ('/api/health', '/api/app-info', '/', pipeline_page, '/ui/work-page-host.js',
+                             '/rich-document/dist/index.html', '/api/library'):
+                    headers = {} if path == pipeline_page else {
+                        'Authorization': 'Bearer ' + descriptor['session_token']}
+                    request = urllib.request.Request(descriptor['origin'] + path, headers=headers)
                     with opener.open(request, timeout=15) as response:
                         body = response.read()
                         assert response.status == 200, path
-                        if path == '/':
+                        if path in ('/', pipeline_page):
                             assert b'<html' in body and b'/official-ui/' not in body
+                        if path == '/api/app-info':
+                            assert json.loads(body)['version'] == expected_version
                         results[path] = {'status': response.status, 'bytes': len(body)}
                 subprocess.run([args.python, '-I', '-B', '-c',
                     'import runteams_core.application.local_work_core, runteams_core.automation.automation_scheduler, runteams_creator_dev.cli'],

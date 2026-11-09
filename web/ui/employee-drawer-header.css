@@ -5,6 +5,7 @@
 [data-rt-ui] .employee-drawer-header .rt-drawer-collapse{display:grid;place-items:center;width:var(--employee-header-control,28px);height:var(--employee-header-control,28px);min-height:var(--employee-header-control,28px);padding:0;border-radius:7px;color:var(--text-secondary)}
 [data-rt-ui] .employee-drawer-header .rt-drawer-collapse svg{display:block;width:var(--employee-header-icon,17px);height:var(--employee-header-icon,17px)}
 [data-rt-ui] .employee-drawer-header .rt-drawer-text{font-size:14px;line-height:20px;font-weight:600;color:var(--text-primary)}
+[data-rt-ui] .employee-drawer-header:has(.run-back){gap:4px}
 [data-rt-ui] .employee-drawer-header .rt-drawer-actions{gap:4px}
 [data-rt-ui] .employee-drawer-header .rt-drawer-action{display:inline-flex;align-items:center;justify-content:center;gap:4px;height:28px;min-height:28px;min-width:0;padding:0 6px;font-size:12px;line-height:18px;border-radius:7px;box-shadow:none}
 [data-rt-ui] .employee-drawer-header .rt-drawer-action.is-primary{padding:0 8px}
@@ -17,12 +18,60 @@
 .employee-drawer-action-icon{display:flex;align-items:center;justify-content:center;flex:none}
 .employee-drawer-action-icon .i{display:block;width:16px;height:16px}
 
-/* Fixed intro belongs to the drawer template. Consumers add no nested insets. */
+/* Both drawer toolbars use the same radius for icon and text buttons. */
+.right-detail-drawer :is(.detail-drawer-tools,.employee-drawer-header) button{border-radius:7px}
+
+/* The intro and body share one scrolling surface below the toolbar. */
 .detail-drawer-summary{flex:0 0 auto;padding:8px 20px 16px;background:var(--panel)}
 .detail-drawer-summary>.workspace-detail-head{padding:0}
+.employee-configuration-drawer :is(.detail-drawer-summary,.right-detail-body>.detail-drawer-intro){padding-block-end:24px}
 .detail-drawer-heading{min-width:0}
-.detail-drawer-summary .detail-drawer-title{margin:0;font-size:calc(22px * var(--interface-font-scale,1));line-height:32px;font-weight:600;letter-spacing:normal;white-space:normal;overflow-wrap:anywhere;color:var(--text-primary)}
-.detail-drawer-summary .detail-drawer-description{margin:8px 0 0;font-size:calc(12px * var(--interface-font-scale,1));line-height:18px;font-weight:400;white-space:normal;overflow-wrap:anywhere;color:var(--text-secondary)}
+.detail-drawer-heading-row--identity{display:flex;align-items:flex-start;gap:var(--detail-space-3,8px);min-width:0}
+.detail-drawer-heading-row--identity>.node-detail-avatar{min-height:32px}
+.detail-drawer-heading-row--identity>:last-child{min-width:0;flex:1}
+.right-detail-drawer :is(.detail-drawer-title,.detail-drawer-description,.workspace-detail-head .tt,.workspace-detail-head .sub,.detail-employee-identity .tt,.detail-employee-identity .sub,.card-detail-title,.run-work-name,.run-card-context){white-space:pre-line;overflow-wrap:anywhere}
+:is(.detail-drawer-heading,.detail-drawer-heading-row)>.detail-drawer-title{margin:0;font-size:calc(22px * var(--interface-font-scale,1));line-height:32px;font-weight:600;letter-spacing:normal;color:var(--text-primary)}
+:is(.detail-drawer-heading,.detail-drawer-heading-row)>.detail-drawer-description{margin:8px 0 0;font-size:calc(12px * var(--interface-font-scale,1));line-height:18px;font-weight:400;color:var(--text-secondary)}
 
 /* Drawer body top spacing belongs to the header, regardless of content type. */
-.right-detail-drawer>.right-detail-body{padding-top:0!important}
+.right-detail-drawer>.right-detail-body,
+.right-detail-drawer>.right-detail-scroll>.right-detail-body{padding-top:0!important}
+.right-detail-drawer>.right-detail-scroll{display:flex;flex:1;flex-direction:column;min-width:0;min-height:0;overflow:hidden auto;overscroll-behavior:contain;scrollbar-width:none}
+.right-detail-scroll::-webkit-scrollbar{display:none}
+.right-detail-drawer>.right-detail-scroll>.right-detail-body{flex:1 0 auto;overflow:visible}
+.employee-settings-drawer>.right-detail-scroll>.employee-settings-content{padding-top:20px!important}
+
+/* Fade only the scrollable content, leaving the toolbar and footer fully visible. */
+:is(.right-detail-scroll,.right-detail-body):is([data-fade-top],[data-fade-bottom]){
+  --drawer-fade-top:0px;
+  --drawer-fade-bottom:0px;
+  -webkit-mask-image:linear-gradient(to bottom,transparent,#000 var(--drawer-fade-top),#000 calc(100% - var(--drawer-fade-bottom)),transparent);
+  mask-image:linear-gradient(to bottom,transparent,#000 var(--drawer-fade-top),#000 calc(100% - var(--drawer-fade-bottom)),transparent);
+}
+:is(.right-detail-scroll,.right-detail-body)[data-fade-top]{--drawer-fade-top:min(16px,25%)}
+:is(.right-detail-scroll,.right-detail-body)[data-fade-bottom]{--drawer-fade-bottom:min(16px,25%)}
+
+/* Shared section chrome for employee, pipeline and position settings. */
+.settings-section-stack{display:grid;gap:16px;align-content:start;min-width:0}
+.drawer-settings-section{--settings-section-motion-ms:180;min-width:0}
+.settings-section-toggle,.settings-section-label,
+.employee-settings-drawer .employee-sdk-section>.rt-section-heading,
+.employee-configuration-drawer:not(.core-position-detail-drawer) .work-authorization-settings>.employee-sdk-connection-heading{
+ min-height:32px;padding:5px 10px;border-radius:6px;background:var(--surface-subtle);
+}
+.settings-section-heading,.settings-section-label,.configuration-surface .group>.settings-section-heading{margin:0}
+.settings-section-toggle,.settings-section-label{
+ display:flex;align-items:center;gap:8px;width:100%;min-width:0;color:var(--detail-text-primary);
+ font:inherit;font-size:var(--detail-section-size);font-weight:var(--detail-section-weight);line-height:var(--detail-section-line);text-align:start;
+}
+h2.settings-section-heading>.settings-section-toggle{font-size:15px;line-height:22px}
+.settings-section-title{flex:1;min-width:0;overflow-wrap:anywhere}
+.settings-section-label{overflow-wrap:anywhere}
+.settings-section-toggle>.i{width:14px;height:14px;color:var(--detail-text-secondary);opacity:0;transition:opacity 100ms ease,transform calc(var(--settings-section-motion-ms) * 1ms) ease}
+.settings-section-toggle[aria-expanded="true"]>.i{transform:rotate(90deg)}
+.settings-section-toggle:is(:hover,:focus-visible)>.i{opacity:1}
+.settings-section-body[hidden]{display:none}
+.settings-section-body.is-animating{overflow:hidden}
+.settings-section-content{display:flow-root;padding-block-start:12px}
+@media (hover:none){.settings-section-toggle>.i{opacity:1}}
+@media (prefers-reduced-motion:reduce){.settings-section-toggle>.i{transition:none}}

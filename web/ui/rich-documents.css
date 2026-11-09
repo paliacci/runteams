@@ -1,4 +1,4 @@
-.rich-document-page{padding:0;min-height:0;height:100%;overflow:hidden}.rich-document-layout{display:flex;height:100%;min-height:0;min-width:0}.rich-document-body{flex:1;min-width:0;min-height:0;height:100%}.rich-document-frame{display:block;width:100%;height:100%;border:0;background:var(--surface)}.rich-report-frame{height:520px;min-height:160px;max-height:15000px}.rich-document-layout>.doc-reader-versions-slot{flex:none}.rich-document-page .doc-reader-versions-slot{border-left:1px solid var(--border-default)}
+.rich-document-page{padding:0;min-height:0;height:100%;overflow:hidden}.rich-document-layout{display:flex;height:100%;min-height:0;min-width:0}.rich-document-body{flex:1;min-width:0;min-height:0;height:100%}.rich-document-frame{display:block;width:100%;height:100%;border:0;background:var(--surface)}.rich-report-frame{height:520px;min-height:160px}.rich-document-layout>.doc-reader-versions-slot{flex:none}.rich-document-page .doc-reader-versions-slot{border-left:1px solid var(--border-default)}
 .rich-document-page{display:flex;flex:1;width:100%}.rich-document-layout{flex:1;width:100%;position:relative}.rich-document-layout>.doc-reader-versions-slot{overflow:auto;width:240px;padding:12px;background:var(--surface)}@media(max-width:680px){.rich-document-layout>.doc-reader-versions-slot:not(.is-hidden){position:absolute;inset:0 0 0 auto;z-index:40;box-shadow:-4px 0 16px var(--effect-shadow)}}
 
 .rich-frame-shell{position:relative;width:100%;height:100%;min-height:160px}.rich-frame-loading{position:absolute;inset:0;z-index:2;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;background:var(--surface);color:var(--text-muted);font-size:13px}.work-record-report .rich-frame-shell{height:auto}
@@ -21,4 +21,4 @@
 .rich-frame-loading:not(.is-error){display:block;overflow:hidden}
 .rich-frame-loading>.doc-reader-skeleton{--sk-base:var(--surface-subtle);--sk-shine:var(--surface);width:100%;max-width:940px;padding:44px 64px 100px;box-sizing:border-box}
 @media(max-width:650px){.rich-frame-loading>.doc-reader-skeleton{padding:28px}}
-.work-record-report .rich-frame-loading>.doc-reader-skeleton{max-width:none;padding:4px 0 20px}
+.work-record-report .doc-reader-skeleton{--sk-base:var(--surface-subtle);--sk-shine:var(--surface);width:100%;max-width:none;padding:4px 0 20px;box-sizing:border-box}

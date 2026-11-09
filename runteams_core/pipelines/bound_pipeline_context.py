@@ -54,10 +54,10 @@ class BoundPipelineContext:
         return describe(reference, member, revision)
 
 
-    def prepare_member(self, reference, member, operation_id, revision):
+    def prepare_member(self, reference, member, operation_id, revision, *, runtime_selection=None):
         self._check()
         from runteams_core.pipelines.pipeline_employee_dependencies import prepare
-        return prepare(reference, member, operation_id, revision)
+        return prepare(reference, member, operation_id, revision, runtime_selection=runtime_selection)
 
 
     def attested_proof(self, core, connection, frozen, session):
@@ -66,8 +66,8 @@ class BoundPipelineContext:
         return attested_proof(core, connection, frozen, session)
 
 
-    def reconcile_result(self, core, identifier):
+    def reconcile_result(self, core, identifier, *, expected_visit=None):
         self._check()
         from runteams_core.pipelines.source_pipeline_recovery import reconcile
-        return reconcile(core, identifier)
+        return reconcile(core, identifier, expected_visit=expected_visit)
 

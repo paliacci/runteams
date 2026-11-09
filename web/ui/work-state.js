@@ -5,15 +5,17 @@
  const token=()=>`${_workspaceBusinessGeneration}:${workspaceAccountCacheToken()}`;
  const path='/api/device/work/source-pipelines/ui-state-';
  let active=null;
- const state=()=>{const scope=token();if(!active||active.scope!==scope)active={scope,ready:false,values:new Map(),versions:new Map(),queue:[],reading:null,draining:null,error:null};return active;};
+ const state=()=>{const scope=token();if(!active||active.scope!==scope)active={scope,ready:false,values:new Map(),versions:new Map(),queue:[],mutation:0,reading:null,draining:null,error:null};return active;};
  const current=s=>s===active&&s.scope===token();
  function key(value){
   const kind=typeof value==='string'&&kinds.find(kind=>{const prefix='runteams.'+kind+':'+workspaceDeviceStorageScope();return value===prefix||value.startsWith(prefix+':');});
   if(!kind)throw Error('工作界面保存位置无效。');
   return kind+value.slice(('runteams.'+kind+':'+workspaceDeviceStorageScope()).length);
  }
- async function connect(){
-  const s=state();if(s.ready)return;if(s.reading)return s.reading;
+ async function connect(reload=false){
+  const s=state();if(s.ready&&!reload)return;if(s.reading)return s.reading;
+  if(s.queue.length||s.draining)throw Error('请等待操作记录保存后重试。');
+  const mutation=s.mutation;
   s.reading=(async()=>{
    const result=await api(path+'read','POST',{});if(!current(s))throw Error('资料库已改变，请重新打开。');
    if(result.error)throw Error(result.error);
@@ -23,6 +25,7 @@
     if(!kinds.includes(k.split(':',1)[0])||!Number.isSafeInteger(row.revision)||row.revision<1||row.value!==null&&typeof row.value!=='string')throw Error('原操作界面资料无效。');
     versions.set(k,row.revision);if(row.value!==null)values.set(k,row.value);
    }
+   if(s.mutation!==mutation)throw Error('操作记录已更新，请重试。');
    s.versions=versions;s.values=values;s.ready=true;s.error=null;
   })().finally(()=>{s.reading=null;});return s.reading;
  }
@@ -30,6 +33,7 @@
  function change(value,raw){
   const s=state();if(!s.ready)throw Error('原操作尚未载入，请重新打开。');
   const k=key(value);if(raw!==null){JSON.parse(raw);s.values.set(k,raw);}else s.values.delete(k);
+  s.mutation++;
   s.queue.push({key:k,value:raw,operation_id:crypto.randomUUID()});
   queueMicrotask(()=>{if(current(s))void flush().catch(()=>{});});
  }

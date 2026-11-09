@@ -1,0 +1,344 @@
+{
+  "schema": "runteams.employee-avatar-presets/1",
+  "default": "colleague-001",
+  "presets": [
+    {
+      "id": "colleague-001",
+      "label": "P01"
+    },
+    {
+      "id": "colleague-002",
+      "label": "P02"
+    },
+    {
+      "id": "colleague-003",
+      "label": "P03"
+    },
+    {
+      "id": "colleague-004",
+      "label": "P04"
+    },
+    {
+      "id": "colleague-005",
+      "label": "P05"
+    },
+    {
+      "id": "colleague-006",
+      "label": "P06"
+    },
+    {
+      "id": "colleague-007",
+      "label": "P07"
+    },
+    {
+      "id": "colleague-008",
+      "label": "P08"
+    },
+    {
+      "id": "colleague-009",
+      "label": "P09"
+    },
+    {
+      "id": "colleague-010",
+      "label": "P10"
+    },
+    {
+      "id": "colleague-011",
+      "label": "P11"
+    },
+    {
+      "id": "colleague-012",
+      "label": "P12"
+    },
+    {
+      "id": "colleague-013",
+      "label": "P13"
+    },
+    {
+      "id": "colleague-014",
+      "label": "P14"
+    },
+    {
+      "id": "colleague-015",
+      "label": "P15"
+    },
+    {
+      "id": "colleague-016",
+      "label": "P16"
+    },
+    {
+      "id": "colleague-017",
+      "label": "P17"
+    },
+    {
+      "id": "colleague-018",
+      "label": "P18"
+    },
+    {
+      "id": "colleague-019",
+      "label": "P19"
+    },
+    {
+      "id": "colleague-020",
+      "label": "P20"
+    },
+    {
+      "id": "colleague-021",
+      "label": "P21"
+    },
+    {
+      "id": "colleague-022",
+      "label": "P22"
+    },
+    {
+      "id": "colleague-023",
+      "label": "P23"
+    },
+    {
+      "id": "colleague-024",
+      "label": "P24"
+    },
+    {
+      "id": "colleague-025",
+      "label": "P25"
+    },
+    {
+      "id": "colleague-026",
+      "label": "P26"
+    },
+    {
+      "id": "colleague-027",
+      "label": "P27"
+    },
+    {
+      "id": "colleague-028",
+      "label": "P28"
+    },
+    {
+      "id": "colleague-029",
+      "label": "P29"
+    },
+    {
+      "id": "colleague-030",
+      "label": "P30"
+    },
+    {
+      "id": "colleague-031",
+      "label": "P31"
+    },
+    {
+      "id": "colleague-032",
+      "label": "P32"
+    },
+    {
+      "id": "colleague-033",
+      "label": "P33"
+    },
+    {
+      "id": "colleague-034",
+      "label": "P34"
+    },
+    {
+      "id": "colleague-035",
+      "label": "P35"
+    },
+    {
+      "id": "colleague-036",
+      "label": "P36"
+    },
+    {
+      "id": "colleague-037",
+      "label": "P37"
+    },
+    {
+      "id": "colleague-038",
+      "label": "P38"
+    },
+    {
+      "id": "colleague-039",
+      "label": "P39"
+    },
+    {
+      "id": "colleague-040",
+      "label": "P40"
+    },
+    {
+      "id": "colleague-041",
+      "label": "P41"
+    },
+    {
+      "id": "colleague-042",
+      "label": "P42"
+    },
+    {
+      "id": "colleague-043",
+      "label": "P43"
+    },
+    {
+      "id": "colleague-044",
+      "label": "P44"
+    },
+    {
+      "id": "colleague-045",
+      "label": "P45"
+    },
+    {
+      "id": "colleague-046",
+      "label": "P46"
+    },
+    {
+      "id": "colleague-047",
+      "label": "P47"
+    },
+    {
+      "id": "colleague-048",
+      "label": "P48"
+    },
+    {
+      "id": "colleague-049",
+      "label": "P49"
+    },
+    {
+      "id": "colleague-050",
+      "label": "P50"
+    },
+    {
+      "id": "colleague-051",
+      "label": "P51"
+    },
+    {
+      "id": "colleague-052",
+      "label": "P52"
+    },
+    {
+      "id": "colleague-053",
+      "label": "P53"
+    },
+    {
+      "id": "colleague-054",
+      "label": "P54"
+    },
+    {
+      "id": "colleague-055",
+      "label": "P55"
+    },
+    {
+      "id": "colleague-056",
+      "label": "P56"
+    },
+    {
+      "id": "colleague-057",
+      "label": "P57"
+    },
+    {
+      "id": "colleague-058",
+      "label": "P58"
+    },
+    {
+      "id": "colleague-059",
+      "label": "P59"
+    },
+    {
+      "id": "colleague-060",
+      "label": "P60"
+    }
+  ],
+  "legacy": [
+    {
+      "id": "nova",
+      "target": "colleague-001",
+      "sha256": "4eb4fb33670a0d49dc238d5b7cfaef4c75ee679d09fca459d6a9b5a0c973a20b"
+    },
+    {
+      "id": "ada",
+      "target": "colleague-008",
+      "sha256": "ce35d2330abb9227658522d950de65bfbd37ed90d2eb95b1a36195ce2457ad80"
+    },
+    {
+      "id": "atlas",
+      "target": "colleague-015",
+      "sha256": "85d05a0f12fcc4ea3294d941a6cc01df0562f63c07e9a57b3598e2304767b60d"
+    },
+    {
+      "id": "grace",
+      "target": "colleague-022",
+      "sha256": "f24911c5cf1fb1c1419b4aa638739a5f9935052ccdb5dda5fc808feffd0b4592"
+    },
+    {
+      "id": "alan",
+      "target": "colleague-029",
+      "sha256": "93db64e3c7b24d655c7d9a4f9cae48cd9ccab1597e632b33e475d16c02f4a028"
+    },
+    {
+      "id": "echo",
+      "target": "colleague-036",
+      "sha256": "346852f14559ab863f693e3f04d2ea9d3ee26a6acffb3be8ff882ec22b0875df"
+    },
+    {
+      "id": "aso-specialist",
+      "target": "colleague-003",
+      "sha256": "4085ae5d1c81e3c468aa5ab488a4dd6eaa2f94d34a802c184a39e3e31196885d"
+    },
+    {
+      "id": "commercial-manager",
+      "target": "colleague-004",
+      "sha256": "d4783ddbda7f545c4cd80fa5ecd9e3f29086bfb6a3fda68e0a11ee16b1afb200"
+    },
+    {
+      "id": "cora",
+      "target": "colleague-005",
+      "sha256": "aab9cc9632d0fdfa297795bf8bf41b3400d8df0ad5fdc9806f2e18380868828d"
+    },
+    {
+      "id": "juno",
+      "target": "colleague-009",
+      "sha256": "eaec5fb347d900d010b0d9a5791e53cfab40b9622fa7964f588cdf22b26456aa"
+    },
+    {
+      "id": "localization-specialist",
+      "target": "colleague-010",
+      "sha256": "9e0985b6270b8d37af4bebdd709d52d7d7508db3c961c2693dc73371028fe585"
+    },
+    {
+      "id": "market-analyst",
+      "target": "colleague-011",
+      "sha256": "0ac5be763130985b31051d7791daaf9738ea954002b02e1c8c0b2b05d9fc28bc"
+    },
+    {
+      "id": "product-manager",
+      "target": "colleague-013",
+      "sha256": "3a68a0fcd66731a5f3f3f48e1ffff0f77738bca38458d8e0138711ee8e99adc0"
+    },
+    {
+      "id": "qa-engineer",
+      "target": "colleague-014",
+      "sha256": "e940f5fad7d1f0302ba0cc1c14530bdbe334d911f99ba50ac79a6db66eed9e7f"
+    },
+    {
+      "id": "software-architect",
+      "target": "colleague-016",
+      "sha256": "0dfb70aab3f634f6cf73782afea04dbf5b05b820a6537161ec222e21e8befb40"
+    },
+    {
+      "id": "user-operations",
+      "target": "colleague-017",
+      "sha256": "7b53249e350b9210bdccbb3346f7d6d18bfa27144793ba76082899c469c62d5f"
+    }
+  ],
+  "featured": [
+    "colleague-001",
+    "colleague-008",
+    "colleague-037",
+    "colleague-040",
+    "colleague-044",
+    "colleague-046",
+    "colleague-047",
+    "colleague-049",
+    "colleague-051",
+    "colleague-053",
+    "colleague-054",
+    "colleague-056",
+    "colleague-057",
+    "colleague-060"
+  ]
+}

@@ -90,6 +90,8 @@ def validate_declaration(value):
         raise ValueError('配置分组或字段身份重复，或数量超过限制。')
     for field in data_fields(value):
         kind = field['type']
+        if 'file_input' in field and kind != 'secret':
+            raise ValueError('只有本机凭据可以声明密钥文件入口。')
         if kind in PRIVATE and 'default' in field:
             raise ValueError('资料、连接、凭据和运行条件不能带使用者默认值。')
         if kind in CHOICES:

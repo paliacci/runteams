@@ -88,9 +88,7 @@ def _validate_frozen_build(builds,state,files,artifacts):
 
 
 def reference(source_id, employee_source):
-    scope = device_data.identity()
-    from runteams_core.foundation.identity.work_identity import source_scope
-    value = {'schema':employee_references.SOURCE_SCHEMA,'source_id':source_id,'employee_source':employee_source,**source_scope(scope)}
+    value = employee_references.source_reference(source_id, employee_source)
     source(value)
     return value
 
@@ -132,7 +130,7 @@ def units(asset):
              'input_schema': _extension(b)['work']['input_schema']} for b in asset['skill_bundles'] if _extension(b).get('work')]
 
 
-def prepare(ref, operation_id, *, cancel=None, revision=None):
+def prepare(ref, operation_id, *, cancel=None, revision=None, runtime_selection=None):
     if rented_references.is_rented(ref):return _external('rented','package',ref,revision)
     saved_revision = revision is not None
     store, revisions = source(ref)
@@ -144,14 +142,15 @@ def prepare(ref, operation_id, *, cancel=None, revision=None):
     if ref['employee_source'] not in catalog['employees']:
         raise ContractError('运行包缺少当前员工入口。')
     asset = verified_employee_asset(catalog['employees'][ref['employee_source']])
-    runtime = resolve_runtime(asset['employee']['runtime_requirement'])
+    options = {'selection': runtime_selection} if runtime_selection is not None else {}
+    runtime = resolve_runtime(asset['employee']['runtime_requirement'], **options)
     package = {'schema': employee_work_contracts.SOURCE_PACKAGE, 'reference': ref, 'revision': revision,
                'build_operation_key': state['operation_key'], 'result_sha256': state['result_sha256'],
                'runtime': runtime}
     return validate(package)
 
 
-def resolve_runtime(requirement):
+def resolve_runtime(requirement, *, selection=None, catalogs=None):
     from runteams_core.storage import product_store
     from runteams_core.agents.models import model_channels
     provider=requirement['provider']
@@ -160,17 +159,33 @@ def resolve_runtime(requirement):
     settings=device_data.settings();choice=str(settings.get('default_model') or '').split('::',1)
     configured=next((c for c in channels if str(c['id'])==choice[0]),None)
     channel=configured or next((c for c in channels if c.get('is_default')),channels[0])
-    try:catalog=model_channels.require_catalog(channel)
+    if selection is not None:
+        channel=next((row for row in channels if row['id']==selection['channel_id']),None)
+        if channel is None:raise ContractError('所选模型渠道与员工要求不匹配或已不可用。')
+    try:
+        catalog=model_channels.require_catalog(channel) if catalogs is None else catalogs.get(channel['id'])
+        if catalog is None:raise ValueError('所选模型渠道不可用，请重新选择。')
     except ValueError as error:raise ContractError(str(error)) from error
     models=catalog['models']
     requested=requirement.get('model') or ''
     preferred=choice[1] if configured and len(choice)==2 and any(item['value']==choice[1] for item in models) else ''
-    model=requested or preferred or model_channels.latest_flagship_model(models)
+    model=selection['model'] if selection is not None else requested or preferred or model_channels.latest_flagship_model(models)
     if not any(item['value']==model for item in models):raise ContractError('员工指定的模型已不可用，请在原员工设置中核对。')
-    effort=requirement.get('effort') or settings.get('default_effort') or ''
+    effort=selection['effort'] if selection is not None else requirement.get('effort') or settings.get('default_effort') or ''
     model,effort=model_channels.normalize_selection(channel,model,effort,catalog=catalog)
     if not model or not any(item['value']==model for item in models):raise ContractError('员工未能选定可用模型，请重新读取模型渠道。')
-    return {**requirement,'channel_id':channel['id'],'provider':provider,'model':model,'effort':effort}
+    runtime = {**requirement,'channel_id':channel['id'],'provider':provider,'model':model,'effort':effort}
+    if selection is not None:
+        if selection['effort'] and selection['effort'] != effort:
+            raise ContractError('选用的模型不支持此推理档位，请重新选择。')
+        runtime['selection_source'] = 'position_override'
+    return runtime
+
+
+def runtime_matches_requirement(runtime, requirement):
+    preferences = {'model', 'effort'} if runtime.get('selection_source') == 'position_override' else set()
+    return all(key in preferences or not value or runtime.get(key) == value
+               for key, value in requirement.items())
 
 
 def validate(package):
@@ -196,9 +211,8 @@ def validate(package):
     asset = verified_employee_asset(strict_json(artifacts[CATALOG_PATH])['employees'][package['reference']['employee_source']])
     from runteams_core.authoring.definition_contracts import validate_definition
     runtime = validate_definition('runtime_snapshot', package['runtime'])
-    for key, value in asset['employee']['runtime_requirement'].items():
-        if value and runtime.get(key) != value:
-            raise ContractError('员工运行设置不符合源码要求。')
+    if not runtime_matches_requirement(runtime, asset['employee']['runtime_requirement']):
+        raise ContractError('员工运行设置不符合源码要求。')
     device_data.check(expected_scope)
     return package
 
@@ -248,9 +262,20 @@ def work_config_context(session, incoming, *, scope_pipeline_id=None):
             != {k:v for k,v in existing.items() if k != 'preferred_skill_key'}):
         raise ValueError('员工工作对话不能改绑。')
     selected = incoming.get('preferred_skill_key', existing.get('preferred_skill_key'))
-    if selected is not None and (not isinstance(selected, str) or selected not in
-            {unit['key'] for unit in units(package_asset(item['local_package']))}):
-        raise ValueError('请选择当前员工已有的工作技能。')
+    if selected is not None:
+        if not isinstance(selected, str):
+            raise ValueError('请选择当前员工已有的工作技能。')
+        asset = package_asset(item['local_package'])
+        allowed = {unit['key'] for unit in units(asset)}
+        # A pipeline can pin an ordinary skill without a standalone work declaration.
+        pipeline = existing.get('pipeline_work')
+        if pipeline and selected not in allowed and selected == existing.get('preferred_skill_key'):
+            from runteams_core.pipelines.source_pipeline_work import _position
+            position, _ = _position(pipeline['asset'], pipeline['position_key'])
+            if any(bundle['package_key'] == position['skill_key'] for bundle in asset['skill_bundles']):
+                allowed.add(position['skill_key'])
+        if selected not in allowed:
+            raise ValueError('请选择当前员工已有的工作技能。')
     return {**copy.deepcopy(existing), 'preferred_skill_key': selected}
 
 

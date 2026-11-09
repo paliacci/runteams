@@ -47,7 +47,7 @@ def export_mcp(output,runtime_root,libraries,esbuild):
     for name in ('product-model-v2.json','marketplace-pipeline-v2.json'):copy(ROOT/'contracts'/name,kit/'runteams_core/_resources/contracts'/name)
     for path in (ROOT/'sdk/ui').rglob('*'):
         if path.is_file() and 'node_modules' not in path.parts and 'tests' not in path.parts:copy(path,kit/'runteams_core/_resources'/path.relative_to(ROOT))
-    for folder in ('sdk/runtime','sdk/shared','web/worker-avatars/bottts'):
+    for folder in ('sdk/runtime','sdk/shared','web/worker-avatars'):
         for path in (ROOT/folder).rglob('*'):
             if path.is_file() and 'node_modules' not in path.parts:
                 copy(path,kit/'runteams_core/_resources'/path.relative_to(ROOT))

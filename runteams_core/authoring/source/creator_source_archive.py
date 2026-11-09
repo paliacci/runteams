@@ -1,12 +1,14 @@
 """Deterministic source transport. Inspection never extracts or executes files."""
+from contextlib import contextmanager
 import hashlib
 import io
+import os
 from pathlib import Path
 import stat
 import zipfile
 import zlib
 
-from runteams_core.authoring.creator_contracts import MAX_BYTES, MAX_FILES, CreatorContractError, canonical, relative, source_files, strict_json, tree, _source_tree
+from runteams_core.authoring.creator_contracts import MAX_BYTES, MAX_FILES, CreatorContractError, canonical, digest, relative, source_files, strict_json, tree, _source_tree
 
 MANIFEST = 'runteams-source.json'
 FORMAT = 'runteams.source-archive/1-dev'
@@ -94,3 +96,45 @@ def _inspect_stream(stream, *, hash_bytes=None):
 def inspect_file(path):
     with Path(path).open('rb') as stream:
         return inspect(stream.read(MAX_BYTES + 1024 * 1024 + 1))
+
+
+@contextmanager
+def display_files(path, source):
+    """Read and verify individual display files without loading unrelated assets."""
+    entries = source.get('files')
+    if (not isinstance(entries, list) or not 1 <= len(entries) <= MAX_FILES
+            or any(not isinstance(item, dict) or not isinstance(item.get('path'), str)
+                   or not isinstance(item.get('sha256'), str) for item in entries)
+            or digest(entries) != source.get('sha256')):
+        raise CreatorContractError('archive_integrity')
+    expected = {item['path']: item for item in entries}
+    try:
+        with os.fdopen(os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK), 'rb') as stream:
+            info = os.fstat(stream.fileno())
+            if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or info.st_size > MAX_BYTES + 1024 * 1024:
+                raise CreatorContractError('invalid_archive')
+            with zipfile.ZipFile(stream) as archive:
+                names = archive.namelist()
+                if len(names) != len(expected) + 1 or set(names) != {MANIFEST, *('source/' + key for key in expected)}:
+                    raise CreatorContractError('archive_integrity')
+
+                class Files:
+                    def get(self, name, default=None):
+                        entry = expected.get(name)
+                        if entry is None:
+                            return default
+                        relative(name)
+                        member = archive.getinfo('source/' + name)
+                        if (member.orig_filename != member.filename or member.flag_bits & 1
+                                or stat.S_IFMT(member.external_attr >> 16) not in (0, stat.S_IFREG)
+                                or member.compress_type not in (zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED)
+                                or member.file_size != entry.get('size') or member.file_size > MAX_BYTES):
+                            raise CreatorContractError('invalid_archive_entry')
+                        body = archive.read(member)
+                        if hashlib.sha256(body).hexdigest() != entry['sha256']:
+                            raise CreatorContractError('archive_integrity')
+                        return body
+
+                yield Files()
+    except (zipfile.BadZipFile, RuntimeError, NotImplementedError, EOFError, zlib.error):
+        raise CreatorContractError('invalid_archive') from None

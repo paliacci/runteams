@@ -14,6 +14,9 @@ struct CommunityNavigation {
         sameOrigin(url, origin) && url.query == nil && url.fragment == nil
             && url.path.range(of: "^/api/chat/[1-9][0-9]*/attachment/[a-f0-9]{24}$", options: .regularExpression) != nil
     }
+    static func legalLink(_ url: URL) -> Bool {
+        url.absoluteString == "https://runteams.ai/privacy" || url.absoluteString == "https://runteams.ai/terms"
+    }
     static func allows(_ url: URL, origin: URL, download: Bool = false) -> Bool {
         if sameOrigin(url, origin) { return true }
         if download && url.scheme == "blob", let inner = URL(string: String(url.absoluteString.dropFirst(5))) {

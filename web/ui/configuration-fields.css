@@ -2,11 +2,9 @@
 :where(.configuration-surface) :is(.field) {margin-bottom:20px}
 :where(.configuration-surface) :is(.field>label) {display:flex;gap:8px;align-items:center;font-weight:500;margin-bottom:8px}
 :where(.configuration-surface) :is(.field label small) {font-weight:400;font-size:11px;color:var(--text-muted)}
-:where(.configuration-surface) :is(input:not([type=checkbox],[type=radio]),textarea,select) {width:100%;min-height:36px;border:1px solid var(--border-default);border-radius:6px;background:var(--surface);padding:7px 10px}
-:where(.configuration-surface) :is(textarea) {resize:vertical;min-height:86px}
 :where(.configuration-surface) :is(.input-unit) {position:relative}
-:where(.configuration-surface) :is(.input-unit:has(span) input) {padding-right:44px}
-:where(.configuration-surface) :is(.input-unit>span) {position:absolute;right:12px;top:8px;color:var(--text-muted)}
+:where(.configuration-surface) :is(.input-unit:has(>span) input) {padding-inline-end:44px}
+:where(.configuration-surface) :is(.input-unit>span) {position:absolute;inset-inline-end:12px;top:50%;transform:translateY(-50%);color:var(--text-muted)}
 :where(.configuration-surface) :is(input[type=checkbox],input[type=radio]) {width:16px;height:16px;margin:0;accent-color:var(--accent-default);flex-shrink:0}
 :where(.configuration-surface) :is(.choices) {display:flex;gap:8px;flex-wrap:wrap}
 :where(.configuration-surface) :is(.choices label) {display:flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--border-default);border-radius:6px;min-height:36px}
@@ -26,23 +24,21 @@
 :where(.configuration-surface) :is(.picker p) {font-size:12px;margin:0 0 8px;color:var(--text-muted)}
 :where(.configuration-surface) :is(.picker label) {display:flex;align-items:center;gap:8px;min-height:36px}
 :where(.configuration-surface) :is(.sr-only) {position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
-:where(.configuration-surface) :is(.input-unit:has(.secret-toggle) input) {padding-right:44px}
+:where(.configuration-surface) :is(.input-unit:has(.secret-toggle) input) {padding-inline-end:44px}
 :where(.configuration-surface) :is(.secret-toggle) {position:absolute;right:4px;top:2px;width:32px;height:32px;min-height:32px;border:0;padding:7px;background:transparent;color:var(--text-muted);display:grid;place-items:center}
 :where(.configuration-surface) :is(.secret-toggle .i) {width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.75}
-.configuration-surface .field button{border:1px solid var(--border-default);background:var(--surface);border-radius:6px;padding:6px 12px;min-height:36px;font:inherit;font-size:13px;color:var(--text-primary)}
-.configuration-surface .field button:hover{background:var(--surface-hover)}
-.configuration-surface .field .secret-toggle{position:absolute;right:4px;top:2px;width:32px;height:32px;min-height:32px;padding:7px;border:0;background:transparent;color:var(--text-muted)}
+.configuration-surface .field button:where(:not(.csel)){border:1px solid var(--border-default);background:var(--surface);border-radius:6px;padding:6px 12px;min-height:36px;font:inherit;font-size:13px;color:var(--text-primary)}
+.configuration-surface .field button:where(:not(.csel)):hover{background:var(--surface-hover)}
+.configuration-surface .field .secret-toggle{position:absolute;inset-inline-end:4px;top:50%;transform:translateY(-50%);width:32px;height:32px;min-height:32px;padding:7px;border:0;background:transparent;color:var(--text-muted)}
 .configuration-surface .required-mark{color:var(--status-danger);font-size:13px;line-height:1;margin-left:-4px}
 .configuration-surface .group{margin-top:28px}
 .configuration-surface .group>h2,.configuration-surface .group>h3{font-size:12px;color:var(--text-muted);font-weight:500;margin:0 0 16px}
 .configuration-surface .field{display:block;font-size:13px}
 .configuration-surface .field>label{justify-content:flex-start;line-height:20px}
-.configuration-surface .field .csel{font-size:13px;height:36px;min-width:0;padding:7px 10px;border-radius:6px}
-.configuration-surface .field .csel .i{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.75}
+.configuration-surface .field .csel{min-width:0}
 .configuration-surface .primary{background:var(--action-primary);color:var(--action-on-primary);border-color:transparent}
 .configuration-surface .field .binding .warning{color:var(--status-warning)}
 .configuration-surface .binding button{flex-shrink:0}
-.configuration-surface .field textarea{font:inherit;line-height:1.6}
 .configuration-surface .field label{cursor:default}
 .configuration-surface .choices label,.configuration-surface .picker label,.configuration-surface label.check{cursor:pointer}
 
@@ -54,3 +50,47 @@
 .configuration-surface .resource-heading>button{height:28px;min-height:28px;padding:3px 10px;flex-shrink:0}
 .configuration-surface .resource-summary{font-size:12px;line-height:20px;color:var(--text-muted);margin:4px 0 0;overflow-wrap:anywhere;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
 .configuration-surface .resource-summary.warning{color:var(--status-warning)}
+
+.configuration-readiness{font-size:13px;line-height:20px;color:var(--text-secondary);margin:0}
+.configuration-surface>.group:first-child{margin-top:0}
+.configuration-save{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:12px 20px;border-top:1px solid var(--border-default);flex-shrink:0;background:var(--surface)}
+.configuration-save>span{margin-right:auto;font-size:11px;color:var(--text-muted)}
+.configuration-save[hidden]{display:none}
+.configuration-error{font-size:12px;color:var(--status-danger);margin-top:16px;line-height:20px}
+.configuration-error .textbutton{color:var(--text-primary);font-size:12px;text-decoration:underline;text-underline-offset:3px}
+.configuration-notice{font-size:12px;color:var(--text-muted);margin-top:16px}
+.configuration-conflict{padding:12px;margin-top:20px;background:var(--surface-subtle);border-radius:6px;color:var(--text-secondary);font-size:12px;line-height:18px}
+.configuration-conflict table{width:100%;margin:10px 0;border-collapse:collapse;table-layout:fixed}
+.configuration-conflict th,.configuration-conflict td{padding:6px;text-align:left;vertical-align:top;border-bottom:1px solid var(--border-default);overflow-wrap:anywhere}
+.configuration-conflict p{margin:0 0 8px}.configuration-conflict summary{cursor:pointer}
+@media(max-width:700px){.configuration-save{padding:12px 16px}.configuration-save>span{font-size:10px}}
+
+.configuration-surface .credential-heading{position:relative;display:flex;align-items:center;gap:4px;margin-bottom:6px;min-height:22px}
+.credential-heading label{display:flex;align-items:center;gap:8px;font-weight:500;line-height:20px}
+.credential-info{display:inline-flex}
+.configuration-surface :is(.credential-field,.configuration-help-field) .credential-info-trigger{display:grid;place-items:center;border:0;background:transparent;color:var(--text-muted);min-height:22px;width:22px;padding:3px}
+.configuration-surface :is(.credential-field,.configuration-help-field) .credential-info-trigger:hover,
+.configuration-surface :is(.credential-field,.configuration-help-field) .credential-info-trigger:focus-visible{color:var(--text-primary);background:transparent}
+.credential-info-trigger .i,.credential-action .i{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.75}
+.credential-info-trigger .i{width:15px;height:15px;stroke-width:1.75}
+.credential-tooltip{display:none;position:absolute;inset-inline-start:0;top:100%;z-index:2;width:max-content;max-width:min(280px,100%);padding:8px 10px;border:1px solid var(--border-default);border-radius:6px;background:var(--surface);box-shadow:0 4px 16px rgba(0,0,0,.12);color:var(--text-secondary);font-size:12px;line-height:18px}
+.credential-info:is(:hover,:focus-within) .credential-tooltip{display:block}
+.configuration-surface .credential-field .credential-action{border:0;background:transparent;color:var(--text-secondary);min-height:28px;padding:4px 6px;font-size:11px;white-space:nowrap}
+.configuration-surface .credential-field .credential-action:hover{color:var(--text-primary)}
+.configuration-surface .credential-field .credential-clear{display:grid;place-items:center;width:28px}
+
+
+/* Configuration groups have the same rhythm in employee and pipeline settings. */
+.configuration-surface.settings-section-stack>.group{margin-top:0}
+.configuration-surface :is(.settings-section-content,.configuration-field-list)>.field:last-child{margin-bottom:0}
+
+.configuration-surface .credential-control{display:flex;align-items:center;gap:8px;min-height:calc(1lh + 2 * var(--input-padding-block) + 2px);padding-block:3px;padding-inline-end:6px}
+.credential-file-value{display:flex;flex-direction:column;gap:2px;flex:1;min-width:0;padding-block:2px}
+.credential-file-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text-secondary)}
+.credential-file-status{display:flex;align-items:center;gap:4px;white-space:nowrap;color:var(--status-success);font-size:12px;line-height:16px}
+.credential-file-status>[aria-hidden]{display:grid;place-items:center}
+.credential-file-status .i{width:13px;height:13px}
+.configuration-surface .credential-control>button{flex-shrink:0;min-height:28px;padding:3px 8px;font-size:12px}
+.configuration-save-inline{flex-wrap:wrap;padding:0;margin-block-start:8px;border:0;background:transparent}
+
+.configuration-notice:empty,.configuration-error:empty{display:none}

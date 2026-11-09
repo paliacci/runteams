@@ -172,7 +172,7 @@ def build(output=None, build_python=None, data_directory=None, validate_only=Fal
             '-framework','AppKit','-framework','WebKit','-o',str(executable)],check=True)
         picker=resources/'RunTeamsPicker.app';binary=picker/'Contents/MacOS/RunTeamsPicker';binary.parent.mkdir(parents=True)
         subprocess.run(['/usr/bin/xcrun','swiftc','-swift-version','5','-target',('arm64' if platform.machine()=='arm64' else 'x86_64')+'-apple-macosx13.5',str(ROOT/'desktop/attachment_picker.swift'),'-framework','AppKit','-o',str(binary)],check=True)
-        info=plistlib.loads((ROOT/'desktop/RunTeamsPicker-Info.plist').read_bytes());info.update(CFBundleIdentifier='ai.runteams.community.picker',CFBundleDisplayName='RunTeams 本机文件选择器')
+        info=plistlib.loads((ROOT/'desktop/RunTeamsPicker-Info.plist').read_bytes());info.update(CFBundleIdentifier='ai.runteams.community.picker',CFBundleDisplayName='RunTeams 本机文件选择器',RunTeamsLanguagePreferenceDomain=BUNDLE_ID)
         (picker/'Contents/Info.plist').write_bytes(plistlib.dumps(info));signer.sign(picker,executable=True)
         shutil.copyfile(ROOT/'desktop/RunTeams.icns',resources/'RunTeams.icns')
         config['inputs']=inventory(resources)

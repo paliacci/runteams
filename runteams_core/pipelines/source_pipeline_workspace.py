@@ -10,7 +10,7 @@ import uuid
 
 from runteams_core.storage import device_data
 from runteams_core.pipelines import source_pipeline_work as work, source_pipeline_control as control
-from runteams_core.foundation.contracts import ContractError
+from runteams_core.foundation.contracts import ContractError, PIPELINE_STATUS_FIRST
 from runteams_core.authoring.creator_contracts import canonical, digest, strict_json
 from runteams_core.authoring.source.creator_local_source import current_store
 from runteams_core.authoring.source.creator_source_revisions import Revisions
@@ -19,7 +19,7 @@ CONTEXT = 'source_pipeline_workspace'
 
 def allowed_modes(ref):
     from runteams_core.assets.rented_references import is_rented
-    return ['renter'] if is_rented(ref) else ['creator','renter']
+    return ['renter'] if is_rented(ref) else ['creator']
 
 
 def _definition(ref):
@@ -50,7 +50,7 @@ def catalog(core):
                     ref = pipeline_references.reference(item['id'], path)
                     revision, asset = _definition(ref)
                     rows.append({'reference': ref, 'name': asset['pipeline']['name'], 'revision': revision,
-                                 'allowed_modes': ['creator', 'renter']})
+                                 'allowed_modes': allowed_modes(ref)})
             except (ValueError, OSError, ContractError) as exc:
                 errors.append({'source_id': item['id'], 'error': str(exc)})
         after = page['next_cursor']
@@ -68,9 +68,9 @@ def _key(ref):
 
 def _ui(connection, ref):
     row = connection.execute('SELECT value FROM device_settings WHERE key=?', (_key(ref),)).fetchone()
-    value=json.loads(row[0]) if row else {'mode':allowed_modes(ref)[0], 'view':'board', 'revision':0}
-    if value['mode'] not in allowed_modes(ref):raise PermissionError('租用资产不能进入创作模式。')
-    return value
+    value = json.loads(row[0]) if row else {'view': 'board', 'revision': 0}
+    # Older workspaces may have stored a manual mode. Ownership now determines it.
+    return {**value, 'mode': allowed_modes(ref)[0]}
 
 
 def preferences(ref, data=None):
@@ -97,38 +97,35 @@ def preferences(ref, data=None):
 
 
 def workspace(core, ref, active_ids=()):
+    from runteams_core.pipelines.source_pipeline_flow import launch_failure, retry_mode
     core._actor()
     ref = pipeline_references.checked_reference(ref)
     revision, asset = _definition(ref)
-    # Read the applied graph and card facts together. A concurrent control
-    # commit invalidates this projection; it cannot mix new columns with old
-    # work or omit a card while pause/update is committing.
-    for _ in range(2):
-        runtime = control.state(core, ref, active_ids)
-        with core.repository.connect() as connection:
-            saved = control.read(core, ref, connection)
-            rows = connection.execute(
-                "SELECT w.id,w.state,w.cursor_key,w.snapshot_json,t.title,t.payload_json "
-                "FROM workflow_runs w JOIN tasks t ON t.id=w.task_id "
-                "WHERE t.trashed_at IS NULL AND json_extract(w.snapshot_json,'$.pipeline_work.reference.source_id')=? "
-                "AND json_extract(w.snapshot_json,'$.pipeline_work.reference.pipeline_source')=? ORDER BY w.id",
-                (ref['source_id'], ref['pipeline_source'])).fetchall()
-        if saved['revision'] == runtime['revision']:
-            break
-    else:
-        raise ContractError('流水线运行状态正在更新，请重新读取。')
-    applied = saved['bundle']['asset'] if saved['bundle'] else asset
-    workflows = []
-    for row in rows:
-        snapshot = json.loads(row['snapshot_json'])
-        if (snapshot.get('pipeline_work') or {}).get('reference') != ref:
-            raise PermissionError('工作不属于这条流水线。')
-        workflows.append({'id': row['id'], 'state': row['state'], 'cursor_key': row['cursor_key'],
-                          'title': row['title'], 'objective': json.loads(row['payload_json']).get('objective', ''),
-                          'summary': (snapshot.get('pipeline_submission') or {}).get('result', {}).get('summary', ''),
-                          'pipeline_reference': ref})
+    # The runtime and its cards share one snapshot without waiting for a work writer.
+    with core.repository.storage.connect(readonly=True) as connection:
+        runtime = control.state(core, ref, active_ids, connection=connection)
+        rows = connection.execute(
+            "SELECT w.id,w.state,w.cursor_key,w.snapshot_json,t.title,t.payload_json "
+            "FROM workflow_runs w JOIN tasks t ON t.id=w.task_id "
+            "WHERE t.trashed_at IS NULL AND json_extract(w.snapshot_json,'$.pipeline_work.reference.source_id')=? "
+            "AND json_extract(w.snapshot_json,'$.pipeline_work.reference.pipeline_source')=? ORDER BY w.id",
+            (ref['source_id'], ref['pipeline_source'])).fetchall()
+        positions = {item['key'] for item in runtime['positions'] if item['kind']=='employee'}
+        active = set(runtime['active_workflow_ids'])
+        workflows = []
+        for row in rows:
+            snapshot = json.loads(row['snapshot_json'])
+            if (snapshot.get('pipeline_work') or {}).get('reference') != ref:
+                raise PermissionError('工作不属于这条流水线。')
+            error = launch_failure(connection, row, snapshot)
+            workflows.append({'id': row['id'], 'state': 'blocked' if error else row['state'], 'cursor_key': row['cursor_key'],
+                              'title': row['title'], 'objective': json.loads(row['payload_json']).get('objective', ''),
+                              'summary': error or (snapshot.get('pipeline_submission') or {}).get('result', {}).get('summary', ''),
+                              'pipeline_reference': ref, 'work_chat_id': snapshot.get('work_chat_id'),
+                              'retry_mode': retry_mode(row['state'],row['cursor_key'],snapshot,positions,
+                                                       active=row['id'] in active, launch_error=error)})
     return {'reference': ref, 'name': asset['pipeline']['name'], 'source_revision': revision,
-            'pipeline': copy.deepcopy(applied['pipeline']), 'programs_available': bool(applied.get('programs')),
+            'pipeline': copy.deepcopy(asset['pipeline']), 'programs_available': bool(asset.get('programs')),
             'runtime': runtime, 'workflows': workflows,
             'ui': preferences(ref), 'allowed_modes': allowed_modes(ref), 'storage_scope': 'device'}
 
@@ -162,12 +159,38 @@ def conversation(core, ref, runtime):
         return {'session': product_store.get_chat(identifier), 'storage_scope': 'device'}
 
 
+def _skill_fields(schema):
+    required = set(schema.get('required', []))
+    fields = []
+    for key, definition in schema.get('properties', {}).items():
+        definition = definition if isinstance(definition, dict) else {}
+        field_type = definition.get('type')
+        fields.append({'key': key, 'title': definition.get('title', ''),
+            'description': definition.get('description', ''), 'required': key in required,
+            'types': [field_type] if isinstance(field_type, str) else field_type or []})
+    return fields
+
+
+def skill_description(bundle):
+    from runteams_core.authoring.creator_conversation_assets import extension
+
+    skill = extension(bundle)
+    contract = skill.get('work')
+    if not contract:
+        return None
+    route = contract.get('output_schema', {}).get('properties', {}).get('route', {})
+    routes = route.get('enum', [route.get('const')]) if isinstance(route, dict) else []
+    return {'key': bundle['package_key'], 'name': skill.get('display_name') or contract['name'],
+            'inputs': _skill_fields(contract.get('input_schema', {})),
+            'outputs': _skill_fields(contract.get('output_schema', {})),
+            'routes': list(dict.fromkeys(value for value in routes if isinstance(value, str) and value.strip()))}
+
+
 def creation_choices(core):
     """Actual source and complete signed employee versions, without dispatch."""
     core._actor()
     from runteams_core.employees.employee_directory import local_entries
     from runteams_core.employees.source_employee_runtime import describe, units
-    from runteams_core.authoring.creator_conversation_assets import extension
     choices, errors, employees = [], [], []
     source_errors = {}
     for entry in local_entries(errors=source_errors):
@@ -185,20 +208,28 @@ def creation_choices(core):
     downloaded, failures = current().acquired_employee_catalog(); employees.extend(downloaded); errors.extend(failures)
     for employee in employees:
         for bundle in employee['asset']['skill_bundles']:
-            skill = extension(bundle)
-            if not skill.get('work'): continue
+            skill = skill_description(bundle)
+            if not skill: continue
             choices.append({'reference': employee['reference'], 'revision': employee['revision'],
                 'dependency': employee['dependency'], 'version': employee['version'], 'origin': employee['origin'],
                 'project_name': employee.get('project_name', ''),
                 'employee_name': employee['asset']['employee']['name'], 'skill_key': bundle['package_key'],
-                'skill_name': skill.get('display_name') or bundle['package_key']})
+                'skill_name': skill['name'], 'skill': skill})
     return {'items': choices, 'errors': errors, 'storage_scope': 'device'}
+
+
+def new_pipeline_graph(name, employee_name, skill_key, end_name=None):
+    return {'name': name.strip(), 'routing_policy': PIPELINE_STATUS_FIRST,
+        'positions': [{'key': 'work', 'kind': 'employee', 'name': employee_name,
+            'employee_ref': 'employee', 'skill_key': skill_key}],
+        'edges': [{'from': 'work', 'to': 'done', 'when': 'completed'}],
+        'states': [{'key': 'done', 'name': '已完成' if end_name is None else end_name.strip(), 'kind': 'done'}]}
 
 
 def create(core, data):
     core._actor()
     fields = {'operation_id', 'employee_reference', 'source_revision', 'skill_key', 'name'}
-    if set(data) not in (fields, fields | {'dependency'}):
+    if not fields <= data.keys() <= fields | {'dependency', 'end_name'}:
         raise ContractError('请填写流水线名称并选择第一个岗位。')
     try:
         operation = str(uuid.UUID(data['operation_id']))
@@ -208,6 +239,10 @@ def create(core, data):
         raise ContractError('请沿原创建操作核对结果。') from None
     if not isinstance(data['name'], str) or not data['name'].strip() or len(data['name']) > 80:
         raise ContractError('请填写不超过 80 字的流水线名称。')
+    if 'end_name' in data:
+        end_name = data['end_name']
+        if not isinstance(end_name, str) or not end_name.strip() or len(end_name.strip()) > 160:
+            raise ContractError('请填写不超过 160 字的结束位置名称。')
     if 'dependency' in data:
         from runteams_core.pipelines.pipeline_context import current
         return current().create_downloaded(core,data)
@@ -226,19 +261,22 @@ def create(core, data):
     path = 'pipelines/' + pipeline_key + '.json'
     if path in files:
         raise ContractError('流水线源码入口已存在，请核对原创建结果。')
+    operation_key = 'pipeline-create-' + operation
+    graph = new_pipeline_graph(data['name'], employee['employee']['name'], data['skill_key'], data.get('end_name'))
+    reserved = revisions.operation_files(operation_key)
+    if reserved and path in reserved and 'routing_policy' not in strict_json(reserved[path])['pipeline']:
+        # Replaying a pre-upgrade operation must produce the same source hash.
+        graph.pop('routing_policy')
     files[path] = canonical({'schema': 'runteams.pipeline-source/3', 'key': pipeline_key,
         'employees': [{'ref': 'employee', 'source': employee_source}],
-        'pipeline': {'name': data['name'].strip(), 'positions': [{'key': 'work', 'kind': 'employee',
-            'name': employee['employee']['name'], 'employee_ref': 'employee', 'skill_key': data['skill_key']}],
-            'edges': [{'from': 'work', 'to': 'done', 'when': 'completed'}],
-            'states': [{'key': 'done', 'name': '已完成', 'kind': 'done'}]}})
+        'pipeline': graph})
     project = strict_json(files['project.json'])
     project['entrypoints'].setdefault('pipelines', []).append(path)
     files['project.json'] = canonical(project)
     after = compile_catalog(files, validate_source(files))
     if after['employees'] != catalog['employees']:
         raise ContractError('流水线创建不能修改员工资产。')
-    result = revisions.commit(files, data['source_revision'], 'pipeline-create-' + operation)
+    result = revisions.commit(files, data['source_revision'], operation_key)
     return {'reference': pipeline_references.reference(data['employee_reference']['source_id'], path),
             'revision': result['revision'], 'storage_scope': 'device'}
 

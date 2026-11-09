@@ -2,7 +2,10 @@
 import json
 import threading
 from runteams_core.storage.repository import utc_now
-from runteams_core.foundation.contracts import ContractError
+from runteams_core.foundation.contracts import (
+    ContractError, PIPELINE_APPROVAL_DECISIONS, PIPELINE_OUTCOME_PREFIX,
+    PIPELINE_STATUS_FIRST,
+)
 
 class WorkLedger:
     def claim_workflow(self, workflow_run_id=None):
@@ -133,7 +136,17 @@ class WorkLedger:
         route = str(output.get("route") or "").strip() if isinstance(output, dict) else ""
         status = str(result.get("status") or "") if isinstance(result, dict) else ""
         exception = "exception" if status in ("failed", "blocked") else ""
-        for value in (route, status, exception, "always"):
+        if definition.get("routing_policy") == PIPELINE_STATUS_FIRST:
+            if status == "completed":
+                outcome = PIPELINE_OUTCOME_PREFIX + route if route else ""
+                conditions = (outcome, "completed", "always")
+            elif status in ("failed", "blocked", "needs_human", *PIPELINE_APPROVAL_DECISIONS):
+                conditions = (status, exception)
+            else:
+                return None
+        else:
+            conditions = (route, status, exception, "always")
+        for value in conditions:
             if not value:
                 continue
             match = next((item for item in edges

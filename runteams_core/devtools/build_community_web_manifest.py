@@ -26,6 +26,10 @@ def expected():
             result[url]=[path.relative_to(ROOT).as_posix(),types[path.suffix]]
     for path,mime in [('web/runteams.css','text/css; charset=utf-8'),('web/favicon.svg','image/svg+xml')]:result['/'+path.removeprefix('web/')]=[path,mime]
     for name in ('application.js','bootstrap.js','client.js','native.js'):result['/community/'+name]=['frontend/community/'+name,types['.js']]
+    catalog=json.loads((ROOT/'web/worker-avatars/presets.json').read_text())
+    for item in catalog['legacy']:
+        result['/worker-avatars/bottts/'+item['id']+'.svg']=[
+            'web/worker-avatars/colleague/'+item['target']+'.svg',types['.svg']]
     for path in ('/chat/new','/chats/new','/docs','/documents','/trash','/pipelines','/pipelines/new'):result[path]=result['/']
     result['/ui/page-routes-contract.js']=['contracts/page-routes.json',types['.js']]
     return result

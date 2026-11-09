@@ -15,6 +15,12 @@
       "description": "Generate SDK inputs/types from exact frozen contracts. No npm lifecycle hooks."
     },
     {
+      "path": "runteams_core/devtools/build_employee_avatar_catalog.py",
+      "module": "runteams_core.devtools.build_employee_avatar_catalog",
+      "command": true,
+      "description": "Generate the shared browser catalog from the owned avatar manifest."
+    },
+    {
       "path": "runteams_core/devtools/build_wheel.py",
       "module": "runteams_core.devtools.build_wheel",
       "command": true,

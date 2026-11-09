@@ -1,5 +1,6 @@
 """Document-only ingress to shared services; never an employee/core API bridge."""
 from dataclasses import dataclass
+from pathlib import Path
 import re
 from runteams_core.foundation.contracts import ContractError
 
@@ -14,7 +15,7 @@ class DocumentResponse:
 
 def handles(path):
     return path == '/api/device/work/trash' or bool(re.fullmatch(
-        r'/api/(?:core|device/work)/(?:documents(?:/[1-9][0-9]*(?:/(?:download|assets(?:/[a-f0-9]{64})?|templates(?:/[a-f0-9]{64})?))?)?|artifacts/[1-9][0-9]*/(?:revisions|revert|trash|restore|delete))', path))
+        r'/api/(?:core|device/work)/(?:documents(?:/[1-9][0-9]*(?:/(?:download|assets(?:/[a-f0-9]{64})?|templates(?:/[a-f0-9]{64})?))?)?|artifacts/[1-9][0-9]*/(?:revisions|content|revert|trash|restore|delete))', path))
 
 
 def dispatch(core, method, path, data):
@@ -61,6 +62,34 @@ def dispatch(core, method, path, data):
             if result.get('conflict'):return DocumentResponse(result,409)
         else:raise ContractError('不支持的文档操作。')
     elif method=='GET' and action=='revisions':result={'revisions':core.document_revisions(identifier)}
+    elif method == 'GET' and action == 'content' and set(data) == {'pdf_page'}:
+        from runteams_core.documents.pdf_preview import PDFPreviewError, render_pdf_page
+
+        artifact = core.artifact(identifier)
+        if not artifact or artifact.get('trashed_at') or not artifact.get('ref'):
+            return DocumentResponse({'error': 'unavailable'}, 404)
+        try:
+            path = Path(artifact['ref']).resolve(strict=True)
+            if path.suffix.lower() != '.pdf' or not path.is_file() or not path.is_relative_to((Path(core.root) / 'artifacts').resolve()):
+                return DocumentResponse({'error': 'unavailable'}, 404)
+            return DocumentResponse(render_pdf_page(path, data['pdf_page']))
+        except PDFPreviewError as error:
+            return DocumentResponse({'error': str(error)}, 422)
+        except OSError:
+            return DocumentResponse({'error': 'unavailable'}, 404)
+    elif method=='POST' and action=='content':
+        with core.repository.definition_lock():
+            detail=core.document_detail(identifier)
+            if not detail or detail['content_model']!='table' or not detail['editable'] or set(data)!={'content'}:
+                raise ContractError('这份表格无法编辑。')
+            if detail['id']!=identifier:
+                if detail['content']!=data['content']:
+                    raise ContractError('表格已更新，请重新打开后核对。')
+                result={'id':detail['id'],'created_revision':False}
+            else:
+                result=core.save_document_edit(identifier,data['content'])
+            current=core.document_detail(result['id'],include_content=False)
+            result.update(path=current['path'],revisions=core.document_revisions(result['id']))
     elif method=='POST' and action=='revert':
         new_id=core.revert_document(identifier)
         result={'id':new_id,'created_revision':True,'revisions':core.document_revisions(new_id)}

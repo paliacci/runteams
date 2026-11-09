@@ -45,6 +45,9 @@
     "runtime_snapshot": {
       "type": "object",
       "properties": {
+        "selection_source": {
+          "enum": ["author", "buyer_override", "buyer_default", "position_override"]
+        },
         "channel_id": {
           "type": "integer",
           "minimum": 1
@@ -1358,6 +1361,14 @@
                       "minLength": 1,
                       "maxLength": 120,
                       "pattern": "\\S"
+                    },
+                    "file_input": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["accept"],
+                      "properties": {
+                        "accept": {"type": "string", "pattern": "^\\.[a-z0-9]{1,12}$"}
+                      }
                     },
                     "note": {
                       "type": "string",

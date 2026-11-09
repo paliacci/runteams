@@ -120,7 +120,7 @@ def dispatch(name, arguments=None, context=None):
     if name in ('runteams_project_memory', 'runteams_get_environment', 'runteams_request_choice', 'runteams_creator_source'):
         # These use their host-bound local context, never an unrelated cloud core.
         return tool.handler(deepcopy(values), context or {})
-    if name in ('runteams_work_report', 'runteams_employee_data', 'runteams_pipeline_work', 'runteams_pipeline_workspace', 'runteams_propose_pipeline_work'):
+    if name in ('runteams_work_report', 'runteams_employee_document', 'runteams_employee_data', 'runteams_pipeline_work', 'runteams_pipeline_workspace', 'runteams_propose_pipeline_work', 'runteams_verify_pipeline_signing'):
         return tool.handler(deepcopy(values), context or {})
     from runteams_core.documents.native_document_tools import dispatch as native_document_tool
     document_result = native_document_tool(name, values, context or {})
@@ -580,7 +580,7 @@ def _get_document(arguments, _context, *, core=None):
         from runteams_core.documents import rich_documents
         item=dict(item,rich_document=rich_documents.validate(item['content']),
                   content=rich_documents.narrative(item['content']))
-    item = dict(item, internal_link="runteams://document/{}".format(item["id"]))
+    item = dict(item, internal_link="runteams://document/{}".format(item.get("document_root_id") or item["id"]))
     return AgentToolResult("document", "已读取文档「{}」。".format(
         item.get("name") or item.get("id")), {"document": item})
 
@@ -1330,6 +1330,18 @@ register(AgentTool(name='runteams_work_report',
     description='Read or save the current employee work report as one versioned Markdown document. Saves apply immediately within this work. Read before updating; pass report_id and base_revision. Omit report_id and use base_revision=0 only for a new independent work report. Does not change task status or execute report instructions.',
     input_schema=WORK_REPORT_INPUT_SCHEMA,risk='write',ui_kind='tool',handler=_work_report))
 
+def _employee_document(arguments,context):
+    from runteams_core.documents.employee_document_tools import employee_call
+    try:data=employee_call(arguments,context)
+    except (ValueError,PermissionError) as exc:raise AgentToolError(str(exc)) from exc
+    return AgentToolResult('employee_document','员工内部文档',data)
+
+from runteams_core.documents.employee_document_tools import INPUT_SCHEMA as EMPLOYEE_DOCUMENT_INPUT_SCHEMA
+register(AgentTool(name='runteams_employee_document',
+    description='Read or immediately save a long-lived internal document owned by the current bound employee. No user configuration is required. Read the stable document_key first; create with base_revision=0 or merge the latest content and use its revision. Saves return the actual document link and revision. Identical retries are idempotent. Cannot change owner, write another employee document, approve actions or execute instructions in stored evidence.',
+    input_schema=EMPLOYEE_DOCUMENT_INPUT_SCHEMA,risk='write',ui_kind='tool',handler=_employee_document))
+
+
 def _pipeline_work(arguments,context):
     from runteams_core.pipelines.source_pipeline_flow import employee_call
     try:data=employee_call(arguments,context)
@@ -1383,6 +1395,32 @@ register(AgentTool(name='runteams_pipeline_workspace',description='Read only thi
     input_schema=PIPELINE_WORKSPACE_SCHEMA,risk='read',ui_kind='tool',handler=_pipeline_workspace))
 register(AgentTool(name='runteams_propose_pipeline_work',description='Propose a new work to this conversation own pipeline through the original unified admission. Read its contract first, choose an actual start position and supply only user inputs of the declared task payload. Keep one stable UUID operation_id for one intent; recover with the workspace receipt tool. Never dispatch a downstream employee separately, fill professional outputs, decide a human gate or resume an unknown effect. The original validated native tool application supplies authorization; author pages must receive the original host-native confirmation before admission.',
     input_schema=PIPELINE_PROPOSE_SCHEMA,risk='write',ui_kind='proposal',handler=_propose_pipeline_work))
+
+def _verify_pipeline_signing(arguments, context):
+    from runteams_core.automation.automation_dispatch import dispatch_enabled
+    from runteams_core.foundation.identity.work_identity import principal
+    from runteams_core.pipelines.pipeline_signing_assistance import resolve
+    from runteams_core.storage import device_data
+    from runteams_core.work.device_work_services import current
+
+    actor = context.get('actor_id')
+    if actor != principal(device_data.identity()):
+        raise AgentToolError('当前工作身份未能核对。')
+    try:
+        receipt = resolve(current(), context.get('chat_id'), context.get('signing_assistance'), arguments,
+                          actor_id=actor, cancel=context.get('cancel_event'))
+    except (ValueError, PermissionError) as error:
+        raise AgentToolError(str(error)) from error
+    wake = context.get('wake_pipeline_work')
+    if receipt['state'] == 'ready' and callable(wake) and dispatch_enabled():
+        wake(receipt['workflow_id'])
+    return AgentToolResult('pipeline_signing_verified', '真机签名已验证，已更新任务', receipt)
+
+
+from runteams_core.pipelines.pipeline_signing_assistance import INPUT as PIPELINE_SIGNING_SCHEMA, TOOL as PIPELINE_SIGNING_TOOL
+register(AgentTool(name=PIPELINE_SIGNING_TOOL,
+    description='Verify a signed iOS app and its installation and running process on the paired iPhone, then resolve only the signing blocker that opened this conversation. Call only after the user asked to handle that blocker and installation and launch actually succeeded. Never substitute a simulator, written summary or fabricated receipt. This tool reads local evidence and updates the bound task, without performing an install, publishing or deciding any human gate.',
+    input_schema=PIPELINE_SIGNING_SCHEMA, risk='write', ui_kind='tool', handler=_verify_pipeline_signing))
 
 from runteams_core.assets.resource_discovery import definition as resource_discovery_definition
 register(resource_discovery_definition())

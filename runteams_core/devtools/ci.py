@@ -29,12 +29,21 @@ def main():
     subprocess.run([sys.executable, '-B', '-m', 'unittest', 'discover', '-s',
                     str(ROOT / 'tests'), '-p', 'test_ui_boundary.py'], cwd=ROOT, check=True)
     subprocess.run(['node', str(ROOT / 'tests/ui_host_ports.test.cjs')], cwd=ROOT, check=True)
+    subprocess.run(['node', str(ROOT / 'tests/configuration_form.test.cjs')], cwd=ROOT, check=True)
+    subprocess.run(['node', str(ROOT / 'tests/pipeline_task_configuration.test.cjs')], cwd=ROOT, check=True)
     report['ui_host_contract_tests'] = True
+    subprocess.run([sys.executable, '-B', '-m', 'runteams_core.devtools.build_employee_avatar_catalog', '--check'], cwd=ROOT, check=True)
+    subprocess.run(['node', '--test', str(ROOT / 'tests/employee_avatar_live.test.cjs')], cwd=ROOT, check=True)
+    report['employee_avatar_live_tests'] = True
+    subprocess.run(['node', '--test', str(ROOT / 'tests/local_read_recovery.test.cjs')], cwd=ROOT, check=True)
     subprocess.run([str(interpreter), '-I', '-m', 'pip', 'install', str(wheel)], check=True)
     subprocess.run([str(interpreter), '-I', '-B', '-m', 'runteams_core.devtools.verify_install'], cwd=output, check=True)
     subprocess.run([str(interpreter), '-I', '-B', '-m', 'unittest', 'discover', '-s',
                     str(ROOT / 'tests'), '-p', 'test_library_settings.py'], cwd=output, check=True)
     report['library_settings_transactions'] = True
+    subprocess.run([str(interpreter), '-I', '-B', '-m', 'unittest', 'discover', '-s',
+                    str(ROOT / 'tests'), '-p', 'test_local_storage_read_failures.py'], cwd=output, check=True)
+    report['local_storage_read_failures'] = True
     subprocess.run([str(interpreter), '-I', '-B', '-m', 'unittest', 'discover', '-s',
                     str(ROOT / 'tests'), '-p', 'test_pdf_attachments.py'], cwd=output, check=True)
     report['pdf_attachment_tests'] = True

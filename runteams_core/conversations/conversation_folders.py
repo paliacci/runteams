@@ -148,7 +148,7 @@ def pick(chat_id=None, *, expected=None, cancel_event=None):
     scope = expected or device_data.identity()
     device_data.check(scope)
     item = session(chat_id)
-    paths = chat_attachments.pick_native_paths('folder', **({'cancel_event': cancel_event} if cancel_event is not None else {}))
+    paths = chat_attachments.pick_native_paths('folder', work_folder=True, cancel_event=cancel_event)
     device_data.check(scope)
     if not paths:
         return {'cancelled': True}

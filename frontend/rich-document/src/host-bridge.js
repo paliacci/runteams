@@ -7,5 +7,5 @@ export function request(operation,value={}){
 }
 window.addEventListener('message',event=>{
  const data=event.data;if(event.source!==parent||event.origin!==location.origin||data?.channel!==channel||data.token!==location.hash.slice(1)||data.type!=='resource-result')return;
- const item=pending.get(data.request_id);if(!item)return;pending.delete(data.request_id);clearTimeout(item.timer);if(data.error)item.reject(Error(data.error));else item.resolve(data.result);
+ const item=pending.get(data.request_id);if(!item)return;pending.delete(data.request_id);clearTimeout(item.timer);if(data.error)item.reject(Object.assign(Error(data.error),{code:data.code}));else item.resolve(data.result);
 });

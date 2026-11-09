@@ -47,13 +47,34 @@ async function warmEnvironment(refresh,notify){
 function environmentProvider(value){const item=providerDefinition(value);return item&&item.label||value||"模型渠道";}
 
 /* module-function:extensionResourceFileResult */
-function extensionResourceFileResult(file,path){if(file.kind==="text")return {code:String(file.content||"")};if(file.kind==="image"&&file.media_type&&file.content)return {imageUrl:`data:${file.media_type};base64,${file.content}`};const reason=file.kind==="large"?"此文件较大，不在浏览器中展开。":"此文件是二进制资源，无法以文本方式显示。";return {code:`${reason}\n\n路径：${path}\n大小：${formatFileSize(file.size)}`};}
+function extensionResourceFileResult(file){
+ if(file.kind==="text")return {code:String(file.content||"")};
+ if(file.kind==="image"&&file.media_type&&file.content)return {imageUrl:`data:${file.media_type};base64,${file.content}`};
+ return {unavailable:{kind:file.kind==="large"?"large":"binary",size:formatFileSize(file.size)}};
+}
 
 /* module-function:installedPluginResourcePayload */
-async function installedPluginResourcePayload(channelId,pluginId){const listed=await modelChannelData().resources(channelId,pluginId);if(!listed)throw Error("渠道状态已变化。");if(listed.error)throw new Error(listed.error);const files={};(listed.files||[]).forEach(item=>{files[`/${String(item.path||"").replace(/^[/]+/,"")}`]={code:"",loaded:false};});const token=String(listed.token||"");return {files,activeFile:listed.active_file?`/${listed.active_file}`:"",loadFile:async path=>{const file=await modelChannelData().resourceFile(token,path);if(!file)throw Error("渠道状态已变化。");if(file.error)throw new Error(file.error);return extensionResourceFileResult(file,path);}};}
+async function installedPluginResourcePayload(channelId,pluginId){const listed=await modelChannelData().resources(channelId,pluginId);if(!listed)throw Error("渠道状态已变化。");if(listed.error)throw new Error(listed.error);const files={};(listed.files||[]).forEach(item=>{files[`/${String(item.path||"").replace(/^[/]+/,"")}`]={code:"",loaded:false};});const token=String(listed.token||"");return {files,activeFile:listed.active_file?`/${listed.active_file}`:"",loadFile:async path=>{const file=await modelChannelData().resourceFile(token,path);if(!file)throw Error("渠道状态已变化。");if(file.error)throw new Error(file.error);return extensionResourceFileResult(file);}};}
 
 /* module-function:openInstalledPluginResources */
-async function openInstalledPluginResources(channelId,pluginId){const item=((S.environment||{}).plugins||[]).find(value=>Number(value.channel_id)===Number(channelId)&&String(value.id||value.name)===String(pluginId));if(!item)return toast("插件已不在当前清单中，请重新读取。","err");if(!window.RunTeamsResourceViewer)return toast("资源查看器没有加载成功","err");const dialog=openChildDialog({className:"core-package-resources-modal",manageFocus:true,attrs:'role="dialog" aria-modal="true" onkeydown="if(event.key===\'Escape\'){event.preventDefault();event.stopPropagation();closeChildDialog()}"',title:`${item.display_name||item.name||item.id} 资源`,body:`<div id="installed_plugin_resource_viewer" class="core-package-resource-viewer-host" data-extension-resource-viewer><div class="core-package-resource-loading"><span class="env-spinner"></span><span>正在读取资源…</span></div></div>`,bodyClass:"mb core-package-resources-modal-body"});try{const payload=await installedPluginResourcePayload(channelId,pluginId),host=document.getElementById("installed_plugin_resource_viewer");if(!host||!dialog?.isConnected||!dialog.contains(host))return;window.RunTeamsResourceViewer.mount(host,payload);}catch(error){const host=document.getElementById("installed_plugin_resource_viewer");if(host&&dialog?.isConnected&&dialog.contains(host))host.innerHTML=RunTeamsLoadFailure.markup({variant:'modal',title:'资源暂时无法加载',error,retry:`openInstalledPluginResources(${Number(channelId)},${JSON.stringify(pluginId)})`});}}
+async function openInstalledPluginResources(channelId,pluginId){
+ const item=((S.environment||{}).plugins||[]).find(value=>Number(value.channel_id)===Number(channelId)&&String(value.id||value.name)===String(pluginId));
+ if(!item)return toast('插件已不在当前清单中，请重新读取。','err','settingsTools.resourceToolGone');
+ if(!window.RunTeamsResourceViewer)return toast('无法打开资源查看器。','err','settingsTools.resourceViewerFailed');
+ const name=item.display_name||item.name||item.id,title=name+' 的资源';
+ const dialog=openChildDialog({className:'core-package-resources-modal',manageFocus:true,title,titleKey:'settingsTools.resourcesTitle',titleVars:{name},closeLabelKey:'settingsTools.close',
+  attrs:`role="dialog" aria-modal="true" aria-label="${esc(title)}"${toolsAttrs('resourcesTitle',{name},'-aria-label')} onkeydown="if(event.key==='Escape'){event.preventDefault();event.stopPropagation();closeChildDialog()}"`,
+  body:`<div id="installed_plugin_resource_viewer" class="core-package-resource-viewer-host" data-extension-resource-viewer><div class="core-package-resource-loading" role="status"><span class="env-spinner" aria-hidden="true"></span>${toolsCopy('resourcesLoading','正在读取资源…')}</div></div>`,
+  bodyClass:'mb core-package-resources-modal-body'});
+ try{
+  const payload=await installedPluginResourcePayload(channelId,pluginId),host=document.getElementById('installed_plugin_resource_viewer');
+  if(!host||!dialog?.isConnected||!dialog.contains(host))return;
+  window.RunTeamsResourceViewer.mount(host,payload);
+ }catch(error){
+  const host=document.getElementById('installed_plugin_resource_viewer');
+  if(host&&dialog?.isConnected&&dialog.contains(host))host.innerHTML=RunTeamsLoadFailure.markup({variant:'modal',title:'暂时无法读取插件资源。',titleKey:'settingsTools.resourcesFailed',labelKey:'settingsTools.reload',busyLabelKey:'settingsTools.resourcesLoading',error,retry:`openInstalledPluginResources(${Number(channelId)},${JSON.stringify(pluginId)})`});
+ }
+}
 
 function skillsResourceTreeModel(files){
   const root={children:[],folders:new Map()},seen=new Set();
@@ -80,7 +101,7 @@ function skillsResourceTreeMarkup(files,state={},scope='creator',id=0){
   const rows=(nodes,depth=0)=>nodes.map((node,index)=>{const folder=!!node.children,expanded=folder&&open.has(node.path),selected=!folder&&node.path===state.activeFile,encoded=skillsEncodePath(node.path),action=folder?`skillsToggleResourceFolder(event,'${scope}',${Number(id)},decodeURIComponent('${encoded}'))`:provider?.select(encoded)||'';
     return `<li role="treeitem" class="skills-resource-node" data-resource-path="${esc(node.path)}" data-resource-kind="${folder?'folder':'file'}" aria-label="${esc(node.name)}" aria-level="${depth+1}" aria-posinset="${index+1}" aria-setsize="${nodes.length}" ${folder?`aria-expanded="${expanded}"`:`aria-selected="${selected}"`} tabindex="${node.path===focus?0:-1}"><button type="button" tabindex="-1" class="skills-resource-file ${selected?'selected':''}" style="--resource-depth:${Math.min(depth,8)};padding-left:${8+Math.min(depth,8)*14}px" title="${esc(node.path)}" onclick="${action}"><span class="skills-resource-chevron ${folder?'':'spacer'}" aria-hidden="true">${folder?ICON('chev'):''}</span>${ICON(folder?'folder':'file')}<span>${esc(node.name)}</span></button>${expanded?`<ul role="group" class="skills-resource-tree">${rows(node.children,depth+1)}</ul>`:''}</li>`;
   }).join('');
-  return roots.length?`<ul role="tree" aria-label="${esc(provider?.label||'技能文件与目录')}" class="skills-resource-tree" onkeydown="skillsResourceTreeKeydown(event,'${scope}',${Number(id)})" onfocusin="skillsResourceTreeFocus(event,'${scope}',${Number(id)})">${rows(roots)}</ul>`:'';
+  return roots.length?`<ul role="tree"${scope==='creator'?' data-app-i18n-aria-label="employeeResource.fileTree"':''} aria-label="${esc(provider?.label||'技能文件与目录')}" class="skills-resource-tree" onkeydown="skillsResourceTreeKeydown(event,'${scope}',${Number(id)})" onfocusin="skillsResourceTreeFocus(event,'${scope}',${Number(id)})">${rows(roots)}</ul>`:'';
 }
 function skillsResourceTreeContext(scope,id){
   if(scope==='creator'){const state=window.RunTeamsCreatorAuthor?.current();return state?{state,files:state.files,selector:'.creator-asset-tree'}:null;}

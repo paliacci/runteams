@@ -58,20 +58,22 @@ final class CommunityApp: NSObject, NSApplicationDelegate, NSWindowDelegate, WKN
             windowLock = try LibraryWindowLock(directory: arguments.dataDirectory)
         } catch is LibraryWindowLock.AlreadyOpen { NSApp.terminate(nil); return }
         catch {
-            let alert = NSAlert(); alert.messageText = "无法打开本机版"
-            alert.informativeText = "安装包中的运行文件不完整或已损坏，请重新安装本机版。"
-            alert.addButton(withTitle: "退出"); alert.runModal(); NSApp.terminate(nil); return
+            let alert = NSAlert(); alert.messageText = localized("无法打开 RunTeams 本机版","Couldn’t Open RunTeams Local")
+            alert.informativeText = localized("无法完成启动。请检查本机资料库和应用安装是否可用。","Check that the local library and the app installation are available.")
+            alert.addButton(withTitle: localized("退出","Quit")); alert.runModal(); NSApp.terminate(nil); return
         }
         makeMenu()
         window = NSWindow(contentRect: NSRect(x:0,y:0,width:1120,height:760),
             styleMask:[.titled,.closable,.miniaturizable,.resizable,.fullSizeContentView], backing:.buffered, defer:false)
-        window.title = "RunTeams 本机版"; window.titleVisibility = .hidden
+        window.title = localized("RunTeams 本机版","RunTeams Local"); window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true; window.titlebarSeparatorStyle = .none
         window.minSize = NSSize(width:780,height:560); window.delegate = self
         window.isReleasedWhenClosed = false; window.center()
         let configuration = WKWebViewConfiguration()
         configuration.userContentController.addScriptMessageHandler(self,contentWorld:.page,name:"runteamsCreatorWork")
         configuration.websiteDataStore = .nonPersistent()
+        configuration.userContentController.addScriptMessageHandler(self,contentWorld:.page,name:"runteamsLanguage")
+        updateLanguageSeed(configuration.userContentController)
         let nativeStyle = "const apply=()=>document.documentElement?.setAttribute('data-native','');if(document.documentElement)apply();else{const o=new MutationObserver(()=>{if(document.documentElement){apply();o.disconnect()}});o.observe(document,{childList:true,subtree:true})}"
         configuration.userContentController.addUserScript(WKUserScript(source:nativeStyle, injectionTime:.atDocumentStart, forMainFrameOnly:true))
         let content = NSView(frame:NSRect(x:0,y:0,width:1120,height:760))
@@ -81,7 +83,7 @@ final class CommunityApp: NSObject, NSApplicationDelegate, NSWindowDelegate, WKN
         loading = NSView(frame:content.bounds); loading.autoresizingMask = [.width,.height]
         loading.wantsLayer = true; loading.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
         let spinner = NSProgressIndicator(); spinner.style = .spinning; spinner.startAnimation(nil)
-        let text = NSTextField(labelWithString:"正在打开本机资料库…"); text.font = .systemFont(ofSize:13); text.textColor = .secondaryLabelColor
+        let text = NSTextField(labelWithString:localized("正在打开本机资料库…","Opening the local library…")); text.font = .systemFont(ofSize:13); text.textColor = .secondaryLabelColor
         let stack = NSStackView(views:[spinner,text]); stack.orientation = .vertical; stack.spacing = 12; stack.translatesAutoresizingMaskIntoConstraints = false
         loading.addSubview(stack); content.addSubview(loading)
         NSLayoutConstraint.activate([stack.centerXAnchor.constraint(equalTo:loading.centerXAnchor), stack.centerYAnchor.constraint(equalTo:loading.centerYAnchor)])
@@ -89,15 +91,46 @@ final class CommunityApp: NSObject, NSApplicationDelegate, NSWindowDelegate, WKN
         startService()
     }
 
+    private func updateLanguageSeed(_ controller: WKUserContentController) {
+        let prefix = "window.runteamsNativeLanguage = "
+        let scripts = controller.userScripts.filter { !$0.source.hasPrefix(prefix) }
+        controller.removeAllUserScripts()
+        controller.addUserScript(WKUserScript(
+            source: "\(prefix)'\(languagePreference)'", injectionTime: .atDocumentStart, forMainFrameOnly: true
+        ))
+        scripts.forEach { controller.addUserScript($0) }
+    }
+
+    private var languagePreference: String {
+        let saved = UserDefaults.standard.string(forKey:"runteams_language_preference")
+        return saved.flatMap { ["system","zh-CN","en"].contains($0) ? $0 : nil } ?? "system"
+    }
+
+    private func localized(_ chinese: String, _ english: String) -> String {
+        switch languagePreference {
+        case "zh-CN": return chinese
+        case "en": return english
+        default:
+            for language in Locale.preferredLanguages {
+                switch language.split(separator:"-").first?.lowercased() {
+                case "zh": return chinese
+                case "en": return english
+                default: continue
+                }
+            }
+            return english
+        }
+    }
+
     private func makeMenu() {
         let menu = NSMenu(); let appItem = NSMenuItem(); menu.addItem(appItem)
         let app = NSMenu(); appItem.submenu = app
-        app.addItem(withTitle:"退出 RunTeams 本机版", action:#selector(NSApplication.terminate(_:)), keyEquivalent:"q")
-        let fileItem = NSMenuItem(); menu.addItem(fileItem); let file = NSMenu(title:"文件"); fileItem.submenu = file
-        file.addItem(withTitle:"关闭窗口", action:#selector(NSWindow.performClose(_:)), keyEquivalent:"w")
-        let editItem = NSMenuItem(); menu.addItem(editItem); let edit = NSMenu(title:"编辑"); editItem.submenu = edit
-        for (name, action, key) in [("撤销","undo:","z"),("剪切","cut:","x"),("复制","copy:","c"),("粘贴","paste:","v"),("全选","selectAll:","a")] {
-            edit.addItem(withTitle:name, action:Selector(action), keyEquivalent:key)
+        app.addItem(withTitle:localized("退出 RunTeams 本机版","Quit RunTeams Local"), action:#selector(NSApplication.terminate(_:)), keyEquivalent:"q")
+        let fileItem = NSMenuItem(); menu.addItem(fileItem); let file = NSMenu(title:localized("文件","File")); fileItem.submenu = file
+        file.addItem(withTitle:localized("关闭窗口","Close Window"), action:#selector(NSWindow.performClose(_:)), keyEquivalent:"w")
+        let editItem = NSMenuItem(); menu.addItem(editItem); let edit = NSMenu(title:localized("编辑","Edit")); editItem.submenu = edit
+        for (chinese, english, action, key) in [("撤销","Undo","undo:","z"),("剪切","Cut","cut:","x"),("复制","Copy","copy:","c"),("粘贴","Paste","paste:","v"),("全选","Select All","selectAll:","a")] {
+            edit.addItem(withTitle:localized(chinese,english), action:Selector(action), keyEquivalent:key)
         }
         NSApp.mainMenu = menu
     }
@@ -161,9 +194,9 @@ final class CommunityApp: NSObject, NSApplicationDelegate, NSWindowDelegate, WKN
     private func presentFailure() {
         guard window != nil, !quitting, !failurePresented else { return }
         failurePresented = true
-        let alert = NSAlert(); alert.messageText = "本机服务连接已中断"
-        alert.informativeText = "已保存的内容仍在本机。重试连接会保留当前页面，请继续确认原来的保存操作。"
-        alert.addButton(withTitle:"重试连接"); alert.addButton(withTitle:"退出")
+        let alert = NSAlert(); alert.messageText = localized("本机连接已中断","Local Connection Lost")
+        alert.informativeText = localized("已保存的内容仍在本机。重新连接后，请核对之前的保存结果。","Saved content is still on this Mac. After reconnecting, check the result of your last save.")
+        alert.addButton(withTitle:localized("重新连接","Reconnect")); alert.addButton(withTitle:localized("退出","Quit"))
         alert.beginSheetModal(for:window) { [weak self] response in
             guard let self = self else { return }; self.failurePresented = false
             if response == .alertFirstButtonReturn {
@@ -183,36 +216,36 @@ final class CommunityApp: NSObject, NSApplicationDelegate, NSWindowDelegate, WKN
         return .terminateLater
     }
     private func checkClose(discard: Bool) {
-        if !downloads.isEmpty { cancelClose("文件仍在保存，请完成或取消保存后再退出。"); return }
+        if !downloads.isEmpty { cancelClose(localized("请等待文件保存完成，或取消保存后再退出。","Wait for the file to finish saving, or cancel the save before quitting.")); return }
         if !pageReady { stopOwnedService(); return }
         guard let current = webView.url, let origin = origin, CommunityNavigation.sameOrigin(current,origin) else {
-            cancelClose("无法确认页面的保存状态，请稍后重试。"); return
+            cancelClose(localized("无法确认页面是否已保存。请稍后重试。","Couldn’t confirm that the page was saved. Try again in a moment.")); return
         }
         webView.evaluateJavaScript("window.RunTeamsLocalDesktop?.checkClose(\(discard ? "true" : "false"))") { [weak self] result, error in
             guard let self = self else { return }
             if result as? String == "ready", error == nil { self.prepareWorkClose(discard: discard) }
             else if result as? String == "dirty", error == nil {
-                let alert = NSAlert(); alert.messageText = "放弃未保存的修改并退出？"
-                alert.informativeText = "已经保存的内容不会受影响。"; alert.addButton(withTitle:"继续编辑"); alert.addButton(withTitle:"放弃修改并退出")
+                let alert = NSAlert(); alert.messageText = self.localized("放弃未保存的修改并退出？","Discard Unsaved Changes and Quit?")
+                alert.informativeText = self.localized("已保存的内容会保留。","Your saved content will be kept."); alert.addButton(withTitle:self.localized("继续编辑","Keep Editing")); alert.addButton(withTitle:self.localized("放弃修改并退出","Discard and Quit"))
                 alert.beginSheetModal(for:self.window) { response in
                     if response == .alertSecondButtonReturn { self.checkClose(discard:true) }
                     else { self.checkingClose = false; NSApp.reply(toApplicationShouldTerminate:false) }
                 }
-            } else { self.cancelClose("保存尚未结束或结果未确认，请先在页面中确认保存结果。") }
+            } else { self.cancelClose(self.localized("请在页面中核对保存结果，再退出。","Check the save status on the page before quitting.")) }
         }
     }
     private func prepareWorkClose(discard: Bool) {
         let finish: (Bool) -> Void = { [weak self] allowed in
             guard let self = self else { return }
             guard allowed else {
-                self.cancelClose("工作台尚未确认关闭，请先处理未保存内容或正在执行的操作。"); return
+                self.cancelClose(self.localized("请处理工作台中的未保存内容或正在执行的操作，再退出。","Resolve unsaved changes or actions still in progress in the workspace before quitting.")); return
             }
             // The platform remains editable until work pages acknowledge. Check
             // its original guard again, and freeze only at the final commit.
             self.webView.evaluateJavaScript("window.RunTeamsLocalDesktop?.prepareClose(\(discard ? "true" : "false"))") { [weak self] result, error in
                 guard let self = self else { return }
                 if result as? String == "ready", error == nil { self.stopOwnedService() }
-                else { self.cancelClose("关闭检查期间内容发生变化，请处理后再退出。") }
+                else { self.cancelClose(self.localized("检查期间内容已变更。请处理这些修改后再退出。","Content changed during the check. Resolve those changes before quitting.")) }
             }
         }
         if let host = employeeDesktop { host.prepareClose(finish) }
@@ -221,8 +254,8 @@ final class CommunityApp: NSObject, NSApplicationDelegate, NSWindowDelegate, WKN
     private func cancelClose(_ message: String) {
         employeeDesktop?.cancelClosePreparation()
         checkingClose = false; NSApp.reply(toApplicationShouldTerminate:false)
-        let alert = NSAlert(); alert.messageText = "暂时无法退出"; alert.informativeText = message
-        alert.addButton(withTitle:"继续处理"); alert.beginSheetModal(for:window)
+        let alert = NSAlert(); alert.messageText = localized("暂时无法退出","Can’t Quit Yet"); alert.informativeText = message
+        alert.addButton(withTitle:localized("返回","Go Back")); alert.beginSheetModal(for:window)
     }
     private func stopOwnedService() {
         quitting = true; checkingClose = false
@@ -232,6 +265,20 @@ final class CommunityApp: NSObject, NSApplicationDelegate, NSWindowDelegate, WKN
     }
 
     func userContentController(_ controller: WKUserContentController,didReceive message: WKScriptMessage,replyHandler: @escaping (Any?,String?) -> Void) {
+        if message.name == "runteamsLanguage" {
+            let source = message.frameInfo.securityOrigin
+            guard controller === webView.configuration.userContentController, message.webView === webView,
+                  message.frameInfo.isMainFrame, let origin,
+                  source.protocol == origin.scheme, source.host == origin.host, source.port == origin.port,
+                  let language = message.body as? String, ["system","zh-CN","en"].contains(language)
+            else { replyHandler(nil,"language_preference_unavailable");return }
+            UserDefaults.standard.set(language,forKey:"runteams_language_preference")
+            updateLanguageSeed(controller)
+            makeMenu()
+            window.title = localized("RunTeams 本机版","RunTeams Local")
+            replyHandler(true,nil)
+            return
+        }
         guard message.name=="runteamsCreatorWork",let host=employeeDesktop,host.accepts(message,controller:controller) else { replyHandler(nil,"work_owner_unavailable");return }
         host.handle(message.body,reply:replyHandler)
     }
@@ -242,8 +289,8 @@ final class CommunityApp: NSObject, NSApplicationDelegate, NSWindowDelegate, WKN
     }
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
         pageReady = false
-        let alert = NSAlert(); alert.messageText = "界面已停止响应"; alert.informativeText = "重新打开会恢复已保存的资产，未保存的页面内容无法恢复。"
-        alert.addButton(withTitle:"重新打开"); alert.addButton(withTitle:"退出")
+        let alert = NSAlert(); alert.messageText = localized("窗口已停止响应","Window Isn’t Responding"); alert.informativeText = localized("重新打开后可继续使用已保存的资产。未保存的修改将丢失。","Reopen the window to continue using saved assets. Unsaved changes will be lost.")
+        alert.addButton(withTitle:localized("重新打开","Reopen")); alert.addButton(withTitle:localized("退出","Quit"))
         alert.beginSheetModal(for:window) { [weak self] response in
             guard let self = self else { return }
             if response == .alertFirstButtonReturn, let origin = self.origin { self.webView.load(URLRequest(url:origin)) }
@@ -251,8 +298,16 @@ final class CommunityApp: NSObject, NSApplicationDelegate, NSWindowDelegate, WKN
         }
     }
     func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy)->Void) {
-        guard let origin = origin, let url = action.request.url,
-              CommunityNavigation.allows(url,origin:origin,download:action.shouldPerformDownload) else { decisionHandler(.cancel); return }
+        guard let origin = origin, let url = action.request.url else { decisionHandler(.cancel); return }
+        let source = action.sourceFrame.securityOrigin
+        if action.navigationType == .linkActivated, action.targetFrame == nil, action.sourceFrame.isMainFrame,
+           source.protocol == origin.scheme, source.host == origin.host, source.port == origin.port,
+           CommunityNavigation.legalLink(url) {
+            decisionHandler(.cancel)
+            NSWorkspace.shared.open(url)
+            return
+        }
+        guard CommunityNavigation.allows(url,origin:origin,download:action.shouldPerformDownload) else { decisionHandler(.cancel); return }
         decisionHandler(action.shouldPerformDownload ? .download : .allow)
     }
     func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for action: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
@@ -267,6 +322,12 @@ final class CommunityApp: NSObject, NSApplicationDelegate, NSWindowDelegate, WKN
     func webView(_ webView: WKWebView, runOpenPanelWith parameters: WKOpenPanelParameters, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping ([URL]?)->Void) {
         guard frame.isMainFrame, let url = frame.request.url, let origin = origin, CommunityNavigation.sameOrigin(url,origin) else { completionHandler(nil); return }
         let panel = NSOpenPanel()
+        if parameters.allowsDirectories {
+            panel.title = parameters.allowsMultipleSelection ? localized("选择文件夹", "Choose Folders") : localized("选择文件夹", "Choose a Folder")
+        } else {
+            panel.title = parameters.allowsMultipleSelection ? localized("选择文件", "Choose Files") : localized("选择文件", "Choose a File")
+        }
+        panel.prompt = localized("选择", "Choose")
         panel.canChooseFiles = !parameters.allowsDirectories
         panel.canChooseDirectories = parameters.allowsDirectories
         panel.allowsMultipleSelection = parameters.allowsMultipleSelection
@@ -274,7 +335,7 @@ final class CommunityApp: NSObject, NSApplicationDelegate, NSWindowDelegate, WKN
     }
     func webView(_ webView: WKWebView, runJavaScriptConfirmPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping (Bool)->Void) {
         guard frame.isMainFrame, let url = frame.request.url, let origin = origin, CommunityNavigation.sameOrigin(url,origin) else { completionHandler(false); return }
-        let alert = NSAlert(); alert.messageText = message; alert.addButton(withTitle:"取消"); alert.addButton(withTitle:"确定")
+        let alert = NSAlert(); alert.messageText = message; alert.addButton(withTitle:localized("取消","Cancel")); alert.addButton(withTitle:localized("确定","OK"))
         alert.beginSheetModal(for:window) { response in completionHandler(response == .alertSecondButtonReturn) }
     }
     func webView(_ webView: WKWebView, navigationAction: WKNavigationAction, didBecome download: WKDownload) { downloads[ObjectIdentifier(download)] = download; download.delegate = self }
@@ -285,6 +346,8 @@ final class CommunityApp: NSObject, NSApplicationDelegate, NSWindowDelegate, WKN
         }
         DispatchQueue.main.async { [weak self] in
             let panel = NSSavePanel()
+            panel.title = self?.localized("保存文件", "Save File") ?? "Save File"
+            panel.prompt = self?.localized("保存", "Save") ?? "Save"
             panel.canCreateDirectories = true; panel.isExtensionHidden = false
             panel.directoryURL = FileManager.default.urls(for:.downloadsDirectory, in:.userDomainMask).first
             panel.nameFieldStringValue = (suggestedFilename as NSString).lastPathComponent
@@ -297,8 +360,10 @@ final class CommunityApp: NSObject, NSApplicationDelegate, NSWindowDelegate, WKN
     func download(_ download: WKDownload, didFailWithError error: Error, resumeData: Data?) {
         downloads.removeValue(forKey:ObjectIdentifier(download))
         if (error as NSError).code == NSURLErrorCancelled { return }
-        let alert = NSAlert(); alert.messageText = "文件未保存"; alert.informativeText = "已保存的内容保持不变，请重新下载。"
-        alert.addButton(withTitle:"返回"); alert.beginSheetModal(for:window)
+        let alert = NSAlert()
+        alert.messageText = localized("下载未完成","Download Didn’t Finish")
+        alert.informativeText = localized("请重新下载。保存在所选位置的文件可能不完整。","Download the file again. If a file was saved to the selected location, it may be incomplete.")
+        alert.addButton(withTitle:localized("好","OK")); alert.beginSheetModal(for:window)
     }
 }
 

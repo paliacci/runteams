@@ -11,6 +11,14 @@ SCHEMA = 'runteams.employee-chat-work/v1'
 class WorkPreparationRequired(ContractError):
     """The original chat exists, but no work send has been admitted."""
 
+    REASONS = frozenset({'program_disabled', 'workspace_required', 'connection_required', 'service_unavailable'})
+
+    def __init__(self, message, *, reason=None):
+        if reason is not None and reason not in self.REASONS:
+            raise ValueError('Unknown work preparation reason.')
+        super().__init__(message)
+        self.reason = reason
+
 def verify_prepared_session(frozen,session,workflow_id,task_id):
     context=(session or {}).get('context') or {}
     if (not session or session['id']!=frozen.get('work_chat_id')
@@ -87,7 +95,10 @@ def verify_frozen(value,scope):
             last=old['pipeline_visit'];generation=old['pipeline_generation']
     preparation=value.get('pipeline_setup_required')
     if preparation is not None:
-        if (not value.get('pipeline_work') or not isinstance(preparation,dict) or set(preparation)!={'chat_id','message'}
+        if (not value.get('pipeline_work') or not isinstance(preparation,dict)
+                or set(preparation) not in ({'chat_id','message'},{'chat_id','message','reason'})
+                or ('reason' in preparation and (not isinstance(preparation['reason'], str)
+                    or preparation['reason'] not in WorkPreparationRequired.REASONS))
                 or type(preparation.get('chat_id')) is not int or preparation['chat_id']!=value.get('work_chat_id')
                 or not isinstance(preparation.get('message'),str) or not 0<len(preparation['message'])<=1000
                 or value.get('send_admitted') or value.get('employee_run_id') or value.get('pipeline_unresolved')):

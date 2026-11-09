@@ -42,7 +42,7 @@ def author_schema(kind, *, version='3'):
                 'key': {'type': 'string', 'pattern': '^[a-z][a-z0-9-]{0,79}$'},
                 'name': definitions['portable_employee']['properties']['name'],
                 'avatar': {**definitions['portable_employee']['properties']['avatar'],
-                    'description':'员工包内图片的工程根目录相对路径，如 assets/avatar.webp；图片须随源码保存。未自定义时可用 preset:bottts:nova。'},
+                    'description':'员工包内图片的工程根目录相对路径，如 assets/avatar.webp；图片须随源码保存。未自定义时可用 preset:colleague:colleague-001。'},
                 'soul_file': {'type': 'string', 'minLength': 1, 'maxLength': 240},
                 'skill_dirs': {'type': 'array', 'items': {'type': 'string', 'minLength': 1, 'maxLength': 240},
                     'maxItems': 64, 'uniqueItems': True},

@@ -15,6 +15,12 @@ from runteams_core.documents.document_views import normalize_data_view as _norma
 _PLACEHOLDER_POSITION = re.compile(r"^第\s*\d+\s*岗$")
 AGENT_DOCUMENT_KEY = re.compile(r"^[a-z0-9][a-z0-9._-]{0,119}$")
 
+def _document_author(name=None, *, kind="employee"):
+    if name:
+        return {"employee_name": str(name), "employee_name_kind": "name"}
+    labels = {"employee": "员工", "deleted_employee": "已删除的员工", "agent_chat": "Agent Chat"}
+    return {"employee_name": labels[kind], "employee_name_kind": kind}
+
 def _normalize_agent_document_key(value, fallback=""):
     """Normalize the stable user-facing key used by Agent-created documents."""
     raw = str(value or "").strip().casefold()
@@ -176,7 +182,7 @@ class Documents(RepositoryService):
             if result.get('conflict'):raise ContractError(result['error'])
             return result
 
-    def document_detail(self, document_id, include_content=True):
+    def document_detail(self, document_id, include_content=True, *, refresh_task_report=True):
         """Return metadata and optional live data bindings for one document."""
         with self.repository.connect() as connection:
             row = connection.execute("SELECT * FROM artifacts WHERE id=? AND trashed_at IS NULL",
@@ -191,9 +197,16 @@ class Documents(RepositoryService):
             chain = [row]
         current = chain[-1]
         current_meta = self._decode_meta(current["meta_json"])
+        task_report = current_meta.get("pipeline_task_report") if current_meta.get("source") == "pipeline_task_report" else None
+        if task_report and include_content and refresh_task_report:
+            from runteams_core.pipelines.pipeline_task_report import refresh_document
+            refreshed = refresh_document(self, task_report, root)
+            if refreshed and refreshed['id'] != current['id']:
+                return self.document_detail(root, refresh_task_report=False)
         current_path = str(current_meta.get("path") or current["name"] or "")
         item = {
             "id": int(current["id"]), "name": str(current["name"] or "文档"),
+            "document_root_id": root,
             "path": str(current_meta.get("path") or ""),
             "size": int(current_meta.get("size") or 0),
             "created_at": current["created_at"],
@@ -203,18 +216,20 @@ class Documents(RepositoryService):
             "document_key": str(current_meta.get("document_key") or ""),
             "data_view": copy.deepcopy(current_meta.get("data_view")),
             "content_model": current_meta.get("content_model") or self.document_model_for_path(current_path),
-            "editable": self.is_document_artifact(current_meta, current["name"]) and (current_meta.get('content_model')=='rich-document' or self.document_can_edit(current_path)),
+            "editable": not task_report and self.is_document_artifact(current_meta, current["name"]) and (current_meta.get('content_model')=='rich-document' or self.document_can_edit(current_path)),
             "employee_run_id": int(current["employee_run_id"]) if current["employee_run_id"] else 0,
             "workflow_id": 0, "task_id": 0, "pipeline_id": 0,
             "pipeline_name": "", "task_title": "", "position_name": "",
             "employee_id": 0,
-            "employee_name": "Agent Chat" if current_meta.get("source") == "agent_chat" else "员工",
+            **_document_author(kind="agent_chat" if current_meta.get("source") == "agent_chat" else "employee"),
             "run_sequence": 0,
             # Presentation metadata belongs to the document revision, not to
             # a browser profile.  Keep it beside the Markdown bytes so a
             # reload, another device, or a newly-created revision sees the
             # same block styles.
         }
+        if task_report:
+            item.update(task_id=task_report['task_id'], workflow_id=task_report['workflow_id'], **_document_author('RunTeams'))
         if current_meta.get("source") == employee_documents.SOURCE:
             owner_id = int(current_meta.get("employee_id") or 0)
             with self.repository.connect() as connection:
@@ -223,7 +238,7 @@ class Documents(RepositoryService):
             # so there is no single run to jump back to (unlike a deliverable).
             item.update({
                 "employee_id": owner_id,
-                "employee_name": owner_names.get(owner_id, "已删除的员工"),
+                **_document_author(owner_names.get(owner_id), kind="deleted_employee"),
                 "employee_run_id": int(current_meta.get("employee_run_id") or 0),
                 "run_sequence": int(current_meta.get("run_sequence") or 0),
             })
@@ -245,7 +260,7 @@ class Documents(RepositoryService):
                              "task_title": str((snapshot.get("task") or {}).get("title") or ""),
                              "position_name": self.position_display_name(position) if position else "",
                              "employee_id": int(position.get("employee_id") or 0),
-                             "employee_name": str(employee.get("name") or "员工")})
+                             **_document_author(employee.get("name"))})
         if include_content:
             item["content"] = self._read_document_body(current)
             view = item.get("data_view")
@@ -315,6 +330,8 @@ class Documents(RepositoryService):
         now = utc_now()
         with self.repository.connect() as connection:
             chain = self._document_chain(connection, artifact_id)
+            if chain and self._decode_meta(chain[-1]['meta_json']).get('source') == 'pipeline_task_report':
+                raise ContractError('任务汇报随任务保留。')
             ids = [int(row["id"]) for row in chain]
             changed = 0
             for identifier in ids:
@@ -510,8 +527,6 @@ class Documents(RepositoryService):
         if not isinstance(content, str):
             raise ContractError("修订内容必须是文本")
         body = content.encode("utf-8")
-        if not body.strip():
-            raise ContractError("修订内容不能为空")
         if len(body) > self.DOCUMENT_REVISION_MAX_BYTES:
             raise ContractError("修订内容超过 2 MB，请在电脑上直接编辑原文件")
         note = str(note or "").strip()[:500]
@@ -528,6 +543,8 @@ class Documents(RepositoryService):
                 raise ContractError("这类文件不能在产品内编辑，请用系统应用打开")
             if not self.document_can_edit(filename):
                 raise ContractError(self.document_edit_error(filename))
+            if not body or (not body.strip() and self.document_model_for_path(filename) != 'table'):
+                raise ContractError("修订内容不能为空")
             root = int(latest_meta.get("revision_of") or chain[0]["id"])
             revision = int(latest_meta.get("revision") or len(chain)) + 1
             digest_value = hashlib.sha256(body).hexdigest()
@@ -764,6 +781,14 @@ class Documents(RepositoryService):
             source = str(meta.get("source") or "employee")
             is_agent_document = source == "agent_chat"
             is_employee_document = source == employee_documents.SOURCE
+            if source == "pipeline_task_report":
+                author = _document_author("RunTeams")
+            elif is_agent_document:
+                author = _document_author(kind="agent_chat")
+            elif is_employee_document:
+                author = _document_author(owner_names.get(int(meta.get("employee_id") or 0)), kind="deleted_employee")
+            else:
+                author = _document_author(employee.get("name"))
             item = {
                 "id": int(row["id"]),
                 "name": str(row["name"] or "产物"),
@@ -799,9 +824,7 @@ class Documents(RepositoryService):
                 "position_name": self.position_display_name(position) if position else str(row["position_key"] or ""),
                 "employee_id": (int(meta.get("employee_id") or 0) if is_employee_document
                                 else int(position.get("employee_id") or 0)),
-                "employee_name": ("Agent Chat" if is_agent_document
-                                   else owner_names.get(int(meta.get("employee_id") or 0), "已删除的员工")
-                                   if is_employee_document else str(employee.get("name") or "员工")),
+                **author,
                 "run_sequence": int(meta.get("run_sequence") or 0) if is_employee_document else 0,
                 "source": source,
                 "document_key": str(meta.get("document_key") or ""),

@@ -23,12 +23,12 @@ export class LocalClient {
     if (response.status < 200 || response.status >= 300) throw new LocalAPIError(value.error || 'request_failed', response.status,value);
     return value;
   }
-  async stream(path, body, onEvent) {
-    const payload = {...body, operation_id: crypto.randomUUID()};
+  async stream(path, body, onEvent, {observe = false, signal} = {}) {
+    const payload = observe ? body : {...body, operation_id: crypto.randomUUID()};
     let accepted = false, terminal = false;
     const deliver = event => { if (event.type === 'accepted') accepted = true; if (['result','cancelled','error'].includes(event.type)) terminal = true; onEvent(event); };
     const send = () => this.fetcher(path, {method:'POST', headers:{'Content-Type':'application/json','X-RunTeams-Library':this.libraryId,'X-RunTeams-Library-Generation':this.generation},
-      body:JSON.stringify(payload), credentials:'same-origin', cache:'no-store', redirect:'error'});
+      body:JSON.stringify(payload), credentials:'same-origin', cache:'no-store', redirect:'error', signal});
     try {
       let response = await send();
       if (response.status === 401) { await this.reconnect(); response = await send(); }
@@ -44,8 +44,9 @@ export class LocalClient {
         }
         if(buffer.trim())deliver(JSON.parse(buffer));
       } finally { await reader.cancel().catch(()=>{}); }
-      if(!terminal)throw new LocalAPIError('连接中断，请重新打开对话确认回复。');
+      if(!observe&&!terminal)throw new LocalAPIError('连接中断，请重新打开对话确认回复。');
     } catch(error) {
+      if(observe)throw error;
       // An explicit rejection preceded acceptance. No automatic model retry.
       if(!accepted && [400,403,404,409,413,415,422].includes(error.status))throw error;
       const chatPath=path.replace(/\/stream$/,'');

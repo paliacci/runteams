@@ -5,20 +5,32 @@ from runteams_core.foundation.contracts import ContractError
 class SourceWorkService:
     def page_ids(self):
         """Public work identities grant no asset or platform access."""
-        with self.repository.connect() as c:
-            workflows = [row[0] for row in c.execute('SELECT id FROM workflow_runs')]
-            artifacts = [row[0] for row in c.execute('SELECT id FROM artifacts')]
-            items = [{'resource': public, 'id': str(identifier),
-                      'public_id': self.repository.storage.public_id(table, identifier)}
-                for public, table, values in [('workflows', 'workflow_runs', workflows), ('artifacts', 'artifacts', artifacts)]
-                for identifier in values]
-            # Document links use the same durable artifact identity, including
-            # historical revisions. Registration is never an access grant.
-            items.extend({'resource': 'documents', 'id': str(row['id']),
-                          'public_id': self.repository.storage.public_id('artifacts', row['id'])}
-                         for row in c.execute('SELECT id,name,meta_json FROM artifacts').fetchall()
-                         if self.is_document_artifact(self._decode_meta(row['meta_json']), row['name']))
-        return items
+        with self.repository.read_snapshot() as connection:
+            items = self._page_ids(connection)
+        if items is not None:
+            return items
+        with self.repository.connect() as connection:
+            return self._page_ids(connection, register_missing=True)
+
+    def _page_ids(self, connection, *, register_missing=False):
+        items, documents = [], []
+        for public, table, metadata in (
+                ('workflows', 'workflow_runs', ''), ('artifacts', 'artifacts', ',item.name,item.meta_json')):
+            rows = connection.execute(
+                f'SELECT item.id,resource.identity{metadata} FROM {table} item '
+                'LEFT JOIN device_work_resources resource ON resource.resource=? AND resource.id=item.id '
+                'ORDER BY item.id', (table,)).fetchall()
+            for row in rows:
+                identifier, identity = row['id'], row['identity']
+                if identity is None and not register_missing:
+                    return None
+                public_id = ('local-' + identity.replace('-', '') if identity is not None else
+                    self.repository.storage.public_id(table, identifier))
+                item = {'resource': public, 'id': str(identifier), 'public_id': public_id}
+                items.append(item)
+                if table == 'artifacts' and self.is_document_artifact(self._decode_meta(row['meta_json']), row['name']):
+                    documents.append({**item, 'resource': 'documents'})
+        return items + documents
 
 
     def execute_claimed_workflow(self, workflow_run_id, runtime, max_attempts=3, retry_delay_sec=5):
@@ -106,7 +118,12 @@ class SourceWorkService:
         from runteams_core.employees.employee_chat_work import finish
         from runteams_core.employees.employee_work_contracts import SCHEMA
         with self.repository.connect() as connection:
-            ids=[row['id'] for row in connection.execute("SELECT id FROM workflow_runs WHERE (state='running' OR json_extract(snapshot_json,'$.pipeline_execution.active')=1 OR json_extract(snapshot_json,'$.pipeline_recovery_pending')=1) AND json_extract(snapshot_json,'$.schema')=? AND (json_type(snapshot_json,'$.pipeline_work') IS NULL OR NOT EXISTS(SELECT 1 FROM device_work_restore_barriers b WHERE b.workflow_run_id=workflow_runs.id))",(SCHEMA,))]
+            ids=[row['id'] for row in connection.execute(
+                "SELECT w.id FROM workflow_runs w JOIN tasks t ON t.id=w.task_id "
+                "WHERE t.trashed_at IS NULL AND (w.state='running' OR json_extract(w.snapshot_json,'$.pipeline_execution.active')=1 "
+                "OR json_extract(w.snapshot_json,'$.pipeline_recovery_pending')=1) "
+                "AND json_extract(w.snapshot_json,'$.schema')=? AND (json_type(w.snapshot_json,'$.pipeline_work') IS NULL "
+                "OR NOT EXISTS(SELECT 1 FROM device_work_restore_barriers b WHERE b.workflow_run_id=w.id))", (SCHEMA,))]
         from runteams_core.pipelines.source_pipeline_flow import RecoveryPending
         for identifier in ids:
             try:self.recover_interrupted_workflow(identifier)

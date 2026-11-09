@@ -23,3 +23,14 @@ Repository layout and maintenance rules are in docs/architecture.md and docs/dev
 All runtime Python modules belong under runteams_core; use qualified package imports. requirements/ owns dependency lists and docs/legal/ owns explanatory licensing and inventories. The root contains project/build metadata, not business modules.
 
 Core domains are documented in docs/core-domains.md and declared in tooling/core-domains.json. The package root owns only its public types. Import implementations from their actual business packages; do not add module re-exports, sys.modules aliases or root-level business files. Update worker/compilation source paths and manifests when moving code.
+
+## Workspace directory rules
+
+The first level of `/Users/mac/solo` is reserved for project directories. Do
+not create folders there for individual RunTeams tasks. Put reproducible
+screenshots, previews, test databases and intermediate build files in a
+task-specific directory under the system temporary directory. Clean up that
+task's temporary files when the task is finished and they are no longer in use.
+Keep long-lived materials in the owning repository's existing evidence
+directory or an existing archive under
+`/Users/mac/solo/runteams-repositories/operations`.

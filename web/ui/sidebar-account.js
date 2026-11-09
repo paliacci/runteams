@@ -2,6 +2,7 @@
 (function(global){
   'use strict';
   const escape=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const painted=new WeakMap();
   let host,timer,state={scope:null};
   const empty=scope=>({scope,status:'idle',data:null,localStatus:'idle',localData:null,pending:null,due:0,localPending:null,localDue:0});
   function context(){const value=host?.context()||{},scope=value.signedIn?String(value.scope):'';if(state.scope!==scope)state=empty(scope);return value;}
@@ -9,32 +10,69 @@
     const rows=[],seen=new Set();
     for(const work of state.status==='ready'?state.data.work_items:[]){
       if(!['needs_approval','needs_human'].includes(work.state))continue;
-      rows.push({key:'work:'+work.id,id:work.id,title:work.title||'等待处理',name:work.name,kind:work.kind});seen.add('cloud:'+work.id);
+      rows.push({key:'work:'+work.id,id:work.id,title:work.title,name:work.name,kind:work.kind});seen.add('cloud:'+work.id);
     }
     for(const work of host?.context()?.localReady&&state.localStatus==='ready'?state.localData.work_items:[]){
       if(!['needs_approval','needs_human'].includes(work.state))continue;
-      rows.push({key:'device-work:'+work.id,id:work.id,title:work.title||'等待处理',name:work.name,kind:work.kind,storage_scope:'device'});seen.add('device:'+work.id);
+      rows.push({key:'device-work:'+work.id,id:work.id,title:work.title,name:work.name,kind:work.kind,storage_scope:'device'});seen.add('device:'+work.id);
     }
     // Interventions already carry an explicit workflow/automation destination.
     for(const item of host?.attention?.()||[]){
       if(item.workflow_id&&seen.has((item.storage_scope==='device'?'device:':'cloud:')+item.workflow_id))continue;
       if(!item.id||!(item.workflow_id||item.automation_id||item.kind==='automation'))continue;
-      rows.push({key:'attention:'+item.id,id:String(item.id),attention:true,storage_scope:item.storage_scope,title:item.title||item.reason||'等待处理',name:item.pipeline_name||item.employee_name||item.automation_name||(item.pipeline_id?'流水线':'员工'),kind:item.pipeline_id?'pipeline':'employee'});
+      rows.push({key:'attention:'+item.id,id:String(item.id),attention:true,storage_scope:item.storage_scope,title:item.title||item.reason,name:item.pipeline_name||item.employee_name||item.automation_name,fallbackName:true,kind:item.pipeline_id?'pipeline':'employee'});
     }
     return rows;
   }
-  function row(item){return `<button type="button" class="rail-pending-item" data-pending-key="${escape(item.key)}" onclick="RunTeamsSidebar.openItem(this.dataset.pendingKey)"><span class="rail-pending-source-icon" aria-hidden="true">${host.icon(item.kind==='pipeline'?'flow':'users')}</span><span class="rail-pending-copy"><span class="rail-pending-title" title="${escape(item.title)}">${escape(item.title)}</span><small>${escape(item.name)}</small></span></button>`;}
-  function contents(){
-    const values=items(),value=host.context(),local=!!value.localReady&&!!host.localWork;
+  function row(item){
+    const kind=item.kind==='pipeline'?'pipeline':'employee',title=item.title||'等待处理';
+    const titleCopy=item.title?'':' data-app-i18n="sidebarAttention.item" data-app-i18n-title="sidebarAttention.item"';
+    const nameCopy=!item.name&&item.fallbackName?` data-app-i18n="sidebarAttention.${kind}"`:'';
+    const name=item.name||(item.fallbackName?(kind==='pipeline'?'流水线':'员工'):'');
+    return `<button type="button" class="rail-pending-item" data-pending-key="${escape(item.key)}" onclick="RunTeamsSidebar.openItem(this.dataset.pendingKey)"><span class="rail-pending-source-icon" aria-hidden="true">${host.icon(item.kind==='pipeline'?'flow':'users')}</span><span class="rail-pending-copy"><span class="rail-pending-title" title="${escape(title)}"${titleCopy}>${escape(title)}</span><small${nameCopy}>${escape(name)}</small></span></button>`;}
+  function readState(value){
+    const local=!!value.localReady&&!!host.localWork;
     const failed=state.status==='error'||local&&state.localStatus==='error'||!value.deviceWorkOnly&&!value.ready&&state.localStatus==='ready';
-
-    const rows=values.length?values.slice(0,3).map(row).join('')+`<button class="rail-pending-more" type="button" onclick="RunTeamsSidebar.showAll()">查看全部</button>`:'';
-    const error=failed?`<div class="rail-pending-error" role="alert"><span>${values.length?'部分待处理暂时无法加载':'待处理暂时无法加载'}</span>${global.RunTeamsLoadFailure.button({variant:'local',compact:true,retry:'RunTeamsSidebar.refresh(true)',busy:!!state.pending||!!state.localPending})}</div>`:'';
-    const body=rows+error;
-    return `<details class="rail-pending-section" data-rail-section="pending" ${host.sectionOpen()?'open':''}><summary class="rail-section-toggle" onclick="RunTeamsSidebar.toggle(event)"><span>待处理</span><span class="rail-section-chevron" aria-hidden="true">${host.icon('chev')}</span></summary><div class="rail-pending-list">${body}</div></details>`;
+    const ready=value.deviceWorkOnly?state.localStatus==='ready':state.status==='ready'&&(!local||state.localStatus==='ready');
+    return {failed,ready};
   }
-  function markup(){const value=context(),html=value.signedIn?contents():'';return `<section data-sidebar-pending ${html?'':'hidden'} aria-label="待处理">${html}</section>`;}
-  function paint(){const value=context(),node=document.querySelector('[data-sidebar-pending]');if(!node)return;const html=value.signedIn?contents():'';node.hidden=!html;if(node.innerHTML===html)return;const key=document.activeElement?.dataset?.pendingKey,summary=document.activeElement?.classList?.contains('rail-section-toggle');node.innerHTML=html;if(key)node.querySelector(`[data-pending-key="${CSS.escape(key)}"]`)?.focus({preventScroll:true});else if(summary)node.querySelector('summary')?.focus({preventScroll:true});}
+  const statusCopy=count=>`<span data-app-i18n="sidebarAttention.${count?'partial':'failed'}">${count?'部分待处理事项无法读取。':'无法读取待处理事项。'}</span>`;
+  const emptyCopy='<div class="rail-section-hint" role="status" data-app-i18n="sidebarAttention.empty">没有待处理事项。</div>';
+  function allContents(values,value){
+    const {failed,ready}=readState(value);
+    return values.map(row).join('')+(failed?`<div class="rail-pending-error" role="alert">${statusCopy(values.length)}</div>`:!values.length&&ready?emptyCopy:'');
+  }
+  function contents(values,value){
+    const {failed,ready}=readState(value);
+
+    const rows=values.length?values.slice(0,3).map(row).join('')+`<button class="rail-pending-more" type="button" onclick="RunTeamsSidebar.showAll()" data-app-i18n="sidebarAttention.showAll">查看全部</button>`:'';
+    const error=failed?`<div class="rail-pending-error" role="alert">${statusCopy(values.length)}${global.RunTeamsLoadFailure.button({variant:'local',compact:true,retry:'RunTeamsSidebar.refresh(true)',labelKey:'sidebarAttention.retry',busyLabelKey:'sidebarAttention.loading',busy:!!state.pending||!!state.localPending,focusFallback:'[data-rail-section="pending"] > summary'})}</div>`:'';
+    const body=rows+error+(!rows&&!error&&ready?emptyCopy:'');
+    return `<details class="rail-pending-section" data-rail-section="pending" ${host.sectionOpen()?'open':''}><summary class="rail-section-toggle" onclick="RunTeamsSidebar.toggle(event)"><span data-app-i18n="sidebarAttention.title">待处理</span><span class="rail-section-chevron" aria-hidden="true">${host.icon('chev')}</span></summary><div class="rail-pending-list">${body}</div></details>`;
+  }
+  function markup(){const value=context(),html=value.signedIn?contents(items(),value):'';return `<section data-sidebar-pending ${html?'':'hidden'} aria-label="待处理" data-app-i18n-aria-label="sidebarAttention.title">${html}</section>`;}
+  function paint(){
+    const value=context(),node=document.querySelector('[data-sidebar-pending]');if(!node)return;
+    const values=value.signedIn?items():[];
+    const modal=document.getElementById?.('modalHost')?.querySelector('.rail-pending-all');
+    if(modal){
+      const html=value.signedIn?allContents(values,value):'';
+      if(painted.get(modal)!==html){
+        painted.set(modal,html);
+        const active=document.activeElement,key=modal.contains(active)?active.dataset.pendingKey:null;
+        modal.innerHTML=html;global.RunTeamsLocale?.apply(modal);
+        if(key)(modal.querySelector(`[data-pending-key="${CSS.escape(key)}"]`)||modal.closest('[role="dialog"]')?.querySelector('.modal-x'))?.focus({preventScroll:true});
+      }
+    }
+    const html=value.signedIn?contents(values,value):'';node.hidden=!html;
+    if(painted.get(node)===html)return;
+    painted.set(node,html);
+    if(node.innerHTML===html)return;
+    const active=document.activeElement,key=active?.dataset?.pendingKey,inside=node.contains(active);
+    const target=key?`[data-pending-key="${CSS.escape(key)}"]`:active?.matches('.rail-pending-more')?'.rail-pending-more':active?.matches('[data-read-retry]')?'[data-read-retry]':'summary';
+    node.innerHTML=html;global.RunTeamsLocale?.apply(node);
+    if(inside)(node.querySelector(target)||node.querySelector('summary'))?.focus({preventScroll:true});
+  }
   async function refresh(force=false){
     const value=context(),local=!!value.localReady&&!!host.localWork;if(!value.signedIn||!value.ready&&!local)return;
     const current=state,scope=state.scope,reads=[];
@@ -59,7 +97,7 @@
   function setOpen(open){context();host.setSectionOpen(!!open);}
   function toggle(event){event.preventDefault();context();setOpen(!host.sectionOpen());const details=event.currentTarget.closest('details');if(details)details.open=host.sectionOpen();}
   function openItem(key){const value=context(),item=items().find(row=>row.key===key);if(!value.signedIn||!item||(item.storage_scope==='device'?!value.localReady:!value.ready))return;host.closeAll?.();return item.attention?host.openAttention(item.id):item.storage_scope==='device'?host.openWork(item.id,{storage_scope:'device'}):host.openWork(item.id);}
-  function showAll(){context();const rows=items();if(rows.length)host.showAll(rows.map(row).join(''));}
+  function showAll(){const value=context(),values=items();if(values.length)host.showAll(allContents(values,value));}
   function sync(){context();paint();void refresh();if(!timer)timer=setInterval(()=>{if(!document.hidden){context();paint();void refresh();}},15000);}
   global.RunTeamsSidebar=Object.freeze({connect:value=>{host=value;},markup,sync,refresh,setOpen,toggle,openItem,showAll,closeAll:()=>host.closeAll?.(),
     open:id=>openItem('work:'+id),upgrade:()=>host.upgrade(),reset:()=>{state=empty('');paint();}});

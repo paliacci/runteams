@@ -53,8 +53,6 @@ class Connection:
         self.next_id = 0
         self.thread_id = ''
         self.thread_signature = ''
-        self.provider_selected = False
-        self.model_provider = None
         self.finished_turns = deque(maxlen=64)
         self.last_used = time.monotonic()
         self.busy = True

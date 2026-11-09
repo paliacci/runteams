@@ -26,10 +26,39 @@
   if(reference?.schema==='runteams.local-employee-reference/1'&&directory.referenceKey(reference))return {key:'source:'+reference.source_id+':'+reference.employee_source,reference,source:null,chat:panel.id};
   return null;
  }
- function current(){const panel=S.conversationPanel;if(state?.pipeline)return state.scope===scope()&&pipelineOwner()===state.owner&&S.sel?.type==='source-pipeline'&&S.sel.id==='automation'?state:null;return state&&eligible(panel)&&state.scope===scope()&&state.chat===panel.id&&state.identity===identity(panel)&&S.sel?.type==='employee-automation'&&S.sel.id===state.key?state:null;}
- function controls(panel){if(!eligible(panel))return '';return `<button type="button" class="conversation-header-action creator-work-trigger employee-automation-trigger${current()?' on':''}" aria-label="自动化" aria-expanded="${!!current()}" aria-pressed="${!!current()}" onclick="RunTeamsEmployeeAutomation.toggle()">${ICON('repeat')}<span>自动化</span></button>`;}
- const valid=s=>state===s&&eligible()&&s.scope===scope()&&(s.pipeline?pipelineOwner()===s.owner:s.chat===S.conversationPanel.id&&s.identity===identity());
- const paint=()=>render();
+ function ownsTarget(s){
+  if(!s||s.scope!==scope())return false;
+  const owner=pipelineOwner(),panel=S.conversationPanel;
+  if(s.pipeline)return !!owner&&owner===s.owner;
+  return !owner&&!!panel&&s.chat===panel.id&&s.identity===identity(panel);
+ }
+ function current(){
+  if(!ownsTarget(state)||!eligible())return null;
+  const type=state.pipeline?'source-pipeline':'employee-automation';
+  const id=state.pipeline?'automation':state.key;
+  return S.sel?.type===type&&S.sel.id===id?state:null;
+ }
+ function controls(panel){
+  if(!eligible(panel))return '';
+  return RunTeamsShell.headerAction({label:'自动化',labelKey:'pipelineBoard.automation',icon:ICON('header-automation'),action:'RunTeamsEmployeeAutomation.toggle()',className:'employee-automation-trigger',selected:!!current()});
+ }
+ const valid=s=>state===s&&ownsTarget(s)&&eligible();
+ const drawerSelector='.employee-automation-drawer';
+ const scheduleMenuOpen=()=>!!document.querySelector(drawerSelector+' [data-schedule-control="menu"][aria-expanded="true"]');
+ function paint(){
+  const active=document.activeElement;
+  const row=active?.closest?.(drawerSelector+' [data-schedule-id]');
+  const control=active?.dataset?.scheduleControl;
+  const owner=current();
+  render();
+  if(!owner||!row||!control||active.isConnected||current()!==owner||document.activeElement!==document.body)return;
+  const drawer=document.querySelector(drawerSelector);
+  const replacement=drawer?.querySelector(`[data-schedule-id="${row.dataset.scheduleId}"]`);
+  const target=replacement?.querySelector(`[data-schedule-control="${control}"]:not(:disabled)`)
+   ||replacement?.querySelector('.employee-automation-open')
+   ||drawer?.querySelector('.rt-drawer-collapse');
+  target?.focus({preventScroll:true});
+ }
  const pendingKey=s=>s.storageKey;
  function pending(s){if(!s.storageKey)return null;try{return JSON.parse(RunTeamsWorkState.getItem(pendingKey(s))||'null');}catch(_){return null;}}
  function clearPending(s,id){if(pending(s)?.operation_id===id)RunTeamsWorkState.removeItem(pendingKey(s));}
@@ -38,61 +67,204 @@
   if(current()){closeDetailWorkspace();return;}
   const t=target(),owner=identity(panel);
   if(!state||state.scope!==scope()||state.identity!==owner||t?.pipeline&&state.owner!==t.owner)state={...(t||{key:'employee-automation:'+panel.id,reference:null,source:null,chat:panel.id}),identity:owner,scope:scope(),storageKey:t?operationKey(t):null,items:[],skills:[],loading:false,error:'',busy:false,hasRead:false,createAvailable:false};
-  selectDetailWorkspace(state.pipeline?{type:'source-pipeline',id:'automation'}:{type:'employee-automation',id:state.key});await refresh();
+  selectDetailWorkspace(state.pipeline?{type:'source-pipeline',id:'automation'}:{type:'employee-automation',id:state.key});
+  // Reopening still needs a paint while the previous read is in flight.
+  if(state.loading||state.refreshing)paint();
+  await refresh();
  }
- async function refresh(options={}){
-  const s=current();if(!s||s.loading||s.refreshing)return;
-  s.refreshing=true;if(!options.silent){s.loading=true;s.error='';}paint();
+ function refresh(options={}){
+  const s=current();if(!s)return;
+  if(s.readRequest){
+   if(options.silent)return s.readRequest;
+   return s.readRequest.then(()=>{if(current()===s)return refresh(options);});
+  }
+  s.readRequest=readSchedules(s,options).finally(()=>{s.readRequest=null;});
+  return s.readRequest;
+ }
+ async function readSchedules(s,options){
+  const defer=()=>options.background&&scheduleMenuOpen();
+  s.refreshing=true;if(!options.silent){s.loading=true;paint();}
   try{
    if(!RunTeamsWorkState.ready)await RunTeamsWorkState.connect();if(!valid(s))return;
    let t=target();
    if(!s.pipeline&&!t&&!RunTeamsEmployeeDirectory.forPanel(S.conversationPanel)){await RunTeamsEmployeeDirectory.refresh();if(current()!==s)return;t=target();}
-   if(!t?.reference){s.unavailable='这名员工尚未准备就绪，请核对员工资源。';s.createAvailable=false;return;}
+   if(!t?.reference){s.error='';s.unavailable=true;s.createAvailable=false;return;}
    if(s.reference&&refKey(s.reference)!==refKey(t.reference))throw Error('员工来源已变化，请关闭面板后重新打开。');
    s.reference=t.reference;s.source=t.source;s.storageKey||=operationKey(t);s.unavailable='';
-   const out=await api(endpoint(s)+'?reference='+encodeURIComponent(JSON.stringify(s.reference)),undefined,undefined,{readCurrent:true});if(!valid(s))return;if(out.error)throw Error(out.error);if(!Array.isArray(out.items)||!Array.isArray(out.skills)||refKey(out.reference)!==refKey(s.reference))throw Error('自动化读取结果无效。');s.items=out.items;s.skills=out.skills;if(s.pipeline){s.positions=out.positions||[];s.startColumn=out.start_column_key;s.pipelineStatus=out.pipeline_status;}s.reference=out.reference;s.unavailable=out.unavailable||'';s.hasRead=true;s.createAvailable=!s.unavailable;
+   const out=await api(endpoint(s)+'?reference='+encodeURIComponent(JSON.stringify(s.reference)),undefined,undefined,{readCurrent:true});if(!valid(s)||defer())return;if(out.error)throw Error(out.error);if(!Array.isArray(out.items)||!Array.isArray(out.skills)||refKey(out.reference)!==refKey(s.reference))throw Error('自动化读取结果无效。');s.items=out.items;s.skills=out.skills;if(s.pipeline){s.positions=out.positions||[];s.startColumn=out.start_column_key;s.pipelineStatus=out.pipeline_status;}s.reference=out.reference;s.error='';s.unavailable=!!out.unavailable;s.hasRead=true;s.createAvailable=!s.unavailable;
   }
-  catch(e){if(valid(s)){s.error=e.message||'自动化暂时无法读取。';s.createAvailable=false;}}
-  finally{s.loading=false;s.refreshing=false;if(valid(s))paint();}
+  catch(e){if(valid(s)&&!defer()){s.error=e.message||'自动化暂时无法读取。';s.createAvailable=false;}}
+  finally{s.loading=false;s.refreshing=false;if(current()===s&&!defer())paint();}
  }
 
- function row(item,s){
-  const paused=!item.enabled,latest=item.runs?.[0],disabled=s.busy||!!pending(s);
-  const runStatus={queued:'等待执行',running:'正在执行',waiting:'正在执行',completed:'已完成',failed:'运行失败',blocked:'需要处理',canceled:'已停止',cancelled:'已停止',interrupted:'需要核对',skipped:'已跳过'}[latest?.status];
-  const status=(paused?'已暂停':'已启用')+(runStatus?'，最近运行：'+runStatus:'');
-  const tone=paused?'paused':({running:'running',waiting:'running',blocked:'attention',interrupted:'attention',failed:'failed'}[latest?.status]||'enabled');
-  return `<div class="employee-automation-row" data-schedule-state="${tone}" data-schedule-id="${Number(item.id)}" onclick="RunTeamsEmployeeAutomation.records(${Number(item.id)})"><button type="button" class="employee-automation-icon-action employee-automation-toggle" title="${paused?'启用计划':'暂停计划'}；${esc(status)}" aria-label="${esc((paused?'启用':'暂停')+item.name)}，${esc(status)}" onclick="event.stopPropagation();RunTeamsEmployeeAutomation.action(${Number(item.id)},'${paused?'resume':'pause'}')" ${disabled?'disabled':''}>${ICON(paused?'play':'pause')}</button><button type="button" class="employee-automation-open" aria-label="${esc(item.name)}的运行记录，${esc(status)}" title="${esc(status)}"><span class="employee-automation-copy"><b title="${esc(item.name)}">${esc(item.name)}</b><small>${esc(automationScheduleLabel(item))}</small></span></button><button type="button" class="employee-automation-icon-action" aria-label="${esc(item.name)}的更多操作" aria-haspopup="menu" onclick="event.stopPropagation();RunTeamsEmployeeAutomation.menu(event,${Number(item.id)})" ${disabled?'disabled':''}>${ICON('more')}</button></div>`;
+ const runStates={
+  queued:['automationList.queued','等待执行'],running:['automationList.running','正在执行'],
+  completed:['automationList.completed','已完成'],failed:['automationList.failed','运行失败'],
+  blocked:['scheduledAutomation.needsAttention','需要处理'],interrupted:['scheduledAutomation.needsReview','需要核对'],
+  skipped:['automationList.skipped','已跳过'],canceled:['workRecords.state.canceled','已停止']
+ };
+ function runState(status){
+  const key=status==='waiting'?'running':status==='cancelled'?'canceled':status;
+  return Object.hasOwn(runStates,key)?runStates[key]:['workRecords.state.unknown','状态未知'];
  }
+ const copy=(key,fallback)=>`<span data-app-i18n="${key}">${fallback}</span>`;
+ const localError=(detailKey,message)=>Object.assign(new Error(message),{detailKey});
+ function applyCopy(node,text,key,parameters){
+  if(key)node.setAttribute('data-app-i18n',key);else node.removeAttribute('data-app-i18n');
+  if(parameters)node.setAttribute('data-app-i18n-vars',JSON.stringify(parameters));else node.removeAttribute('data-app-i18n-vars');
+  node.textContent=text;
+  if(key)window.RunTeamsLocale?.apply(node);
+ }
+ const vars=name=>`data-app-i18n-vars="${esc(JSON.stringify({name}))}"`;
+ function row(item,s){
+  const id=Number(item.id),paused=!item.enabled,latest=item.runs?.[0],disabled=s.busy||!!pending(s);
+  const enabled=paused?copy('automationList.paused','已暂停'):copy('automationList.enabled','已启用');
+  const tone=paused?'paused':({running:'running',waiting:'running',blocked:'attention',interrupted:'attention',failed:'failed'}[latest?.status]||'enabled');
+  const statusId='employee-schedule-status-'+id,description=`aria-describedby="${statusId}"`;
+  const actionKey=paused?'scheduledAutomation.enableFor':'scheduledAutomation.pauseFor';
+  return `<div class="employee-automation-row rt-list-row" data-schedule-state="${tone}" data-schedule-id="${id}" onclick="RunTeamsEmployeeAutomation.records(${id})">
+   <span hidden id="${statusId}">${enabled}${latest?` · ${copy('scheduledAutomation.latestRun','最近运行')} ${copy(...runState(latest.status))}`:''}</span>
+   <button type="button" class="employee-automation-icon-action employee-automation-toggle" data-schedule-control="toggle" title="${paused?'启用自动化':'暂停自动化'}" data-app-i18n-title="${paused?'automationList.enable':'automationList.pause'}" aria-label="${esc((paused?'启用':'暂停')+item.name)}" data-app-i18n-aria-label="${actionKey}" ${vars(item.name)} ${description} onclick="event.stopPropagation();RunTeamsEmployeeAutomation.action(${id},'${paused?'resume':'pause'}')" ${disabled?'disabled':''}>${ICON(paused?'play':'pause')}</button>
+   <button type="button" class="employee-automation-open" data-schedule-control="history" aria-label="${esc(item.name)}的运行记录" data-app-i18n-aria-label="scheduledAutomation.historyFor" ${vars(item.name)} ${description}><span class="employee-automation-copy"><b title="${esc(item.name)}">${esc(item.name)}</b><small data-employee-schedule-time>${esc(automationListSchedule(item))}</small></span></button>
+   <button type="button" class="employee-automation-icon-action" data-schedule-control="menu" aria-label="${esc(item.name)}的更多操作" data-app-i18n-aria-label="automationList.moreFor" ${vars(item.name)} aria-haspopup="menu" onclick="event.stopPropagation();RunTeamsEmployeeAutomation.menu(event,${id})" ${disabled?'disabled':''}>${ICON('more')}</button>
+  </div>`;
+ }
+ window.addEventListener('runteams:languagechange',()=>{
+  if(formCurrent())scheduleSummary(form);
+  const s=current();if(!s)return;
+  const items=new Map(s.items.map(item=>[String(item.id),item]));
+  document.querySelectorAll('.employee-automation-drawer [data-schedule-id]').forEach(row=>{
+   const item=items.get(row.dataset.scheduleId),label=row.querySelector('[data-employee-schedule-time]');
+   if(item&&label)label.textContent=automationListSchedule(item);
+  });
+ });
 
  function drawer(){
   const s=current();if(!s)return '';
-  const heading={toolbar:RunTeamsEmployeeDrawerHeader.markup('automation'),intro:`<section class="workspace-detail-head detail-drawer-intro">${detailDrawerHeading('自动化',s.pipeline?'按计划创建流水线工作。':'让员工按计划处理工作。')}</section>`};
-  const content=s.loading&&!s.hasRead?RunTeamsSkeletons.region('employee-automations',3):s.error?RunTeamsLoadFailure.markup({variant:'local',title:'自动化暂时无法读取',error:s.error,retry:'RunTeamsEmployeeAutomation.refresh()'})+(s.items.length?`<div class="employee-automation-list">${s.items.map(item=>row(item,s)).join('')}</div>`:''):s.unavailable?RunTeamsEmptyStates.markup('automations',{title:'自动化尚未就绪',description:s.unavailable}):s.items.length?`<div class="employee-automation-list" aria-busy="${s.busy}">${s.items.map(item=>row(item,s)).join('')}</div>`:RunTeamsEmptyStates.markup('automations');
-  const recovery=pending(s)&&!s.submitting?'<div class="employee-automation-recovery" role="status">上次操作结果待核对。<button type="button" class="btn" onclick="RunTeamsEmployeeAutomation.recover()">核对原操作</button><button type="button" class="btn ghost" onclick="RunTeamsEmployeeAutomation.cancelPending()">取消这次操作</button></div>':'';
-  return detailDrawerShell({className:'employee-automation-drawer',header:heading,fixedIntroClass:'detail-drawer-summary',body:recovery+(s.pipeline&&s.hasRead&&s.pipelineStatus!=='running'?'<p class="help">流水线已暂停，自动化不会开始新工作。</p>':'')+content,bodyClass:'employee-automation-body',attrs:s.pipeline?'aria-label="流水线自动化"':'aria-label="员工自动化"'});
+  const empty=s.hasRead&&!s.error&&!s.unavailable&&!s.items.length,loading=s.loading&&!s.hasRead;
+  const description=s.pipeline?'按计划为这条流水线创建工作。':'安排这名员工定时处理工作。';
+  const descriptionKey=s.pipeline?'scheduledAutomation.pipelineDescription':'scheduledAutomation.employeeDescription';
+  const heading={toolbar:RunTeamsEmployeeDrawerHeader.markup('automation'),intro:empty?'':`<section class="workspace-detail-head detail-drawer-intro">${loading?RunTeamsSkeletons.drawerHeading({description:true}):detailDrawerHeading('自动化',description,'','',{titleKey:'pipelineBoard.automation',descriptionKey})}</section>`};
+  const list=s.items.length?`<div class="employee-automation-list" aria-busy="${s.busy}">${s.items.map(item=>row(item,s)).join('')}</div>`:'';
+  let content=list;
+  if(s.error){
+   const noteKey=s.hasRead?(list?'scheduledAutomation.cached':'scheduledAutomation.cachedEmpty'):undefined;
+   content=RunTeamsLoadFailure.markup({variant:'local',title:'无法载入自动化',titleKey:'automationList.readFailed',note:noteKey?(list?'正在显示上次载入的计划。':'上次载入时还没有计划。'):'',noteKey,labelKey:'employeeHistory.retry',busyLabelKey:'automationList.loading',retry:'RunTeamsEmployeeAutomation.refresh()'})+list;
+  }else if(loading)content=RunTeamsSkeletons.region('employee-automations',3,'automationList.loading');
+  else if(s.unavailable)content=RunTeamsEmptyStates.markup('automations',{
+   title:'暂时无法设置自动化',titleKey:'scheduledAutomation.unavailable',
+   description:s.pipeline?'请检查流水线及其版本。已有计划和记录会保留。':'请检查这名员工的资源，然后重新打开自动化。',
+   descriptionKey:s.pipeline?'scheduledAutomation.pipelineUnavailable':'scheduledAutomation.employeeUnavailable'
+  })+list;
+  else if(!list)content=RunTeamsEmptyStates.markup('automations',{titleKey:'automationList.empty',descriptionKey:'scheduledAutomation.empty'});
+  const recovery=pending(s)&&!s.submitting?`<div class="employee-automation-recovery" role="status">
+   ${copy('scheduledAutomation.operationPending','上次操作结果待确认。')}
+   <button type="button" class="btn" onclick="RunTeamsEmployeeAutomation.recover()" ${s.busy?'disabled':''}>${copy('scheduledAutomation.checkOperation','核对操作')}</button>
+   <button type="button" class="btn ghost" onclick="RunTeamsEmployeeAutomation.cancelPending()" ${s.busy?'disabled':''}>${copy('scheduledAutomation.cancelOperation','取消操作')}</button>
+  </div>`:'';
+  const paused=s.pipeline&&s.hasRead&&s.pipelineStatus!=='running'?`<p class="help" data-app-i18n="scheduledAutomation.pipelinePaused">流水线已暂停，自动化暂时不会开始新工作。</p>`:'';
+  const attrs=s.pipeline?'aria-label="流水线自动化" data-app-i18n-aria-label="scheduledAutomation.pipeline"':'aria-label="员工自动化" data-app-i18n-aria-label="scheduledAutomation.employee"';
+  return detailDrawerShell({className:'employee-automation-drawer',header:heading,introClass:'detail-drawer-summary',body:recovery+paused+content,bodyClass:'employee-automation-body',attrs});
  }
  function decorateHeader(){
   const s=current();if(!s)return;
   const reading=!!(s.loading||s.refreshing),blocked=!!(s.busy||s.error||s.unavailable||!s.reference||pending(s)),disabled=reading||blocked;
   const readPending=reading&&s.createAvailable===true&&!blocked;
-  RunTeamsEmployeeDrawerHeader.mount('automation',s,{onCollapse:closeDetailWorkspace,extras:{text:'',actions:s.hasRead?[{id:'new',label:'新建',icon:'plus',platformId:'employee_automation_add',readPending,disabled,onPress:()=>{if(current()===s)edit();}}]:[]}});
+  RunTeamsEmployeeDrawerHeader.mount('automation',s,{onCollapse:closeDetailWorkspace,collapseLabelKey:'scheduledAutomation.close',extras:{text:'',actions:s.hasRead?[{id:'new',label:'新建自动化',labelKey:'scheduledAutomation.new',icon:'plus',platformId:'employee_automation_add',readPending,disabled,onPress:()=>{if(current()===s)edit();}}]:[]}});
  }
+ function commandFailure(message,action){
+  if(message==='润色失败，尚未创建。请重试或勾选原文。'||message==='润色结果无效。')return localError('scheduledAutomation.polishFailed','无法润色任务说明。请重试，或选择使用原文。');
+  if(message==='自动化已变化，请重新读取。')return localError('scheduledAutomation.changed','这项自动化已有更新。请重新打开自动化后再试。');
+  if(message==='这项自动化还有未完成或需要核对的运行。')return localError('scheduledAutomation.unfinishedRun','请先在运行记录中处理上次运行。');
+  return action==='save'?localError('automationEditor.saveFailed','无法保存自动化。请稍后再试。'):localError('scheduledAutomation.operationFailed','无法完成操作。请稍后再试。');
+ }
+ function notify(error,kind='err'){toast(error.message,kind,error.detailKey);}
  async function command(action,item=null,value=null){
   const s=current(),t=target();if(!s||!s.reference||!s.storageKey||!t?.reference||refKey(t.reference)!==refKey(s.reference)||s.busy||pending(s))return false;
   const request={operation_id:crypto.randomUUID(),action,reference:s.reference,id:item?.id??null,expected_revision:item?.revision??null,value};
-  try{RunTeamsWorkState.setItem(pendingKey(s),JSON.stringify({operation_id:request.operation_id}));}catch(_){throw Error('无法保存操作回执，请检查本机存储后重试。');}
+  try{RunTeamsWorkState.setItem(pendingKey(s),JSON.stringify({operation_id:request.operation_id}));}catch(_){
+   const error=localError('scheduledAutomation.receiptFailed','无法在本机保存操作记录。请检查储存空间后重试。');
+   if(action==='save')throw error;
+   notify(error);return false;
+  }
   s.busy=true;s.submitting=true;s.commandError='';paint();
   try{if(RunTeamsWorkState.pending)await RunTeamsWorkState.flush();const out=await api(endpoint(s),'POST',request);if(out.error){if(out.state!=='unknown')clearPending(s,request.operation_id);throw Error(out.error);}if(out.operation_id!==request.operation_id)throw Error('操作回执需要核对。');clearPending(s,request.operation_id);if(valid(s)){s.busy=false;await refresh();}return true;}
-  catch(e){if(valid(s)){s.commandError=e.message;if(!(form?.owner===s&&document.getElementById('employee_schedule_error')))toast(pending(s)?'操作结果待核对，请勿重复提交。':e.message,'err');}return false;}
+  catch(e){if(valid(s)){s.commandError=e.message;if(!(form?.owner===s&&document.getElementById('employee_schedule_error')))notify(pending(s)?localError('scheduledAutomation.operationUnconfirmed','无法确认操作结果。请先核对上次操作。'):commandFailure(e.message,action));}return false;}
   finally{s.submitting=false;s.busy=false;if(valid(s))paint();}
  }
- async function recover(){const s=current(),p=s&&pending(s);if(!p||s.busy)return;s.busy=true;paint();try{const out=await api(endpoint(s)+'/operations/'+encodeURIComponent(p.operation_id),undefined,undefined,{readCurrent:true});if(!valid(s))return;if(out.state==='failed')clearPending(s,p.operation_id);if(out.error)throw Error(out.error);if(['committed','abandoned'].includes(out.state)){clearPending(s,p.operation_id);s.busy=false;await refresh();}else toast('原操作尚未确认，请稍后再次核对。','info');}catch(e){if(valid(s))toast(e.message,'err');}finally{if(valid(s)){s.busy=false;paint();}}}
- async function cancelPending(){const s=current(),p=s&&pending(s);if(!p||s.busy)return;return confirmModal('取消这次操作？','只取消尚未完成的设置，已保存的结果会保留。',async()=>{if(!valid(s))return;s.busy=true;paint();try{const out=await api(endpoint(s)+'/operations/'+encodeURIComponent(p.operation_id)+'/abandon','POST',{});if(out.error)throw Error(out.error);if(['committed','abandoned'].includes(out.state))clearPending(s,p.operation_id);if(valid(s)){s.busy=false;await refresh();}}catch(e){if(valid(s))toast(e.message,'err');}finally{if(valid(s)){s.busy=false;paint();}}});}
+ async function recover(){
+  const s=current(),p=s&&pending(s);if(!p||s.busy)return;
+  s.busy=true;paint();
+  try{
+   const out=await api(endpoint(s)+'/operations/'+encodeURIComponent(p.operation_id),undefined,undefined,{readCurrent:true});if(!valid(s))return;
+   if(out.state==='failed'){
+    clearPending(s,p.operation_id);
+    notify(commandFailure(out.error));
+   }else if(out.error)throw Error(out.error);
+   else if(['committed','abandoned'].includes(out.state)){clearPending(s,p.operation_id);s.busy=false;await refresh();}
+   else notify(localError('scheduledAutomation.stillPending','操作仍待确认。请稍后再核对。'),'info');
+  }catch(e){if(valid(s))notify(localError('scheduledAutomation.checkFailed','无法读取操作结果。请稍后再核对。'));}
+  finally{if(valid(s)){s.busy=false;paint();}}
+ }
+ async function cancelPending(){
+  const s=current(),p=s&&pending(s);if(!p||s.busy)return;
+  return confirmModal('取消上次操作？','尚未完成的操作将取消。已保存的更改会保留。',async()=>{
+   if(!valid(s))return;s.busy=true;paint();
+   try{
+    const out=await api(endpoint(s)+'/operations/'+encodeURIComponent(p.operation_id)+'/abandon','POST',{});
+    if(out.error)throw Error(out.error);
+    if(['committed','abandoned'].includes(out.state))clearPending(s,p.operation_id);
+    if(valid(s)){s.busy=false;await refresh();}
+   }catch(e){if(valid(s))notify(localError('scheduledAutomation.cancelFailed','无法取消操作。请先核对操作结果。'));}
+   finally{if(valid(s)){s.busy=false;paint();}}
+  },false,{titleKey:'scheduledAutomation.cancelOperationTitle',messageKey:'scheduledAutomation.cancelOperationMessage',
+   cancel:'保留操作',cancelKey:'scheduledAutomation.keepOperation',action:'取消操作',actionKey:'scheduledAutomation.cancelOperation',closeKey:'employeeConsent.close'});
+ }
  const find=id=>current()?.items.find(r=>r.id===Number(id));
  async function action(id,action){const item=find(id);if(item)await command(action,item);}
- function menu(event,id){const owner=current(),item=find(id);if(!item)return;const own=fn=>()=>current()===owner&&fn();openMenu(event.currentTarget,[{label:'编辑',icon:'edit',fn:own(()=>edit(id))},{label:'立即运行一次',icon:'play',disabled:!!owner.pipeline&&owner.pipelineStatus!=='running',fn:own(()=>{if(!owner.pipeline||owner.pipelineStatus==='running')action(id,'run');})},{label:'运行记录',icon:'history',fn:own(()=>records(id))},{label:'删除自动化',icon:'trash',danger:true,fn:own(()=>confirmModal('删除这项自动化？','之后不会再按此计划创建工作，正在进行的工作与已有记录会保留。',()=>current()===owner&&action(id,'delete'),true))}],{variant:'workerAction'});}
- async function records(id){const owner=current(),dialogBefore=document.getElementById('modalHost');await refresh({silent:true});if(current()!==owner||document.getElementById('modalHost')!==dialogBefore)return;const item=find(id);if(!item)return;openDialog({title:item.name+'的运行记录',body:item.runs?.length?`<div class="employee-automation-records">${item.runs.map(r=>`<div><b>${esc(({queued:'等待执行',running:'正在执行',waiting:'正在执行',completed:'已完成',failed:'失败',blocked:'需要处理',interrupted:'需要核对',skipped:'已跳过',canceled:'已停止',cancelled:'已停止'})[r.status]||r.status)}</b><span>${esc(r.scheduled_for.startsWith('manual:')?'手动运行':automationTime(r.scheduled_for))}</span>${r.reason?`<p>${esc(r.reason)}</p>`:''}${r.workflow_id?`<button class="btn" onclick="closeModal();${owner.pipeline?`RunTeamsSourcePipelines.openWork(${Number(r.workflow_id)})`:`openCoreWorkflow(${Number(r.workflow_id)},{storageScope:'device'})`}">查看工作记录</button>`:''}${r.chat_id&&!owner.pipeline?`<button class="btn" onclick="closeModal();openConversationSession(${Number(r.chat_id)},'general')">查看工作对话</button>`:''}${r.status==='interrupted'?`<button class="btn" onclick="closeModal();RunTeamsEmployeeAutomation.resolve(${Number(item.id)})">按未完成结束本次记录</button>`:''}</div>`).join('')}</div>`:'<p>还没有运行记录。</p>',footer:'<button class="btn" onclick="closeModal()">关闭</button>'});}
- function resolve(id){const owner=current();if(!owner)return;confirmModal('已核对原工作？','结束这次记录后，后续计划可以继续运行。原工作不会重做或撤销，请先确认原工作与外部操作结果。',()=>current()===owner&&action(id,'resolve'));}
+ function menu(event,id){
+  const owner=current(),item=find(id);if(!item)return;
+  const own=fn=>()=>current()===owner&&fn();
+  openMenu(event.currentTarget,[
+   {label:'编辑',labelKey:'automationList.edit',icon:'edit',fn:own(()=>edit(id))},
+   {label:'立即运行',labelKey:'automationList.runNow',icon:'play',disabled:!!owner.pipeline&&owner.pipelineStatus!=='running',fn:own(()=>{if(!owner.pipeline||owner.pipelineStatus==='running')action(id,'run');})},
+   {label:'运行记录',labelKey:'scheduledAutomation.history',icon:'history',fn:own(()=>records(id))},
+   {label:'删除自动化',labelKey:'scheduledAutomation.delete',icon:'trash',danger:true,fn:own(()=>confirmModal(
+    '删除这项自动化？','之后不会再按此计划创建工作。正在进行的工作和已有记录会保留。',
+    ()=>current()===owner&&action(id,'delete'),true,{
+     titleKey:'scheduledAutomation.deleteTitle',messageKey:'scheduledAutomation.deleteMessage',
+     cancelKey:'scheduledAutomation.cancel',action:'删除自动化',actionKey:'scheduledAutomation.delete',closeKey:'employeeConsent.close'
+    }))}
+  ],{variant:'workerAction'});
+ }
+ async function records(id){
+  const owner=current(),dialogBefore=document.getElementById('modalHost');if(!owner)return;
+  await refresh({silent:true});
+  if(current()!==owner||document.getElementById('modalHost')!==dialogBefore)return;
+  const item=find(id);if(!item)return;
+  const runs=item.runs||[];
+  const notice=owner.error?`<p role="status">${runs.length?copy('scheduledAutomation.cachedHistory','无法载入最新记录。正在显示上次载入的记录。'):copy('scheduledAutomation.historyFailed','无法载入运行记录。关闭后可重新打开。')}</p>`:'';
+  const list=runs.length?`<div class="employee-automation-records">${runs.map(r=>`<div>
+   <b>${copy(...runState(r.status))}</b>
+   <span>${r.scheduled_for?.startsWith('manual:')?copy('scheduledAutomation.manual','手动运行'):automationRunTimeMarkup(r.scheduled_for)}</span>
+   ${r.reason?`<p>${esc(r.reason)}</p>`:''}
+   ${r.workflow_id?`<button class="btn" onclick="closeModal();${owner.pipeline?`RunTeamsSourcePipelines.openWork(${Number(r.workflow_id)})`:`openCoreWorkflow(${Number(r.workflow_id)},{storageScope:'device'})`}">${copy('scheduledAutomation.openWork','查看工作记录')}</button>`:''}
+   ${r.chat_id&&!owner.pipeline?`<button class="btn" onclick="closeModal();openConversationSession(${Number(r.chat_id)},'general')">${copy('workRecordDetail.openConversation','打开对话')}</button>`:''}
+   ${r.status==='interrupted'?`<button class="btn" onclick="closeModal();RunTeamsEmployeeAutomation.resolve(${Number(item.id)})">${copy('scheduledAutomation.markIncomplete','标记为未完成')}</button>`:''}
+  </div>`).join('')}</div>`:owner.error?'':`<p>${copy('automationEditor.historyEmpty','还没有运行记录')}</p>`;
+  const dialog=openDialog({
+   title:item.name+'的运行记录',titleKey:'scheduledAutomation.historyFor',titleVars:{name:item.name},
+   closeLabelKey:'employeeConsent.close',attrs:`role="dialog" aria-modal="true" aria-label="${esc(item.name)}的运行记录" data-app-i18n-aria-label="scheduledAutomation.historyFor" ${vars(item.name)}`,
+   closeAction:`RunTeamsEmployeeAutomation.closeRecords(${Number(item.id)})`,
+   body:notice+list,footer:`<button class="btn" onclick="RunTeamsEmployeeAutomation.closeRecords(${Number(item.id)})">${copy('employeeConsent.close','关闭')}</button>`
+  });
+  dialog.querySelector('.modal-x')?.focus();
+ }
+ function closeRecords(id){
+  closeModal();
+  document.querySelector(`.employee-automation-drawer [data-schedule-id="${Number(id)}"] .employee-automation-open`)?.focus();
+ }
+ function resolve(id){const owner=current();if(!owner)return;confirmModal('将这次运行标记为未完成？','请先检查已有工作和外部操作的结果。标记后，后续计划可以继续运行。',()=>current()===owner&&action(id,'resolve'),false,{titleKey:'scheduledAutomation.markTitle',messageKey:'scheduledAutomation.markMessage',cancelKey:'scheduledAutomation.cancel',action:'标记为未完成',actionKey:'scheduledAutomation.markIncomplete',closeKey:'employeeConsent.close'});}
  function field(name){return document.getElementById('employee_schedule_'+name);}
  function formCurrent(f=form){return !!f&&form===f&&valid(f.owner)&&document.getElementById('modalHost')===f.element;}
  function edit(id=0){
@@ -101,26 +273,65 @@
   const objective=payload.original_objective??payload.objective??'';
   const parameters=!s.pipeline&&payload.schema==='runteams.task-input/v2'&&Object.keys(payload.parameters||{}).length?'\n\n任务资料：\n'+JSON.stringify(payload.parameters,null,2):'';
   const f={owner:s,item,scheduleSelected:!!item,scheduleExpanded:false,hasSchedule:!!item,enabled:item?item.enabled:true,saving:false,position:payload.start_column_key||s.startColumn,parameterDrafts:{[payload.start_column_key||s.startColumn]:payload.parameters||{}}};form=f;
-  const dialog=openDialog({className:'automation-editor employee-schedule-editor',title:item?'编辑自动化':'新建自动化',
-   headerActions:item&&!item.enabled?'<button type="button" class="x" aria-label="计划选项" onclick="RunTeamsEmployeeAutomation.editOptions(event)">'+ICON('more')+'</button>':'',
-   body:`<div class="employee-schedule-content"><div class="employee-schedule-task"><textarea class="ta" id="employee_schedule_objective" maxlength="20000" aria-label="任务说明" placeholder="${s.pipeline?'想让流水线定期完成什么工作？':'想让员工定期做什么？&#10;例如：每周五整理项目进展，生成一份工作回顾。'}" oninput="RunTeamsEmployeeAutomation.taskChanged()">${esc(objective+parameters)}</textarea>${s.pipeline?'':`<label class="employee-schedule-original" title="勾选后按原文创建；未勾选时，点击创建会自动润色。"><input type="checkbox" id="employee_schedule_original" ${item&&payload.use_original!==false?'checked':''}><span>原文</span></label>`}</div>${s.pipeline?`<div class="field"><label for="employee_schedule_position">开始岗位</label><select class="inp" id="employee_schedule_position" onchange="RunTeamsEmployeeAutomation.startChanged()">${s.positions.map(p=>`<option value="${esc(p.key)}" ${p.key===f.position?'selected':''}>${esc(p.name)}</option>`).join('')}</select></div><div id="employee_schedule_inputs"></div>`:''}
-   <div class="employee-schedule-timing"><button type="button" class="employee-schedule-summary" id="employee_schedule_summary" aria-expanded="false" aria-controls="employee_schedule_details" onclick="RunTeamsEmployeeAutomation.toggleSchedule()">${ICON('clock')}<span id="employee_schedule_label">选择执行时间</span><small><span>电脑需保持在线</span></small>${ICON('chev')}</button>
-   <div id="employee_schedule_details" class="employee-schedule-details" hidden inert aria-hidden="true"><div class="employee-schedule-details-inner"><div class="employee-schedule-fields"><label class="field"><span>重复</span>${csel('employee_schedule_kind',[{value:'daily',label:'每天'},{value:'weekly',label:'每周'},{value:'interval',label:'按周期'}],kind,()=>{if(formCurrent(f)&&!f.saving)scheduleChanged();},{menuVariant:'settingsSelect'})}</label><label class="field" id="employee_schedule_time_field"><span>时间</span><input class="inp" id="employee_schedule_time" type="text" placeholder="HH:mm" maxlength="5" autocomplete="off" spellcheck="false" value="${esc(schedule.time||'09:00')}" oninput="RunTeamsEmployeeAutomation.scheduleChanged()"></label><label class="field" id="employee_schedule_interval_field"><span>间隔（分钟）</span><input class="inp" id="employee_schedule_interval" type="number" min="1" max="43200" value="${Math.max(1,(item?.interval_sec||3600)/60)}" oninput="RunTeamsEmployeeAutomation.scheduleChanged()"></label></div>
-   <div id="employee_schedule_days" class="employee-schedule-days" hidden><span>星期</span><div>${['一','二','三','四','五','六','日'].map((label,day)=>`<label><input type="checkbox" value="${day}" ${(schedule.weekdays||[]).includes(day)?'checked':''} onchange="RunTeamsEmployeeAutomation.scheduleChanged()"><span>${label}</span></label>`).join('')}</div></div></div></div></div>
-   <label class="employee-schedule-name">${ICON('tag')}<input class="inp employee-schedule-name-input" type="text" id="employee_schedule_name" aria-label="名称" maxlength="120" value="${esc(item?.name||'')}" placeholder="自动生成" autocomplete="off"></label><p id="employee_schedule_error" role="alert" class="account-team-error" hidden></p></div>`,
-   footer:`<span class="employee-schedule-paused" id="employee_schedule_paused">${item&&!item.enabled?'已暂停':''}</span><div class="grow"></div><button class="btn ghost" id="employee_schedule_close" onclick="closeModal()">取消</button><button class="btn pri" id="employee_schedule_save" onclick="RunTeamsEmployeeAutomation.save()">${item?'保存':'创建'}</button>`});
+  const title=item?'编辑自动化':'新建自动化',titleKey=item?'scheduledAutomation.editTitle':'scheduledAutomation.new';
+  const promptKey=s.pipeline?'scheduledAutomation.pipelinePrompt':'scheduledAutomation.employeePrompt';
+  const dialog=openDialog({
+   className:'automation-editor employee-schedule-editor',title,titleKey,closeLabelKey:'employeeConsent.close',
+   attrs:`role="dialog" aria-modal="true" aria-label="${title}" data-app-i18n-aria-label="${titleKey}"`,
+   headerActions:item&&!item.enabled?`<button type="button" class="x" aria-label="计划选项" data-app-i18n-aria-label="scheduledAutomation.options" onclick="RunTeamsEmployeeAutomation.editOptions(event)">${ICON('more')}</button>`:'',
+   body:`<div class="employee-schedule-content">
+    <div class="employee-schedule-task">
+     <textarea class="ta" id="employee_schedule_objective" maxlength="20000" aria-label="任务说明" data-app-i18n-aria-label="automationEditor.instructions" placeholder="描述每次运行要完成的工作" data-app-i18n-placeholder="${promptKey}" oninput="RunTeamsEmployeeAutomation.taskChanged()">${esc(objective+parameters)}</textarea>
+     ${s.pipeline?'':`<label class="employee-schedule-original" title="关闭此选项时，应用会先润色任务说明。" data-app-i18n-title="scheduledAutomation.originalHint"><input type="checkbox" id="employee_schedule_original" ${item&&payload.use_original!==false?'checked':''}>${copy('scheduledAutomation.original','使用原文')}</label>`}
+    </div>
+    ${s.pipeline?`<div class="field"><label for="employee_schedule_position" data-app-i18n="scheduledAutomation.startPosition">起始岗位</label><select class="inp" id="employee_schedule_position" onchange="RunTeamsEmployeeAutomation.startChanged()">${s.positions.map(p=>`<option value="${esc(p.key)}" ${p.key===f.position?'selected':''}>${esc(p.name)}</option>`).join('')}</select></div><div id="employee_schedule_inputs"></div>`:''}
+    <div class="employee-schedule-timing">
+     <button type="button" class="employee-schedule-summary" id="employee_schedule_summary" aria-expanded="false" aria-controls="employee_schedule_details" onclick="RunTeamsEmployeeAutomation.toggleSchedule()">${ICON('clock')}<span id="employee_schedule_label" data-app-i18n="scheduledAutomation.chooseSchedule">设置运行时间</span><small>${copy('scheduledAutomation.keepOnline','运行时电脑需在线')}</small>${ICON('chev')}</button>
+     <div id="employee_schedule_details" class="employee-schedule-details" hidden inert aria-hidden="true"><div class="employee-schedule-details-inner">
+      <div class="employee-schedule-fields">
+       <label class="field"><span id="employee_schedule_repeat" data-app-i18n="automationEditor.repeat">重复</span>${csel('employee_schedule_kind',[
+        {value:'daily',label:'每天',labelKey:'automationEditor.daily'},
+        {value:'weekly',label:'每周',labelKey:'automationEditor.weekly'},
+        {value:'interval',label:'按间隔',labelKey:'automationEditor.interval'}
+       ],kind,()=>{if(formCurrent(f)&&!f.saving)scheduleChanged();},{menuVariant:'settingsSelect'})}</label>
+       <label class="field" id="employee_schedule_time_field">${copy('automationEditor.time','时间')}<input class="inp" id="employee_schedule_time" type="text" placeholder="HH:mm" maxlength="5" autocomplete="off" spellcheck="false" value="${esc(schedule.time||'09:00')}" oninput="RunTeamsEmployeeAutomation.scheduleChanged()"></label>
+       <label class="field" id="employee_schedule_interval_field">${copy('scheduledAutomation.intervalMinutes','间隔（分钟）')}<input class="inp" id="employee_schedule_interval" type="number" min="1" max="43200" value="${Math.max(1,(item?.interval_sec||3600)/60)}" oninput="RunTeamsEmployeeAutomation.scheduleChanged()"></label>
+      </div>
+      <div id="employee_schedule_days" class="employee-schedule-days" hidden><span data-app-i18n="automationEditor.weekdays">星期</span><div>${['一','二','三','四','五','六','日'].map((label,day)=>`<label><input type="checkbox" value="${day}" ${(schedule.weekdays||[]).includes(day)?'checked':''} onchange="RunTeamsEmployeeAutomation.scheduleChanged()">${copy('automationEditor.day'+day,label)}</label>`).join('')}</div></div>
+     </div></div>
+    </div>
+    <label class="employee-schedule-name">${ICON('tag')}<input class="inp employee-schedule-name-input" type="text" id="employee_schedule_name" aria-label="名称" data-app-i18n-aria-label="automationEditor.name" maxlength="120" value="${esc(item?.name||'')}" placeholder="自动生成名称" data-app-i18n-placeholder="scheduledAutomation.automaticName" autocomplete="off"></label>
+    <p id="employee_schedule_error" role="alert" class="account-team-error" hidden></p>
+   </div>`,
+   footer:`<span class="employee-schedule-paused" id="employee_schedule_paused" data-app-i18n="automationList.paused" ${item&&!item.enabled?'':'hidden'}>已暂停</span><div class="grow"></div><button class="btn ghost" id="employee_schedule_close" data-app-i18n="scheduledAutomation.cancel" onclick="closeModal()">取消</button><button class="btn pri" id="employee_schedule_save" data-app-i18n="${item?'automationEditor.save':'scheduledAutomation.create'}" onclick="RunTeamsEmployeeAutomation.save()">${item?'保存':'创建'}</button>`
+  });
   f.element=dialog;scheduleChanged();taskChanged();if(s.pipeline)void startChanged(true);
+  field('objective')?.focus({preventScroll:true});
  }
- function errorText(message){const node=field('error');if(node){node.textContent=message;node.hidden=!message;}}
+ function errorText(error){
+  const node=field('error');if(!node)return;
+  applyCopy(node,error?.message||'',error?.detailKey,error?.detailVars);
+  node.hidden=!error;
+ }
  function automaticName(objective){return [...String(objective||'').trim().split(/[\r\n，。！？；,:!?;]/)[0]].slice(0,18).join('');}
- function taskChanged(){const f=form;if(!f||f.saving)return;const objective=field('objective')?.value||'';if(field('save'))field('save').disabled=!objective.trim()||!f.hasSchedule||f.owner.pipeline&&!f.inputContract;errorText('');}
+ function taskChanged(){const f=form;if(!f||f.saving)return;const objective=field('objective')?.value||'';if(field('save'))field('save').disabled=!objective.trim()||!f.hasSchedule||f.owner.pipeline&&!f.inputContract;errorText(f.scheduleError);}
  function scheduleKind(){return field('kind')?.dataset.value;}
+ function scheduleSummary(f){
+  const label=field('label');
+  if(f.scheduleSelected&&f.hasSchedule){
+   const value=scheduleValue();
+   label.textContent=automationListSchedule(value);
+   label.removeAttribute('data-app-i18n');
+  }else applyCopy(label,'设置运行时间','scheduledAutomation.chooseSchedule');
+ }
  function scheduleChanged(){
   const f=form,kind=scheduleKind();if(!f||f.saving)return;
   field('time_field').hidden=kind==='interval';field('interval_field').hidden=kind!=='interval';field('days').hidden=kind!=='weekly';
   if(f.scheduleSelected){
-   try{scheduleValue();f.hasSchedule=true;errorText('');const days=[...document.querySelectorAll('#employee_schedule_days input:checked')].map(n=>'一二三四五六日'[Number(n.value)]);field('label').textContent=kind==='interval'?`每隔 ${field('interval').value} 分钟`:kind==='weekly'?`每周${days.join('、')} ${field('time').value}`:`每天 ${field('time').value}`;}
-   catch(e){f.hasSchedule=false;field('label').textContent='设置执行时间';}
+   try{scheduleValue();f.hasSchedule=true;f.scheduleError=null;}
+   catch(e){f.hasSchedule=false;f.scheduleError=e;}
+   errorText(f.scheduleError);
+   scheduleSummary(f);
    if(field('save'))field('save').disabled=!f.hasSchedule||!field('objective').value.trim()||f.owner.pipeline&&!f.inputContract;
   }
  }
@@ -138,42 +349,56 @@
  }
  function scheduleValue(){
   const kind=scheduleKind(),days=[...document.querySelectorAll('#employee_schedule_days input:checked')].map(n=>Number(n.value)),minutes=Number(field('interval').value),time=field('time').value;
-  if(kind==='weekly'&&!days.length)throw Error('请选择至少一天。');
-  if(kind!=='interval'&&!/^([01]\d|2[0-3]):[0-5]\d$/.test(time))throw Error('请输入有效时间，例如 09:00。');
-  if(!Number.isInteger(minutes)||minutes<1||minutes>43200)throw Error('请填写有效的分钟间隔。');
+  if(kind==='weekly'&&!days.length)throw localError('scheduledAutomation.chooseDay','请至少选择一天。');
+  if(kind!=='interval'&&!/^([01]\d|2[0-3]):[0-5]\d$/.test(time))throw localError('scheduledAutomation.invalidTime','请用 24 小时制输入时间，例如 09:00。');
+  if(!Number.isInteger(minutes)||minutes<1||minutes>43200)throw localError('scheduledAutomation.invalidInterval','请输入 1 到 43200 之间的整数分钟数。');
   return {schedule_kind:kind,interval_sec:minutes*60,schedule:{time,weekdays:days,timezone:Intl.DateTimeFormat().resolvedOptions().timeZone}};
  }
- function editOptions(event){const f=form;if(!formCurrent(f)||f.saving||f.enabled)return;openMenu(event.currentTarget,[{label:'启用计划',icon:'play',fn:()=>{if(formCurrent(f)&&!f.saving){f.enabled=true;field('paused').textContent='';}}}]);}
- function freezeForm(f,busy,label){if(!formCurrent(f))return;f.element.querySelectorAll('.employee-schedule-content input,.employee-schedule-content textarea,.employee-schedule-content select,.employee-schedule-content button').forEach(n=>n.disabled=busy);field('save').disabled=busy||!!pending(f.owner)||!f.hasSchedule||!field('objective').value.trim()||f.owner.pipeline&&!f.inputContract;field('save').textContent=busy?label:f.item?'保存':'创建';field('close').textContent=busy?'关闭':'取消';}
+ function editOptions(event){const f=form;if(!formCurrent(f)||f.saving||f.enabled)return;openMenu(event.currentTarget,[{label:'启用自动化',labelKey:'automationList.enable',icon:'play',fn:()=>{if(formCurrent(f)&&!f.saving){f.enabled=true;field('paused').hidden=true;}}}]);}
+ function freezeForm(f,busy,progress){
+  if(!formCurrent(f))return;
+  f.element.querySelectorAll('.employee-schedule-content input,.employee-schedule-content textarea,.employee-schedule-content select,.employee-schedule-content button').forEach(node=>node.disabled=busy);
+  const button=field('save');
+  button.disabled=busy||!!pending(f.owner)||!f.hasSchedule||!field('objective').value.trim()||f.owner.pipeline&&!f.inputContract;
+  button.setAttribute('aria-busy',String(busy));
+  applyCopy(button,...(busy?progress:f.item?['保存','automationEditor.save']:['创建','scheduledAutomation.create']));
+  applyCopy(field('close'),busy?'关闭':'取消',busy?'employeeConsent.close':'scheduledAutomation.cancel');
+ }
  async function save(){
   const f=form;if(!formCurrent(f)||f.saving||f.owner.busy||pending(f.owner))return;
   try{
    const objective=field('objective').value,name=field('name').value.trim()||automaticName(objective);
-   if(!objective.trim())throw Error('先写下要完成的工作。');if(!f.scheduleSelected)throw Error('请选择执行时间。');
+   if(!objective.trim())throw localError('scheduledAutomation.missingInstructions','请描述要完成的工作。');if(!f.scheduleSelected)throw localError('scheduledAutomation.chooseSchedule','设置运行时间');
    const value={name,objective,enabled:f.enabled,...scheduleValue(),...(f.owner.pipeline?{start_column_key:f.position,parameters:readCoreTaskParameters(field('inputs'))}:{use_original:field('original').checked})};
-   if(f.owner.pipeline&&!f.inputContract)throw Error('请先核对开始岗位的任务输入。');
-   f.saving=true;errorText('');freezeForm(f,true,f.owner.pipeline?'保存中…':value.use_original?'创建中…':'润色中…');
+   if(f.owner.pipeline&&!f.inputContract)throw localError('scheduledAutomation.checkInputs','请先检查起始岗位的任务信息。');
+   f.saving=true;errorText('');freezeForm(f,true,!f.owner.pipeline&&!value.use_original?['正在润色任务说明…','scheduledAutomation.polishing']:f.item?['正在保存…','automationEditor.saving']:['正在创建…','scheduledAutomation.creating']);
    if(await command('save',f.item,value)){if(formCurrent(f)){form=null;closeModal();}}
-   else if(formCurrent(f))errorText(pending(f.owner)?'创建结果待核对。关闭后可核对原操作，请勿重复提交。':f.owner.commandError||'未能保存，请检查设置后重试。');
-  }catch(e){if(formCurrent(f))errorText(e.message);}
+   else if(formCurrent(f))errorText(pending(f.owner)?localError('scheduledAutomation.saveUnconfirmed','无法确认是否已保存。关闭此窗口，在自动化中核对上次操作。'):commandFailure(f.owner.commandError,'save'));
+  }catch(e){if(formCurrent(f))errorText(e);}
   finally{f.saving=false;freezeForm(f,false);}
  }
 
  function pipelineInputs(f){
-  if(f.inputLoading)return RunTeamsSkeletons.region('parameters');
-  if(f.inputError)return RunTeamsLoadFailure.markup({variant:'local',title:'任务输入暂时无法读取',error:f.inputError,retry:'RunTeamsEmployeeAutomation.startChanged(true)'});
-  return coreTaskParameterFields(coreWorkflowFrozenParameters(f.inputContract),f.parameterDrafts[f.position]||{},'pipeline_schedule')||'<p class="help">这项工作不需要额外任务资料。</p>';
+  if(f.inputLoading)return RunTeamsSkeletons.region('parameters',undefined,'scheduledAutomation.loadingInputs');
+  if(f.inputError)return RunTeamsLoadFailure.markup({variant:'local',title:'无法读取任务信息',titleKey:'scheduledAutomation.inputsFailed',labelKey:'employeeHistory.retry',busyLabelKey:'scheduledAutomation.loadingInputs',retry:'RunTeamsEmployeeAutomation.startChanged(true,true)'});
+  return coreTaskParameterFields(coreWorkflowFrozenParameters(f.inputContract),f.parameterDrafts[f.position]||{},'pipeline_schedule')||`<p class="help">${copy('scheduledAutomation.noInputs','这项工作无需其他任务信息。')}</p>`;
  }
- async function startChanged(initial=false){
+ async function startChanged(initial=false,focusAfterRead=false){
   const f=form;if(!formCurrent(f)||!f.owner.pipeline||f.saving)return;
   const position=field('position').value;
-  if(!initial&&f.inputContract){try{f.parameterDrafts[f.position]=readCoreTaskParameters(field('inputs'));}catch(e){field('position').value=f.position;errorText(e.message);return;}}
+  if(!initial&&f.inputContract){try{f.parameterDrafts[f.position]=readCoreTaskParameters(field('inputs'));}catch(e){field('position').value=f.position;errorText(e);return;}}
   f.position=position;f.inputContract=null;f.inputLoading=true;f.inputError='';const ticket=(f.contractRead||0)+1;f.contractRead=ticket;taskChanged();
   field('inputs').innerHTML=pipelineInputs(f);
   try{const result=await RunTeamsSourcePipelines.request('contract',{reference:f.owner.reference,start_column_key:position});
    if(!formCurrent(f)||f.contractRead!==ticket)return;
-   f.inputLoading=false;f.inputContract=result;field('inputs').innerHTML=pipelineInputs(f);errorText('');taskChanged();
-  }catch(e){if(formCurrent(f)&&f.contractRead===ticket){f.inputLoading=false;f.inputError=e.message;field('inputs').innerHTML=pipelineInputs(f);errorText(e.message);}}
+   f.inputLoading=false;f.inputContract=result;
+   const inputs=field('inputs');
+   inputs.innerHTML=pipelineInputs(f);taskChanged();
+   if(focusAfterRead&&document.activeElement===document.body){
+    const next=inputs.querySelector('input:not(:disabled),textarea:not(:disabled),select:not(:disabled)')||field('position');
+    next.focus({preventScroll:true});
+   }
+  }catch(e){if(formCurrent(f)&&f.contractRead===ticket){f.inputLoading=false;f.inputError=true;field('inputs').innerHTML=pipelineInputs(f);}}
  }
 
  function settingsOpen(panel=S.conversationPanel){
@@ -182,15 +407,17 @@
   const t=target(panel),s=typeof RunTeamsCreatorAuthor==='undefined'?null:RunTeamsCreatorAuthor.current();
   return !!s&&!!t?.source&&(s.session===panel.id||(s.sourceId===t.source.id||s.localDraft?.id===t.source.id)&&(!s.employeeSource||s.employeeSource===t.source.path));
  }
- function settingsControl(panel=S.conversationPanel){const selected=settingsOpen(panel);return `<button type="button" class="conversation-header-action creator-work-trigger employee-settings-trigger${selected?' on':''}" aria-label="设置" aria-expanded="${selected}" aria-pressed="${selected}" onclick="RunTeamsEmployeeAutomation.sourceSettings()">${ICON('settings')}<span>设置</span></button>`;}
+ function settingsControl(panel=S.conversationPanel){
+  return RunTeamsShell.headerAction({label:'设置',labelKey:'employeeSettings.trigger',icon:ICON('settings'),action:'RunTeamsEmployeeAutomation.sourceSettings()',className:'employee-settings-trigger',selected:settingsOpen(panel)});
+ }
  async function sourceSettings(){
   const panel=S.conversationPanel;if(panel?.context?.pipeline_work){toast('请在流水线设置中配置对应岗位。','info');return;}
   const work=window.RunTeamsEmployeeConfiguration?.workTarget?.(panel),t=target();if(!t&&!work){toast('员工暂不可用。','info');return;}
   if(settingsOpen(panel))return window.RunTeamsEmployeeConfiguration?.current()?RunTeamsEmployeeConfiguration.close():RunTeamsCreatorAuthor.close();
 
-  return work?RunTeamsEmployeeConfiguration.open(work):RunTeamsEmployeeDirectory.settings(t.key);
+  return work?RunTeamsEmployeeConfiguration.openConversation(work,RunTeamsEmployeeDirectory.forPanel(panel)):RunTeamsEmployeeDirectory.settings(t.key);
  }
- window.RunTeamsEmployeeAutomation=Object.freeze({decorateHeader,settingsOpen,settingsControl,sourceSettings,current,controls,toggle,refresh,drawer,edit,startChanged,scheduleChanged,taskChanged,toggleSchedule,editOptions,save,action,menu,records,recover,resolve,cancelPending});
- if(typeof setInterval==='function')setInterval(()=>{const s=current();if(s&&!s.unavailable&&!s.busy&&!pending(s)&&!document.querySelector('#modalHost'))void refresh({silent:true});},10000);
+ window.RunTeamsEmployeeAutomation=Object.freeze({decorateHeader,settingsOpen,settingsControl,sourceSettings,current,controls,toggle,refresh,drawer,edit,startChanged,scheduleChanged,taskChanged,toggleSchedule,editOptions,save,action,menu,records,closeRecords,recover,resolve,cancelPending});
+ if(typeof setInterval==='function')setInterval(()=>{const s=current();if(s&&!s.unavailable&&!s.busy&&!pending(s)&&!document.querySelector('#modalHost')&&!scheduleMenuOpen())void refresh({silent:true,background:true});},10000);
  window.addEventListener('runteams:business-scope-changed',()=>{state=null;form=null;});
 })();

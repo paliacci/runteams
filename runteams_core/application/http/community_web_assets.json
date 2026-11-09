@@ -75,6 +75,10 @@
     "web/ui/configuration-fields.js",
     "text/javascript; charset=utf-8"
   ],
+  "/ui/configuration-form.js": [
+    "web/ui/configuration-form.js",
+    "text/javascript; charset=utf-8"
+  ],
   "/ui/controls.js": [
     "web/ui/controls.js",
     "text/javascript; charset=utf-8"
@@ -123,6 +127,14 @@
     "web/ui/employee-automation.js",
     "text/javascript; charset=utf-8"
   ],
+  "/ui/employee-avatar-live.js": [
+    "web/ui/employee-avatar-live.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/ui/employee-avatars.js": [
+    "web/ui/employee-avatars.js",
+    "text/javascript; charset=utf-8"
+  ],
   "/ui/employee-configuration.css": [
     "web/ui/employee-configuration.css",
     "text/css; charset=utf-8"
@@ -153,6 +165,10 @@
   ],
   "/ui/empty-states.js": [
     "web/ui/empty-states.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/ui/header-status.js": [
+    "web/ui/header-status.js",
     "text/javascript; charset=utf-8"
   ],
   "/ui/host.js": [
@@ -249,6 +265,10 @@
   ],
   "/ui/panel-motion.js": [
     "web/ui/panel-motion.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/ui/pipeline-status-motion.js": [
+    "web/ui/pipeline-status-motion.js",
     "text/javascript; charset=utf-8"
   ],
   "/ui/reply-content-bundle.js": [
@@ -451,9 +471,21 @@
     "web/modules/skills.js",
     "text/javascript; charset=utf-8"
   ],
+  "/vendor/licenses/LOTTIE-WEB-LICENSE.txt": [
+    "web/vendor/licenses/LOTTIE-WEB-LICENSE.txt",
+    "text/plain; charset=utf-8"
+  ],
   "/vendor/licenses/RESOURCE_VIEWER_DEPENDENCIES.txt": [
     "web/vendor/licenses/RESOURCE_VIEWER_DEPENDENCIES.txt",
     "text/plain; charset=utf-8"
+  ],
+  "/vendor/licenses/USEANIMATIONS-LICENSE.txt": [
+    "web/vendor/licenses/USEANIMATIONS-LICENSE.txt",
+    "text/plain; charset=utf-8"
+  ],
+  "/vendor/lottie-light.min.js": [
+    "web/vendor/lottie-light.min.js",
+    "text/javascript; charset=utf-8"
   ],
   "/vendor/marked.js": [
     "web/vendor/marked.js",
@@ -520,68 +552,312 @@
     "font/woff2"
   ],
   "/worker-avatars/bottts/ada.svg": [
-    "web/worker-avatars/bottts/ada.svg",
+    "web/worker-avatars/colleague/colleague-008.svg",
     "image/svg+xml"
   ],
   "/worker-avatars/bottts/alan.svg": [
-    "web/worker-avatars/bottts/alan.svg",
+    "web/worker-avatars/colleague/colleague-029.svg",
     "image/svg+xml"
   ],
   "/worker-avatars/bottts/aso-specialist.svg": [
-    "web/worker-avatars/bottts/aso-specialist.svg",
+    "web/worker-avatars/colleague/colleague-003.svg",
     "image/svg+xml"
   ],
   "/worker-avatars/bottts/atlas.svg": [
-    "web/worker-avatars/bottts/atlas.svg",
+    "web/worker-avatars/colleague/colleague-015.svg",
     "image/svg+xml"
   ],
   "/worker-avatars/bottts/commercial-manager.svg": [
-    "web/worker-avatars/bottts/commercial-manager.svg",
+    "web/worker-avatars/colleague/colleague-004.svg",
     "image/svg+xml"
   ],
   "/worker-avatars/bottts/cora.svg": [
-    "web/worker-avatars/bottts/cora.svg",
+    "web/worker-avatars/colleague/colleague-005.svg",
     "image/svg+xml"
   ],
   "/worker-avatars/bottts/echo.svg": [
-    "web/worker-avatars/bottts/echo.svg",
+    "web/worker-avatars/colleague/colleague-036.svg",
     "image/svg+xml"
   ],
   "/worker-avatars/bottts/grace.svg": [
-    "web/worker-avatars/bottts/grace.svg",
+    "web/worker-avatars/colleague/colleague-022.svg",
     "image/svg+xml"
   ],
   "/worker-avatars/bottts/juno.svg": [
-    "web/worker-avatars/bottts/juno.svg",
+    "web/worker-avatars/colleague/colleague-009.svg",
     "image/svg+xml"
   ],
   "/worker-avatars/bottts/localization-specialist.svg": [
-    "web/worker-avatars/bottts/localization-specialist.svg",
+    "web/worker-avatars/colleague/colleague-010.svg",
     "image/svg+xml"
   ],
   "/worker-avatars/bottts/market-analyst.svg": [
-    "web/worker-avatars/bottts/market-analyst.svg",
+    "web/worker-avatars/colleague/colleague-011.svg",
     "image/svg+xml"
   ],
   "/worker-avatars/bottts/nova.svg": [
-    "web/worker-avatars/bottts/nova.svg",
+    "web/worker-avatars/colleague/colleague-001.svg",
     "image/svg+xml"
   ],
   "/worker-avatars/bottts/product-manager.svg": [
-    "web/worker-avatars/bottts/product-manager.svg",
+    "web/worker-avatars/colleague/colleague-013.svg",
     "image/svg+xml"
   ],
   "/worker-avatars/bottts/qa-engineer.svg": [
-    "web/worker-avatars/bottts/qa-engineer.svg",
+    "web/worker-avatars/colleague/colleague-014.svg",
     "image/svg+xml"
   ],
   "/worker-avatars/bottts/software-architect.svg": [
-    "web/worker-avatars/bottts/software-architect.svg",
+    "web/worker-avatars/colleague/colleague-016.svg",
     "image/svg+xml"
   ],
   "/worker-avatars/bottts/user-operations.svg": [
-    "web/worker-avatars/bottts/user-operations.svg",
+    "web/worker-avatars/colleague/colleague-017.svg",
     "image/svg+xml"
+  ],
+  "/worker-avatars/colleague/colleague-001.svg": [
+    "web/worker-avatars/colleague/colleague-001.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/colleague/colleague-002.svg": [
+    "web/worker-avatars/colleague/colleague-002.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/colleague/colleague-003.svg": [
+    "web/worker-avatars/colleague/colleague-003.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/colleague/colleague-004.svg": [
+    "web/worker-avatars/colleague/colleague-004.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/colleague/colleague-005.svg": [
+    "web/worker-avatars/colleague/colleague-005.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/colleague/colleague-006.svg": [
+    "web/worker-avatars/colleague/colleague-006.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/colleague/colleague-007.svg": [
+    "web/worker-avatars/colleague/colleague-007.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/colleague/colleague-008.svg": [
+    "web/worker-avatars/colleague/colleague-008.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/colleague/colleague-009.svg": [
+    "web/worker-avatars/colleague/colleague-009.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/colleague/colleague-010.svg": [
+    "web/worker-avatars/colleague/colleague-010.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/colleague/colleague-011.svg": [
+    "web/worker-avatars/colleague/colleague-011.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/colleague/colleague-012.svg": [
+    "web/worker-avatars/colleague/colleague-012.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/colleague/colleague-013.svg": [
+    "web/worker-avatars/colleague/colleague-013.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/colleague/colleague-014.svg": [
+    "web/worker-avatars/colleague/colleague-014.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/colleague/colleague-015.svg": [
+    "web/worker-avatars/colleague/colleague-015.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/colleague/colleague-016.svg": [
+    "web/worker-avatars/colleague/colleague-016.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/colleague/colleague-017.svg": [
+    "web/worker-avatars/colleague/colleague-017.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/colleague/colleague-018.svg": [
+    "web/worker-avatars/colleague/colleague-018.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/colleague/colleague-019.svg": [
+    "web/worker-avatars/colleague/colleague-019.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/colleague/colleague-020.svg": [
+    "web/worker-avatars/colleague/colleague-020.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/colleague/colleague-021.svg": [
+    "web/worker-avatars/colleague/colleague-021.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/colleague/colleague-022.svg": [
+    "web/worker-avatars/colleague/colleague-022.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/colleague/colleague-023.svg": [
+    "web/worker-avatars/colleague/colleague-023.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/colleague/colleague-024.svg": [
+    "web/worker-avatars/colleague/colleague-024.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/colleague/colleague-025.svg": [
+    "web/worker-avatars/colleague/colleague-025.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/colleague/colleague-026.svg": [
+    "web/worker-avatars/colleague/colleague-026.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/colleague/colleague-027.svg": [
+    "web/worker-avatars/colleague/colleague-027.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/colleague/colleague-028.svg": [
+    "web/worker-avatars/colleague/colleague-028.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/colleague/colleague-029.svg": [
+    "web/worker-avatars/colleague/colleague-029.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/colleague/colleague-030.svg": [
+    "web/worker-avatars/colleague/colleague-030.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/colleague/colleague-031.svg": [
+    "web/worker-avatars/colleague/colleague-031.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/colleague/colleague-032.svg": [
+    "web/worker-avatars/colleague/colleague-032.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/colleague/colleague-033.svg": [
+    "web/worker-avatars/colleague/colleague-033.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/colleague/colleague-034.svg": [
+    "web/worker-avatars/colleague/colleague-034.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/colleague/colleague-035.svg": [
+    "web/worker-avatars/colleague/colleague-035.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/colleague/colleague-036.svg": [
+    "web/worker-avatars/colleague/colleague-036.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/colleague/colleague-037.svg": [
+    "web/worker-avatars/colleague/colleague-037.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/colleague/colleague-038.svg": [
+    "web/worker-avatars/colleague/colleague-038.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/colleague/colleague-039.svg": [
+    "web/worker-avatars/colleague/colleague-039.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/colleague/colleague-040.svg": [
+    "web/worker-avatars/colleague/colleague-040.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/colleague/colleague-041.svg": [
+    "web/worker-avatars/colleague/colleague-041.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/colleague/colleague-042.svg": [
+    "web/worker-avatars/colleague/colleague-042.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/colleague/colleague-043.svg": [
+    "web/worker-avatars/colleague/colleague-043.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/colleague/colleague-044.svg": [
+    "web/worker-avatars/colleague/colleague-044.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/colleague/colleague-045.svg": [
+    "web/worker-avatars/colleague/colleague-045.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/colleague/colleague-046.svg": [
+    "web/worker-avatars/colleague/colleague-046.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/colleague/colleague-047.svg": [
+    "web/worker-avatars/colleague/colleague-047.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/colleague/colleague-048.svg": [
+    "web/worker-avatars/colleague/colleague-048.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/colleague/colleague-049.svg": [
+    "web/worker-avatars/colleague/colleague-049.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/colleague/colleague-050.svg": [
+    "web/worker-avatars/colleague/colleague-050.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/colleague/colleague-051.svg": [
+    "web/worker-avatars/colleague/colleague-051.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/colleague/colleague-052.svg": [
+    "web/worker-avatars/colleague/colleague-052.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/colleague/colleague-053.svg": [
+    "web/worker-avatars/colleague/colleague-053.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/colleague/colleague-054.svg": [
+    "web/worker-avatars/colleague/colleague-054.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/colleague/colleague-055.svg": [
+    "web/worker-avatars/colleague/colleague-055.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/colleague/colleague-056.svg": [
+    "web/worker-avatars/colleague/colleague-056.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/colleague/colleague-057.svg": [
+    "web/worker-avatars/colleague/colleague-057.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/colleague/colleague-058.svg": [
+    "web/worker-avatars/colleague/colleague-058.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/colleague/colleague-059.svg": [
+    "web/worker-avatars/colleague/colleague-059.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/colleague/colleague-060.svg": [
+    "web/worker-avatars/colleague/colleague-060.svg",
+    "image/svg+xml"
+  ],
+  "/worker-avatars/presets.json": [
+    "web/worker-avatars/presets.json",
+    "application/json"
   ],
   "/provider-icons/claude.svg": [
     "web/provider-icons/claude.svg",
@@ -683,6 +959,50 @@
     "web/rich-document/dist/assets/highlighted-body-JLMTFACH-BnO0sWvB.js",
     "text/javascript; charset=utf-8"
   ],
+  "/rich-document/dist/assets/index-CDLnLXTY.js": [
+    "web/rich-document/dist/assets/index-CDLnLXTY.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/rich-document/dist/assets/index-CVUgUBTj.js": [
+    "web/rich-document/dist/assets/index-CVUgUBTj.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/rich-document/dist/assets/index-CWHO-l28.js": [
+    "web/rich-document/dist/assets/index-CWHO-l28.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/rich-document/dist/assets/index-CliRAIA6.js": [
+    "web/rich-document/dist/assets/index-CliRAIA6.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/rich-document/dist/assets/index-Cnwlk7Kl.js": [
+    "web/rich-document/dist/assets/index-Cnwlk7Kl.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/rich-document/dist/assets/index-D4Wj9Gx1.js": [
+    "web/rich-document/dist/assets/index-D4Wj9Gx1.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/rich-document/dist/assets/index-D4mZdH9O.js": [
+    "web/rich-document/dist/assets/index-D4mZdH9O.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/rich-document/dist/assets/index-DDy4diaN.js": [
+    "web/rich-document/dist/assets/index-DDy4diaN.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/rich-document/dist/assets/index-DZkTMjyy.js": [
+    "web/rich-document/dist/assets/index-DZkTMjyy.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/rich-document/dist/assets/index-D_nQ0WO1.js": [
+    "web/rich-document/dist/assets/index-D_nQ0WO1.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/rich-document/dist/assets/index-Dfv7o_H1.js": [
+    "web/rich-document/dist/assets/index-Dfv7o_H1.js",
+    "text/javascript; charset=utf-8"
+  ],
   "/rich-document/dist/assets/index-DiGDoklk.js": [
     "web/rich-document/dist/assets/index-DiGDoklk.js",
     "text/javascript; charset=utf-8"
@@ -709,6 +1029,10 @@
   ],
   "/rich-document/dist/assets/reply-CREW_NT8.js": [
     "web/rich-document/dist/assets/reply-CREW_NT8.js",
+    "text/javascript; charset=utf-8"
+  ],
+  "/rich-document/dist/assets/reply-CTNxiYN2.js": [
+    "web/rich-document/dist/assets/reply-CTNxiYN2.js",
     "text/javascript; charset=utf-8"
   ],
   "/rich-document/dist/index.html": [

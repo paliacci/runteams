@@ -12,6 +12,13 @@
 .route-sk-copy{width:100%;height:12px}
 .route-sk-short{width:64%;height:12px}
 .route-sk-meta{width:60px;height:12px;max-width:100%}
+.route-sk-drawer-title{display:flex;align-items:center;min-height:32px}
+.route-sk-drawer-title>.route-sk-title{width:68%;height:22px}
+.route-sk-drawer-meta,.route-sk-drawer-description{display:flex;align-items:center;gap:8px;margin-block-start:8px;min-height:18px}
+.route-sk-drawer-description>.route-sk-copy{width:82%}
+.route-sk-drawer-section{display:block;width:100%;height:32px;border-radius:6px;margin-block:0 8px}
+.route-sk-work-record{display:grid;align-content:center;gap:7px;min-height:68px}
+.route-sk-work-record>div{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .route-sk-back{width:62px;height:24px;margin-bottom:28px}
 .route-sk-tabs{display:flex;gap:28px;align-items:center;margin-bottom:24px;min-height:32px}
 .route-sk-tab{width:65px;height:14px;max-width:100%}
@@ -69,6 +76,11 @@
 .route-sk-balance{padding:28px;border:1px solid var(--border-default);border-radius:18px;display:flex;flex-direction:column;gap:20px;margin-bottom:32px}
 .route-sk-amount{width:220px;height:44px;max-width:85%}
 .route-sk-region .route-sk-paragraph:last-child{margin-bottom:0}
+.route-sk-stage-employee{display:flex;align-items:center;gap:6px;min-height:38px;padding:3px 6px}
+.route-sk-stage-avatar{width:26px;height:26px;flex:none;border-radius:8px}
+.route-sk-stage-copy{display:grid;gap:5px;flex:1;min-width:0}
+.route-sk-stage-name{width:min(92px,100%);height:8px}
+.route-sk-stage-skill{width:min(62px,100%);height:6px}
 .route-sk-history-row{display:flex;flex-direction:column;gap:10px;padding:16px 0;border-bottom:1px solid var(--border-default)}
 @media(max-width:1100px){.route-sk-detail-columns{grid-template-columns:minmax(0,1fr) 220px;gap:24px}.route-sk-split{grid-template-columns:minmax(0,1fr) 320px}.route-sk-mail>div:last-child{display:none}}
 @media(max-width:1050px){.route-sk-split,.route-sk-author{grid-template-columns:minmax(0,1fr)}.route-sk-split>.route-sk-page,.route-sk-split>.route-sk-chat,.route-sk-author>.route-sk-side{display:none}.route-sk-split>.route-sk-side{border-left:0}.route-sk-table-head,.route-sk-table-row{grid-template-columns:minmax(100px,2fr) repeat(2,minmax(54px,1fr));gap:16px}.route-sk-table-head>*:nth-child(n+4),.route-sk-table-row>*:nth-child(n+4){display:none}}
@@ -86,6 +98,9 @@
 .pending-pipeline{display:flex;flex-direction:column}
 .pending-pipeline>[data-pending-data]{flex:1;min-height:0;overflow:hidden}
 .pending-pipeline .board{height:100%}
+.pipeline-board-loading{height:100%;min-height:0}
+.pipeline-board-loading>.skeleton-board{height:100%!important}
+.pipeline-board-loading .skeleton-board>.cols{height:100%;align-items:stretch}
 .pending-pipeline-new>.pending-page-data{display:flex;flex-direction:column}
 .pending-pipeline-new .home-workspace{flex:1;min-height:0}
 .boot-rail-account>[aria-hidden]{display:flex;gap:10px;align-items:center}
@@ -121,3 +136,13 @@
 .route-sk-automation-more{width:14px;height:14px;justify-self:center}
 .route-sk-automation-name{width:150px;max-width:95%;height:14px}
 .route-sk-automation-time{width:90px;max-width:80%;height:11px}
+
+/* Keep the header slots stable when the startup frame hands off to the workspace. */
+#app :is(.pending-page,#rgPipelineHead,.conversation-main) .workspace-header-loading {
+  width:100%;height:var(--workspace-head-h)!important;
+  box-sizing:border-box;padding:0 var(--workspace-head-pad)!important;
+  border-bottom:1px solid transparent!important;
+}
+#app :is(.pending-page,#rgPipelineHead,.conversation-main) .workspace-header-loading .conversation-header-skeleton-actions {
+  gap:2px;
+}

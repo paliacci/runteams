@@ -11,7 +11,6 @@ import signal
 import subprocess
 import threading
 import time
-import uuid
 
 from runteams_core.agents.adapters.adapter_codex import CodexAdapter
 from runteams_core.agents.models import model_channels
@@ -20,12 +19,6 @@ from runteams_core.agents import agent_stream
 from runteams_core.agents.tools import agent_tool_registry
 from runteams_core.agents import codex_processes
 from runteams_core.foundation.errors import Cancelled
-
-# Process-local native provider definition: same OpenAI authentication/default
-# endpoint and provider semantics, HTTP Responses streaming instead of WebSocket.
-# A random private id avoids replacing any user-owned provider definition.
-_HTTP_PROVIDER = 'runteams_http_' + uuid.uuid4().hex
-
 
 class CodexThreadError(RuntimeError):
     pass
@@ -155,7 +148,7 @@ def _sandbox_settings(execution_profile, cwd):
 
 
 def run_turn(channel, thread_id, message, developer_instructions, *, model="", effort="",
-             cwd=None, image_paths=None, extensions_enabled=True, timeout=180,
+             cwd=None, image_paths=None, extensions_enabled=True, timeout=None,
              on_activity=None, on_thread=None, on_title=None, execution_profile,
              cancel_event=None, tool_context=None, tool_names=None,
              require_final_text=True, preserve_tool_submissions=False,
@@ -179,11 +172,6 @@ def run_turn(channel, thread_id, message, developer_instructions, *, model="", e
         # workspace config and skills still load normally inside this boundary.
         argv += ['-c', 'project_root_markers=[]']
     pooled = bool(runtime_owner and initialize_session is None and employee_mcp is None)
-    if pooled:
-        prefix = 'model_providers.' + _HTTP_PROVIDER + '.'
-        for key, value in (('name', 'OpenAI'), ('wire_api', 'responses'),
-                           ('requires_openai_auth', True), ('supports_websockets', False)):
-            argv += ['-c', prefix + key + '=' + json.dumps(value)]
     if employee_mcp:
         if not callable(employee_mcp.get('on_approval')): raise ValueError('Employee approval route required')
         # Per-process config only; all existing native skills/plugins/MCP stay.
@@ -216,7 +204,7 @@ def run_turn(channel, thread_id, message, developer_instructions, *, model="", e
     healthy = False
     responses, notifications, user_input_requests, native_tool_results = {}, [], [], []
     early_requests = []
-    deadline = time.monotonic() + timeout
+    deadline = None if timeout is None else time.monotonic() + timeout
     active_thread_id = thread_id or ""
     turn_id = ""
     interrupt_sent = False
@@ -287,7 +275,8 @@ def run_turn(channel, thread_id, message, developer_instructions, *, model="", e
         try:
             return ask(questions)
         finally:
-            deadline += time.monotonic() - started_wait
+            if deadline is not None:
+                deadline += time.monotonic() - started_wait
 
     def async_question(item):
         item_id = str(item.get('id') or '')
@@ -524,22 +513,24 @@ def run_turn(channel, thread_id, message, developer_instructions, *, model="", e
             if answer is not None and not entry.get('native_resolved') and not native_idle and entry['turn_id'] == turn_id and not notifications and lines.empty():
                 send({'id': native_id, 'result': question_result(entry, answer)})
                 blocking_questions.pop(native_id, None)
-        remaining = deadline - time.monotonic()
-        if remaining <= 0:
-            raise CodexThreadError("Codex 对话超时 {}s".format(timeout))
-        poll = min(remaining, wait) if wait else remaining
+        poll = wait
+        if deadline is not None:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise CodexThreadError("Codex 对话超时 {}s".format(timeout))
+            poll = remaining if poll is None else min(remaining, poll)
         if cancel_event is not None or deferred_questions:
-            poll = min(poll, 0.1)
+            poll = 0.1 if poll is None else min(poll, 0.1)
         poll_started = time.monotonic()
         try:
             line = lines.get(timeout=poll)
         except queue.Empty:
-            if blocking_questions:
+            if blocking_questions and deadline is not None:
                 deadline += time.monotonic() - poll_started
             if cancel_event is not None and cancel_event.is_set() and not turn_id:
                 raise Cancelled("运行已停止")
             return False
-        if blocking_questions:
+        if blocking_questions and deadline is not None:
             deadline += time.monotonic() - poll_started
         if line is None:
             raise CodexThreadError("Codex App Server 意外退出")
@@ -577,20 +568,7 @@ def run_turn(channel, thread_id, message, developer_instructions, *, model="", e
             connection.initialized = True
         timings['initialize_ms'] = round((time.monotonic()-phase_started)*1000)
         if pooled:
-            if not connection.provider_selected:
-                # Read the effective native layers, not a separate scan or a
-                # hand-parsed profile. Respect explicitly configured providers,
-                # endpoints and managed configuration; native policy still
-                # validates thread/start/resume and every tool invocation.
-                config_result = wait_response(request('config/read', {'includeLayers': False}))
-                config = config_result.get('config')
-                if (isinstance(config, dict) and config.get('model_provider') in (None, '', 'openai')
-                        and not config.get('openai_base_url')
-                        and str(config.get('chatgpt_base_url') or '').rstrip('/') in
-                            ('', 'https://chatgpt.com/backend-api')):
-                    connection.model_provider = _HTTP_PROVIDER
-                connection.provider_selected = True
-            timings['transport'] = 'responses_http' if connection.model_provider else 'native_configured'
+            timings['transport'] = 'native_configured'
         if initialize_session is not None:
             # Trusted host callback, never serialized as model input, channel
             # configuration or a tool. Allows an independently owned official
@@ -605,12 +583,8 @@ def run_turn(channel, thread_id, message, developer_instructions, *, model="", e
             "sandbox": sandbox_mode,
             "developerInstructions": developer_instructions,
         }
-        if pooled and connection.model_provider:
-            thread_params['modelProvider'] = connection.model_provider
-            # A failed optional login-shell snapshot was another cold-start
-            # wait. Keep command execution and native environment/login policy;
-            # disable only its startup cache on this standard HTTP chat route.
-            thread_params['config'] = {'features.shell_snapshot': False}
+        # Keep the provider in Codex's effective configuration. Codex checks it
+        # again when starting a turn and persists the provider with the thread.
         if employee_mcp:
             # Use the official user's/organization's effective approval and
             # sandbox configuration. Never apply the legacy all-access profile.
@@ -687,7 +661,7 @@ def run_turn(channel, thread_id, message, developer_instructions, *, model="", e
                     if cancel_event is not None and cancel_event.is_set():
                         raise Cancelled('运行已停止')
                     turn_id = ''
-                    deadline = time.monotonic() + timeout
+                    deadline = None if timeout is None else time.monotonic() + timeout
                     if control:
                         control = TurnControl()
                         if cancel_event is not None:
@@ -852,7 +826,8 @@ def run_turn(channel, thread_id, message, developer_instructions, *, model="", e
         original_deadline = deadline
         try:
             if optional_read:
-                deadline = min(deadline, time.monotonic() + 2)
+                title_deadline = time.monotonic() + 2
+                deadline = title_deadline if deadline is None else min(deadline, title_deadline)
             read_result = wait_response(request(
                 "thread/read", {"threadId": active_thread_id,
                                 "includeTurns": bool(on_runtime) or not bool(final_text)}))

@@ -19,6 +19,7 @@ def utc_now():
 
 
 _AUDIT_CONTEXT = contextvars.ContextVar("runteams_audit_context", default={})
+_READ_SNAPSHOTS = contextvars.ContextVar("runteams_repository_read_snapshots", default=())
 
 
 def current_audit_context():
@@ -59,8 +60,19 @@ class Repository:
 
     @contextmanager
     def connect(self):
-        with self.storage.connect() as connection:
+        options = {'readonly': True} if self.path in _READ_SNAPSHOTS.get() else {}
+        with self.storage.connect(**options) as connection:
             yield connection
+
+    @contextmanager
+    def read_snapshot(self):
+        """Use one device read transaction through nested report projections."""
+        token = _READ_SNAPSHOTS.set((*_READ_SNAPSHOTS.get(), self.path))
+        try:
+            with self.connect() as connection:
+                yield connection
+        finally:
+            _READ_SNAPSHOTS.reset(token)
 
     def initialize(self):
         # The device initializes only host execution/security/cache tables.

@@ -9,8 +9,8 @@ import uuid
 from runteams_core.authoring.creator_contracts import canonical, digest
 
 
-def inspect_terminal(core,frozen,native):
-    from runteams_core.pipelines.source_pipeline_flow import _result
+def inspect_terminal(core,frozen,native,connection=None):
+    from runteams_core.pipelines.source_pipeline_flow import _recheck_submission, correction_context
     from runteams_core.foundation.contracts import ContractError
     thread=native.get('thread') or {};turns=thread.get('turns') or []
     if not turns or turns[-1].get('status') not in ('completed','interrupted'):return None
@@ -34,12 +34,12 @@ def inspect_terminal(core,frozen,native):
             key=args.get('operation_id')
             try:
                 if str(uuid.UUID(key))!=key:return None
-                _result(frozen['package'],frozen['pipeline_work'],args.get('result'))
+                _recheck_submission(core,connection,frozen,args.get('result'))
             except (ValueError,TypeError,AttributeError) as error:
                 if not isinstance(error,ContractError):return None
                 output=''.join(p.get('text','')for p in item.get('contentItems') or []if p.get('type')=='inputText')
                 if not output or not str(error).startswith(output):return None
-                rejected={'submission_id':key,'error':str(error)}
+                rejected={'submission_id':key,'error':str(error), **correction_context(error)}
             else:return None
         elif item.get('status')!='completed':return None
         elif tool=='runteams_pipeline_work' and operation in ('read','read_report'):continue
@@ -70,13 +70,14 @@ def attested_proof(core,connection,frozen,session):
     return proof
 
 
-def reconcile(core,identifier):
+def reconcile(core,identifier,*,expected_visit=None):
     from runteams_core.storage import product_store
     from runteams_core.agents import codex_threads
     from runteams_core.pipelines.source_pipeline_flow import _row, _save
     with core.repository.connect()as connection:
         row=_row(connection,identifier);frozen=json.loads(row['snapshot_json'])
-    if (row['state'] not in ('paused','interrupted','needs_human') or
+    if ((expected_visit is not None and frozen['pipeline_visit']!=expected_visit)
+            or row['state'] not in ('paused','interrupted','needs_human','failed','blocked') or
             not frozen.get('send_admitted') or frozen.get('pipeline_submission') or
             frozen.get('pipeline_applied_result') or frozen.get('pipeline_result_correction') or
             (frozen.get('pipeline_execution')or{}).get('active')):return False
@@ -92,10 +93,12 @@ def reconcile(core,identifier):
     except PermissionError:raise
     except (RuntimeError,OSError,ValueError):return False
     if (native.get('thread')or{}).get('id')!=session['runtime_thread_id']:return False
-    proof=inspect_terminal(core,frozen,native)
+    with core.repository.read_snapshot() as connection:
+        proof=inspect_terminal(core,frozen,native,connection)
     if not proof or not session.get('messages'):return False
     proof.update(native_proof=True,message_id=session['messages'][-1]['id'],runtime_generation=session['runtime_generation'])
     with core.repository.connect()as connection:
+        connection.execute('BEGIN IMMEDIATE')
         current=_row(connection,identifier);latest=json.loads(current['snapshot_json'])
         if latest!=frozen or current['state']=='running':return False
         if connection.execute("SELECT 1 FROM events WHERE stream=? AND type='pipeline.result_submitted'",

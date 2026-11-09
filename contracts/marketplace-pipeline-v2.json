@@ -23,6 +23,12 @@
           "type": "string",
           "pattern": "^[a-z][a-z0-9-]{0,79}$"
         },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300,
+          "pattern": "\\S"
+        },
         "skill_key": {
           "type": "string",
           "pattern": "^[a-z][a-z0-9-]{0,79}$"
@@ -96,6 +102,10 @@
     "state": {
       "type": "object",
       "properties": {
+        "records_only": {
+          "type": "boolean",
+          "description": "Completed runs remain in execution records without a board column or task card."
+        },
         "key": {
           "type": "string",
           "pattern": "^[a-z][a-z0-9-]{0,79}$"
@@ -132,6 +142,10 @@
         "name",
         "kind"
       ],
+      "allOf": [{
+        "if": {"properties": {"records_only": {"const": true}}, "required": ["records_only"]},
+        "then": {"properties": {"kind": {"const": "done"}}}
+      }],
       "additionalProperties": false
     },
     "edge": {
@@ -148,8 +162,15 @@
         "when": {
           "type": "string",
           "minLength": 1,
-          "maxLength": 120,
+          "maxLength": 128,
           "pattern": "\\S"
+        },
+        "configuration_fields": {
+          "type": "array",
+          "items": {"type": "string", "pattern": "^[a-z][a-z0-9_-]{0,79}$"},
+          "minItems": 1,
+          "maxItems": 40,
+          "uniqueItems": true
         }
       },
       "required": [
@@ -172,6 +193,52 @@
           "minLength": 1,
           "maxLength": 160,
           "pattern": "\\S"
+        },
+        "group": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160,
+          "pattern": "\\S"
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "required_when": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000,
+          "pattern": "\\S"
+        },
+        "constraints": {
+          "type": "object",
+          "properties": {
+            "min_length": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 8192
+            },
+            "max_length": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 8192
+            },
+            "pattern": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 512
+            },
+            "min": {
+              "type": "number"
+            },
+            "max": {
+              "type": "number"
+            },
+            "step": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            }
+          },
+          "additionalProperties": false
         },
         "type": {
           "enum": [
@@ -258,6 +325,11 @@
           },
           "uniqueItems": true,
           "maxItems": 64
+        },
+        "scope_parameter": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]*$",
+          "maxLength": 120
         }
       },
       "required": [
@@ -309,51 +381,12 @@
         }
       ]
     },
-    "standard": {
-      "type": "object",
-      "properties": {
-        "key": {
-          "type": "string",
-          "pattern": "^[a-z][a-z0-9-]{0,79}$"
-        },
-        "name": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 160,
-          "pattern": "\\S"
-        },
-        "instructions": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 12000,
-          "pattern": "\\S"
-        },
-        "description": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 1000,
-          "pattern": "\\S"
-        },
-        "employee_refs": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "pattern": "^[a-z][a-z0-9-]{0,79}$"
-          },
-          "uniqueItems": true,
-          "maxItems": 64
-        }
-      },
-      "required": [
-        "key",
-        "name",
-        "instructions"
-      ],
-      "additionalProperties": false
-    },
     "pipeline": {
       "type": "object",
       "properties": {
+        "routing_policy": {
+          "const": "status-first"
+        },
         "name": {
           "type": "string",
           "minLength": 1,
@@ -396,12 +429,11 @@
           },
           "maxItems": 40
         },
-        "standards": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/standard"
-          },
-          "maxItems": 100
+        "team_standard": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 12000,
+          "pattern": "\\S"
         }
       },
       "required": [
@@ -409,6 +441,37 @@
         "positions",
         "edges"
       ],
+      "if": {
+        "required": [
+          "routing_policy"
+        ]
+      },
+      "then": {
+        "properties": {
+          "edges": {
+            "items": {
+              "properties": {
+                "when": {
+                  "pattern": "^(?:completed|failed|blocked|needs_human|exception|always|approved|rejected|outcome:\\S(?:[\\s\\S]*\\S)?)$"
+                }
+              }
+            }
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "edges": {
+            "items": {
+              "properties": {
+                "when": {
+                  "maxLength": 120
+                }
+              }
+            }
+          }
+        }
+      },
       "additionalProperties": false
     },
     "pipeline_program_source": {

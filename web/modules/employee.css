@@ -22,7 +22,7 @@
 .employee-settings-drawer{color:var(--text-primary);background:var(--surface);min-width:0}
 .employee-settings-identity{flex:none;padding:10px 20px 16px;min-width:0}
 .employee-settings-identity::after{left:20px;right:20px}
-.employee-settings-content{flex:1;min-height:0;min-width:0;overflow:auto;padding:20px;overscroll-behavior:contain}
+.employee-settings-content{display:block;padding:20px}
 .employee-settings-section-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}
 .employee-settings-section-heading h3{font-size:14px;line-height:20px;margin:0;font-weight:500}
 .employee-settings-text-action{border:0;background:transparent;color:var(--text-secondary);font:inherit;font-size:12px;min-height:28px;padding:0 8px;border-radius:6px;cursor:pointer}
@@ -32,3 +32,7 @@
 .employee-lifecycle-actions{display:flex;flex-wrap:wrap;gap:8px}
 .employee-publication-dialog .modal-copy{overflow-wrap:anywhere}
 .employee-mcp-args{white-space:pre-wrap;overflow-wrap:anywhere;max-height:180px;overflow:auto;font-size:12px;line-height:1.6}
+
+.work-authorization-settings:not(:empty){margin-top:24px}
+.work-authorization-settings>.employee-sdk-connection-heading h3{font-size:14px;font-weight:600;margin:0}
+.work-authorization-settings .employee-sdk-connection{margin-top:16px}

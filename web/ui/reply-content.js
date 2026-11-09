@@ -3,6 +3,8 @@ window.RunTeamsReplyContent=(()=>{
  'use strict';
  const records=new Map(),mounted=new Map();let serial=0,scheduled=false,bundlePromise;
  const safe=value=>String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
+ const copy=(key,fallback)=>safe(window.RunTeamsLocale?.t(key,{},fallback)??fallback);
+ const viewStatus={table:['replyContent.loadingTable','正在显示表格…'],chart:['replyContent.loadingChart','正在显示图表…'],explorer:['replyContent.loadingExplorer','正在显示交互内容…']};
  function validate(value){
   if(!value||value.version!==1||!['table','chart','explorer'].includes(value.type))throw Error('Unsupported content');
   if(typeof value.title!=='string'||!value.title.trim()||value.title.length>120)throw Error('Missing title');
@@ -32,10 +34,11 @@ window.RunTeamsReplyContent=(()=>{
   const parts=split(String(text),context.streaming);let index=0;
   return parts.map(part=>{
    if(part.type==='text')return `<div class="cmessage-markdown">${markdown(part.text)}</div>`;
-   if(part.type==='loading')return '<div class="reply-content-loading" role="status">正在整理数据…</div>';
+   if(part.type==='loading')return `<div class="reply-content-loading" role="status" data-app-i18n="replyContent.preparing">${copy('replyContent.preparing','正在整理数据…')}</div>`;
    const key=context.key+':'+index++,signature=JSON.stringify(part.data);let record=records.get(key);
    if(!record||record.signature!==signature){record={token:'reply-view-'+(++serial),data:part.data,signature};records.set(key,record);}
-   queue();return `<div class="reply-content-slot" data-reply-view="${record.token}" aria-label="${safe(part.data.title)}"><p role="status">正在显示${safe(part.data.type==='table'?'表格':part.data.type==='chart'?'图表':'交互内容')}…</p></div>`;
+   const [statusKey,statusText]=viewStatus[part.data.type];
+   queue();return `<div class="reply-content-slot" data-reply-view="${record.token}" aria-label="${safe(part.data.title)}"><p role="status" data-app-i18n="${statusKey}">${copy(statusKey,statusText)}</p></div>`;
   }).join('');
  }
  function plainText(text){return split(String(text)).map(part=>part.type==='text'?part.text:part.type==='view'?part.data.title+'\n'+[part.data.columns.map(c=>c.label).join('\t'),...part.data.rows.map(row=>part.data.columns.map(c=>row[c.key]??'—').join('\t'))].join('\n'):'').join('\n');}
@@ -63,7 +66,13 @@ window.RunTeamsReplyContent=(()=>{
    const activeTokens=new Set([...document.querySelectorAll('[data-reply-view]')].map(n=>n.dataset.replyView));
    for(const [key,record]of records)if(!mounted.has(record.token)&&!activeTokens.has(record.token))records.delete(key);
   }catch{
-   for(const node of slots){if(!node.isConnected)continue;const record=[...records.values()].find(r=>r.token===node.dataset.replyView);node.innerHTML='<p>内容暂时无法显示。</p><button type="button" data-reply-retry>重试</button>'+(record?`<details><summary>查看数据</summary><pre>${safe(plainText('```runteams-view\n'+record.signature+'\n```'))}</pre></details>`:'');delete node.dataset.replyLoading;}
+   for(const node of slots){
+    if(!node.isConnected)continue;
+    const record=[...records.values()].find(r=>r.token===node.dataset.replyView);
+    node.innerHTML=`<p role="alert" data-app-i18n="replyContent.loadFailed">${copy('replyContent.loadFailed','暂时无法显示此内容。')}</p><button type="button" data-reply-retry data-app-i18n="general.retry">${copy('general.retry','重试')}</button>`+
+     (record?`<details><summary data-app-i18n="replyContent.viewData">${copy('replyContent.viewData','查看数据')}</summary><pre translate="no">${safe(plainText('```runteams-view\n'+record.signature+'\n```'))}</pre></details>`:'');
+    delete node.dataset.replyLoading;
+   }
   }
  }
  if(typeof MutationObserver!=='undefined'&&typeof document!=='undefined'){

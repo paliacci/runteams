@@ -13,7 +13,8 @@ def task_input_contract(frozen, position_key):
     unit=declared(frozen['package'],position['skill_key'])
     schema=unit['input_schema'] if unit else {'type':'object'}
     keys={p['key'] for p in asset['pipeline'].get('parameters',[]) if p.get('source')=='user' and (not p.get('visible_to') or position_key in p['visible_to'])}
-    properties={key:value for key,value in schema.get('properties',{}).items() if key in keys}
-    if not properties:return None
+    setup={p['key'] for p in asset['pipeline'].get('parameters',[]) if p.get('display')=='setup' and p.get('type')!='secret'}
+    properties={key:value for key,value in schema.get('properties',{}).items() if key in keys and key not in setup}
+    if not properties and not (keys & setup & set(schema.get('properties',{}))):return None
     return {'input_schema':{'type':'object','properties':properties,'required':[key for key in schema.get('required',[]) if key in properties],'additionalProperties':False},
             'values':{key:value for key,value in frozen['pipeline_input'].get('parameters',{}).items() if key in properties}}

@@ -19,6 +19,7 @@ import time
 import warnings
 
 
+from runteams_core.documents.pdf_preview import PDF_LOCK
 from runteams_core.storage import product_store
 
 
@@ -34,7 +35,6 @@ MAX_RENDERED_IMAGES = 24
 MAX_EXTRACTED_TEXT_CHARS = 2_000_000
 PDF_RENDER_DPI = 144
 # PDFium requires serialization even when documents are independent.
-_PDF_LOCK = threading.RLock()
 
 IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp"}
 TEXT_EXTENSIONS = {
@@ -221,8 +221,8 @@ def _stage_native_paths(paths):
         raise
 
 
-def pick_native_paths(kind=None, *, cancel_event=None):
-    if kind not in (None, "file", "folder"):
+def pick_native_paths(kind=None, *, cancel_event=None, work_folder=False):
+    if kind not in (None, "file", "folder") or (work_folder and kind != "folder"):
         raise ValueError("资料选择类型无效")
     picker = native_picker_path()
     if not picker:
@@ -230,8 +230,12 @@ def pick_native_paths(kind=None, *, cancel_event=None):
     process = None
     deadline = time.monotonic() + 600
     try:
-        process = subprocess.Popen([picker] + (["--files-only" if kind == "file" else "--folders-only", "--single"] if kind else []),
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        arguments = [picker]
+        if kind:
+            arguments.extend(["--files-only" if kind == "file" else "--folders-only", "--single"])
+        if work_folder:
+            arguments.append("--work-folder")
+        process = subprocess.Popen(arguments, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         while True:
             if cancel_event is not None and cancel_event.is_set():
                 raise ValueError("文件选择已取消")
@@ -319,7 +323,7 @@ def _cleanup_asset_picks():
             _ASSET_PICKS.pop(token, None)
 
 
-def pick_native_local_asset():
+def pick_native_local_asset(language=None):
     """打开系统文件夹选择器,只接受单个文件夹,返回授权确认卡所需的识别信息。
 
     用 AppleScript 的 ``choose folder``(和 app.py 里已有的 ``_pick_local_directory``
@@ -329,14 +333,16 @@ def pick_native_local_asset():
     if sys.platform != "darwin":
         raise ValueError("当前系统暂不支持原生文件夹选择")
     _cleanup_asset_picks()
+    prompt = "Choose a folder to share with the employee." if language == "en" else "选择要授权给员工的文件夹"
+    script = """on run argv
+activate
+return POSIX path of (choose folder with prompt (item 1 of argv))
+end run"""
     result = subprocess.run(
-        # The picker is launched from a background service process; "activate"
-        # brings the dialog to the front so it is not hidden behind other windows.
-        ["osascript", "-e", "activate", "-e",
-         'POSIX path of (choose folder with prompt "选择要授权给员工的文件夹")'],
+        ["osascript", "-e", script, "--", prompt],
         capture_output=True, text=True, timeout=300, check=False)
     if result.returncode:
-        if "User canceled" in (result.stderr or ""):
+        if "User canceled" in (result.stderr or "") or "(-128)" in (result.stderr or ""):
             return None
         raise ValueError((result.stderr or "无法打开文件夹选择器").strip()[:300])
     raw_path = (result.stdout or "").strip().rstrip("/")
@@ -467,7 +473,7 @@ def _normalize_pdf(data, name, item_dir, item_rel):
     import pypdfium2 as pdfium
     if not data.lstrip().startswith(b"%PDF-"):
         raise ValueError("PDF「{}」格式无效".format(name))
-    with _PDF_LOCK:
+    with PDF_LOCK:
         try:
             document = pdfium.PdfDocument(data)
         except pdfium.PdfiumError as error:

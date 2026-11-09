@@ -858,7 +858,7 @@ def _probe_claude_auth(exe, env):
     return result
 
 
-def probe(channel, *, account_summary=True):
+def probe(channel, *, account_summary=True, installation_only=False):
     """通过官方 CLI 探测安装及登录状态，不发模型请求、不消耗订阅额度。"""
     from runteams_core.agents.environment.cli_discovery import DiscoveryError
     out = {"installed": False, "authenticated": False, "compatible": False,
@@ -878,6 +878,9 @@ def probe(channel, *, account_summary=True):
             channel.get("provider"), exe, env, run=_run)
         out["compatible"] = bool(compatibility["compatible"])
         out["protocol"] = compatibility["protocol"]
+        if installation_only:
+            return {**out, "status": "disabled" if out["compatible"] else "incompatible",
+                    "detail": compatibility["detail"]}
         auth_probe = runtime.get("auth_probe")
         if not auth_probe:
             raise RuntimeError("暂不支持此模型渠道：{}".format(channel.get("provider") or "unknown"))
@@ -894,7 +897,7 @@ def probe(channel, *, account_summary=True):
         out.update(status="error", detail="CLI 状态检测超时")
     except Exception as e:
         out.update(status="missing" if not out["installed"] else "error", detail=str(e)[:300])
-    if out.get('status') != 'ready':
+    if not installation_only and out.get('status') != 'ready':
         from runteams_core.agents.models import model_catalog_display
         model_catalog_display.invalidate(channel)
         from runteams_core.agents import runtime_capabilities
@@ -929,5 +932,7 @@ def public_channel(channel, with_status=False):
     item["provider_label"] = info["label"]
     item["login_command"] = login_command(item)
     if with_status:
-        item["probe"] = probe(item)
+        # An explicit check can verify a disabled CLI without connecting it.
+        item["probe"] = (probe(item) if item.get("enabled", 1)
+                         else probe({**item, "enabled": True}, installation_only=True))
     return item

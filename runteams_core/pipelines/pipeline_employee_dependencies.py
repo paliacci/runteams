@@ -64,13 +64,15 @@ def describe(pipeline, member, revision):
     return result
 
 
-def prepare(pipeline, member, operation, revision):
+def prepare(pipeline, member, operation, revision, *, runtime_selection=None):
     from runteams_core.employees import source_employee_runtime as employee
     from runteams_core.assets import rented_references
     from runteams_core.pipelines.pipeline_context import current
     description = describe(pipeline, member, revision)
     if 'dependency' in member and member['dependency']['kind'] == 'download':
-        return current().acquired_member_package(member['dependency'])
+        options = {'runtime_selection': runtime_selection} if runtime_selection is not None else {}
+        return current().acquired_member_package(member['dependency'], **options)
     if rented_references.is_rented(pipeline):
         return current().rented_member_package(description['reference'],description['revision'])
-    return employee.prepare(description['reference'], operation, revision=description['revision'])
+    options = {'runtime_selection': runtime_selection} if runtime_selection is not None else {}
+    return employee.prepare(description['reference'], operation, revision=description['revision'], **options)

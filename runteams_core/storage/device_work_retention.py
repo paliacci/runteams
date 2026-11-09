@@ -54,7 +54,11 @@ def request(core,connection,workflow_ids):
         row=connection.execute('SELECT task_id FROM workflow_runs WHERE id=?',(int(identifier),)).fetchone()
         if not row:continue
         runs=[int(r[0]) for r in connection.execute('SELECT id FROM employee_runs WHERE workflow_run_id=?',(int(identifier),))]
-        rows=connection.execute('SELECT a.* FROM artifacts a JOIN employee_runs r ON r.id=a.employee_run_id WHERE r.workflow_run_id=?',(int(identifier),)).fetchall()
+        rows=connection.execute('SELECT a.* FROM artifacts a LEFT JOIN employee_runs r ON r.id=a.employee_run_id '
+            'WHERE r.workflow_run_id=? OR ('
+            "json_extract(a.meta_json,'$.source')='pipeline_task_report' "
+            "AND json_extract(a.meta_json,'$.pipeline_task_report.task_id')=?)",
+            (int(identifier), row['task_id'])).fetchall()
         refs=[r['ref'] for r in rows]
         jobs.append({'workflow_id':int(identifier),'task_id':int(row['task_id']),
             'run_ids':runs,'artifact_refs':refs,**attachment_cleanup(core,connection,rows)})

@@ -4,12 +4,15 @@
   const escape = value => String(value ?? '').replace(/[&<>"']/g, char =>
     ({'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'}[char]));
 
-  function navigationItem({label, icon, action, selected = false, className = '', disabled = false}) {
-    return `<button class="rail-primary-action ${escape(className)} ${selected ? 'on' : ''}" type="button" aria-current="${selected ? 'page' : 'false'}" ${disabled?'disabled':`onclick="${escape(action)}"`}>${icon}<span>${escape(label)}</span></button>`;
+  function navigationItem({label, labelKey, icon, action, selected = false, className = '', disabled = false, disclosure}) {
+    const expanded = disclosure ? ` aria-expanded="${disclosure.expanded}"` : '';
+    const controls = disclosure?.controls ? ` aria-controls="${escape(disclosure.controls)}"` : '';
+    const chevron = disclosure ? '<span class="rail-section-chevron" aria-hidden="true"><svg class="i"><use href="#i-chev"></use></svg></span>' : '';
+    return `<button class="rail-primary-action ${escape(className)} ${selected ? 'on' : ''}" type="button" aria-current="${selected ? 'page' : 'false'}"${expanded}${controls} ${disabled?'disabled':`onclick="${escape(action)}"`}>${icon}<span${labelKey?` data-app-i18n="${escape(labelKey)}"`:""}>${escape(label)}</span>${chevron}</button>`;
   }
 
   function modeTabs(mode, icon, select = 'setRailNavTab') {
-    return `<div class="rail-mode-switch" role="tablist" aria-label="侧栏内容" onkeydown="RunTeamsShell.moveMode(event)">${[['team','工作区','flow'], ['bots','员工','users']].map(([key,label,glyph]) => `<button type="button" role="tab" data-rail-tab="${key}" aria-selected="${mode === key}" tabindex="${mode === key ? 0 : -1}" class="${mode === key ? 'on' : ''}" onclick="${select}('${key}')">${icon(glyph)}<span>${label}</span></button>`).join('')}</div>`;
+    return `<div class="rail-mode-switch" role="tablist" aria-label="侧栏内容" data-app-i18n-aria-label="shell.sidebarContent" onkeydown="RunTeamsShell.moveMode(event)">${[['team','工作区','flow'], ['bots','员工','users']].map(([key,label,glyph]) => `<button type="button" role="tab" data-rail-tab="${key}" aria-selected="${mode === key}" tabindex="${mode === key ? 0 : -1}" class="${mode === key ? 'on' : ''}" onclick="${select}('${key}')">${icon(glyph)}<span data-app-i18n="shell.mode.${key}">${label}</span></button>`).join('')}</div>`;
   }
 
   function moveMode(event) {
@@ -80,7 +83,7 @@
   function historyActions(icon, pending = false) {
     // Keep the rail's render signature stable as history availability changes.
     // Updating button properties must not remount a scrolled employee list.
-    return [['back','后退',-1,'rail-back'],['forward','前进',1,'rail-forward']].map(([key,label,direction,glyph]) => `<button class="rail-window-action rail-history-${key}" type="button" title="${label}" aria-label="${label}" data-history-direction="${key}" data-history-pending="${pending}" disabled onclick="RunTeamsShell.goHistory(${direction})">${icon(glyph)}</button>`).join('');
+    return [['back','后退',-1,'rail-back'],['forward','前进',1,'rail-forward']].map(([key,label,direction,glyph]) => `<button class="rail-window-action rail-history-${key}" type="button" title="${label}" aria-label="${label}" data-app-i18n-aria-label="shell.history.${key}" data-app-i18n-title="shell.history.${key}" data-history-direction="${key}" data-history-pending="${pending}" disabled onclick="RunTeamsShell.goHistory(${direction})">${icon(glyph)}</button>`).join('');
   }
 
   function windowActions(content, pending = false) {
@@ -88,20 +91,20 @@
   }
 
   function settingsToolbar(icon) {
-    return windowActions(`<button class="rail-window-action rail-history-back" type="button" title="返回" aria-label="返回" onclick="accountSettingsClose()">${icon('rail-back')}</button>`);
+    return windowActions(`<button class="rail-window-action rail-history-back" type="button" title="返回" aria-label="返回" data-app-i18n-aria-label="shell.settingsBack" data-app-i18n-title="shell.settingsBack" onclick="accountSettingsClose()">${icon('rail-back')}</button>`);
   }
 
   function topActions(icon, extra = '', options = {}) {
     const pending = options.pending === true;
-    return windowActions(`${historyActions(icon,pending)}<button class="rail-window-action rail-top-search" type="button" title="搜索（⌘K）" aria-label="搜索对话、流水线和文档" aria-keyshortcuts="Meta+K" ${pending ? 'disabled' : ''} onclick="openRailSearch()">${icon('search-rail')}</button>${extra}<button class="rail-window-action rail-collapse" type="button" title="折叠侧边栏" aria-label="折叠侧边栏" ${pending ? 'disabled' : ''} onclick="collapseRail()">${icon('rail-panel-close')}</button>`,pending);
+    return windowActions(`${historyActions(icon,pending)}<button class="rail-window-action rail-top-search" type="button" title="搜索（⌘K）" aria-label="搜索对话、流水线和文档" data-app-i18n-aria-label="shell.searchLabel" data-app-i18n-title="shell.searchTitle" aria-keyshortcuts="Meta+K" ${pending ? 'disabled' : ''} onclick="openRailSearch(this)">${icon('search-rail')}</button>${extra}<button class="rail-window-action rail-collapse" type="button" title="折叠侧边栏" aria-label="折叠侧边栏" data-app-i18n-aria-label="shell.collapse" data-app-i18n-title="shell.collapse" ${pending ? 'disabled' : ''} onclick="collapseRail()">${icon('rail-panel-close')}</button>`,pending);
   }
 
   function collapsedActions(icon) {
-    return `<div class="rail-collapsed-tools shell-navigation">${historyActions(icon)}<button class="rail-window-action rail-reopen" type="button" title="展开侧边栏" aria-label="展开侧边栏" onclick="expandRail()">${icon('rail-panel-open')}</button></div>`;
+    return `<div class="rail-collapsed-tools shell-navigation">${historyActions(icon)}<button class="rail-window-action rail-reopen" type="button" title="展开侧边栏" aria-label="展开侧边栏" data-app-i18n-aria-label="shell.expand" data-app-i18n-title="shell.expand" onclick="expandRail()">${icon('rail-panel-open')}</button></div>`;
   }
 
   function trashEntry({surface, icon}) {
-    return `<nav class="rail-trash-navigation" aria-label="垃圾箱">${navigationItem({label:'垃圾箱',icon:icon('trash'),action:'openTrash()',selected:surface === 'trash',className:'rail-trash'})}</nav>`;
+    return `<nav class="rail-trash-navigation" aria-label="垃圾箱" data-app-i18n-aria-label="trash.title">${navigationItem({label:'垃圾箱',labelKey:'trash.title',icon:icon('trash'),action:'openTrash()',selected:surface === 'trash',className:'rail-trash'})}</nav>`;
   }
 
   function footer({account = ''}) {
@@ -164,6 +167,8 @@
     }
   }
 
+  const fixedTabTitles = Object.freeze({trash:"trash.title", "docs:list":"shell.documents", "chat:new":"shell.newChat", "chat:new:create-employee":"shell.newChat", "pipeline:draft":"shell.newPipeline", automations:"automationList.title", "design-system":"shell.designSystem"});
+
   function windowTabs(rows, activeKey, icon, renderIcon = row => icon(row.icon), options = {}) {
     const pending = options.pending === true;
     const priorScroller = global.document?.querySelector?.('#rgWorkspaceTabs .workspace-tabs-scroll');
@@ -178,22 +183,24 @@
     if (global.requestAnimationFrame) global.requestAnimationFrame(() => {
       if (global.document?.querySelector('#rgWorkspaceTabs .workspace-tabs-scroll') !== tabsScroller) syncWindowTabs();
     });
-    return `<div class="workspace-tabs" role="tablist" aria-label="最近工作窗口"><div class="workspace-tabs-scroll" onwheel="RunTeamsShell.scrollWindowTabs(event)"><div class="workspace-tabs-list">${rows.map(row => {
+    return `<div class="workspace-tabs" role="tablist" aria-label="工作区标签页" data-app-i18n-aria-label="shell.workspaceTabs"><div class="workspace-tabs-scroll" onwheel="RunTeamsShell.scrollWindowTabs(event)"><div class="workspace-tabs-list">${rows.map((row, index) => {
       const active = row.key === activeKey, key = escape(row.key), displayKey = escape(row.displayKey||row.key), title = escape(row.title);
+      const titleKey = row.titleKey || (Object.hasOwn(fixedTabTitles, row.key) ? fixedTabTitles[row.key] : ""), labelId = `workspace-tab-label-${index}`;
       const rowEvents = pending ? '' : 'onpointerdown="workspaceTabPointerDown(event,this.dataset.workspaceKey)" oncontextmenu="workspaceTabContextMenu(event,this.dataset.workspaceKey)"';
       // Padding belongs to the visible tab. Replay its real button so save
       // protection, keyboard activation and drag suppression share one path.
       const rowClick = pending && options.navigationReady !== true ? '' : `onclick="if(!event.target.closest('button'))this.querySelector('.workspace-tab-main')?.click()"`;
       const mainAction = pending && options.navigationReady !== true ? 'disabled' : 'onclick="if(workspaceTabClickSuppressed(event))return;activateWorkspaceWindow(this.dataset.workspaceKey)"';
       const closeAction = pending ? 'disabled' : 'onclick="event.stopPropagation();closeWorkspaceWindow(this.parentElement.dataset.workspaceKey)"';
-      return `<div class="workspace-tab ${active ? 'on' : ''}" data-workspace-key="${key}" data-workspace-display-key="${displayKey}" ${rowEvents} ${rowClick}>${active ? '<span class="workspace-tab-bridge" aria-hidden="true"></span>' : ''}<button type="button" role="tab" aria-selected="${active}" class="workspace-tab-main" data-workspace-key="${key}" title="${title}" ${mainAction}><span class="workspace-tab-icon" aria-hidden="true">${renderIcon(row)}</span><span class="workspace-tab-label">${title}</span></button>${rows.length > 1 ? `<button type="button" class="workspace-tab-close" aria-label="关闭 ${title}" ${closeAction}>${icon('x')}</button>` : ''}</div>`;
-    }).join('')}<button type="button" class="workspace-new" aria-label="新建窗口" title="新建窗口" ${pending ? 'disabled' : 'onclick="openDefaultWorkspace()"'}>＋</button></div></div></div>`;
+      return `<div class="workspace-tab ${active ? 'on' : ''}" data-workspace-key="${key}" data-workspace-display-key="${displayKey}" ${rowEvents} ${rowClick}>${active ? '<span class="workspace-tab-bridge" aria-hidden="true"></span>' : ''}<button type="button" role="tab" aria-selected="${active}" class="workspace-tab-main" data-workspace-key="${key}" title="${title}"${titleKey ? ` data-app-i18n-title="${escape(titleKey)}"` : ""} ${mainAction}><span class="workspace-tab-icon" aria-hidden="true">${renderIcon(row)}</span><span id="${labelId}" class="workspace-tab-label"${titleKey ? ` data-app-i18n="${escape(titleKey)}"` : ""}>${title}</span></button>${rows.length > 1 ? `<button type="button" class="workspace-tab-close" aria-labelledby="${labelId}-close ${labelId} ${labelId}-type" ${closeAction}>${icon('x')}<span class="sr-only" id="${labelId}-close" data-app-i18n="shell.closeNamedTabPrefix">关闭</span><span class="sr-only" id="${labelId}-type" data-app-i18n="shell.closeNamedTabSuffix">标签页</span></button>` : ''}</div>`;
+    }).join('')}<button type="button" class="workspace-new" aria-label="新建标签页" title="新建标签页" data-app-i18n-aria-label="shell.newTab" data-app-i18n-title="shell.newTab" ${pending ? 'disabled' : 'onclick="openDefaultWorkspace()"'}>＋</button></div></div></div>`;
   }
 
   function patchWindowTabs(host, markup) {
     if (!host) return;
     const next = host.ownerDocument.createElement('div');
     next.innerHTML = markup;
+    global.RunTeamsLocale?.apply(next);
     const list = host.querySelector('.workspace-tabs-list');
     const nextList = next.querySelector('.workspace-tabs-list');
     const current = list && [...list.querySelectorAll('.workspace-tab')];
@@ -229,6 +236,15 @@
     syncWindowTabs();
   }
 
+  function workspaceHeading(title, attributes, trailing = '') {
+    return `<span class="conversation-panel-heading"><span class="conversation-panel-title-wrap"><h2 id="conversation_panel_title" class="conversation-panel-name pipeline-title"${attributes}>${escape(title)}</h2>${trailing}</span></span>`;
+  }
+
+  function headerAction({label,labelKey,icon,action,className='',selected=false,disabled=false,menu=false}) {
+    const translation=labelKey?` data-app-i18n="${escape(labelKey)}"`:'';
+    return `<button type="button" class="conversation-header-action shared-header-action${className?' '+escape(className):''}${selected?' on':''}" aria-label="${escape(label)}"${labelKey?` data-app-i18n-aria-label="${escape(labelKey)}"`:''} aria-expanded="${selected}" aria-pressed="${selected}"${menu?' aria-haspopup="menu"':''} onclick="${escape(action)}"${disabled?' disabled':''}>${icon}<span${translation}>${escape(label)}</span></button>`;
+  }
+
   function pageHeader(identity, actions, employee) {
     return `<header class="conversation-panel-header${employee ? ' employee-desk' : ''}">${identity}${actions}</header>`;
   }
@@ -237,8 +253,8 @@
     return `<div class="body product-shell ${escape(classes)}" id="rgBody" data-drawer-width="${escape(drawerWidth)}" data-detail-open="${detailOpen}" style="grid-template-columns:${escape(columns)};--rail-edge-x:${escape(railEdge)}">${rail}${tabs}${head}${content}${drawer}${controls}</div>`;
   }
 
-  function accountEntry({icon,...options}){if(typeof global.RunTeamsHost.shell.entry==='function')return global.RunTeamsHost.shell.entry({icon,...options});return `<div class="railfoot-wrap rail-settings-entry">${navigationItem({label:'设置',icon:icon('settings'),action:"openSettingsPage('general',{returnFocus:this})",className:'rail-settings-button'})}</div>`;}
-  global.RunTeamsShell = Object.freeze({navigationItem, historyActions, settingsToolbar, modeTabs, moveMode, topActions, collapsedActions, syncHistoryControls, recordNavigation, goHistory, trashEntry, footer, accountEntry, windowTabs, patchWindowTabs, syncWindowTabs, scrollWindowTabs, pageHeader, frame});
+  function accountEntry({icon,...options}){if(typeof global.RunTeamsHost.shell.entry==='function')return global.RunTeamsHost.shell.entry({icon,...options});return `<div class="railfoot-wrap rail-settings-entry">${navigationItem({label:'设置',labelKey:'shell.settingsTitle',icon:icon('settings'),action:"openSettingsPage('general',{returnFocus:this})",className:'rail-settings-button'})}</div>`;}
+  global.RunTeamsShell = Object.freeze({navigationItem, historyActions, settingsToolbar, modeTabs, moveMode, topActions, collapsedActions, syncHistoryControls, recordNavigation, goHistory, trashEntry, footer, accountEntry, windowTabs, patchWindowTabs, syncWindowTabs, scrollWindowTabs, workspaceHeading, headerAction, pageHeader, frame});
   if (global.history && global.location) {
     navigationState();
     global.addEventListener('popstate', () => {

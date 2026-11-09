@@ -12,7 +12,7 @@
    displayScope:state=>state.localLibrary?.library_id?JSON.stringify(['library',state.localLibrary.library_id]):null,
    activityIdentity:()=>'',activityKey:()=>'',displayName:()=>'',sourceReady:state=>!!state.localLibrary,
    storageScope:state=>JSON.stringify(['library',state.localLibrary?.library_id||'']),readOnly:no},
-  settings:{panels:Object.create(null),navigation:groups=>groups,guard:no,closeMenu:nothing,capture:nothing,restore:nothing,paint:nothing,load:nothing,notice:empty,usage:nothing,restoreRoute:nothing,updateRoute:nothing},
+  settings:{panels:Object.create(null),navigation:groups=>groups,guard:no,closeMenu:nothing,capture:nothing,restore:nothing,paint:nothing,load:nothing,notice:empty,usage:nothing,restoreRoute:nothing,updateRoute:nothing,localToolImport:false,toolResources:false},
   shell:{navigation:()=>[],shortcuts:empty,entry:null,windowDisplay:()=>null,windowKey:()=>undefined,routeQuery:()=>[],snapshot:()=>({}),restore:nothing},
   pages:{normalize:()=>null,render:()=>null,title:()=>null,error:()=>null},
   routes:{preview:()=>null,resolve:()=>null,apply:async()=>false,restored:async()=>false,independent:no},

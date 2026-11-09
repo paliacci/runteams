@@ -9,7 +9,7 @@ const extension=()=>sourceActions?.enabled()?sourceActions:null;
 function attachSourceActions(create){if(sourceActions||typeof create!=='function')throw Error('Source actions already composed');sourceActions=create({current,valid,busy,repaint,localCall,closeHistory,openOperation,syncOperationDialog,buildLocal,sync});}
 const sourceHeaders=s=>s.library?{'X-RunTeams-Library':s.library.library_id,'X-RunTeams-Library-Generation':s.library.generation}:{'X-RunTeams-Device-Scope':s.deviceScope||''};
 const panel=()=>S.conversationPanel?.kind==='employee_design'&&S.conversationPanel.context?.creator_local_source_id?S.conversationPanel:null;
-const current=()=>state&&valid(state)&&S.sel?.type==='creator-assets'&&S.sel.id===state.session?state:null;
+const current=()=>state&&valid(state)&&S.sel?.type==='creator-assets'&&S.sel.id===state.session&&(!state.settingsEntry||S.sel===state.settingsSelection)?state:null;
 const valid=s=>s===state&&s.scope===scope()&&s.deviceScope===deviceScope()&&(s.standalone||s.session===panel()?.id&&(!s.sourceId||s.sourceId===panel()?.context.creator_local_source_id));
 const busy=s=>!!(s.loading||s.saving||s.pending||s.exporting||s.buildSending||extension()?.busy(s)||(panel()?.busy&&(!s.standalone||panel().context?.creator_local_source_id===s.localDraft?.id)));
 const repaint=()=>{render();syncOperationDialog();};
@@ -23,12 +23,13 @@ async function exportSource(){
  const id=s.localDraft.id,revision=s.revision,request=new AbortController();s.exportRequest=request;s.exporting=true;s.error='';repaint();
  try{
   const response=await fetch(localPath+'/'+id+'/export?revision='+encodeURIComponent(revision),{signal:request.signal,credentials:'same-origin',cache:'no-store',redirect:'error',headers:sourceHeaders(s)});
-  if(!response.ok){const value=await response.json();throw Error(value.error||'源码包未能导出，请重试。');}
-  if(response.headers.get('Content-Type')!=='application/zip'||response.headers.get('X-RunTeams-Source-Revision')!==revision)throw Error('导出的源码版本未能核对，请刷新后重试。');
+  if(!valid(s)||s.localDraft?.id!==id||s.revision!==revision)return;
+  if(!response.ok){s.error='无法导出源码包。请重试。';return;}
+  if(response.headers.get('Content-Type')!=='application/zip'||response.headers.get('X-RunTeams-Source-Revision')!==revision){s.error='无法确认源码版本。请刷新后重试。';return;}
   const blob=await response.blob();if(!valid(s)||s.localDraft?.id!==id||s.revision!==revision)return;
-  if(!blob.size||blob.size>33*1024*1024)throw Error('源码包无效，请保留当前源码后重试。');
+  if(!blob.size||blob.size>33*1024*1024){s.error='源码包无法使用。请重新导出。';return;}
   const url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download='runteams-source-'+id.slice(0,12)+'.zip';document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);
- }catch(e){if(valid(s)&&e.name!=='AbortError')s.error=e.message;}
+ }catch(e){if(valid(s)&&s.localDraft?.id===id&&s.revision===revision&&e.name!=='AbortError')s.error='无法导出源码包。请重试。';}
  finally{if(valid(s)){s.exporting=false;s.exportRequest=null;repaint();}}
 }
 
@@ -60,8 +61,13 @@ async function openLocal(id){
   if(known){s.resourceFolders=previous.folders.filter(path=>s.files.some(file=>file.path.startsWith(path+'/')));s.resourceFocus=s.files.some(file=>file.path===previous.focus||file.path.startsWith(previous.focus+'/'))?previous.focus:'';
    if(activeFile&&previous.file?.sha256===s.files.find(file=>file.path===activeFile)?.sha256){s.activeFile=activeFile;s.file=previous.file;}}
   try{const draft=JSON.parse(window.RunTeamsBusinessStorage?.getItem(draftKey(s))||'null');if(draft){s.editing=draft.editing;s.pending=draft.pending;s.buildRequest=draft.buildRequest;}}catch(e){}
-  if(s.editing)s.activeFile=s.editing.path;else if(activeFile&&s.files.some(f=>f.path===activeFile))await select(activeFile,false,true);
-  else{const path=await defaultSoulPath(s);if(valid(s)&&s.localDraft?.id===id&&s.revision===workspace.revision&&!s.activeFile&&!s.editing&&path)await select(path,false);}
+  if(!known&&s.settingsEntry&&s.files.some(file=>file.path===s.employeeSource)){
+   const parts=s.employeeSource.split('/');
+   s.resourceFolders=parts.slice(0,-1).map((_,index)=>parts.slice(0,index+1).join('/'));
+  }
+  if(s.editing){if(!s.settingsEntry)s.activeFile=s.editing.path;}
+  else if(activeFile&&s.files.some(f=>f.path===activeFile))await select(activeFile,false,true);
+  else if(!s.settingsEntry){const path=await defaultSoulPath(s);if(valid(s)&&s.localDraft?.id===id&&s.revision===workspace.revision&&!s.activeFile&&!s.editing&&path)await select(path,false);}
   await readHistory(s);
   await extension()?.read(s,id);
  }}
@@ -69,43 +75,58 @@ async function openLocal(id){
  finally{if(valid(s)){if(directoryAccepted&&current()===s)s.treeSource=id;s.loading=false;extension()?.afterRead(s);repaint();}}
 }
 // Open only real, validated SDK source. Missing source is an explicit error.
-async function openEmployee(id,{onBack=null}={}){
- if(S.sel?.type==='core-pipeline-parameters'&&requestDetailWorkspaceLeave(()=>openEmployee(id,{onBack})))return;
+async function openEmployee(id,{onBack=null,settings=null}={}){
+ if(S.sel?.type==='core-pipeline-parameters'&&requestDetailWorkspaceLeave(()=>openEmployee(id,{onBack,settings})))return;
  capture();
  id=Number(id);const local=RunTeamsEmployeeDirectory.sourceFor(id);if(!id||!local&&!employeeCanEdit(employeeSummary(id))||current()?.editing||current()&&busy(current()))return;
  const selection='employee:'+id;
- state={standalone:true,assetRecordId:id,employeeSource:local?.path,session:selection,scope:scope(),deviceScope:deviceScope(),library:S.localLibrary?{library_id:S.localLibrary.library_id,generation:S.localLibrary.generation}:null,files:[],resourceFolders:[],activeFile:'',file:null,error:'',loading:true,localSession:true,configurationReturn:onBack};
- const s=state;selectDetailWorkspace({type:'creator-assets',id:selection});repaint();
- if(local){extension()?.source(s,local);s.loading=false;return openLocal(local.id);}
+ state={standalone:true,assetRecordId:id,employeeSource:local?.path,session:selection,scope:scope(),deviceScope:deviceScope(),library:S.localLibrary?{library_id:S.localLibrary.library_id,generation:S.localLibrary.generation}:null,files:[],resourceFolders:[],activeFile:'',file:null,error:'',loading:true,localSession:true,configurationReturn:onBack,settingsEntry:settings};
+ const s=state,configuration=selectResources(s);
+ if(local){extension()?.source(s,local);s.loading=false;await openLocal(local.id);return configuration;}
  try{const result=await RunTeamsHost.assets.authoring(id,draftRuntimeConfig());if(!valid(s))return;
   const c=result.session?.context;if(!c?.creator_local_source_id)throw Error('这名员工的资源暂时无法读取。');
   extension()?.source(s,{context:c});s.employeeSource=c.creator_employee_source;s.loading=false;await openLocal(c.creator_local_source_id);
  }catch(error){if(valid(s)){s.loading=false;s.error=error.message;repaint();}}
+ return configuration;
 }
-async function openSource(source,{onBack=null}={}){
- if(S.sel?.type==='core-pipeline-parameters'&&requestDetailWorkspaceLeave(()=>openSource(source,{onBack})))return;
+async function openSource(source,{onBack=null,settings=null}={}){
+ if(S.sel?.type==='core-pipeline-parameters'&&requestDetailWorkspaceLeave(()=>openSource(source,{onBack,settings})))return;
  capture();
  if(!source||!/^[a-f0-9]{64}$/.test(source.id)||typeof source.path!=='string')throw Error('员工源码入口无效。');
- const session='source:'+source.id+':'+source.path;
+ const session=settings
+  ?JSON.stringify(['employee-settings',S.conversationPanel?.id??S.conversationPanel?.newDraftKey,settings.key,source.id,source.path])
+  :'source:'+source.id+':'+source.path;
  if(!state||state.session!==session||state.scope!==scope()||state.deviceScope!==deviceScope())state={standalone:true,session,sourceId:source.id,employeeSource:source.path,scope:scope(),deviceScope:deviceScope(),library:S.localLibrary?{library_id:S.localLibrary.library_id,generation:S.localLibrary.generation}:null,files:[],resourceFolders:[],activeFile:'',file:null,error:'',localSession:true};
  const s=state;
  extension()?.source(s,source);
  s.configurationReturn=onBack;
- selectDetailWorkspace({type:'creator-assets',id:session});
- if(!busy(s)&&!s.editing)return openLocal(source.id);
+ s.settingsEntry=settings;
+ if(settings)clearFile(s);
+ const canRead=!busy(s)&&!s.editing;
+ if(canRead)s.loading=true;
+ const configuration=selectResources(s);
+ if(canRead){s.loading=false;await openLocal(source.id);}
+ return configuration;
+}
+function selectResources(s){
+ const selection=selectDetailWorkspace({type:'creator-assets',id:s.session});
+ if(s.settingsEntry){
+  s.settingsSelection=selection;
+  return RunTeamsEmployeeConfiguration.mountInline(s.settingsEntry,selection);
+ }
  repaint();
 }
-function leave(){closeHistory(false);}
+function leave(){if(current()?.settingsEntry)RunTeamsEmployeeConfiguration.leave();closeHistory(false);}
 function close(){if(!current())return;closeDetailWorkspace();}
 
 
 const draftKey=s=>'runteams.creator.author.local.'+s.localDraft.id+(s.library?':'+s.library.generation:'');
 function persist(s){if(!valid(s))return;try{if(s.editing||s.pending||s.buildRequest)window.RunTeamsBusinessStorage?.setItem(draftKey(s),JSON.stringify({editing:s.editing||null,pending:s.pending||null,buildRequest:s.buildRequest||null,revision:s.revision}));else window.RunTeamsBusinessStorage?.removeItem(draftKey(s));}catch(e){s.error='当前编辑仅保留在此页面，关闭前请保存或核对结果。';}}
-function capture(){const s=current(),edit=document.getElementById('creator_asset_text');if(s?.editing&&edit){s.editing.content=edit.value;persist(s);}}
+function capture(){const s=current(),edit=document.getElementById('creator_asset_text');if(s?.settingsEntry)RunTeamsEmployeeConfiguration.capture();if(s?.editing&&edit){s.editing.content=edit.value;persist(s);}}
 async function sync(keepError=false){
  const s=current();if(!s||s.loading||s.saving)return;
- if(s.assetRecordId&&!s.localDraft)return openEmployee(s.assetRecordId);
- if(!s.localDraft)return;
+ if(s.assetRecordId&&!s.localDraft)return openEmployee(s.assetRecordId,{onBack:s.configurationReturn,settings:s.settingsEntry});
+ if(!s.localDraft)return s.sourceId?openLocal(s.sourceId):undefined;
  const error=s.error;await openLocal(s.localDraft.id);
  if(keepError&&error&&valid(s)){s.error=error;repaint();}
 }
@@ -123,8 +144,7 @@ async function open(){
 }
 async function select(path,paint=true,keepTree=false){
  const s=current();if(!s||s.editing||!s.files.some(f=>f.path===path))return;
-
-
+ if(s.settingsEntry&&!s.activeFile)RunTeamsEmployeeConfiguration.leave();
  const request={};s.request=request;const keepFile=keepTree&&s.activeFile===path&&s.file?.sha256===s.files.find(file=>file.path===path)?.sha256;s.activeFile=path;if(!keepFile)s.file=null;s.fileError='';if(!keepTree)skillsResourceRevealPath(s,path);if(paint)repaint();
  try{const r=await localCall(s,'/'+s.localDraft.id+'/file?path='+encodeURIComponent(path));if(!valid(s)||s.request!==request)return;
   const expected=s.files.find(f=>f.path===path);if(r.sha256!==expected?.sha256)throw Error('文件已有更新，请重新打开资源后再查看。');s.file=r;
@@ -146,15 +166,44 @@ async function commit(changes){
  finally{if(valid(s)){s.saving=false;if(!s.pending)await sync(true);else repaint();}}
 }
 function accept(s,r){if(!r?.revision)throw Error('保存回执无效');extension()?.sourceSaved(s);s.revision=r.revision;s.source_sha256=r.source_sha256;s.pending=null;s.check=null;s.compilation=null;
- const path=s.editing?.path;s.editing=null;if(path)s.activeFile=path;s.file=null;persist(s);}
+ const path=s.editing?.path;s.editing=null;if(path&&!s.settingsEntry)s.activeFile=path;s.file=null;persist(s);}
 async function receipt(){
- const s=current();if(!s?.localDraft||!s.pending||s.saving)return;s.saving=true;s.error='';repaint();
- try{const r=await localCall(s,'/'+s.localDraft.id+'/receipt?operation_key='+encodeURIComponent(s.pending.operation_key));if(!valid(s))return;
-  if(r.state!=='confirmed')throw Error('尚未找到保存结果，可以使用原内容重试保存。');accept(s,r.result);
- }catch(e){if(valid(s))s.error=e.message;}
- finally{if(valid(s)){s.saving=false;if(!s.pending)await sync(true);else repaint();}}
+ const s=current();if(!s?.localDraft||!s.pending||s.saving)return;
+ const pending=s.pending,focused=document.activeElement?.hasAttribute('data-source-receipt-check');
+ s.receiptChecked=null;s.saving=true;s.checkingReceipt=true;s.error='';repaint();
+ const progress=focused?document.querySelector('.creator-operation-dialog [data-source-receipt-status]'):null;
+ progress?.focus({preventScroll:true});
+ try{
+  const r=await localCall(s,'/'+s.localDraft.id+'/receipt?operation_key='+encodeURIComponent(pending.operation_key));
+  if(!valid(s)||s.pending!==pending)return;
+  if(r.state==='confirmed'){
+   const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(pending.operation_key));
+   const revision='r-'+Array.from(new Uint8Array(digest),byte=>byte.toString(16).padStart(2,'0')).join('');
+   if(!valid(s)||s.pending!==pending)return;
+   if(r.result?.original_revision!==s.localDraft.id||r.result?.revision!==revision){
+    s.error='保存回执无效';return;
+   }
+   accept(s,r.result);
+  }else if(r.state==='unknown')s.receiptChecked=pending;
+  else throw Error('Unavailable receipt');
+ }catch{
+  if(valid(s))s.error='无法核对原操作结果。';
+ }finally{
+  if(valid(s)){
+   const restore=focused&&(document.activeElement===document.body||document.activeElement===progress);
+   s.saving=false;s.checkingReceipt=false;
+   if(!s.pending)await sync(true);else repaint();
+   if(restore&&current()===s&&document.activeElement===document.body){
+    const action=document.querySelector('.creator-operation-dialog [data-source-receipt-retry]:not(:disabled)')||
+     document.querySelector('.creator-operation-dialog [data-source-receipt-check]:not(:disabled)')||
+     document.querySelector('.creator-operation-dialog .creator-asset-actions button:not(:disabled)')||
+     document.querySelector('.creator-author-drawer [data-app-i18n="employeeResource.more"]:not(:disabled)');
+    action?.focus({preventScroll:true});
+   }
+  }
+ }
 }
-async function retryLocalSave(){const s=current();if(!s?.localDraft||!s.pending||s.saving)return;s.saving=true;s.error='';repaint();try{const {action,...body}=s.pending;const r=await localCall(s,'/'+s.localDraft.id+(action==='restore'?'/restore':'/edit'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});if(valid(s))accept(s,r);}catch(e){if(valid(s)){s.error=e.message;if(e.rejected){s.pending=null;persist(s);}}}finally{if(valid(s)){s.saving=false;if(!s.pending)await sync(true);else repaint();}}}
+async function retryLocalSave(){const s=current();if(!s?.localDraft||!s.pending||s.saving||s.receiptChecked!==s.pending)return;s.receiptChecked=null;s.saving=true;s.error='';repaint();try{const {action,...body}=s.pending;const r=await localCall(s,'/'+s.localDraft.id+(action==='restore'?'/restore':'/edit'),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});if(valid(s))accept(s,r);}catch(e){if(valid(s)){s.error=e.message;if(e.rejected){s.pending=null;persist(s);}}}finally{if(valid(s)){s.saving=false;if(!s.pending)await sync(true);else repaint();}}}
 async function readHistory(s){
  if(!valid(s)||!s.localDraft)return;
  const request={};s.historyRequest=request;s.historyLoading=true;s.historyError='';
@@ -179,49 +228,116 @@ function historyRows(s){
 
  return [...s.history.items,{revision:s.history.original_revision,created_at:s.localDraft.created_at,source:s.localDraft.source,original:true}].map((item,index,all)=>{
   const previous=all[index+1],files=item.source?.files||[],before=new Map((previous?.source?.files||[]).map(f=>[f.path,f.sha256])),after=new Map(files.map(f=>[f.path,f.sha256]));
-  const changes=previous?[...files.filter(f=>before.get(f.path)!==f.sha256).map(f=>(before.has(f.path)?'修改 ':'新增 ')+f.path),...Array.from(before.keys()).filter(p=>!after.has(p)).map(p=>'移除 '+p)]:[];
+  const changes=previous?[...files.filter(f=>before.get(f.path)!==f.sha256).map(f=>({kind:before.has(f.path)?'modified':'added',path:f.path})),...Array.from(before.keys()).filter(p=>!after.has(p)).map(path=>({kind:'removed',path}))]:[];
   const notes=item.update_notes||item.change_summary||item.summary||item.notes;
-  const version=item.version||item.project?.version||(item.original?s.localDraft.project.version:`修订 ${all.length-index-1}`);
-  return {...item,version:String(version),notes:typeof notes==='string'?notes:Array.isArray(notes)?notes.join('\n'):changes.length?changes.join('\n'):item.original?'导入的原始资源。':'未填写更新说明。'};
+  const version=item.version||item.project?.version||(item.original?s.localDraft.project?.version:null);
+  const revisionNumber=version||item.original?null:all.length-index-1;
+  return {...item,version:version?String(version):null,revisionNumber,notes:typeof notes==='string'?notes:Array.isArray(notes)?notes.join('\n'):null,changes};
  });
 }
-function historyList(rows,actionFor,disabled=false){return rows.map((item,index)=>{
-  const date=new Date(item.created_at),dateText=Number.isNaN(date.getTime())?'日期未记录':date.toLocaleString('zh-CN',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit',hour12:false});
-  return `<details class="creator-history-item"><summary><span class="creator-history-chevron" aria-hidden="true">${ICON('chev')}</span><span>${esc(item.version)}</span><time datetime="${esc(item.created_at||'')}">${esc(dateText)}</time></summary><div class="creator-history-notes"><div>更新说明</div><p>${esc(item.notes)}</p>${!!actionFor?.(item,index)?`<button type="button" class="btn ghost sm" onclick="${esc(actionFor(item,index))}" ${disabled?'disabled':''}>恢复此版本</button>`:''}</div></details>`;
+function historyFileChangeMarkup(kind,path){
+ const fallback={modified:'修改 {path}',added:'新增 {path}',removed:'移除 {path}'}[kind];
+ const params={path};
+ return `<span data-app-i18n="employeeHistory.${kind}" data-app-i18n-vars="${esc(JSON.stringify(params))}">${esc(fallback.replace('{path}',()=>path))}</span>`;
+}
+function historyNotesMarkup(item){
+ if(item.notes!=null)return esc(item.notes);
+ if(item.changes?.length)return item.changes.map(change=>historyFileChangeMarkup(change.kind,change.path)).join('\n');
+ return item.original?'<span data-app-i18n="employeeHistory.original">导入的原始资源。</span>':'<span data-app-i18n="employeeHistory.noNotes">没有更新说明。</span>';
+}
+function historyVersion(item){
+ if(item.version!=null)return `<span>${esc(item.version)}</span>`;
+ if(item.revisionNumber==null)return '<span data-app-i18n="employeeHistory.originalVersion">原始版本</span>';
+ return `<span data-app-i18n="employeeHistory.revisionNumber" data-app-i18n-vars="${esc(JSON.stringify({number:item.revisionNumber}))}">修订 ${esc(item.revisionNumber)}</span>`;
+}
+const historyDateOptions={month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit',hourCycle:'h23'};
+function historyDateText(date){
+ return window.RunTeamsLocale?.formatDate(date,historyDateOptions)??date.toLocaleString('zh-CN',historyDateOptions);
+}
+window.RunTeamsLocale?.onChange(()=>{
+ for(const node of document.querySelectorAll('time[data-employee-history-date]')){
+  const date=new Date(node.dateTime);
+  if(!Number.isNaN(date.getTime()))node.textContent=historyDateText(date);
+ }
+});
+function historyList(rows,actionFor,disabled=false,{notesFor,currentRevision}={}){return rows.map((item,index)=>{
+  const date=item.created_at?new Date(item.created_at):null,hasDate=date&&!Number.isNaN(date.getTime());
+  const dateText=hasDate?historyDateText(date):'日期未记录';
+  const current=currentRevision!=null&&item.revision===currentRevision;
+  const version=historyVersion(item);
+  const notesKey=notesFor?.(item);
+  const notes=notesKey?`<span data-app-i18n="${esc(notesKey)}">${esc(RunTeamsLocale.t(notesKey,{},item.notes||""))}</span>`:historyNotesMarkup(item);
+  return `<details class="creator-history-item"><summary><span class="creator-history-chevron" aria-hidden="true">${ICON('chev')}</span>${current?`<span>${version} <small data-app-i18n="employeeHistory.currentVersion">当前版本</small></span>`:version}<time datetime="${esc(item.created_at||'')}"${hasDate?" data-employee-history-date":' data-app-i18n="employeeHistory.unknownDate"'}>${esc(dateText)}</time></summary><div class="creator-history-notes"><div data-app-i18n="employeeHistory.notes">更新说明</div><p>${notes}</p>${!!actionFor?.(item,index)?`<button type="button" class="btn ghost sm" onclick="${esc(actionFor(item,index))}" ${disabled?'disabled':''} data-app-i18n="employeeHistory.restore">恢复此版本</button>`:''}</div></details>`;
  }).join('');}
 function historyMarkup(s){
  if(!s.historyOpen)return '';
- const rows=historyRows(s),content=s.historyLoading?RunTeamsSkeletons.region('history'):s.historyError?`<p role="alert">${esc(s.historyError)}</p><button type="button" class="btn sm" onclick="RunTeamsCreatorAuthor.retryHistory()">重试</button>`:historyList(rows,(item,index)=>canRestoreHistory(s,item)?`RunTeamsCreatorAuthor.confirmRestore(${index})`:'',busy(s));
- return `<section id="creator_history_popover" class="creator-history-popover" role="dialog" aria-label="历史版本"><div class="creator-history-title">历史版本</div><div class="creator-history-list">${content||'<p class="creator-asset-note">还没有历史版本。</p>'}</div></section>`;
+ const rows=historyRows(s),content=s.historyLoading?RunTeamsSkeletons.region('history',undefined,'employeeHistory.loading'):s.historyError?`<p role="alert" data-app-i18n="employeeHistory.readFailed">无法读取历史版本。请重试。</p>${s.historyError==='历史版本暂时无法读取'?'':`<details><summary data-app-i18n="employeeHistory.errorDetails">查看错误详情</summary><p>${esc(s.historyError)}</p></details>`}<button type="button" class="btn sm" onclick="RunTeamsCreatorAuthor.retryHistory()" data-app-i18n="employeeHistory.retry">重试</button>`:historyList(rows,(item,index)=>canRestoreHistory(s,item)?`RunTeamsCreatorAuthor.confirmRestore(${index})`:'',busy(s));
+ return `<section id="creator_history_popover" class="creator-history-popover" role="dialog" aria-label="历史版本" data-app-i18n-aria-label="employeeHistory.title"><div class="creator-history-title" data-app-i18n="employeeHistory.title">历史版本</div><div class="creator-history-list">${content||'<p class="creator-asset-note" data-app-i18n="employeeHistory.empty">暂无历史版本。</p>'}</div></section>`;
 }
 function retryHistory(){const s=current();if(s){s.historyOpen=false;return history();}}
 function canRestoreHistory(s,item){return item.revision!==s.revision;}
-function confirmRestore(index){const s=current(),item=s&&historyRows(s)[index];if(!item||busy(s)||s.editing||!canRestoreHistory(s,item))return;const baseline=s.revision;closeHistory(false);confirmModal(`恢复到 ${item.version}？`,extension()?.restoreMessage()||'将用此版本替换当前源码，现有历史版本仍会保留。',()=>{if(!valid(s)||current()!==s)return;if(s.revision!==baseline){s.error='资源已有新修改，请重新查看后再恢复。';repaint();return;}return restore(item.revision);});}
-function editorMarkup(s){const e=s.editing;if(!e)return '';return `<div class="skills-file-edit"><div class="skills-file-edit-actions"><button class="btn pri sm" onclick="RunTeamsCreatorAuthor.save()" ${busy(s)?'disabled':''}>保存文件</button><button class="btn sm" onclick="RunTeamsCreatorAuthor.cancel()" ${s.saving||s.pending?'disabled':''}>返回预览</button></div>${e.newFile?`<label>文件路径<input aria-label="文件路径" value="${esc(e.path)}" oninput="RunTeamsCreatorAuthor.pathChanged(this.value)" ${busy(s)?'disabled':''}></label>`:''}<label class="skills-file-upload">上传资源<input type="file" aria-label="上传作品资源" onchange="RunTeamsCreatorAuthor.upload(this)" ${busy(s)?'disabled':''}></label><label class="skills-file-edit-label">文件内容<textarea id="creator_asset_text" aria-label="编辑作品文件" oninput="RunTeamsCreatorAuthor.changed(this.value)" ${busy(s)?'readonly':''}>${esc(e.content)}</textarea></label></div>`;}
-function recoveryMarkup(s){return (s.pendingAuthoring||[]).map(item=>item.state==='running'?'<p role="status">Agent 正在修改这份源码。</p>':`<section><p>${esc(item.error||'恢复会保存为新修订，当前版本保留。')}</p><ul>${(item.changes||[]).map(c=>`<li>${esc(c.kind==='deleted'?'删除':c.kind==='added'?'新增':'修改')}：${esc(c.path)}</li>`).join('')||'<li>没有文件差异</li>'}</ul><button class="btn sm" onclick="RunTeamsCreatorAuthor.recoverAuthoring(${Number(item.session_id)})" ${busy(s)?'disabled':''}>恢复这些修改</button></section>`).join('');}
-function resourceReceiptMarkup(s){return s.pending?`<p role="status">${s.saving?'正在保存资源…':'保存结果待核对，原内容仍保留。'}</p><button class="btn sm" onclick="RunTeamsCreatorAuthor.receipt()" ${s.saving?'disabled':''}>核对保存结果</button><button class="btn sm" onclick="RunTeamsCreatorAuthor.retryLocalSave()" ${s.saving?'disabled':''}>重试保存</button>`:'';}
+function confirmRestore(index){
+ const s=current(),item=s&&historyRows(s)[index];if(!item||busy(s)||s.editing||!canRestoreHistory(s,item))return;
+ const baseline=s.revision,provider=extension();
+ const titleKey=item.version!=null?'restoreTitle':item.revisionNumber==null?'restoreOriginal':'restoreRevision';
+ const titleVars=item.version!=null?{version:item.version}:{number:item.revisionNumber};
+ const title=item.version!=null?`恢复到 ${item.version}？`:item.revisionNumber==null?'恢复原始版本？':`恢复到修订 ${item.revisionNumber}？`;
+ closeHistory(false);
+ confirmModal(title,provider?.restoreMessage()||'此版本会替换当前源码。历史版本会保留。',()=>{
+  if(!valid(s)||current()!==s)return;
+  if(s.revision!==baseline){s.error=window.RunTeamsLocale?.t('employeeHistory.restoreConflict',{},'资源已更新。请重新查看后再恢复。')??'资源已更新。请重新查看后再恢复。';repaint();return;}
+  return restore(item.revision);
+ },false,{titleKey:'employeeHistory.'+titleKey,titleVars,messageKey:provider?.restoreMessageKey||'employeeHistory.restoreDetails',action:'恢复',actionKey:'employeeHistory.restoreAction',cancelKey:'employeeSettings.cancel',closeKey:'employeeSettings.closeDialog'});
+}
+function editorMarkup(s){const e=s.editing;if(!e)return '';return `<div class="skills-file-edit"><div class="skills-file-edit-actions"><button class="btn pri sm" onclick="RunTeamsCreatorAuthor.save()" ${busy(s)?'disabled':''} data-app-i18n="employeeResource.save">保存文件</button><button class="btn sm" onclick="RunTeamsCreatorAuthor.cancel()" ${s.saving||s.pending?'disabled':''} data-app-i18n="employeeResource.back">返回预览</button></div>${e.newFile?`<label><span data-app-i18n="employeeResource.path">文件路径</span><input aria-label="文件路径" data-app-i18n-aria-label="employeeResource.path" value="${esc(e.path)}" oninput="RunTeamsCreatorAuthor.pathChanged(this.value)" ${busy(s)?'disabled':''}></label>`:''}<label class="skills-file-upload"><span data-app-i18n="employeeResource.upload">上传文件</span><input type="file" aria-label="上传作品资源" data-app-i18n-aria-label="employeeResource.upload" onchange="RunTeamsCreatorAuthor.upload(this)" ${busy(s)?'disabled':''}></label><label class="skills-file-edit-label"><span data-app-i18n="employeeResource.content">文件内容</span><textarea id="creator_asset_text" aria-label="编辑作品文件" data-app-i18n-aria-label="employeeResource.content" oninput="RunTeamsCreatorAuthor.changed(this.value)" ${busy(s)?'readonly':''}>${esc(e.content)}</textarea></label></div>`;}
+function recoveryMarkup(s){
+ return (s.pendingAuthoring||[]).map(item=>{
+  if(item.state==='running')return '<p role="status" data-app-i18n="employeeResource.agentEditing">Agent 正在修改源码…</p>';
+  const changes=(item.changes||[]).map(change=>`<li>${historyFileChangeMarkup(change.kind==='deleted'?'removed':change.kind==='added'?'added':'modified',change.path)}</li>`).join('');
+  const detail=item.error?`<details><summary data-app-i18n="employeeHistory.errorDetails">查看错误详情</summary><p>${esc(item.error)}</p></details>`:'';
+  return `<section><p data-app-i18n="employeeResource.recoverDetails">恢复会创建新修订。当前版本会保留。</p>${detail}<ul>${changes||'<li data-app-i18n="employeeResource.noDifferences">文件没有变化。</li>'}</ul><button class="btn sm" onclick="RunTeamsCreatorAuthor.recoverAuthoring(${Number(item.session_id)})" ${busy(s)?'disabled':''} data-app-i18n="employeeResource.recoverEdits">恢复这些修改</button></section>`;
+ }).join('');
+}
+function resourceReceiptMarkup(s){
+ if(!s.pending)return '';
+ const restore=s.pending.action==='restore';
+ const checked=s.receiptChecked===s.pending;
+ const status=s.checkingReceipt?(restore?'checkingRestore':'checkingSave'):restore?(s.saving?'restoring':'restoreUnconfirmed'):(s.saving?'saving':'saveUnconfirmed');
+ const statusText=s.checkingReceipt?(restore?'正在核对恢复结果…':'正在核对保存结果…'):restore?(s.saving?'正在恢复版本…':'尚未确认是否恢复。请先核对结果。'):(s.saving?'正在保存资源…':'尚未确认是否保存。原内容仍保留。');
+ const check=restore?'checkRestore':'checkSave',retry=restore?'retryRestore':'retrySave';
+ return `<p role="status" tabindex="-1" data-source-receipt-status data-app-i18n="employeeHistory.${checked?'receiptMissing':status}">${checked?'尚未找到原操作结果。可以用原请求重试。':statusText}</p><button class="btn sm" data-source-receipt-check onclick="RunTeamsCreatorAuthor.receipt()" ${s.saving?'disabled aria-busy="true"':''} data-app-i18n="employeeHistory.${check}">${restore?'核对恢复结果':'核对保存结果'}</button>${checked?`<button class="btn sm" data-source-receipt-retry onclick="RunTeamsCreatorAuthor.retryLocalSave()" ${s.saving?'disabled':''} data-app-i18n="employeeHistory.${retry}">${restore?'重试恢复':'重试保存'}</button>`:''}`;
+}
 function openOperation(kind,action){const s=current();if(!s)return;closeHistory(false);s.operationView=kind;syncOperationDialog();return action?.();}
 function closeOperation(){const s=operationOwner;if(s?.editing&&current()===s)capture();if(s){s.operationView=null;extension()?.closeOperation(s);}operationOwner=null;operationMarkup='';if(document.querySelector?.('.creator-operation-dialog'))closeModal();}
 function resourceActions(s){
- return `<div class="creator-asset-actions"><button class="btn sm" onclick="RunTeamsCreatorAuthor.edit()" ${busy(s)||s.file?.kind!=='text'?'disabled':''}>编辑文件</button><button class="btn sm" onclick="RunTeamsCreatorAuthor.add()" ${busy(s)?'disabled':''}>添加文件</button><button class="btn sm" onclick="RunTeamsCreatorAuthor.remove()" ${busy(s)||!s.activeFile?'disabled':''}>删除文件</button><button class="btn sm" onclick="RunTeamsCreatorAuthor.exportSource()" ${busy(s)?'disabled':''}>导出源码</button></div>`;
+ return `<div class="creator-asset-actions"><button class="btn sm" onclick="RunTeamsCreatorAuthor.edit()" ${busy(s)||s.file?.kind!=='text'?'disabled':''} data-app-i18n="employeeResource.edit">编辑文件</button><button class="btn sm" onclick="RunTeamsCreatorAuthor.add()" ${busy(s)?'disabled':''} data-app-i18n="employeeResource.add">添加文件</button><button class="btn sm" onclick="RunTeamsCreatorAuthor.remove()" ${busy(s)||!s.activeFile?'disabled':''} data-app-i18n="employeeResource.remove">删除文件</button><button class="btn sm" onclick="RunTeamsCreatorAuthor.exportSource()" ${busy(s)?'disabled':''} data-app-i18n="employeeResource.export">导出源码</button></div>`;
 }
 function syncOperationDialog(){
  if(typeof openDialog!=='function')return;
  const s=current();if(!s||!s.localDraft&&!s.localSession){if(operationOwner)closeOperation();return;}
  if(s.operationView==='edit'&&!s.editing&&!s.pending)s.operationView=null;
- const kind=s.operationView;if(!kind){if(operationOwner)closeOperation();if(s.error&&s.noticeError!==s.error){s.noticeError=s.error;if(typeof toast==='function')toast(s.error,'err');}return;}
+ const errorKey={
+  '保存结果待核对，编辑内容已保留。':'employeeHistory.editUnconfirmed',
+  '无法核对原操作结果。':'employeeHistory.checkFailed',
+  '保存回执无效':'employeeHistory.badSaveReceipt',
+  '无法导出源码包。请重试。':'employeeResource.exportFailed',
+  '无法确认源码版本。请刷新后重试。':'employeeResource.exportVersionUnverified',
+  '源码包无法使用。请重新导出。':'employeeResource.exportInvalidPackage',
+ }[s.error];
+ const kind=s.operationView;if(!kind){if(operationOwner)closeOperation();if(s.error&&s.noticeError!==s.error){s.noticeError=s.error;if(typeof toast==='function')toast(s.error,'err',typeof errorKey==='string'?errorKey:undefined);}return;}
  const extra=extension()?.dialog(s,kind),titles={build:'构建作品',edit:s.editing?.newFile?'添加文件':'编辑文件',recovery:'未完成的修改',resource:'资源操作'};
  const content=extra?extra.body:kind==='build'?buildSummary(s):kind==='edit'?editorMarkup(s)+resourceReceiptMarkup(s):kind==='recovery'?recoveryMarkup(s):resourceReceiptMarkup(s)||resourceActions(s);
- const body=content+(s.error?`<p role="alert">${esc(s.error)}</p>`:'');
+ const body=content+(s.error?`<p role="alert"${typeof errorKey==='string'?` data-app-i18n="${errorKey}"`:""}>${esc(s.error)}</p>`:'');
  const signature=kind+body;if(operationOwner===s&&operationMarkup===signature&&document.querySelector?.('.creator-operation-dialog'))return;
- const opts={className:'creator-operation-dialog',title:extra?.title||titles[kind],body,closeAction:'RunTeamsCreatorAuthor.closeOperation()',attrs:`role="dialog" aria-label="${extra?.title||titles[kind]}"`};
+ const titleKey=extra?.titleKey||({build:'employeeResource.buildProject',edit:s.editing?.newFile?'employeeResource.add':'employeeResource.edit',recovery:'employeeResource.unfinishedEdits',resource:'employeeResource.actions'})[kind];
+ const opts={className:'creator-operation-dialog',title:extra?.title||titles[kind],titleKey,closeLabelKey:'employeeSettings.closeDialog',body,closeAction:'RunTeamsCreatorAuthor.closeOperation()',attrs:`role="dialog" aria-label="${esc(extra?.title||titles[kind])}"${titleKey?` data-app-i18n-aria-label="${esc(titleKey)}"`:""}`};
  if(operationOwner===s&&document.querySelector?.('.creator-operation-dialog'))replaceDialog(opts);else openDialog(opts);operationOwner=s;operationMarkup=signature;
 }
 document.addEventListener?.('pointerdown',event=>{const s=current();if(s?.historyOpen&&!event.target.closest?.('#creator_history_popover,#creator_history_trigger'))closeHistory(false);});
 document.addEventListener?.('keydown',event=>{if(event.key==='Escape'&&current()?.historyOpen){event.preventDefault();event.stopPropagation();closeHistory();}});
 async function continueWithAgent(){const s=current();if(!s?.localDraft||busy(s)||s.editing)return;s.saving=true;s.error='';repaint();try{const r=await localCall(s,'/'+s.localDraft.id+'/session',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runtime:draftRuntimeConfig()})});if(valid(s)){if(r.session?.storage_scope!=='device'||r.session?.context?.creator_local_source_id!==s.localDraft.id)throw Error('本机创作会话绑定无效');deviceChatRemember(r);s.saving=false;await openConversationSession(r.session.id,'employee_design');}}catch(e){if(valid(s))s.error=e.message;}finally{if(valid(s)){s.saving=false;repaint();}}}
 async function recoverAuthoring(sessionId){const s=current();if(!s?.localDraft||busy(s)||s.editing||s.pending)return;s.saving=true;s.error='';repaint();try{await localCall(s,'/'+s.localDraft.id+'/recovery',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({session_id:sessionId,base_revision:s.revision})});}catch(e){if(valid(s))s.error=e.message;}finally{if(valid(s)){s.saving=false;await sync(true);}}}
-async function restore(revision){const s=current();if(!s?.history||busy(s)||s.editing||s.pending)return;s.saving=true;s.error='';s.pending={action:'restore',base_revision:s.revision,operation_key:crypto.randomUUID(),revision};persist(s);repaint();try{const {action,...body}=s.pending;const r=await localCall(s,'/'+s.localDraft.id+'/restore',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});if(valid(s))accept(s,r);}catch(e){if(valid(s)){if(e.rejected){s.pending=null;persist(s);}s.error=e.message;}}finally{if(valid(s)){s.saving=false;if(!s.pending)await sync(true);else repaint();}}}
+async function restore(revision){const s=current();if(!s?.history||busy(s)||s.editing||s.pending)return;s.saving=true;s.error='';s.pending={action:'restore',base_revision:s.revision,operation_key:crypto.randomUUID(),revision};persist(s);repaint();try{const {action,...body}=s.pending;const r=await localCall(s,'/'+s.localDraft.id+'/restore',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});if(valid(s))accept(s,r);}catch(e){if(valid(s)){if(e.rejected){s.pending=null;persist(s);}s.error=e.message;}}finally{if(valid(s)){s.saving=false;if(!s.pending)await sync(true);else openOperation('resource');}}}
 function save(){const s=current();if(!s?.editing)return;capture();return writeBytes(s,s.editing.path,new TextEncoder().encode(s.editing.content));}
 function remove(){const s=current();if(!s?.activeFile||s.editing)return;return commit([{path:s.activeFile,content_base64:null}]);}
 async function upload(input){const s=current(),file=input.files?.[0];if(!s||!file||busy(s))return;
@@ -262,10 +378,13 @@ async function cancelBuild(){
  catch(e){if(valid(s))s.buildError=e.message;}
  finally{if(valid(s)){s.buildSending=false;repaint();}}
 }
+function buildCopy(key,fallback){
+ return `<span data-app-i18n="employeeResource.${key}">${esc(fallback)}</span>`;
+}
 function buildSummary(s){
  const job=s.build?.latest,stale=job&&(job.current===false||job.revision!==s.revision);
- const label=s.buildRequest?'构建请求结果待核对':!job?'尚未构建':job.state==='running'?'正在构建已保存源码…':job.stale_reason==='toolchain_unavailable'?'构建工具暂不可用，源码与原构建结果已保留。':job.stale_reason==='toolchain_changed'?'构建工具已更新，请重新构建。':stale?'源码已更新，请重新构建':job.state==='succeeded'?'运行资源已准备好。':job.state==='cancelled'?'构建已取消，源码与上一份有效产物保留。':job.state==='interrupted'?'上次构建已中断，可以重新构建。':'构建未完成，请检查源码后重试。';
- return `<section class="creator-build-status" aria-label="平台构建"><p role="status">${label}</p>${job?.state==='running'?'<button class="btn sm" onclick="RunTeamsCreatorAuthor.cancelBuild()">取消构建</button>':''}${job?.diagnostic?`<details><summary>${stale?'上次构建问题':'查看构建问题'}</summary><pre>${esc(job.diagnostic)}</pre></details>`:''}${s.buildError?`<p role="alert">${esc(s.buildError)}</p>`:''}${s.buildError||s.buildRequest?'<button class="btn sm" onclick="RunTeamsCreatorAuthor.readBuild()">核对构建结果</button>':''}${job&&!['succeeded','cancelled'].includes(job.state)&&s.build?.valid?`<p class="creator-asset-note">${s.build.valid.current&&s.build.valid.revision===s.revision?'这份源码的上一份有效产物已保留。':String(s.build.valid.stale_reason||'').startsWith('toolchain_')?'上一份构建结果已保留，请以重新构建后的结果为准。':'上一份有效产物已保留，不代表当前源码。'}</p>`:''}</section>`;
+ const label=s.buildRequest?buildCopy("buildUnconfirmed","尚未确认构建结果。"):!job?buildCopy("notBuilt","尚未构建。"):job.state==='running'?buildCopy("building","正在构建已保存的源码…"):job.stale_reason==='toolchain_unavailable'?buildCopy("toolsUnavailable","构建工具暂不可用。源码和之前的构建结果仍保留。"):job.stale_reason==='toolchain_changed'?buildCopy("toolsChanged","构建工具已更新。请重新构建。"):stale?buildCopy("sourceChanged","源码已更新。请重新构建。"):job.state==='succeeded'?buildCopy("buildReady","运行资源已准备好。"):job.state==='cancelled'?buildCopy("buildCancelled","构建已取消。源码和上次成功的构建结果仍保留。"):job.state==='interrupted'?buildCopy("buildInterrupted","上次构建已中断。你可以重新构建。"):buildCopy("buildFailed","构建未完成。请检查源码后重试。");
+ return `<section class="creator-build-status" aria-label="构建作品" data-app-i18n-aria-label="employeeResource.buildProject"><p role="status">${label}</p>${job?.state==='running'?'<button class="btn sm" onclick="RunTeamsCreatorAuthor.cancelBuild()" data-app-i18n="employeeResource.cancelBuild">取消构建</button>':''}${job?.diagnostic?`<details><summary>${stale?buildCopy("previousIssue","上次构建的问题"):buildCopy("viewIssue","查看构建问题")}</summary><pre>${esc(job.diagnostic)}</pre></details>`:''}${s.buildError?`<p role="alert">${esc(s.buildError)}</p>`:''}${s.buildError||s.buildRequest?'<button class="btn sm" onclick="RunTeamsCreatorAuthor.readBuild()" data-app-i18n="employeeResource.checkBuild">核对构建结果</button>':''}${job&&!['succeeded','cancelled'].includes(job.state)&&s.build?.valid?`<p class="creator-asset-note">${s.build.valid.current&&s.build.valid.revision===s.revision?buildCopy("previousCurrent","此源码上次成功的构建结果仍保留。"):String(s.build.valid.stale_reason||'').startsWith('toolchain_')?buildCopy("previousTools","上次的构建结果仍保留。请重新构建以获取最新结果。"):buildCopy("previousSource","上次成功的构建结果仍保留，对应的是之前的源码。")}</p>`:''}</section>`;
 }
 function releasePreview(){
  if(mountedPreview)window.RunTeamsResourceViewer?.unmount?.(mountedPreview.host);
@@ -290,18 +409,28 @@ function mount(s,path,file){let host=document.getElementById('creator_asset_prev
  }
  mountedPreview={owner:s,source:s.localDraft?.id,path,file:{kind:file.kind,sha256:file.sha256,content:file.content,data_url:file.data_url,size:file.size},host};
 }
+function clearFile(s){
+ s.activeFile='';s.file=null;s.fileError='';s.request=null;
+ releasePreview();
+}
+function showSettings(s){
+ if(current()!==s)return;
+ clearFile(s);repaint();
+ document.querySelector('.creator-asset-settings > .right-detail-scroll')?.focus({preventScroll:true});
+}
 function drawer(){
  const s=current();if(!s)return '';
  const header={toolbar:RunTeamsEmployeeDrawerHeader.markup('settings')+historyMarkup(s),intro:''};
  const tree=skillsResourceTreeMarkup(s.files,s,'creator',s.session);
  const known=!!s.treeSource&&s.treeSource===s.localDraft?.id;
- const recovery=s.error?`<p role="alert">${esc(s.error)} <button type="button" class="btn sm" onclick="RunTeamsCreatorAuthor.sync()">重试</button></p>`:'';
+ const recovery=s.error?`<p role="alert"><span data-app-i18n="employeeResource.resourcesUnavailable">无法读取资源。</span> <button type="button" class="btn sm" onclick="RunTeamsCreatorAuthor.sync()" data-app-i18n="employeeHistory.retry">重试</button></p><details><summary data-app-i18n="employeeHistory.errorDetails">查看错误详情</summary><p>${esc(s.error)}</p></details>`:'';
  let preview='';
- if(s.file){const path=s.activeFile,file=s.file;preview='<div id="creator_asset_preview"></div>';requestAnimationFrame(()=>mount(s,path,file));}
- else preview=s.fileError?'':s.error?'':s.activeFile||s.loading?RunTeamsSkeletons.region('creator-file'):'<p class="creator-asset-note">选择文件查看内容。</p>';
- if(s.fileError)preview=`<p role="alert">${esc(s.fileError)} <button type="button" class="btn sm" onclick="RunTeamsCreatorAuthor.select(${esc(JSON.stringify(s.activeFile))})">重试</button></p>`+preview;
- const body=`<div class="creator-asset-tree skills-resource-files">${recovery}${known?tree:s.loading?RunTeamsSkeletons.region('creator-files'):''}</div><div class="creator-asset-file">${preview}</div>`;
- return detailDrawerShell({className:'creator-author-drawer creator-resources-drawer',header,body,footer:'',bodyClass:'creator-author-body',fixedIntroClass:'',attrs:'aria-label="资源"'});
+ if(s.settingsEntry&&!s.activeFile)preview=RunTeamsEmployeeConfiguration.embeddedSettings();
+ else if(s.file){const path=s.activeFile,file=s.file;preview='<div id="creator_asset_preview"></div>';requestAnimationFrame(()=>mount(s,path,file));}
+ else preview=s.fileError?'':s.error?'':s.activeFile||s.loading?RunTeamsSkeletons.region('creator-file',undefined,'employeeResource.loadingFile'):'<p class="creator-asset-note" data-app-i18n="employeeResource.chooseFile">选择文件以查看内容。</p>';
+ if(s.activeFile&&s.fileError)preview=`<p role="alert"><span data-app-i18n="employeeResource.fileUnavailable">无法读取文件。</span> <button type="button" class="btn sm" onclick="RunTeamsCreatorAuthor.select(${esc(JSON.stringify(s.activeFile))})" data-app-i18n="employeeHistory.retry">重试</button></p><details><summary data-app-i18n="employeeHistory.errorDetails">查看错误详情</summary><p>${esc(s.fileError)}</p></details>`+preview;
+ const body=`<div class="creator-asset-tree skills-resource-files">${recovery}${known?(tree||'<p class="creator-asset-note" data-app-i18n="employeeResource.noFiles">此作品没有文件。</p>'):s.loading?RunTeamsSkeletons.region('creator-files',undefined,'employeeResource.loadingFiles'):''}</div><div class="creator-asset-file">${preview}</div>`;
+ return detailDrawerShell({className:'creator-author-drawer creator-resources-drawer',header,body,bodyClass:'creator-author-body',attrs:'aria-label="资源" data-app-i18n-aria-label="employeeSettings.resources"'});
 }
 function decorateHeader(){
  const s=current();if(!s)return;
@@ -310,14 +439,17 @@ function decorateHeader(){
   // A cached action is presentation only; the handler always checks live facts.
   const actionsProvider=extension();
   if(!actionsProvider){
-   actions.push({id:'build',label:s.build?.latest?.state==='running'?'查看构建':'构建',disabled:!!s.loading||!!s.editing||!!s.pending,onPress:()=>{if(current()===s)void openOperation('build',s.build?.latest?.state==='running'?readBuild:buildLocal);}});
-   actions.push({id:'resources',label:'更多操作',popup:'dialog',disabled,onPress:()=>{if(current()===s)openOperation('resource');}});
+   actions.push({id:'build',label:s.build?.latest?.state==='running'?'查看构建':'构建',labelKey:s.build?.latest?.state==='running'?'employeeResource.viewBuild':'employeeResource.build',disabled:!!s.loading||!!s.editing||!!s.pending,onPress:()=>{if(current()===s)void openOperation('build',s.build?.latest?.state==='running'?readBuild:buildLocal);}});
+   actions.push({id:'resources',label:'更多操作',labelKey:'employeeResource.more',popup:'dialog',disabled,onPress:()=>{if(current()===s)openOperation('resource');}});
   }
-  if(hasHistory(s))actions.push({id:'history',label:'历史版本',platformId:'creator_history_trigger',popup:'dialog',expanded:!!s.historyOpen,disabled,onPress:()=>{if(current()===s)void history();}});
+  if(hasHistory(s))actions.push({id:'history',label:'历史版本',labelKey:'employeeHistory.title',platformId:'creator_history_trigger',popup:'dialog',expanded:!!s.historyOpen,disabled,onPress:()=>{if(current()===s)void history();}});
   if(actionsProvider)actions.push(...actionsProvider.header(s));
  }
+ const back=s.settingsEntry&&s.activeFile
+  ?{label:'返回员工设置',labelKey:'employeeHistory.backToSettings',onPress:()=>showSettings(s)}
+  :null;
  RunTeamsEmployeeDrawerHeader.mount('settings',s,{onCollapse:s.configurationReturn||close,
-  collapseLabel:s.configurationReturn?'返回员工设置':'关闭详情',extras:{text:'资源',actions}});
+  collapseLabel:s.configurationReturn?'返回员工设置':'关闭详情',collapseLabelKey:s.configurationReturn?'employeeHistory.backToSettings':undefined,extras:{text:'资源',textKey:'employeeSettings.resources',back,actions}});
 }
 for(const event of ['runteams:business-scope-will-change','runteams:business-scope-changed'])window.addEventListener(event,()=>{state?.exportRequest?.abort();if(operationOwner)closeOperation();releasePreview();state=null;});
 window.RunTeamsCreatorAuthor={historyList,leave,decorateHeader,openSource,openEmployee,close,exportSource,current,open,sync,select,edit,add,cancel,changed,pathChanged,save,remove,upload,receipt,retryLocalSave,drawer,capture,openLocal,history,closeHistory,retryHistory,confirmRestore,attachSourceActions,openOperation,closeOperation,restore,continueWithAgent,recoverAuthoring,buildLocal,readBuild,cancelBuild};

@@ -203,6 +203,7 @@ def employee_call(arguments, context):
             if arguments.get('operation')=='write' and frozen.get('pipeline_submission'):
                 raise ContractError('岗位结果已经提交，汇报版本已固定；请先完成本次交接。')
             binding['employee_run_id']=frozen['employee_run_id']
+            binding['kind']='pipeline_stage'
     with work.repository.audit_context(actor_id=principal(expected),source='agent_tool'):
         work._actor()
         result=_operate(work,arguments,binding,owner=employee_host.document_owner(session))

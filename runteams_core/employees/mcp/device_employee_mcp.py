@@ -58,6 +58,7 @@ class EmployeeMCPWork:
         self.operation_scope=operation_scope
         self.lock = threading.RLock()
         self.sessions, self.pending, self.turns = {}, {}, {}
+        self.views = {}
         self.connection_calls, self.connection_requests = {}, {}
         self.closed = False
         self.notice_epoch = uuid.uuid4().hex
@@ -124,9 +125,9 @@ class EmployeeMCPWork:
 
     def _write(self, path, value):
         self.check()
-        if any(p.is_symlink() for p in (path,*path.parents)):raise ValueError('本机功能记录路径无效。')
+        if any(p.is_symlink() for p in (path,*path.parents)):raise ValueError('工作授权记录路径无效。')
         employee_workspaces._directory(path.parent)
-        if path.is_symlink(): raise ValueError('本机功能记录无效。')
+        if path.is_symlink(): raise ValueError('工作授权记录无效。')
         with device_data.connect():
             self.check()
             _publish(self.root, path.parent, path, json.dumps(value, ensure_ascii=False, sort_keys=True).encode())
@@ -150,7 +151,7 @@ class EmployeeMCPWork:
                 raise PermissionError('本机员工工作引用已变化。')
             return value
         if ((work/'.runteams/mcp-runtime-state.json').exists() or (work/'.runteams/mcp-calls').exists()):
-            raise ContractError('本机功能的原工作引用缺失，请保留文件并核对。')
+            raise ContractError('程序的原工作引用缺失，请保留文件并核对。')
         return None
 
     def load(self, chat, *, pin=False):
@@ -211,6 +212,11 @@ class EmployeeMCPWork:
         if not path.exists() and not path.is_symlink(): return False
         return _read(path) == {'binding':self._trust_binding(binding), 'package':package, 'enabled':True}
 
+    def has_pending_approval(self, chat):
+        self.check()
+        with self.lock:
+            return any(row['chat'] == chat and not row['done'].is_set() for row in self.pending.values())
+
     def state(self, chat):
         notification_version=self.observe(chat)['version']
         employee, packages, work, binding = self._identity(chat)
@@ -229,6 +235,7 @@ class EmployeeMCPWork:
             'notification_version':notification_version,
             'connection_services':self.connection_services(chat,employee,packages),
             'work_resources':self.work_resource_setup(employee,packages),
+            'subject':employee.get('name') or employee.get('asset',{}).get('pipeline',{}).get('name',''),
             'packages':[{'name':p.manifest.get('display_name') or p.manifest['name'], 'version':p.manifest['version'],'credential_keys':list(p.credential_names())}
                         for p in packages.values()], 'approvals':approvals,
             'calls':[{'id':r['id'],'tool':r['tool'],'state':'unknown' if r['state']=='pending' else r['state']}
@@ -242,9 +249,17 @@ class EmployeeMCPWork:
         ref=employee.get('reference') or (employee.get('local_package') or {}).get('reference',{})
         if not self.scope.get('library_id') or ref.get('schema') not in ('runteams.local-employee-reference/1','runteams.local-pipeline-reference/1'):return []
         from runteams_core.work.work_connections import WorkConnections
+        from runteams_core.configuration.configuration_schema import data_fields
+        if employee.get('local_package'):
+            from runteams_core.employees.source_employee_runtime import package_asset
+            definition=package_asset(employee['local_package'])['employee'].get('configuration',{})
+        else:definition=employee.get('asset',{}).get('configuration',{})
+        fields = data_fields(definition) if definition else ()
+        required={f['binding']['key'] for f in fields if f.get('required') and f.get('binding',{}).get('provider')=='sdk_connection'}
         provider=WorkConnections(self);result=[]
         for package in packages:
             state=provider.state(chat,package)
+            state['connections']=[{**row,'required':row['key'] in required} for row in state['connections']]
             if state['connections']:result.append({**state,'program_name':packages[package].manifest.get('display_name') or packages[package].manifest['name']})
         return result
 
@@ -253,7 +268,7 @@ class EmployeeMCPWork:
             self.check()
             employee, packages, work, binding = self._identity(chat)
             if expected != digest(binding.__dict__) or confirmed is not True or not packages:
-                raise PermissionError('请核对当前版本后明确启用。')
+                raise PermissionError('请核对当前版本并确认运行授权。')
             if self.runtime is None: raise ValueError('本机运行资源尚未随应用提供。')
             self.runtime.verify()
             self.load(chat, pin=True)
@@ -272,16 +287,32 @@ class EmployeeMCPWork:
         for cid in chats:self.close_work(cid)
         return self.state(chat)
 
+    def authorize_runtime(self, chat, *, cancel=None, notify=None):
+        """Ask at first use, bound to the exact work/version, before author code."""
+        _, packages, _, binding = self._identity(chat)
+        if not packages or all(self.enabled(binding, p) for p in packages):
+            return
+        self._approval(chat, 'runteams/work-authorization', {}, trust=True,
+                       cancel=cancel, notify=notify)
+        _, current, _, actual = self._identity(chat)
+        if actual != binding or current.keys() != packages.keys() or not all(self.enabled(actual, p) for p in current):
+            raise PermissionError('本次工作尚未获得运行授权。')
+
     def ask(self, chat, method, params, *, cancel=None, timeout=180, notify=None):
-        """The official request is answered once by the current platform surface."""
+        return self._approval(chat, method, params, cancel=cancel, timeout=timeout, notify=notify)
+
+    def _approval(self, chat, method, params, *, trust=False, cancel=None, timeout=180, notify=None):
         self.check()
         _, packages, _, binding = self._identity(chat)
-        if not packages or not all(self.enabled(binding,p) for p in packages): raise PermissionError('请先启用本机功能。')
+        if not packages or not trust and not all(self.enabled(binding,p) for p in packages):
+            raise PermissionError('本次工作尚未获得运行授权。')
         key = uuid.uuid4().hex
         public = {'id':key, 'method':method, 'params':copy.deepcopy(params)}
-        try:approval_response(method,params,'accept');public['can_accept']=True
+        try:
+            if not trust:approval_response(method,params,'accept')
+            public['can_accept']=True
         except ValueError:public['can_accept']=False
-        row = {'chat':chat,'binding':binding,'done':threading.Event(),'public':public,'decision':None}
+        row = {'chat':chat,'binding':binding,'done':threading.Event(),'public':public,'decision':None,'trust':trust}
         with self.lock: self.check(); self.pending[key] = row; self._notice_changed()
         if notify is not None:notify()
         end = time.monotonic()+timeout
@@ -291,8 +322,8 @@ class EmployeeMCPWork:
                 if cancel is not None and cancel.is_set(): raise PermissionError('工作已停止。')
                 if time.monotonic() >= end: raise TimeoutError('本次确认已失效。')
             self.check()
-            if not all(self.enabled(binding,p) for p in packages): raise PermissionError('本机功能已停用。')
-            return approval_response(method,params,row['decision'])
+            if not all(self.enabled(binding,p) for p in packages): raise PermissionError('本次工作未获授权或授权已撤销。')
+            return {'accepted': row['decision']=='accept'} if trust else approval_response(method,params,row['decision'])
         finally:
             with self.lock: self.pending.pop(key,None); self._notice_changed()
 
@@ -304,6 +335,8 @@ class EmployeeMCPWork:
                     or row['binding'] != binding or decision not in ('accept','decline','cancel')):
                 raise PermissionError('本次确认已失效，请核对当前工作。')
             if row['done'].is_set() and row['decision'] != decision: raise ValueError('本次确认已经处理。')
+            if row.get('trust') and decision == 'accept' and not row['done'].is_set():
+                self.enable(chat, expected, True)
             row['decision'] = decision; row['done'].set(); self._notice_changed()
         return {'answered':True}
 
@@ -316,7 +349,15 @@ class EmployeeMCPWork:
 
     def program_environment(self, chat, package, binding, work):
         from runteams_core.work.work_connection_calls import environment
-        return lambda:environment(self,chat,package,binding)
+        from runteams_core.pipelines.pipeline_task_configuration import credential_scopes
+        @contextmanager
+        def bound():
+            with environment(self,chat,package,binding) as values:
+                _,packages,_,actual=self._identity(chat)
+                if actual!=binding or package not in packages:raise PermissionError('程序工作身份已变化。')
+                scopes=credential_scopes(chat,packages[package].credential_names())
+                yield {**values,'RUNTEAMS_TASK_CREDENTIAL_SCOPES':json.dumps(scopes)}
+        return bound
 
     def credential_configuration(self, chat, binding):
         from runteams_core.storage import product_store
@@ -328,7 +369,7 @@ class EmployeeMCPWork:
         return config.definition,snapshot
 
     def program_credentials(self, chat, package, binding):
-        from runteams_core.configuration.credentials.configuration_credentials import lease
+        from runteams_core.pipelines.pipeline_task_configuration import credential_lease
         @contextmanager
         def bound(actual,package_digest,required):
             if actual!=binding or package_digest!=package:raise PermissionError('程序凭据的工作身份已变化。')
@@ -338,16 +379,17 @@ class EmployeeMCPWork:
                 if current!=binding or package not in packages or not self.enabled(binding,package):raise PermissionError('原本机程序已停用。')
             check()
             from runteams_core.configuration.employee_configuration import ConfigurationInvalid
-            try:definition,snapshot=self.credential_configuration(chat,binding)
-            except ConfigurationInvalid:raise PermissionError('请先核对本次工作的凭据配置。') from None
-            with lease(definition,snapshot,required,check) as values:yield values
+            def shared():
+                try:return self.credential_configuration(chat,binding)
+                except ConfigurationInvalid:raise PermissionError('请先核对本次工作的凭据配置。') from None
+            with credential_lease(chat,required,check,shared) as values:yield values
         return bound
 
     def session(self, chat, package):
         self.check_operation(chat)
         with self.lock:
             _, packages, work, binding = self._identity(chat)
-            if package not in packages or not self.enabled(binding,package): raise PermissionError('请先启用本机功能。')
+            if package not in packages or not self.enabled(binding,package): raise PermissionError('请先确认本次工作的运行授权。')
             if self.suspended(work):raise PermissionError('本次运行已关闭，请明确继续运行。')
             self.load(chat,pin=True)
             key = (chat,package)
@@ -392,7 +434,7 @@ class EmployeeMCPWork:
     def call(self, chat, package, name, arguments, key, *, source='agent', expected_session=None):
         self.check_operation(chat)
         _, packages, work, binding = self._identity(chat)
-        if package not in packages or not self.enabled(binding,package):raise PermissionError('本机功能未启用。')
+        if package not in packages or not self.enabled(binding,package):raise PermissionError('本次工作尚未获得运行授权。')
         request = {'package':package,'tool':name,'arguments':arguments}
         path = work / '.runteams/mcp-calls' / (digest({'key':key})+'.json')
         with self.lock:
@@ -453,7 +495,8 @@ class EmployeeMCPWork:
         from contextlib import ExitStack
         _, packages, _, binding = self._identity(chat)
         if not packages: yield {}; return
-        if not all(self.enabled(binding,p) for p in packages): raise PermissionError('请先在设置中启用本机功能。')
+        self.authorize_runtime(chat, cancel=cancel, notify=notify)
+        if self._identity(chat)[3] != binding:raise PermissionError('工作版本已变化，请重新开始。')
         self.resume(chat,digest(binding.__dict__))
         node, worker = self.runtime.verify()
         with ExitStack() as stack:
@@ -461,8 +504,9 @@ class EmployeeMCPWork:
                 if chat in self.turns:raise ValueError('这次工作已有运行中的对话。')
                 self.turns[chat]=cancel
             def retire_turn():
-                with self.lock:self.turns.pop(chat,None)
-                if cancel is not None and cancel.is_set():self.close_work(chat)
+                with self.lock:
+                    self.turns.pop(chat,None)
+                    if cancel is not None and cancel.is_set() or not self.views.get(chat):self.close_work(chat)
             stack.callback(retire_turn)
             config = {}
             for package in packages:
@@ -546,6 +590,14 @@ class EmployeeMCPWork:
             current().verify_work_employee(employee,session)
         self.check()
         return [work]
+
+    def retain_view(self, chat):
+        with self.lock:self.views[chat] = self.views.get(chat, 0) + 1
+
+    def release_view(self, chat):
+        with self.lock:
+            self.views[chat] = max(0, self.views.get(chat, 0) - 1)
+            if not self.views[chat] and chat not in self.turns:self.close_work(chat)
 
     def close_work(self, chat):
         error=None
@@ -644,7 +696,7 @@ class _MCPOwner(NativeWorkOwner):
 
     def _close_work(self,chat):
         if self.host.closed:return self.host.close_work(chat)
-        return self._call('',lambda:self.host.close_work(chat))
+        return self._call('',lambda:self.host.release_view(chat))
 
     def _bridge(self, installation, chat, payload):
         from runteams_core.employees.mcp.employee_mcp_native import EmployeeMCPBridge
@@ -656,13 +708,13 @@ class _MCPOwner(NativeWorkOwner):
                 if digest({'tool':tool['name']})!=payload['view']:continue
                 bridge_key=uuid.uuid4().hex
                 counter=iter(range(1,1000000))
+                self.host.retain_view(chat)
                 try:
                     return EmployeeMCPBridge(session,tool['name'],payload['input'],
                         invoke=lambda name,args:self._call('',lambda:self.host.app_call(chat,package,binding,name,args,bridge_key+':'+str(next(counter)),session)),
                         host_tools=self.host.app_tools(chat,package,binding),
                         authority=lambda:self._call('',lambda:self.host.app_authority(chat,package,binding,session)),
-                        close_session=not self.host.retain_app_session,
-                        on_close=None if self.host.retain_app_session else lambda:self._close_work(chat))
+                        close_session=False, on_close=lambda:self._close_work(chat))
                 except MCPAppResourceInvalid as error:
                     # No bridge/origin was created; this is a definite view
                     # rejection, not an uncertain tool or transport outcome.
