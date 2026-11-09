@@ -115,6 +115,14 @@ class LocalApplication:
 
     def _dispatch(self, method, path, data):
         """Native callers and HTTP share this single account-free application."""
+        if path == '/api/language-preference':
+            from runteams_core.agents import language_policy
+            with self.runtime.scope():
+                if method == 'GET':
+                    _fields(data, set())
+                    return language_policy.snapshot()
+                if method == 'POST':
+                    return language_policy.save(data)
         if path == '/api/settings':
             if method == 'GET':
                 _fields(data, set())

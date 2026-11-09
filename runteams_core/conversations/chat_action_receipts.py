@@ -45,7 +45,7 @@ def execute_actions(chat_id,actions,*,cancel_event=None):
         authorization=work.repository.event('chat:'+str(chat_id),'task.dispatch_authorized',
             {'chat_id':chat_id,'message_id':source['id'],'device_chat_identity':device_data.epoch(chat_id)},
             source='agent_tool',connection=connection)
-        context={'chat_id':chat_id,'conversation_context':session.get('context') or {},
+        context={'language_policy': source.get('metadata', {}).get('language_policy'), 'chat_id':chat_id,'conversation_context':session.get('context') or {},
             'dispatch_authorization_event_id':authorization,
             **local_references.conversation_source(source.get('attachments') or [],messages[:index])}
         applied,cards=[],[]

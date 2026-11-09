@@ -118,7 +118,8 @@ def submit(core, binding, action, source):
                 if previous.get('employee_reference') and same(previous['employee_reference'], reference):
                     return _effect(binding, row['title'], row['task_id'], row['id'])
         now = utc_now()
-        frozen = {'schema': employee_work_contracts.SCHEMA, 'employee_reference': reference, 'package': package,
+        from runteams_core.agents.language_policy import snapshot as language_snapshot
+        frozen = {'language_policy': language_snapshot(source.get('language_policy')), 'schema': employee_work_contracts.SCHEMA, 'employee_reference': reference, 'package': package,
             'employee': {key: binding['employee'][key] for key in ('name', 'avatar')},
             'name': binding['employee']['name'], 'definition': {'positions': [], 'edges': []},
             'source': {'chat_id': source['chat_id'], 'actor_id': principal(device_data.identity())}}
@@ -217,9 +218,11 @@ def _execute(core, identifier, frozen, runtime=None):
                     raise ContractError('原工作对话缺少已冻结的岗位配置，请核对原工作。')
                 validate_snapshot(frozen['package'], configuration)
                 frozen['configuration'] = configuration
+        from runteams_core.agents.language_policy import snapshot as language_snapshot
+        frozen.setdefault('language_policy', language_snapshot())
         payload = json.loads(row['payload_json'])
         work_context={'employee_work':{'workflow_id':identifier,'task_id':row['task_id']},
-            'pipeline_work':frozen['pipeline_work'],'pipeline_generation':frozen['pipeline_generation']} if frozen.get('pipeline_work') else None
+            'pipeline_work':frozen['pipeline_work'],'pipeline_generation':frozen['pipeline_generation'],'language_policy':frozen['language_policy']} if frozen.get('pipeline_work') else None
         chat_id = frozen.get('work_chat_id') or create_chat(frozen['package'], title=row['title'],preferred_skill=payload.get('skill_key'),
             configuration_snapshot=frozen.get('configuration'),**({'work_context':work_context} if work_context else {}))
         frozen['work_chat_id'] = chat_id
@@ -232,7 +235,7 @@ def _execute(core, identifier, frozen, runtime=None):
         session=product_store.get_chat(chat_id,include_messages=False)
         if frozen.get('pipeline_work'):
             employee_work_contracts.verify_prepared_session(frozen,session,identifier,row['task_id'])
-        context=session['context'];context['employee_work']={'workflow_id':identifier,'task_id':row['task_id']}
+        context=session['context'];context['language_policy']=frozen['language_policy'];context['employee_work']={'workflow_id':identifier,'task_id':row['task_id']}
         if frozen.get('pipeline_work'):
             context['pipeline_work'] = frozen['pipeline_work']
             context['pipeline_generation'] = frozen.get('pipeline_generation')

@@ -17,12 +17,13 @@ def request_digest(data):
     # Retrying an operation must preserve every input, not just the message.
     relevant = {key: data.get(key) or ([] if key != 'message' else '') for key in
                 ('message', 'attachments', 'attachment_tokens', 'reuse_attachment_ids', 'capabilities')}
+    if 'language_policy' in data:relevant['language_policy'] = data['language_policy']
     relevant['rewind_message_id'] = data.get('rewind_message_id') or None
     return hashlib.sha256(json.dumps(relevant, ensure_ascii=False, sort_keys=True,
                          separators=(',', ':'), allow_nan=False).encode()).hexdigest()
 
 
-def prepare(runtime, chat, data, operation, digest, *, capabilities=None, rewind_source=None, employee_configuration=None):
+def prepare(runtime, chat, data, operation, digest, *, capabilities=None, rewind_source=None, employee_configuration=None, language_policy=None):
     from runteams_core.conversations import chat_attachments as attachments
     uploads, tokens, reuse = (data.get(key) or [] for key in
                              ('attachments', 'attachment_tokens', 'reuse_attachment_ids'))
@@ -64,7 +65,7 @@ def prepare(runtime, chat, data, operation, digest, *, capabilities=None, rewind
                 if rewind_source:runtime.store.rewind_chat(chat['id'], rewind_source['id'])
                 message_id = runtime.store.add_chat_message(chat['id'], 'user', data.get('message') or '',
                     attachments=items, capabilities=capabilities or [],
-                    metadata={'local_turn_id': operation, 'local_turn_request_sha256': digest,
+                    metadata={**({'language_policy': language_policy} if language_policy is not None else {}), 'local_turn_id': operation, 'local_turn_request_sha256': digest,
                         **({'employee_configuration':employee_configuration} if employee_configuration is not None else {}),
                         **({'superseded_local_turns': superseded} if rewind_source else {})})
         except Exception as error:

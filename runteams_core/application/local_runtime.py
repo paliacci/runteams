@@ -582,7 +582,7 @@ class LocalRuntime:
         work_activity = current_turn(chat_id) if work_id is not None else None
         from runteams_core.agents.models import model_channels
         supported = {'operation_id','message','attachments','attachment_tokens','reuse_attachment_ids',
-                     'local_asset_ids','local_asset_bindings','capabilities','view_context','rewind_message_id'}
+                     'local_asset_ids','local_asset_bindings','capabilities','view_context','rewind_message_id','language_policy'}
         if not isinstance(data, dict) or data.keys() - supported:
             raise ValueError('对话请求字段无效。')
         with self.lock, self.scope():
@@ -597,6 +597,8 @@ class LocalRuntime:
             operation = data.get('operation_id')
             if not isinstance(operation, str) or str(uuid.UUID(operation)) != operation:
                 raise ValueError('对话操作标识无效。')
+            from runteams_core.agents.language_policy import snapshot
+            policy = snapshot(chat.get('context', {}).get('language_policy') if work_id is not None else data.get('language_policy'))
             message = data.get('message')
             if not isinstance(message, str) or not (message.strip() or data.get('attachments') or data.get('attachment_tokens') or data.get('reuse_attachment_ids') or data.get('local_asset_ids')) or len(message) > 100000:
                 raise ValueError('请输入对话内容。')
@@ -645,7 +647,8 @@ class LocalRuntime:
                 configuration=admission(chat)
             from runteams_core.employees.employee_workspaces import workspace as employee_workspace
             workspace = None if authoring else Path(folder_runtime(chat_id, employee_workspace(chat_id) if employee else self.store.assistant_workspace()))
-            mid, attachments = prepare(self, chat, data, operation, digest, capabilities=capabilities, rewind_source=rewind_source, employee_configuration=configuration)
+            chat = {**chat, 'context': {**chat.get('context', {}), 'language_policy': policy}}
+            mid, attachments = prepare(self, chat, data, operation, digest, capabilities=capabilities, rewind_source=rewind_source, employee_configuration=configuration, language_policy=policy)
             if rewind_source:
                 chat = {**chat, 'messages': [m for m in chat['messages'] if m['id'] < rewind_id]}
             if chat.get('title_source') == 'pending':
@@ -654,6 +657,7 @@ class LocalRuntime:
                     if item.get('mention_token'):title = title.replace(item['mention_token'], item['label'])
                 self.store.rename_chat(chat_id, title.strip()[:60] or '附件对话')
             turn = {'cancel': threading.Event(), 'events': [], 'done': threading.Event(), 'operation': operation}
+            turn['cancel'].language_policy = policy
             if configuration is not None:
                 turn['cancel'].employee_data_lease=(configuration['reference'],{'chat_id':chat_id,'message_id':mid})
             from runteams_core.agents.agent_interaction import TurnQuestions

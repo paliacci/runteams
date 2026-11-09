@@ -3,6 +3,14 @@ import {LocalClient} from './client.js';
 import {NativeCloseGuard} from './native.js';
 const client=new LocalClient({fetcher:globalThis.fetch.bind(globalThis),request:globalThis.RunTeamsRequests.request});
 if(document.documentElement?.hasAttribute('data-native'))document.documentElement.classList.add('runteams-native-macos');
+let languageSync=Promise.resolve();
+function syncLanguage(){
+ const language=globalThis.RunTeamsLocale?.language;if(!language)return Promise.resolve();
+ const policy={communication_language:language};
+ languageSync=languageSync.catch(()=>{}).then(()=>request('/api/language-preference','POST',policy));
+ return languageSync;
+}
+globalThis.RunTeamsLocale?.onChange(()=>{syncLanguage().catch(error=>console.error('Language preference could not be saved',error));});
 let connected,revision=0,operation=null,pending=0,host,closing=false;
 async function connect(){
  if(!connected)connected=client.connect().then(value=>{window.RunTeamsLocalIdentity=Object.freeze({...value,kind:'library',name:'本机资料库'});return value;}).catch(error=>{connected=null;throw error;});
@@ -11,6 +19,7 @@ async function connect(){
 export async function request(path,method='GET',body,options={}){
  await connect();
  if(closing)throw Error('窗口正在关闭。');
+ if(method==='POST'&&path!=='/api/language-preference')await languageSync.catch(()=>syncLanguage());
  const writing=!globalThis.RunTeamsRequests.isRead(path,method||'GET');if(writing)pending++;
  try{
   if(path.startsWith('/api/backups')&&method==='POST'&&globalThis.RunTeamsWorkState?.pending)await RunTeamsWorkState.flush();
@@ -56,6 +65,7 @@ export async function boot(value){
  host=value;const {state:S}=host;
  try{
   const identity=await connect();
+  await syncLanguage();
   S.localLibrary=identity;S.accountSessionReady=true;S.accountSessionError='';
   host.restoreWorkspace();
   const route=host.route(),deferRoutePaint=!new URL(location.href).searchParams.has('settings')&&!['home','chat-new'].includes(route.kind);

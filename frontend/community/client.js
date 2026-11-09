@@ -24,7 +24,8 @@ export class LocalClient {
     return value;
   }
   async stream(path, body, onEvent, {observe = false, signal} = {}) {
-    const payload = observe ? body : {...body, operation_id: crypto.randomUUID()};
+    const language=globalThis.RunTeamsLocale?.language;
+    const payload = observe ? body : {...body, ...(language?{language_policy:{communication_language:language}}:{}), operation_id: crypto.randomUUID()};
     let accepted = false, terminal = false;
     const deliver = event => { if (event.type === 'accepted') accepted = true; if (['result','cancelled','error'].includes(event.type)) terminal = true; onEvent(event); };
     const send = () => this.fetcher(path, {method:'POST', headers:{'Content-Type':'application/json','X-RunTeams-Library':this.libraryId,'X-RunTeams-Library-Generation':this.generation},

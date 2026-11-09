@@ -286,7 +286,7 @@ def create_chat(package, *, title=None, preferred_skill=None, configuration_snap
                'source_employee':ref,'local_employee_package':package,
                'preferred_skill_key':preferred_skill}
     if work_context is not None:
-        if set(work_context)!={'employee_work','pipeline_work','pipeline_generation'}:
+        if set(work_context) not in ({'employee_work','pipeline_work','pipeline_generation'}, {'employee_work','pipeline_work','pipeline_generation','language_policy'}):
             raise ContractError('岗位工作上下文无效。')
         from copy import deepcopy
         context.update(deepcopy(work_context))

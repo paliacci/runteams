@@ -94,6 +94,10 @@ def run(channel, chat, message, attachments, workspace, activity, cancel, store,
             instructions += guidance(signing_assistance)
     if worker and employee_host.load(chat['id'])[1] and channel['provider']!='codex':
         raise ValueError('此员工的工具需要 Codex 渠道，请在模型设置中选择。')
+    from runteams_core.agents.language_policy import snapshot, guidance
+    policy = snapshot(getattr(cancel, 'language_policy', None) or chat.get('context', {}).get('language_policy'))
+    context['language_policy'] = policy
+    instructions += '\n\n' + guidance(policy)
     user_message = message + ('\n\n' + content if content else '')
     if channel['provider'] == 'codex':
         from runteams_core.agents import codex_threads
