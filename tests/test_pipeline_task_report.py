@@ -18,15 +18,21 @@ from runteams_core.work import device_work
 
 class PipelineTaskReportTests(unittest.TestCase):
     def test_upgrade_repeat_open_revision_and_cleanup(self):
+        self.check_report_language(False)
+
+    def test_english_report_preserves_asset_names_and_original_objective(self):
+        self.check_report_language(True)
+
+    def check_report_language(self, english):
         with TemporaryDirectory() as directory:
             scope = {'storage_kind': 'local', 'library_id': 'test', 'storage_namespace': 'test'}
             root = Path(directory)
             with patch.object(device_data, 'root', return_value=root), \
                     patch.object(device_data, 'identity', return_value=scope), \
                     patch.object(device_data, 'personal', return_value=True):
-                self.verify_report(root)
+                self.verify_report(root, english)
 
-    def verify_report(self, root):
+    def verify_report(self, root, english):
         storage = device_work.DeviceWorkStorage()
         storage.initialize()
         core = Documents()
@@ -41,6 +47,8 @@ class PipelineTaskReportTests(unittest.TestCase):
         frozen = {'pipeline_work': {'reference': reference, 'asset': {'pipeline': {
             'positions': [{'key': 'reviewer', 'name': '审查员'}], 'states': []}}},
             'pipeline_input': {'objective': '审查交付物'}}
+        if english:
+            frozen['language_policy'] = {'communication_language': 'en'}
         timestamp = '2026-11-06T06:00:00+00:00'
         with core.repository.connect() as connection:
             task = connection.execute('INSERT INTO tasks(employee_id,title,payload_json,state,created_at,updated_at) '
@@ -63,7 +71,10 @@ class PipelineTaskReportTests(unittest.TestCase):
         self.assertFalse(report['editable'])
         self.assertEqual(report['source'], rich_documents.TASK_REPORT_SOURCE)
         body = json.loads(report['content'])['blocks'][0]['props']['text']
-        self.assertIn('创建任务', body)
+        self.assertIn('Task created' if english else '创建任务', body)
+        self.assertIn('审查交付物', body)
+        self.assertIn('审查员', body)
+        self.assertIn('Task report' if english else '任务汇报', report['name'])
         self.assertIn(f'runteams://document/{stage}', body)
         with self.assertRaises(ContractError):
             rich_documents.write(core, name='覆盖', document=rich_documents.from_markdown('覆盖'),
@@ -80,9 +91,9 @@ class PipelineTaskReportTests(unittest.TestCase):
             connection.execute("UPDATE workflow_runs SET state='completed' WHERE id=?", (workflow,))
         revised = core.document_detail(report_id)
         self.assertEqual((revised['document_root_id'], revised['revision']), (report_id, 2))
-        self.assertIn('已完成', revised['content'])
+        self.assertIn('Completed' if english else '已完成', revised['content'])
         self.assertEqual(core.document_detail(report_id)['revision'], 2)
-        self.assertIn('等待开始', core.historical_document_detail(report_id)['content'])
+        self.assertIn('Ready' if english else '等待开始', core.historical_document_detail(report_id)['content'])
         with core.repository.connect() as connection:
             self.assertEqual(connection.execute('PRAGMA user_version').fetchone()[0], device_work.VERSION)
             connection.execute('DELETE FROM workflow_runs WHERE id=?', (workflow,))

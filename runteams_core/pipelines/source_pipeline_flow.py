@@ -284,6 +284,8 @@ def payload_for(core, connection, frozen, role, extra=None):
     payload['skill_key'] = work._position(context['asset'], key)[0]['skill_key']
     payload = work.stage_payload(role['package'], context, payload, updating=True)
     stage = payload['context']['pipeline_stage']
+    # Older tasks retain the historical default instead of adopting a later device change.
+    stage['language_policy'] = copy.deepcopy(frozen.get('language_policy', {'communication_language': 'zh-CN'}))
     stage.update(stage_assignment(frozen, context))
     stage['feedback_configuration_fields'] = _feedback_configuration_fields(context)
     stage['handoff_owner'] = 'host_after_acceptance'
@@ -344,8 +346,9 @@ def payload_for(core, connection, frozen, role, extra=None):
 
 
 def initial(core, connection, role, bundle, payload,start_column_key=None):
+    from runteams_core.agents.language_policy import snapshot
     frozen = work.stage_snapshot(role['package'], role['context'], role['configuration'])
-    frozen.update(pipeline_generation=bundle['generation'], pipeline_visit=1,
+    frozen.update(language_policy=snapshot(), pipeline_generation=bundle['generation'], pipeline_visit=1,
         pipeline_input=copy.deepcopy(payload), pipeline_lineage=[])
     if payload.get('skill_key') not in (None,'',work._position(role['context']['asset'],role['context']['position_key'])[0]['skill_key']):
         raise ContractError('工作技能必须使用流水线岗位绑定。')
@@ -881,6 +884,7 @@ def _move(core, connection, row, frozen, target, result, run_id=None, *, configu
         configuration['states']['apple_team_id'] = 'configured'
     next_frozen = work.stage_snapshot(role['package'], role['context'],
                                       role['configuration'] if configuration is None else configuration)
+    next_frozen['language_policy'] = copy.deepcopy(frozen.get('language_policy', {'communication_language': 'zh-CN'}))
     if signing:
         next_frozen['pipeline_signing_verification'] = signing
     next_frozen.update(pipeline_history=archive(frozen), pipeline_visit=frozen['pipeline_visit'] + 1,

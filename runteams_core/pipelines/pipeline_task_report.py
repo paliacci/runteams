@@ -24,6 +24,31 @@ MILESTONES = {
 }
 
 
+ENGLISH = {
+    '等待开始': 'Ready', '正在工作': 'Working', '等待重试': 'Waiting to retry',
+    '等待审批': 'Awaiting approval', '需要处理': 'Needs attention', '暂时无法继续': 'Blocked',
+    '已暂停': 'Paused', '执行中断': 'Interrupted', '运行失败': 'Failed',
+    '已完成': 'Completed', '已停止': 'Stopped', '历史结果': 'Historical result',
+    '通过': 'Approved', '退回': 'Rejected', '退回补齐': 'Revision requested',
+    '收到人工补充': 'User response received', '已安排重试': 'Retry scheduled',
+    '任务暂停': 'Task paused', '任务停止': 'Task stopped', '交接输入需要核对': 'Handoff input needs review',
+    '等待人工审批': 'Awaiting human approval', '当前状态': 'Current status',
+    '状态待核对': 'Status needs review', '当前环节': 'Current stage', '任务目标': 'Task objective',
+    '历史环节': 'Historical stage', '人工决定': 'Human decision', '已记录': 'Recorded',
+    '历史岗位': 'Historical position', '岗位记录': 'Position notes', '任务时间线': 'Task timeline',
+    '时间以 UTC 记录。': 'Times are recorded in UTC.', '创建任务': 'Task created',
+    '更早的执行可在任务的岗位执行记录中查看。': 'Earlier executions are available in the task’s position records.',
+    '阶段交付': 'Stage deliverables', '任务': 'Task', '任务汇报': 'Task report',
+}
+
+
+def _label(frozen, text):
+    # Localize only host-owned labels, never user text, asset names or accepted results.
+    if (frozen.get('language_policy') or {}).get('communication_language') == 'en':
+        return ENGLISH[text]
+    return text
+
+
 def _text(value, limit=500):
     plain = ' '.join(str(value or '').split())[:limit]
     return re.sub(r'([\\`*_{}\[\]<>])', r'\\\1', plain)
@@ -53,33 +78,35 @@ def _root(connection, task_id):
 
 
 def _body(core, connection, row, frozen):
+    label_text = lambda text: _label(frozen, text)
+    english = (frozen.get('language_policy') or {}).get('communication_language') == 'en'
     identifier = row['id']
     pipeline = frozen['pipeline_work']['asset']['pipeline']
     names = {stage['key']: _text(stage['name'], 100) for stage in pipeline['positions'] + pipeline['states']}
     objective = _text((frozen.get('pipeline_input') or {}).get('objective'), 2000)
-    lines = [f"**当前状态**　{STATES.get(row['state'], '状态待核对')}",
-             f"**当前环节**　{names.get(row['cursor_key'], '—')}"]
+    lines = [f"**{label_text('当前状态')}**　{label_text(STATES.get(row['state'], '状态待核对'))}",
+             f"**{label_text('当前环节')}**　{names.get(row['cursor_key'], '—')}"]
     if objective:
-        lines.extend(('', '## 任务目标', objective))
+        lines.extend(('', '## '+label_text('任务目标'), objective))
     milestones = []
     for event in core.repository.events('workflow_run:'+str(identifier)):
         data = event['data_json']
         kind = event['type']
         if kind == 'workflow.routed':
-            before, after = (names.get(data.get(key), '历史环节') for key in ('from', 'to'))
+            before, after = (names.get(data.get(key), label_text('历史环节')) for key in ('from', 'to'))
             label = f'{before} → {after}'
         elif kind == 'workflow.approval_decided':
-            label = '人工决定 · '+DECISIONS.get(data.get('decision'), '已记录')
+            label = label_text('人工决定')+' · '+label_text(DECISIONS.get(data.get('decision'), '已记录'))
         else:
-            label = MILESTONES.get(kind)
+            label = label_text(MILESTONES[kind]) if kind in MILESTONES else None
         if label:
             milestones.append((event['created_at'], 4 if kind == 'workflow.routed' else 1, label))
     for run in connection.execute(
             'SELECT position_key,attempt,state,input_json,output_json,created_at,updated_at '
             'FROM employee_runs WHERE workflow_run_id=? ORDER BY id', (identifier,)):
-        role = names.get(run['position_key'], '历史岗位')
-        title = f"{role} · 第 {run['attempt']} 次执行"
-        milestones.append((run['created_at'], 2, title+'开始'))
+        role = names.get(run['position_key'], label_text('历史岗位'))
+        title = (f"{role} · Attempt {run['attempt']}" if english else f"{role} · 第 {run['attempt']} 次执行")
+        milestones.append((run['created_at'], 2, title+(' started' if english else '开始')))
         if run['state'] == 'running':
             continue
         result = json.loads(run['output_json'])
@@ -91,19 +118,19 @@ def _body(core, connection, row, frozen):
                 from runteams_core.automation.scheduled_employee_chat import recorded_failure_reason
                 detail = recorded_failure_reason(json.loads(run['input_json']).get('chat_id'),
                                                  run['created_at'], run['updated_at'])
-        label = title+' · '+STATES.get(run['state'], '状态待核对')
+        label = title+' · '+label_text(STATES.get(run['state'], '状态待核对'))
         if detail:
-            label += ' · 岗位记录 '+_text(detail, 350)
+            label += ' · '+label_text('岗位记录')+' '+_text(detail, 350)
         milestones.append((run['updated_at'], 3, label))
-    lines.extend(('', '## 任务时间线', '时间以 UTC 记录。', '', f"- {_time(row['created_at'])} · 创建任务"))
+    lines.extend(('', '## '+label_text('任务时间线'), label_text('时间以 UTC 记录。'), '', f"- {_time(row['created_at'])} · {label_text('创建任务')}"))
     if len(milestones) > 1000:
-        lines.append('更早的执行可在任务的岗位执行记录中查看。')
+        lines.append(label_text('更早的执行可在任务的岗位执行记录中查看。'))
     for at, _, label in sorted(milestones)[-1000:]:
         lines.append(f'- {_time(at)} · {label}')
     from runteams_core.work.work_reports import catalog
     reports = catalog(core, workflow_id=identifier)
     if reports:
-        lines.extend(('', '## 阶段交付', ''))
+        lines.extend(('', '## '+label_text('阶段交付'), ''))
         lines.extend(f"- [{_text(report['name'], 150)}](runteams://document/{report['id']})" for report in reports[:500])
     document = rich_documents.from_markdown('\n'.join(lines))
     document['blocks'][0]['id'] = 'task-report-body'
@@ -123,7 +150,7 @@ def sync(core, connection, identifier, *, reference=None, expected_root=None):
     current = core.document_detail(root_id, include_content=False) if root_id else None
     if root_id and not current:
         raise PermissionError('原任务汇报无法读取。')
-    title = str(row['title'] or '任务')[:190]+' · 任务汇报'
+    title = str(row['title'] or _label(frozen, '任务'))[:190]+' · '+_label(frozen, '任务汇报')
     return rich_documents.write(core, name=title, document=_body(core, connection, row, frozen),
         document_id=root_id, document_key=f"pipeline-task-report-{row['task_id']}",
         base_revision=current['revision'] if current else 0, author='system',
