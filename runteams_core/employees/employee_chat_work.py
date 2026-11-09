@@ -219,7 +219,7 @@ def _execute(core, identifier, frozen, runtime=None):
                 validate_snapshot(frozen['package'], configuration)
                 frozen['configuration'] = configuration
         from runteams_core.agents.language_policy import snapshot as language_snapshot
-        frozen.setdefault('language_policy', language_snapshot())
+        frozen['language_policy'] = language_snapshot(frozen.get('language_policy') or {'communication_language': 'zh-CN'})
         payload = json.loads(row['payload_json'])
         work_context={'employee_work':{'workflow_id':identifier,'task_id':row['task_id']},
             'pipeline_work':frozen['pipeline_work'],'pipeline_generation':frozen['pipeline_generation'],'language_policy':frozen['language_policy']} if frozen.get('pipeline_work') else None

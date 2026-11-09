@@ -45,8 +45,10 @@ def run_agent(adapter, prompt, *, execution_profile, mode="judge", model,
       - 瞬时网络 → raise errors.Transient(外因,不计失败)
       - 超时/硬失败 → raise RuntimeError(计入未来的 max_fail)
     """
+    from runteams_core.agents.language_policy import system_text
+    language = getattr(cancel_event, 'language_policy', None) or {'communication_language': 'zh-CN'}
     if cancel_event is not None and cancel_event.is_set():
-        raise Cancelled("运行已停止")
+        raise Cancelled(system_text('stopped', language))
 
     execution_profile = validate_execution_profile(execution_profile)
     from runteams_core.agents.agent_guidance import runtime_facts, runtime_guidance
@@ -138,9 +140,8 @@ def run_agent(adapter, prompt, *, execution_profile, mode="judge", model,
                 try:
                     tracked_events.on_event({
                         "kind": "step", "id": "agent-stall", "step_kind": "status",
-                        "label": "员工已约 {} 分钟无新动作".format(
-                            max(1, int(silent // 60))),
-                        "status": "running", "detail": "仍在运行，可手动停止。",
+                        "label": system_text('stall', language, minutes=max(1, int(silent // 60))),
+                        "status": "running", "detail": system_text('still_running', language),
                         "output": "",
                     })
                 except Exception:
@@ -221,9 +222,9 @@ def run_agent(adapter, prompt, *, execution_profile, mode="judge", model,
             _killtree()
 
     if killed["cancelled"]:
-        raise Cancelled("运行已停止")
+        raise Cancelled(system_text('stopped', language))
     if killed["timeout"]:
-        raise RuntimeError("Agent 超时 {}s".format(timeout_sec))
+        raise RuntimeError(system_text('timeout', language, seconds=timeout_sec))
 
     blob = (final_text or "") + "".join(err_buf)
     # 交给这家 CLI 的适配器按它自己的错误措辞分类(可能 raise RateLimited/Transient)。

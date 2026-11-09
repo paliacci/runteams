@@ -302,10 +302,12 @@ class EmployeeMCPWork:
         return self._approval(chat, method, params, cancel=cancel, timeout=timeout, notify=notify)
 
     def _approval(self, chat, method, params, *, trust=False, cancel=None, timeout=180, notify=None):
+        from runteams_core.agents.language_policy import system_text
+        policy = getattr(cancel, 'language_policy', None)
         self.check()
         _, packages, _, binding = self._identity(chat)
         if not packages or not trust and not all(self.enabled(binding,p) for p in packages):
-            raise PermissionError('本次工作尚未获得运行授权。')
+            raise PermissionError(system_text('authorization_required', policy))
         key = uuid.uuid4().hex
         public = {'id':key, 'method':method, 'params':copy.deepcopy(params)}
         try:
@@ -319,10 +321,10 @@ class EmployeeMCPWork:
         try:
             while not row['done'].wait(.1):
                 self.check()
-                if cancel is not None and cancel.is_set(): raise PermissionError('工作已停止。')
-                if time.monotonic() >= end: raise TimeoutError('本次确认已失效。')
+                if cancel is not None and cancel.is_set(): raise PermissionError(system_text('approval_stopped', policy))
+                if time.monotonic() >= end: raise TimeoutError(system_text('approval_expired', policy))
             self.check()
-            if not all(self.enabled(binding,p) for p in packages): raise PermissionError('本次工作未获授权或授权已撤销。')
+            if not all(self.enabled(binding,p) for p in packages): raise PermissionError(system_text('authorization_revoked', policy))
             return {'accepted': row['decision']=='accept'} if trust else approval_response(method,params,row['decision'])
         finally:
             with self.lock: self.pending.pop(key,None); self._notice_changed()

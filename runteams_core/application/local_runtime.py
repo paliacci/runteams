@@ -176,6 +176,8 @@ class LocalRuntime:
                 repair=frozen.get('pipeline_result_correction') or {}
                 if repair.get('admitted'):
                     operation=str(uuid.uuid5(uuid.UUID(operation),'correction:'+str(repair['submission_id'])+':'+str(repair['message_id'])))
+        from runteams_core.agents.language_policy import system_text
+        policy = session.get('context', {}).get('language_policy') or {'communication_language': 'zh-CN'}
         _,op=self.start(chat_id,{'message':prompt,'operation_id':operation},work_id=identifier)
         while True:
             with self.lock:turn=self.active.get(chat_id)
@@ -183,12 +185,12 @@ class LocalRuntime:
             if cancel.is_set():turn['cancel'].set();turn['cancel'].questions.close()
             turn['done'].wait(.1)
         with self.scope():result=self.completed(chat_id,op)
-        if not result:return 'interrupted','工作回复尚未确认，请查看原对话。'
+        if not result:return 'interrupted',system_text('unconfirmed', policy)
         notice = result.get('system_notice') or {}
         if result['incomplete']:
             return 'cancelled', notice.get('text', '')
         if result['failed']:
-            return 'failed', notice.get('text') or '请查看原工作对话。'
+            return 'failed', notice.get('text') or system_text('check_work', policy)
         return 'completed', result['reply']
 
     def schedule_employee_work(self,cards):
@@ -597,7 +599,7 @@ class LocalRuntime:
             operation = data.get('operation_id')
             if not isinstance(operation, str) or str(uuid.UUID(operation)) != operation:
                 raise ValueError('对话操作标识无效。')
-            from runteams_core.agents.language_policy import snapshot
+            from runteams_core.agents.language_policy import snapshot, system_text
             policy = snapshot(chat.get('context', {}).get('language_policy') if work_id is not None else data.get('language_policy'))
             message = data.get('message')
             if not isinstance(message, str) or not (message.strip() or data.get('attachments') or data.get('attachment_tokens') or data.get('reuse_attachment_ids') or data.get('local_asset_ids')) or len(message) > 100000:
@@ -620,7 +622,7 @@ class LocalRuntime:
                     raise ValueError('原操作内容不能改变。')
                 if chat_id not in self.active and not self.completed(chat_id, operation):
                     self.finish(chat_id, operation, stopped=True,
-                                system_notice={'kind': 'stopped', 'text': '消息已保存，上次处理已中断。'})
+                                system_notice={'kind': 'stopped', 'text': system_text('interrupted', prior.get('metadata', {}).get('language_policy') or {'communication_language': 'zh-CN'})})
                 return prior['id'], operation
             if chat_id in self.active:
                 raise RuntimeBusy('当前对话正在回复。')
@@ -703,7 +705,7 @@ class LocalRuntime:
                                                    configuration=configuration,
                                                    signing_assistance=signing_assistance,
                                                    wake_pipeline_work=lambda identifier: self.schedule_employee_work([{'workflow_id': identifier}]))
-                        if turn['cancel'].is_set():raise Cancelled('运行已停止')
+                        if turn['cancel'].is_set():raise Cancelled(system_text('stopped', policy))
                         from runteams_core.conversations.local_conversation_tools import apply_completed
                         activity.document_result=apply_completed(chat_id,getattr(activity,'native_tool_results',[]),turn['cancel'])
                         turn['cancel'].questions.close()
@@ -715,13 +717,13 @@ class LocalRuntime:
                     turn['cancel'].questions.close()
                     with self.scope():
                         final = self.finish(chat_id, operation, stopped=True,
-                            system_notice={'kind': 'stopped', 'text': '回复已停止。'},
+                            system_notice={'kind': 'stopped', 'text': system_text('reply_stopped', policy)},
                             events=[e for e in turn['events'] if e['type'] == 'agent_event'])
                 except Exception as error:
                     turn['cancel'].questions.close()
                     with self.scope():
                         # Persist a recoverable failure; never rerun a user turn automatically.
-                        error_text = str(error)[:4000] or '模型未能完成回复，请检查渠道后重试。'
+                        error_text = str(error)[:4000] or system_text('failed', policy)
                         final = self.finish(chat_id, operation, failed=True,
                             system_notice={'kind': 'error', 'text': error_text},
                             events=[e for e in turn['events'] if e['type'] == 'agent_event'])
@@ -731,7 +733,7 @@ class LocalRuntime:
                         from runteams_core.employees.managed_employee_data import release_turn
                         release_turn(turn['cancel'])
                     with self.lock:
-                        turn['events'].append(final if 'final' in locals() else {'type': 'error', 'message': '回复保存失败，请重新打开对话确认。'})
+                        turn['events'].append(final if 'final' in locals() else {'type': 'error', 'message': system_text('save_failed', policy)})
                         turn['done'].set()
                         self.active.pop(chat_id, None)
             turn['thread'] = threading.Thread(target=run, name='local-conversation', daemon=False)
