@@ -68,7 +68,8 @@ async function openLocal(id){
   if(s.editing){if(!s.settingsEntry)s.activeFile=s.editing.path;}
   else if(activeFile&&s.files.some(f=>f.path===activeFile))await select(activeFile,false,true);
   else if(!s.settingsEntry){const path=await defaultSoulPath(s);if(valid(s)&&s.localDraft?.id===id&&s.revision===workspace.revision&&!s.activeFile&&!s.editing&&path)await select(path,false);}
-  if(!extension()?.readHistory)await readHistory(s);
+  if(extension()?.readHistory)void readHistory(s).then(()=>{if(current()===s)repaint();});
+  else await readHistory(s);
   await extension()?.read(s,id);
  }}
  catch(e){if(valid(s))s.error=e.message;}
@@ -212,11 +213,13 @@ async function readHistory(s){
   const value=readCloudHistory?await readCloudHistory(s):await localCall(s,'/'+s.localDraft.id+'/history');
   if(!valid(s)||s.historyRequest!==request)return;
 
-  if(!Array.isArray(value.items)||!readCloudHistory&&typeof value.original_revision!=='string')throw Error('历史版本暂时无法读取');s.history=value;
+  if(!Array.isArray(value.items)||!readCloudHistory&&typeof value.original_revision!=='string')throw Error('历史版本暂时无法读取');
+  s.history=value;
+  if(readCloudHistory&&!value.items.length)s.historyOpen=false;
  }catch(error){if(valid(s)&&s.historyRequest===request)s.historyError=error.message;}
  finally{if(valid(s)&&s.historyRequest===request)s.historyLoading=false;}
 }
-function hasHistory(s){return !!(extension()?.readHistory||s.history?.items?.length||s.historyError);}
+function hasHistory(s){return !!(s.history?.items?.length||!extension()?.readHistory&&s.historyError);}
 async function history(){
  const s=current();if(!s||!s.localDraft||busy(s)||s.editing)return;
  if(s.historyOpen){closeHistory();return;}
