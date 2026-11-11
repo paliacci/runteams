@@ -13,7 +13,7 @@ import tempfile
 from jsonschema import Draft202012Validator
 
 from runteams_core.authoring.creator_contracts import CreatorContractError, canonical, relative
-from runteams_core.authoring.definition_contracts import contract_catalog
+from runteams_core.authoring.definition_contracts import contract_catalog, without_retired_runtime_limit
 
 CATALOG_PATH = 'definitions/creator.json'
 
@@ -89,7 +89,10 @@ def author_schema(kind, *, version='3'):
 
 def validate_author(kind, value):
     version = str(value.get('schema', '')).rsplit('/', 1)[-1] if kind != 'skill' else '3'
-    if version != '3' or next(Draft202012Validator(author_schema(kind, version=version)).iter_errors(value), None) is not None:
+    candidate = value
+    if kind == 'employee' and 'runtime_requirement' in value:
+        candidate = {**value, 'runtime_requirement': without_retired_runtime_limit(value['runtime_requirement'])}
+    if version != '3' or next(Draft202012Validator(author_schema(kind, version=version)).iter_errors(candidate), None) is not None:
         raise CreatorContractError('invalid_' + kind + '_source')
     if kind in ('employee', 'pipeline') and 'configuration' in value:
         from runteams_core.configuration.configuration_schema import validate_declaration

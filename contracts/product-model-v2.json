@@ -28,11 +28,6 @@
         "effort": {
           "type": "string",
           "maxLength": 40
-        },
-        "time_limit_minutes": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 1440
         }
       },
       "required": [
@@ -59,11 +54,6 @@
         "effort": {
           "type": "string",
           "maxLength": 40
-        },
-        "time_limit_minutes": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 1440
         },
         "provider": {
           "enum": [
@@ -1277,11 +1267,6 @@
         "effort": {
           "type": "string",
           "maxLength": 40
-        },
-        "time_limit_minutes": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 1440
         }
       },
       "required": [

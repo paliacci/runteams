@@ -132,15 +132,40 @@ def _work(value):
             raise ContractError("后续动作引用了未声明的来源资产槽")
 
 
+def without_retired_runtime_limit(value):
+    """Project an existing runtime onto the current configuration contract."""
+    if not isinstance(value, dict) or 'time_limit_minutes' not in value:
+        return value
+    return {key: item for key, item in value.items() if key != 'time_limit_minutes'}
+
+
+def marketplace_employee_validation_view(value):
+    if not isinstance(value, dict) or not isinstance(value.get('employee'), dict):
+        return value
+    employee = value['employee']
+    if 'runtime_requirement' not in employee:
+        return value
+    return {**value, 'employee': {**employee,
+        'runtime_requirement': without_retired_runtime_limit(employee['runtime_requirement'])}}
+
+
 def validate_definition(kind, value):
     """Validate without coercing types, adding defaults or dropping fields."""
-    errors = sorted(Draft202012Validator(definition_schema(kind)).iter_errors(value),
+    candidate = value
+    if kind in ('runtime', 'runtime_snapshot', 'portable_runtime'):
+        candidate = without_retired_runtime_limit(value)
+    elif isinstance(value, dict) and kind in ('employee_draft', 'employee_release') and 'runtime' in value:
+        candidate = {**value, 'runtime': without_retired_runtime_limit(value['runtime'])}
+    elif kind == 'marketplace_employee_asset':
+        candidate = marketplace_employee_validation_view(value)
+    errors = sorted(Draft202012Validator(definition_schema(kind)).iter_errors(candidate),
                     key=lambda error: str(list(error.absolute_path)))
     if errors:
         error = errors[0]
         path = "/".join(str(item) for item in error.absolute_path) or kind
         raise ContractError(path + "：" + error.message)
-    result = copy.deepcopy(value)
+    # Immutable release and asset bytes remain intact for digest verification.
+    result = copy.deepcopy(value if kind in ('employee_release', 'marketplace_employee_asset') else candidate)
     if kind == "work":
         _work(result)
     elif kind in ("skill_extension", "skill_revision"):
