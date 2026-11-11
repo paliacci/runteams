@@ -5,7 +5,7 @@ from runteams_core.foundation.contracts import ContractError
 from runteams_core.foundation.identity.work_identity import schedule_binding
 
 PREFIX='work-ui-state:'
-KINDS={'pipeline-admission','pipeline-control','pipeline-create','pipeline-settings','pipeline-flow','employee-schedule-operation'}
+KINDS={'pipeline-card','pipeline-admission','pipeline-control','pipeline-create','pipeline-settings','pipeline-flow','employee-schedule-operation'}
 MAX_VALUE=2*1024*1024
 
 def key(value):
