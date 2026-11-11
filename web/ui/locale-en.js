@@ -809,7 +809,6 @@ globalThis.RUNTEAMS_LOCALES.en = {
   "pipelineBoard.catalogIncomplete": "Some pipelines couldn’t be loaded.",
   "pipelineBoard.catalogUnavailable": "Couldn’t load pipelines.",
   "pipelineBoard.catalogRefreshFailed": "Couldn’t refresh pipelines.",
-  "pipelineBoard.catalogEmpty": "No pipelines yet.",
   "pipelineBoard.missingPipeline": "This pipeline isn’t in the current workspace.",
   "pipelineBoard.controlRecoveryFailed": "Couldn’t read the last pipeline action.",
   "pipelineBoard.taskRecoveryFailed": "Couldn’t read the last task submission.",

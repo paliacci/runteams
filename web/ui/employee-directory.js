@@ -251,6 +251,8 @@
   event.preventDefault();event.stopPropagation();const entry=entryFor(key);if(!entry)return;
   const items=[{label:employeeSettingsCopy('title','员工设置'),labelKey:'employeeSettings.title',icon:'settings',fn:()=>settings(key)},{label:employeeSettingsCopy('records','工作记录'),labelKey:'employeeSettings.records',icon:'clock',fn:()=>openContextResults({employee_reference:entry.source?.reference||entry.reference})}];
   if(entry.asset?.editable)items.push({divider:true},{label:employeeSettingsCopy('trash','移到垃圾箱'),labelKey:'employeeSettings.trash',icon:'trash',fn:()=>trashCoreEmployee(entry.asset.id)});
+  const extra=RunTeamsHost.assets.uninstallAction?.('employee',entry);
+  if(extra)items.push({divider:true},extra);
   openMenu(event.currentTarget,items,{variant:'workerAction',...(event.type==='contextmenu'?{at:{x:event.clientX,y:event.clientY}}:{})});
  }
  function sessionTitle(row,panel=S.conversationPanel){

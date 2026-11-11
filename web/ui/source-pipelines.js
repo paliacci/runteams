@@ -109,6 +109,8 @@
   const pinned=sidebarPins().includes(id);
   const items=[{label:pinned?'取消置顶':'置顶',labelKey:pinned?'conversationDetail.unpin':'conversationDetail.pin',icon:pinned?'pin-off':'pin',fn:own(()=>toggleSidebarPin(id))}];
   if(row.reference.schema==='runteams.local-pipeline-reference/1'&&row.allowed_modes?.includes('creator'))items.push({label:'重命名',labelKey:'conversationDetail.rename',icon:'edit',fn:own(()=>renameFromSidebar(row))});
+  const extra=RunTeamsHost.assets.uninstallAction?.('pipeline',row);
+  if(extra)items.push({divider:true},{...extra,fn:own(extra.fn)});
   const options=event.type==='contextmenu'?{at:{x:event.clientX,y:event.clientY}}:{align:'right'};
   const button=element.querySelector('.rail-source-pipeline-more');
   const fromLink=event.type==='keydown'&&event.target!==button;
@@ -126,8 +128,7 @@
    const retry=RunTeamsLoadFailure.button({key:'sidebar-pipeline-catalog',variant:'local',compact:true,labelKey:'globalSearch.retry',busyLabelKey:'globalSearch.pipelinesLoading',retry:'RunTeamsSourcePipelines.refreshCatalog()',focusFallback:'.rail-pipelines'});
    return `<span role="alert" data-app-i18n="pipelineBoard.${key}">${copy}</span> ${retry}`;
   }
-  if(catalogScope===token&&!count)return '<span role="status" data-app-i18n="pipelineBoard.catalogEmpty">暂无流水线。</span>';
-  return readCatalog.pending?.token===token&&!count?catalogLoadingCopy:'';
+  return catalogScope!==token&&readCatalog.pending?.token===token&&!count?catalogLoadingCopy:'';
  }
  function sidebar({active}){
   const token=scope();

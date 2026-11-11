@@ -810,7 +810,6 @@ globalThis.RUNTEAMS_LOCALES = {
   "pipelineBoard.catalogIncomplete": "部分流水线无法读取。",
   "pipelineBoard.catalogUnavailable": "无法读取流水线。",
   "pipelineBoard.catalogRefreshFailed": "无法更新流水线列表。",
-  "pipelineBoard.catalogEmpty": "暂无流水线。",
   "pipelineBoard.missingPipeline": "这条流水线不在当前工作区中。",
   "pipelineBoard.controlRecoveryFailed": "无法读取上次的流水线操作。",
   "pipelineBoard.taskRecoveryFailed": "无法读取上次提交的任务。",
