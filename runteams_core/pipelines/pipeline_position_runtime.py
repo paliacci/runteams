@@ -63,7 +63,7 @@ def configuration(core, ref, position_key, change=None):
     catalogs = {}
     channels = []
     for channel in product_store.list_channels():
-        if not channel.get('enabled') or channel['provider'] != requirement['provider']:
+        if not channel.get('enabled') or (requirement.get('provider') and channel['provider'] != requirement['provider']):
             continue
         try:
             catalog = model_channels.require_catalog(channel)

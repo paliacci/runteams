@@ -154,8 +154,8 @@ def prepare(ref, operation_id, *, cancel=None, revision=None, runtime_selection=
 def resolve_runtime(requirement, *, selection=None, catalogs=None):
     from runteams_core.storage import product_store
     from runteams_core.agents.models import model_channels
-    provider=requirement['provider']
-    channels=[c for c in product_store.list_channels() if c.get('enabled') and c['provider']==provider]
+    provider=requirement.get('provider')
+    channels=[c for c in product_store.list_channels() if c.get('enabled') and (not provider or c['provider']==provider)]
     if not channels:raise ContractError('员工需要的模型渠道尚未连接。')
     settings=device_data.settings();choice=str(settings.get('default_model') or '').split('::',1)
     configured=next((c for c in channels if str(c['id'])==choice[0]),None)
@@ -175,7 +175,7 @@ def resolve_runtime(requirement, *, selection=None, catalogs=None):
     effort=selection['effort'] if selection is not None else requirement.get('effort') or settings.get('default_effort') or ''
     model,effort=model_channels.normalize_selection(channel,model,effort,catalog=catalog)
     if not model or not any(item['value']==model for item in models):raise ContractError('员工未能选定可用模型，请重新读取模型渠道。')
-    runtime = {'channel_id':channel['id'],'provider':provider,'model':model,'effort':effort}
+    runtime = {'channel_id':channel['id'],'provider':channel['provider'],'model':model,'effort':effort}
     if selection is not None:
         if selection['effort'] and selection['effort'] != effort:
             raise ContractError('选用的模型不支持此推理档位，请重新选择。')

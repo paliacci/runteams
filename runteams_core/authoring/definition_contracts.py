@@ -139,6 +139,14 @@ def without_retired_runtime_limit(value):
     return {key: item for key, item in value.items() if key != 'time_limit_minutes'}
 
 
+def publication_model_preference(requirement):
+    """Carry only an explicitly selected model and its portable settings."""
+    if not requirement.get('model'):
+        return {}
+    return {key: requirement[key] for key in ('provider', 'model', 'effort')
+            if requirement.get(key)}
+
+
 def marketplace_employee_validation_view(value):
     if not isinstance(value, dict) or not isinstance(value.get('employee'), dict):
         return value
@@ -152,7 +160,7 @@ def marketplace_employee_validation_view(value):
 def validate_definition(kind, value):
     """Validate without coercing types, adding defaults or dropping fields."""
     candidate = value
-    if kind in ('runtime', 'runtime_snapshot', 'portable_runtime'):
+    if kind in ('runtime', 'runtime_snapshot', 'portable_runtime', 'release_runtime'):
         candidate = without_retired_runtime_limit(value)
     elif isinstance(value, dict) and kind in ('employee_draft', 'employee_release') and 'runtime' in value:
         candidate = {**value, 'runtime': without_retired_runtime_limit(value['runtime'])}
@@ -300,11 +308,12 @@ def _work_unit(revision, skill_key_map):
             "execution": copy.deepcopy(revision["execution"])}
 
 
-def compile_employee_release(draft, employee, revisions, runtime, *, skill_key_map=None, skill_bundles=None):
+def compile_employee_release(draft, employee, revisions, runtime, *, skill_key_map=None, skill_bundles=None,
+                             portable_runtime=False):
     """Compile only pinned immutable product revisions; never infer work."""
     draft = validate_definition("employee_draft", draft)
     employee = validate_definition("identity", employee)
-    runtime = validate_definition("runtime_snapshot", runtime)
+    runtime = validate_definition("release_runtime" if portable_runtime else "runtime_snapshot", runtime)
     for field, value in draft["runtime"].items():
         if (field == 'channel_id' or value != '') and runtime.get(field) != value:
             raise ContractError("运行时快照与员工选用配置不一致：" + field)

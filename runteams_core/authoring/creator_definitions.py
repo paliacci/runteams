@@ -37,7 +37,7 @@ def author_schema(kind, *, version='3'):
     if kind == 'employee':
         return {'$schema': 'https://json-schema.org/draft/2020-12/schema',
             'type': 'object', 'additionalProperties': False,
-            'required': ['schema', 'key', 'name', 'avatar', 'soul_file', 'skill_dirs', 'runtime_requirement'],
+            'required': ['schema', 'key', 'name', 'avatar', 'soul_file', 'skill_dirs'],
             'properties': {'schema': {'const': 'runteams.employee-source/' + version},
                 'key': {'type': 'string', 'pattern': '^[a-z][a-z0-9-]{0,79}$'},
                 'name': definitions['portable_employee']['properties']['name'],
@@ -153,7 +153,8 @@ def compile_definitions(files, compiled, *, require=False):
             picture = attachment(employee['avatar'], files)
             asset = verified_employee_asset({'schema': 'runteams.marketplace-employee/v2',
                 **({'avatar_file':picture} if picture else {}),
-                'employee': {k: copy.deepcopy(employee[k]) for k in ('name', 'avatar', 'runtime_requirement')} |
+                'employee': {k: copy.deepcopy(employee[k]) for k in ('name', 'avatar')} |
+                    {'runtime_requirement': copy.deepcopy(employee.get('runtime_requirement', {}))} |
                     {'soul': soul, 'skill_refs': [{'package_key': b['package_key'], 'digest': b['digest']} for b in bundles]} |
                     ({'configuration': copy.deepcopy(employee['configuration'])} if 'configuration' in employee else {}),
                 'skill_bundles': bundles})
