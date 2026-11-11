@@ -6494,7 +6494,7 @@ function conversationEmployeeSessionControl(panel=S.conversationPanel){
 
 function conversationPanelHeaderControls(panel){
  if(!panel||panel.loading||panel.error||panel.debug_preview||!RunTeamsEmployeeDirectory.employeePanel(panel)&&!(panel.kind==='employee_design'&&panel.context?.creator_local_source_id))return '';
- return `<div class="conversation-panel-controls">${RunTeamsWorkRecords.controls(panel)}${RunTeamsEmployeeAutomation.controls(panel)}${RunTeamsCreatorWork.controls(panel)}${RunTeamsEmployeeAutomation.settingsControl(panel)}</div>`;
+ return `<div class="conversation-panel-controls">${RunTeamsHost.assets.employeeVersionControl?.(panel,RunTeamsEmployeeDirectory.forPanel(panel))||''}${RunTeamsWorkRecords.controls(panel)}${RunTeamsEmployeeAutomation.controls(panel)}${RunTeamsCreatorWork.controls(panel)}${RunTeamsEmployeeAutomation.settingsControl(panel)}</div>`;
 }
 
 function conversationPanelHeader(panel=S.conversationPanel,controls=""){
