@@ -15,6 +15,7 @@
 .creator-resources-drawer .creator-asset-tree{flex:0 1 204px;min-height:96px;max-height:none;padding:4px 8px 4px 0;overscroll-behavior:contain}
 .creator-resources-drawer .creator-asset-tree .skills-resource-file{min-height:28px;height:28px}
 .creator-resources-drawer .creator-asset-file{display:flex;flex-direction:column;overflow:hidden;padding:0;overscroll-behavior:contain}
+.creator-resources-drawer :is([data-skeleton-region="creator-files"],[data-skeleton-region="creator-file"]){padding-inline-start:var(--employee-header-leading,15.5px)}
 .creator-asset-settings{display:flex;flex:1;flex-direction:column;min-height:0}
 .creator-asset-settings>.right-detail-scroll{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;scrollbar-width:none}
 .creator-asset-settings .detail-drawer-summary{padding-block-start:16px}
@@ -52,13 +53,13 @@
 .creator-operation-dialog #creator_asset_text{min-height:260px;resize:vertical}
 .creator-operation-dialog .skills-file-edit{max-height:none}
 
-/* The content column follows the shared header glyph; disclosure has its own gutter. */
+/* Keep folder and file icons aligned at each depth, with disclosure next to the folder name. */
 .creator-resources-drawer .creator-asset-tree .skills-resource-file{position:relative;isolation:isolate;background:transparent;padding-left:calc(var(--employee-header-leading,15.5px) + var(--resource-depth,0)*14px)!important}
-.creator-resources-drawer .skills-resource-file>.skills-resource-chevron{position:absolute;left:calc(var(--resource-depth,0)*14px);width:8px;height:14px;flex:none;justify-content:center}
-.creator-resources-drawer .skills-resource-chevron>.i{width:8px;height:8px;flex:none}
+.creator-resources-drawer .skills-resource-node[data-resource-kind="folder"]>.skills-resource-file>span:last-child{flex:0 1 auto}
+.creator-resources-drawer .skills-resource-file>.skills-resource-chevron{order:1;justify-content:center}
 .creator-resources-drawer .skills-resource-chevron.spacer{display:none}
 
-/* Row paint starts after the disclosure gutter; root insets match the 8px right edge. */
+/* Inset hover and selection backgrounds to show nesting. */
 .creator-resources-drawer .creator-asset-tree .skills-resource-file::before{content:"";position:absolute;inset:0 0 0 calc(8px + var(--resource-depth,0)*14px);z-index:-1;border-radius:inherit;pointer-events:none;background:transparent}
 .creator-resources-drawer .creator-asset-tree .skills-resource-file.selected::before{background:var(--surface-selected)}
 .creator-resources-drawer .creator-asset-tree .skills-resource-file:hover::before{background:var(--surface-hover)}

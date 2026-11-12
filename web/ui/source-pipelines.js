@@ -75,7 +75,7 @@
  }
  function catalogState(){
   const token=scope();
-  return {loading:readCatalog.pending?.token===token,failed:catalogErrorScope===token&&!!catalogError};
+  return {ready:catalogScope===token,loading:readCatalog.pending?.token===token,failed:catalogErrorScope===token&&!!catalogError};
  }
  async function refreshCatalog(){
   if((!S.localLibrary&&!RunTeamsHost.session.ready(S))||RunTeamsHost.session.workspace(S)){++catalogSequence;rows=[];catalogScope='';catalogError='';catalogErrorScope='';return;}

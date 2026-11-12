@@ -216,7 +216,6 @@
 .product-shell .rail-source-pipeline-more>.i { width:15px; height:15px; }
 .product-shell .rail-view-row:hover .rail-view-remove,.product-shell .rail-view-remove:focus-visible { opacity:1; }
 .product-shell :is(.rail-view-remove):hover { background:var(--surface-hover); color:var(--text-primary); }
-.rail-pending-all { max-height:60dvh; overflow:auto; }
 .product-shell .rail-pl-headrow>a.pl { padding-left:34px; }
 .product-shell .rail-bottom { flex:0 0 auto; min-width:0; display:flex; flex-direction:column; gap:0; padding:0; background:var(--canvas); }
 .product-shell .railmid>.rail-trash-navigation { min-width:0; height:34px; padding:0; }

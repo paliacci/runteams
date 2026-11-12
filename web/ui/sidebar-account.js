@@ -3,8 +3,9 @@
   'use strict';
   const escape=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const painted=new WeakMap();
+  const initialSize=3;
   let host,timer,state={scope:null};
-  const empty=scope=>({scope,status:'idle',data:null,localStatus:'idle',localData:null,pending:null,due:0,localPending:null,localDue:0});
+  const empty=scope=>({scope,status:'idle',data:null,localStatus:'idle',localData:null,pending:null,due:0,localPending:null,localDue:0,expanded:false});
   function context(){const value=host?.context()||{},scope=value.signedIn?String(value.scope):'';if(state.scope!==scope)state=empty(scope);return value;}
   function workRow({id,title,name,kind,employee,pipeline_name},device=false){
     return {key:(device?'device-work:':'work:')+id,id,title,name,kind,employee,pipeline_name,
@@ -49,32 +50,18 @@
   }
   const statusCopy=count=>`<span data-app-i18n="sidebarAttention.${count?'partial':'failed'}">${count?'部分待处理事项无法读取。':'无法读取待处理事项。'}</span>`;
   const emptyCopy='<div class="rail-section-hint" role="status" data-app-i18n="sidebarAttention.empty">没有待处理事项。</div>';
-  function allContents(values,value){
-    const {failed,ready}=readState(value);
-    return values.map(row).join('')+(failed?`<div class="rail-pending-error" role="alert">${statusCopy(values.length)}</div>`:!values.length&&ready?emptyCopy:'');
-  }
   function contents(values,value){
     const {failed,ready}=readState(value);
-
-    const rows=values.length?values.slice(0,3).map(row).join('')+`<button class="rail-section-more rail-pending-more" type="button" aria-haspopup="dialog" onclick="RunTeamsSidebar.showAll()" data-app-i18n="shell.showMore">显示更多</button>`:'';
+    const expanded=state.expanded,shown=expanded?values:values.slice(0,initialSize);
+    const more=values.length>initialSize?`<button class="rail-section-more rail-pending-more" type="button" aria-expanded="${expanded}" aria-controls="rail-pending-items" onclick="RunTeamsSidebar.toggleMore()" data-app-i18n="sidebarAttention.${expanded?'showLess':'showMore'}">${expanded?'显示更少':'显示更多'}</button>`:'';
     const error=failed?`<div class="rail-pending-error" role="alert">${statusCopy(values.length)}${global.RunTeamsLoadFailure.button({variant:'local',compact:true,retry:'RunTeamsSidebar.refresh(true)',labelKey:'sidebarAttention.retry',busyLabelKey:'sidebarAttention.loading',busy:!!state.pending||!!state.localPending,focusFallback:'[data-rail-section="pending"] > summary'})}</div>`:'';
-    const body=rows+error+(!rows&&!error&&ready?emptyCopy:'');
+    const body=`<div id="rail-pending-items">${shown.map(row).join('')}</div>`+more+error+(!shown.length&&!error&&ready?emptyCopy:'');
     return `<details class="rail-pending-section" data-rail-section="pending" ${host.sectionOpen()?'open':''}><summary class="rail-section-toggle" onclick="RunTeamsSidebar.toggle(event)"><span data-app-i18n="sidebarAttention.title">待处理</span><span class="rail-section-chevron" aria-hidden="true">${host.icon('chev')}</span></summary><div class="rail-pending-list">${body}</div></details>`;
   }
   function markup(){const value=context(),html=value.signedIn?contents(items(),value):'';return `<section data-sidebar-pending ${html?'':'hidden'} aria-label="待处理" data-app-i18n-aria-label="sidebarAttention.title">${html}</section>`;}
   function paint(){
     const value=context(),node=document.querySelector('[data-sidebar-pending]');if(!node)return;
     const values=value.signedIn?items():[];
-    const modal=document.getElementById?.('modalHost')?.querySelector('.rail-pending-all');
-    if(modal){
-      const html=value.signedIn?allContents(values,value):'';
-      if(painted.get(modal)!==html){
-        painted.set(modal,html);
-        const active=document.activeElement,key=modal.contains(active)?active.dataset.pendingKey:null;
-        modal.innerHTML=html;global.RunTeamsLocale?.apply(modal);
-        if(key)(modal.querySelector(`[data-pending-key="${CSS.escape(key)}"]`)||modal.closest('[role="dialog"]')?.querySelector('.modal-x'))?.focus({preventScroll:true});
-      }
-    }
     const html=value.signedIn?contents(values,value):'';node.hidden=!html;
     if(painted.get(node)===html)return;
     painted.set(node,html);
@@ -107,9 +94,16 @@
   }
   function setOpen(open){context();host.setSectionOpen(!!open);}
   function toggle(event){event.preventDefault();context();setOpen(!host.sectionOpen());const details=event.currentTarget.closest('details');if(details)details.open=host.sectionOpen();}
-  function openItem(key){const value=context(),item=items().find(row=>row.key===key);if(!value.signedIn||!item||(item.storage_scope==='device'?!value.localReady:!value.ready))return;host.closeAll?.();return item.attention?host.openAttention(item.id):item.storage_scope==='device'?host.openWork(item.id,{storage_scope:'device'}):host.openWork(item.id);}
-  function showAll(){const value=context(),values=items();if(values.length)host.showAll(allContents(values,value));}
+  function openItem(key){const value=context(),item=items().find(row=>row.key===key);if(!value.signedIn||!item||(item.storage_scope==='device'?!value.localReady:!value.ready))return;return item.attention?host.openAttention(item.id):item.storage_scope==='device'?host.openWork(item.id,{storage_scope:'device'}):host.openWork(item.id);}
+  function toggleMore(){
+    if(!context().signedIn||items().length<=initialSize)return;
+    state.expanded=!state.expanded;
+    paint();
+    const section=document.querySelector('[data-sidebar-pending]');
+    const target=state.expanded?section?.querySelectorAll('[data-pending-key]')[initialSize]:section?.querySelector('.rail-pending-more');
+    target?.focus();
+  }
   function sync(){context();paint();void refresh();if(!timer)timer=setInterval(()=>{if(!document.hidden){context();paint();void refresh();}},15000);}
-  global.RunTeamsSidebar=Object.freeze({connect:value=>{host=value;},markup,sync,refresh,setOpen,toggle,openItem,showAll,closeAll:()=>host.closeAll?.(),
+  global.RunTeamsSidebar=Object.freeze({connect:value=>{host=value;},markup,sync,refresh,setOpen,toggle,openItem,toggleMore,
     open:id=>openItem('work:'+id),upgrade:()=>host.upgrade(),reset:()=>{state=empty('');paint();}});
 })(window);

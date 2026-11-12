@@ -269,7 +269,7 @@ function settingsParts(s){
  const titleLeading=!s.entry.pipeline_own&&title?'<span class="node-detail-avatar">'+workerAvatarMarkup(identity)+'</span>':'';
  const heading=!s.data&&!s.error?
   RunTeamsSkeletons.drawerHeading({title,leading:titleLeading,description:true}):
-  detailDrawerHeading(title||copy(s.entry.pipeline_own?'pipeline':'title',s.entry.pipeline_own?'流水线配置':'员工设置'),employee.description||'','','',{titleKey:title?undefined:titleKey,titleLeading});
+  detailDrawerHeading(title||copy(s.entry.pipeline_own?'pipeline':'title',s.entry.pipeline_own?'流水线配置':'员工设置'),employee.description||'','','',{titleKey:title?undefined:titleKey,titleLeading,descriptionMarkdown:true});
  const intro='<section class="workspace-detail-head detail-drawer-intro">'+heading+'</section>';
  mountInputs(s);
  return {intro,...formParts(s)};

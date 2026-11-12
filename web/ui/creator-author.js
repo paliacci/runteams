@@ -61,14 +61,11 @@ async function openLocal(id){
   if(known){s.resourceFolders=previous.folders.filter(path=>s.files.some(file=>file.path.startsWith(path+'/')));s.resourceFocus=s.files.some(file=>file.path===previous.focus||file.path.startsWith(previous.focus+'/'))?previous.focus:'';
    if(activeFile&&previous.file?.sha256===s.files.find(file=>file.path===activeFile)?.sha256){s.activeFile=activeFile;s.file=previous.file;}}
   try{const draft=JSON.parse(window.RunTeamsBusinessStorage?.getItem(draftKey(s))||'null');if(draft){s.editing=draft.editing;s.pending=draft.pending;s.buildRequest=draft.buildRequest;}}catch(e){}
-  if(!known&&s.settingsEntry&&s.files.some(file=>file.path===s.employeeSource)){
-   const parts=s.employeeSource.split('/');
-   s.resourceFolders=parts.slice(0,-1).map((_,index)=>parts.slice(0,index+1).join('/'));
-  }
   if(s.editing){if(!s.settingsEntry)s.activeFile=s.editing.path;}
   else if(activeFile&&s.files.some(f=>f.path===activeFile))await select(activeFile,false,true);
   else if(!s.settingsEntry){const path=await defaultSoulPath(s);if(valid(s)&&s.localDraft?.id===id&&s.revision===workspace.revision&&!s.activeFile&&!s.editing&&path)await select(path,false);}
-  await readHistory(s);
+  if(extension()?.readHistory)void readHistory(s).then(()=>{if(current()===s)repaint();});
+  else await readHistory(s);
   await extension()?.read(s,id);
  }}
  catch(e){if(valid(s))s.error=e.message;}
@@ -208,23 +205,29 @@ async function readHistory(s){
  if(!valid(s)||!s.localDraft)return;
  const request={};s.historyRequest=request;s.historyLoading=true;s.historyError='';
  try{
-  const value=await localCall(s,'/'+s.localDraft.id+'/history');
+  const readCloudHistory=extension()?.readHistory;
+  const value=readCloudHistory?await readCloudHistory(s):await localCall(s,'/'+s.localDraft.id+'/history');
   if(!valid(s)||s.historyRequest!==request)return;
 
-  if(!Array.isArray(value.items)||typeof value.original_revision!=='string')throw Error('历史版本暂时无法读取');s.history=value;
+  if(!Array.isArray(value.items)||!readCloudHistory&&typeof value.original_revision!=='string')throw Error('历史版本暂时无法读取');
+  s.history=value;
+  if(readCloudHistory&&!value.items.length)s.historyOpen=false;
  }catch(error){if(valid(s)&&s.historyRequest===request)s.historyError=error.message;}
  finally{if(valid(s)&&s.historyRequest===request)s.historyLoading=false;}
 }
-function hasHistory(s){return !!(s.history?.items?.length||s.historyError);}
+function hasHistory(s){return !!(s.history?.items?.length||!extension()?.readHistory&&s.historyError);}
 async function history(){
  const s=current();if(!s||!s.localDraft||busy(s)||s.editing)return;
  if(s.historyOpen){closeHistory();return;}
- s.historyOpen=true;repaint();
- if(!s.history||s.historyError){await readHistory(s);if(valid(s))repaint();}
+ s.historyOpen=true;
+ const read=extension()?.readHistory||!s.history||s.historyError?readHistory(s):null;
+ repaint();
+ if(read){await read;if(valid(s))repaint();}
 }
 function closeHistory(focus=true){const s=current();if(!s)return;s.historyOpen=false;document.getElementById('creator_history_popover')?.remove();const trigger=document.getElementById('creator_history_trigger');trigger?.setAttribute('aria-expanded','false');if(focus)trigger?.focus();}
 function historyRows(s){
  if(!s.history)return [];
+ if(extension()?.readHistory)return s.history.items;
 
  return [...s.history.items,{revision:s.history.original_revision,created_at:s.localDraft.created_at,source:s.localDraft.source,original:true}].map((item,index,all)=>{
   const previous=all[index+1],files=item.source?.files||[],before=new Map((previous?.source?.files||[]).map(f=>[f.path,f.sha256])),after=new Map(files.map(f=>[f.path,f.sha256]));
@@ -275,7 +278,7 @@ function historyMarkup(s){
  return `<section id="creator_history_popover" class="creator-history-popover" role="dialog" aria-label="历史版本" data-app-i18n-aria-label="employeeHistory.title"><div class="creator-history-title" data-app-i18n="employeeHistory.title">历史版本</div><div class="creator-history-list">${content||'<p class="creator-asset-note" data-app-i18n="employeeHistory.empty">暂无历史版本。</p>'}</div></section>`;
 }
 function retryHistory(){const s=current();if(s){s.historyOpen=false;return history();}}
-function canRestoreHistory(s,item){return item.revision!==s.revision;}
+function canRestoreHistory(s,item){return !extension()?.readHistory&&item.revision!==s.revision;}
 function confirmRestore(index){
  const s=current(),item=s&&historyRows(s)[index];if(!item||busy(s)||s.editing||!canRestoreHistory(s,item))return;
  const baseline=s.revision,provider=extension();

@@ -532,12 +532,14 @@ class EmployeeMCPWork:
                     'default_tools_approval_mode':'prompt','required':True}
             yield {'mcp_servers':config,'on_approval':lambda method,params:self.ask(chat,method,params,cancel=cancel,notify=notify)}
 
-    def recognizes(self, chat, workspace=''):
+    def recognizes(self, chat, workspace='', *, owns_empty=None):
         from runteams_core.storage import product_store as store
         if workspace or not device_data.personal() or not store.device_chat(chat): return False
         session=store.get_chat(chat)
         if not session or session.get('subject_type')!='employee' or session.get('kind')!='general': return False
-        return bool(self.load(chat)[1]) or bool(session.get('context',{}).get('local_employee_package'))
+        employee, packages, _ = self.load(chat)
+        return (bool(packages) or bool(session.get('context',{}).get('local_employee_package'))
+                or (owns_empty is not None and owns_empty(employee)))
 
     def app_tools(self, chat, package, binding):
         return []
@@ -652,7 +654,7 @@ def approval_response(method, params, decision):
     raise ValueError('此官方交互尚未接通，操作未获授权。')
 
 
-def for_employee(server,chat,workspace=''):
+def for_employee(server,chat,workspace='',*,owns_empty=None):
     """Leave all unrelated personal, cloud and organization owners untouched."""
     from runteams_core.storage import product_store as store
     if workspace or not device_data.personal():return None
@@ -664,7 +666,7 @@ def for_employee(server,chat,workspace=''):
     factory=getattr(server,'employee_mcp_work',None)
     if factory is None:return None
     host=factory()
-    return host if host.recognizes(chat,workspace) else None
+    return host if host.recognizes(chat,workspace,owns_empty=owns_empty) else None
 
 
 from runteams_core.work.hosts.native_work_owner import NativeWorkOwner
@@ -682,8 +684,8 @@ class _MCPOwner(NativeWorkOwner):
 
     def discover(self, chat_id, workspace=''):
         def read():
-            _,packages,_,binding=self.host._identity(chat_id)
-            if self.host.suspended(self.host.load(chat_id)[2]):return {'items':[],'authority':'device-owned-mcp-work','chat_id':chat_id}
+            _,packages,work,binding=self.host._identity(chat_id)
+            if self.host.suspended(work):return {'items':[],'authority':'device-owned-mcp-work','chat_id':chat_id}
             items=[]
             for package,bundle in packages.items():
                 if not self.host.enabled(binding,package):continue

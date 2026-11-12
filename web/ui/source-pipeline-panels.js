@@ -216,12 +216,11 @@ function header(p,title,description,titleKey,asset,locked){
  }:{};
  return {toolbar:RunTeamsEmployeeDrawerHeader.markup('source-pipeline-settings')+(author?historyMarkup(p):'')+
   (settings?window.RunTeamsPipelineMarket?.versionPopover?.(s)||'':''),
-  intro:`<section class="workspace-detail-head detail-drawer-intro">${detailDrawerHeading(editable?title.trimEnd():title,editable&&!shownDescription?'尚未填写说明。':shownDescription,'',editable?settingsEditForm(p,'description'):'',{titleKey,...controls})}</section>`};
+  intro:`<section class="workspace-detail-head detail-drawer-intro">${detailDrawerHeading(editable?title.trimEnd():title,editable&&!shownDescription?'尚未填写说明。':shownDescription,'',editable?settingsEditForm(p,'description'):'',{titleKey,descriptionMarkdown:settings,...controls})}</section>`};
 }
 const settingsFields={
  name:{path:['pipeline','name'],label:'名称',labelKey:'name',edit:'编辑名称',editKey:'editName',limit:160},
- description:{path:['description'],label:'说明',labelKey:'description',edit:'编辑说明',editKey:'editDescription'},
- team_standard:{path:['pipeline','team_standard'],label:'团队规范',labelKey:'standards',edit:'编辑团队规范',editKey:'editStandard',limit:12000}
+ description:{path:['description'],label:'说明',labelKey:'description',edit:'编辑说明',editKey:'editDescription'}
 };
 const settingsValue=(asset,field)=>settingsFields[field].path.reduce((node,key)=>node[key],asset);
 function focusSettingsField(s,id){
@@ -252,8 +251,7 @@ async function finishSettingsEdit(field,submit){
   const asset=structuredClone(edit.base.asset);
   const path=settingsFields[field].path,key=path.at(-1);
   const target=path.slice(0,-1).reduce((node,part)=>node[part],asset);
-  if(field==='team_standard'&&!value)delete target[key];
-  else target[key]=value;
+  target[key]=value;
   p.draft=asset;
   if(p.data.source_revision===edit.base.source_revision)await save();
   else{
@@ -293,17 +291,16 @@ function toggleSettingsSection(button){
  if(!s||S.sel?.type!=='source-pipeline'||S.sel.id!=='settings'||!button.isConnected)return;
  RunTeamsEmployeeDrawerHeader.toggleSection(button,state(s).collapsedSettings||=new Set());
 }
-function teamStandard(p,asset,locked,editable){
- const standard=asset.pipeline.team_standard;
- const text=standard?`<p>${esc(standard)}</p>`:'<p data-app-i18n="pipelineSettings.empty">尚未填写团队规范。</p>';
- const body=editable?settingsEditForm(p,'team_standard')||
-  `<div class="source-pipeline-standard-line"><p>${detailDrawerTextWithAction(standard?.trimEnd()||'尚未填写团队规范。',settingsEditButton(p,'team_standard',locked),standard?undefined:'pipelineSettings.empty')}</p></div>`:text;
+function teamStandard(p,asset){
+ const standard=asset.pipeline.team_standard?.trimEnd();
+ const body=standard?`<div class="markdown-compact">${renderMarkdown(standard)}</div>`:
+  '<p data-app-i18n="pipelineSettings.empty">尚未填写团队规范。</p>';
  return RunTeamsEmployeeDrawerHeader.section({id:'pipeline-settings-standards',
   title:'<span data-app-i18n="pipelineSettings.standards">团队规范</span>',
   body,collapsedSections:p.collapsedSettings,action:'RunTeamsSourcePipelinePanels.toggleSettingsSection',
   className:'source-pipeline-standards'});
 }
-function settingsContent(s,p,asset,locked){
+function settingsContent(s,p,asset){
  const employees=p.data.employees;
  const configuration=RunTeamsEmployeeConfiguration,selection=S.sel;
  const own=asset.configuration?.groups?.some(group=>group.fields.length)?ownConfigurationEntry(s):null;
@@ -316,7 +313,7 @@ function settingsContent(s,p,asset,locked){
  const programs=!own&&s.data.programs_available?RunTeamsWorkAuthorization.settings(ownConfigurationEntry(s)):'';
  const memberFields=memberEntries.map(entry=>configuration.groupParts(entry.key,entry.record)).join('');
  const fields=ownFields+programs+memberFields;
- return teamStandard(p,asset,locked,s.data.ui.mode==='creator')+(fields?`<div class="source-pipeline-own-settings settings-section-stack">${fields}</div>`:'');
+ return teamStandard(p,asset)+(fields?`<div class="source-pipeline-own-settings settings-section-stack">${fields}</div>`:'');
 }
 function drawer(){const s=current();if(!s)return '';const p=state(s),positionKey=S.sel?.id==='position'?S.sel.positionKey:null,asset=p.draft||p.data?.asset,locked=s.data.ui.mode!=='creator'||!!p.pending||p.saving||p.commitRefresh;
  let body=p.loading&&!p.data?RunTeamsSkeletons.region('detail',undefined,'pipelineSettings.loading'):'';
