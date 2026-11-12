@@ -21,12 +21,13 @@ class SourceWorkService:
         resources = [('workflows', 'workflow_runs', '')]
         if workflow_ids is None:
             resources.append(('artifacts', 'artifacts', ',item.name,item.meta_json'))
-        where = '' if workflow_ids is None else 'WHERE item.id IN (' + ','.join('?' for _ in workflow_ids) + ') '
+        where = '' if workflow_ids is None else 'WHERE item.id IN (SELECT value FROM json_each(?)) '
+        selection = () if workflow_ids is None else (json.dumps(workflow_ids),)
         for public, table, metadata in resources:
             rows = connection.execute(
                 f'SELECT item.id,resource.identity{metadata} FROM {table} item '
                 'LEFT JOIN device_work_resources resource ON resource.resource=? AND resource.id=item.id '
-                f'{where}ORDER BY item.id', (table, *(workflow_ids or ()))).fetchall()
+                f'{where}ORDER BY item.id', (table, *selection)).fetchall()
             for row in rows:
                 identifier, identity = row['id'], row['identity']
                 if identity is None and not register_missing:

@@ -48,7 +48,7 @@ def catalog(core, *, reference=None, workflow_id=None, chat_id=None):
     """Return references only; listing records must not boot the document editor."""
     from runteams_core.employees.employee_references import same
     with core.repository.connect() as c:
-        rows=c.execute('SELECT * FROM artifacts WHERE trashed_at IS NULL ORDER BY id DESC').fetchall()
+        rows=c.execute('SELECT id,name,created_at,meta_json FROM artifacts WHERE trashed_at IS NULL ORDER BY id DESC').fetchall()
     seen=set();items=[]
     for row in rows:
         meta=json.loads(row['meta_json']);root=int(meta.get('revision_of') or row['id'])
