@@ -52,7 +52,7 @@
 
 
 <script src="/ui/static-pages.js?v=employee-conversation-loading-20261105.employee-switch-first-paint-20261105.document-reader-copy-20261105.2.employee-conversation-summary"></script>
-<script src="/ui/requests.js?v=edition-request-policy-20261103-2"></script>
+<script src="/ui/requests.js?v=edition-request-policy-20261103-2.trash-read-20261113"></script>
 <script src="/ui/metrics.js?v=shell-1"></script>
 <script src="/ui/shell.js?v=workspace-chrome-20261104.shared-header-20261104-2.pipeline-asset-icon.shared-header-spacing.header-rename"></script>
 <script src="/ui/sidebar-account.js?v=sidebar-attention-copy-20261104.employee-identity.rail-visual-consistency.sidebar-attention-empty-20261113.consolidated"></script>
@@ -1998,7 +1998,7 @@ async function refreshTrash(options={}){
   publish();
   try{
     const [device,pipelines]=await Promise.allSettled([
-      api('/api/device/work/trash'),
+      api('/api/device/work/trash',undefined,undefined,{readCurrent:true}),
       RunTeamsSourcePipelines.request('trash-catalog')
     ]);
     if(!current())return;

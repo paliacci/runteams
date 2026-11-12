@@ -7,7 +7,7 @@
   const pools={foreground:{limit:4,running:0,queue:[]},runtime:{limit:2,running:0,queue:[]},background:{limit:1,running:0,queue:[]}};
   // These POST endpoints only read a verified workspace or its original receipt.
   // Commands and endpoints that also accept mutations keep the write barrier.
-  const pipelineReads=new Set(['ui-state-read','catalog','workspace','creation-choices','settings','history','records','state','contract','work','operation','control-operation','edit-operation','flow-operation'].map(action=>'/api/device/work/source-pipelines/'+action));
+  const pipelineReads=new Set(['ui-state-read','catalog','trash-catalog','workspace','creation-choices','settings','history','records','state','contract','work','operation','control-operation','edit-operation','flow-operation'].map(action=>'/api/device/work/source-pipelines/'+action));
   function isRead(path,method='GET'){
     return method==='GET'||method==='POST'&&(
       /^\/api\/assets\/read\/[a-z-]+$/.test(path)||pipelineReads.has(path)||
