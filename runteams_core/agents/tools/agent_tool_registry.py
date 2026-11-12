@@ -764,35 +764,6 @@ def _propose_tasks(arguments, _context):
     return _proposal(summary, actions)
 
 
-def _propose_automation(arguments, _context):
-    allowed = {"operation", "name", "prompt", "enabled", "schedule_kind",
-               "interval_sec", "schedule", "channel", "model", "reasoning_effort",
-               "summary", "skill_key"}
-    extra = sorted(set(arguments) - allowed)
-    if extra:
-        raise AgentToolError("自动化提案包含未知参数：{}".format(", ".join(extra)))
-    operation = str(arguments.get("operation") or "").strip()
-    if operation not in ("upsert", "delete"):
-        raise AgentToolError("operation 必须是 upsert 或 delete")
-    _root, _view, conversation = _tool_context(_context)
-    if (str(conversation.get("context_type") or "").strip() == "worker" and
-            str(conversation.get("intent") or "chat").strip() in {"chat", "work"}):
-        raise AgentToolError('请在这名员工的自动化面板设置计划。')
-    name = _require_text(arguments, "name", "自动化名称", 120)
-    if operation == "delete":
-        action = {"op": "delete_automation", "name": name}
-        summary = str(arguments.get("summary") or "").strip() or "删除自动化「{}」".format(name)
-        return _proposal(summary, [action])
-    prompt = _require_text(arguments, "prompt", "自动化执行内容", 12000)
-    action = {"op": "upsert_automation", "name": name, "prompt": prompt}
-    for key in ("enabled", "schedule_kind", "interval_sec", "schedule", "channel",
-                "model", "reasoning_effort"):
-        if arguments.get(key) not in (None, ""):
-            action[key] = deepcopy(arguments[key])
-    summary = str(arguments.get("summary") or "").strip() or "保存自动化「{}」".format(name)
-    return _proposal(summary, [action])
-
-
 def _request_choice(arguments, _context):
     allowed = {"question", "options", "questions"}
     extra = sorted(set(arguments) - allowed)
@@ -1048,7 +1019,7 @@ register(AgentTool(
     name="runteams_propose_task",
     description=(
         "Prepare a task for one published employee. "
-        "RunTeams asks a user to Apply, while automations apply it immediately."),
+        "RunTeams asks a user to Apply."),
     input_schema={
         "type": "object",
         "properties": {
@@ -1151,35 +1122,6 @@ register(AgentTool(
     risk="interactive",
     ui_kind="proposal",
     handler=_propose_tasks,
-))
-
-
-register(AgentTool(
-    name="runteams_propose_automation",
-    description=(
-        "Prepare a user-confirmed RunTeams automation upsert/delete proposal. This tool "
-        "does not mutate automation state before the user presses Apply."),
-    input_schema={
-        "type": "object",
-        "properties": {
-            "operation": {"type": "string", "enum": ["upsert", "delete"]},
-            "name": {"type": "string"},
-            "prompt": {"type": "string"},
-            "enabled": {"type": "boolean"},
-            "schedule_kind": {"type": "string"},
-            "interval_sec": {"type": "integer", "minimum": 1},
-            "schedule": {"type": "string"},
-            "channel": {"type": "string"},
-            "model": {"type": "string"},
-            "reasoning_effort": {"type": "string"},
-            "summary": {"type": "string"},
-        },
-        "required": ["operation", "name"],
-        "additionalProperties": False,
-    },
-    risk="interactive",
-    ui_kind="proposal",
-    handler=_propose_automation,
 ))
 
 

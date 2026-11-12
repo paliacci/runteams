@@ -10,7 +10,7 @@ import uuid
 from runteams_core.foundation.identity.device_namespace import issuer
 
 RESOURCES=frozenset({'employees','employee_releases','pipelines','pipeline_releases',
-                     'employee_skills','employee_skill_revisions','tasks','workflow_runs','employee_runs','automations'})
+                     'employee_skills','employee_skill_revisions','tasks','workflow_runs','employee_runs'})
 SCHEMA='runteams.business-reference/v1'
 
 

@@ -13,7 +13,6 @@ import secrets
 import subprocess
 from datetime import datetime
 
-from runteams_core.automation import automation_store
 from runteams_core.storage import local_database
 from runteams_core.agents.models import provider_catalog
 

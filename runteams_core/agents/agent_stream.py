@@ -21,7 +21,6 @@ _RUNTEAMS_TOOL_LABELS = {
     "runteams_get_employee": "读取员工详情",
     "runteams_propose_pipeline_change": "整理流水线改动",
     "runteams_propose_task": "整理任务方案",
-    "runteams_propose_automation": "整理自动化改动",
     "runteams_creator_source": "编辑员工资源",
 }
 

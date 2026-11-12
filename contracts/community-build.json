@@ -150,7 +150,6 @@
     "runteams_core/automation/__init__.py",
     "runteams_core/automation/automation_dispatch.py",
     "runteams_core/automation/automation_scheduler.py",
-    "runteams_core/automation/automation_store.py",
     "runteams_core/automation/automation_time.py",
     "runteams_core/automation/device_employee_schedules.py",
     "runteams_core/automation/local_schedules.py",
