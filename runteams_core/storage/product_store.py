@@ -762,7 +762,8 @@ def list_chats(*, device_only=False):
 def create_chat(channel_id=None, model="", reasoning_effort="", scope_pipeline_id=None,
                 extensions_enabled=False, kind="general", context=None,
                 subject_type="workspace", employee_id=None, employee_release_id=None,
-                employee_release_digest="", scope_type="global", scope_run_id=None):
+                employee_release_digest="", scope_type="global", scope_run_id=None, *,
+                reuse_employee_conversation=False):
     kind = "automation" if kind == "automation" else "general"
     context = context if isinstance(context, dict) else {}
     subject_type = str(subject_type or "workspace").strip().lower()
@@ -798,6 +799,11 @@ def create_chat(channel_id=None, model="", reasoning_effort="", scope_pipeline_i
         channel_id = channel['id'] if channel else None
     with (nullcontext() if local else _lock), (device_data.connect() if local else conn()) as connection:
         if local:
+            if reuse_employee_conversation and subject_type == 'employee' and scope_type == 'global' and employee_id:
+                reference = context.get('employee_reference')
+                for session in device_data.employee_conversations(connection, int(employee_id)):
+                    if session['employee_reference'] in (None, reference):
+                        return session['id']
             chat_id = device_data.LOCAL_CHAT_ID_MIN + secrets.randbelow(device_data.LOCAL_CHAT_ID_MIN)
             # Explicit ID keeps the cloud and device namespaces disjoint.
             connection.execute('INSERT INTO chats(id,title,title_source,kind,context_json,channel_id,model,reasoning_effort,extensions_enabled,subject_type,employee_id,employee_release_id,employee_release_digest,scope_type,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',

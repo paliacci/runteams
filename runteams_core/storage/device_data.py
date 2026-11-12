@@ -175,6 +175,8 @@ def page_ids():
         items.append({'resource':'chats','id':str(row['chat_id']),'public_id':public_id})
         if row['has_messages']:
             layouts[public_id] = 'history'
+        elif row['kind'] == 'employee_design':
+            layouts[public_id] = 'employee'
         elif row['kind'] == 'general':
             try:
                 context = json.loads(row['context_json'] or '{}')
@@ -188,6 +190,32 @@ def page_ids():
     return {'version':1,'library_id':_binding().library_id,
         **({'account_id':scope['account_id']} if 'account_id' in scope else {}),
         'items':items, 'conversation_layouts':layouts}
+
+
+def employee_conversations(connection, employee_id=None):
+    """Personal, directly assigned conversations, including empty ones."""
+    query = (
+        "SELECT c.id,c.employee_id,c.updated_at,c.context_json,i.identity,"
+        "(SELECT m.id FROM chat_messages m WHERE m.chat_id=c.id ORDER BY m.id DESC LIMIT 1) AS last_message_id "
+        "FROM chats c JOIN device_chat_index i ON i.chat_id=c.id "
+        "WHERE i.deleted=0 AND c.kind='general' AND c.subject_type='employee' "
+        "AND c.scope_type='global' AND c.employee_id IS NOT NULL"
+    )
+    if employee_id is not None:
+        query += ' AND c.employee_id=?'
+    rows = connection.execute(query + ' ORDER BY last_message_id IS NOT NULL DESC,c.updated_at DESC,c.id DESC',
+                              () if employee_id is None else (employee_id,))
+    for row in rows:
+        try:
+            context = json.loads(row['context_json'] or '{}')
+        except ValueError:
+            continue
+        if (not isinstance(context, dict) or context.get('context_type') != 'worker'
+                or context.get('pipeline_work') or context.get('source_pipeline_workspace')):
+            continue
+        yield {'id': row['id'], 'employee_id': row['employee_id'], 'updated_at': row['updated_at'],
+               'public_id': 'local-' + row['identity'].replace('-', ''), 'last_message_id': row['last_message_id'],
+               'employee_reference': context.get('employee_reference'), 'storage_scope': 'device'}
 
 
 def public_id(chat_id):

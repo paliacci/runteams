@@ -51,7 +51,7 @@
 
 
 
-<script src="/ui/static-pages.js?v=employee-conversation-loading-20261105.employee-switch-first-paint-20261105.document-reader-copy-20261105.2"></script>
+<script src="/ui/static-pages.js?v=employee-conversation-loading-20261105.employee-switch-first-paint-20261105.document-reader-copy-20261105.2.employee-conversation-summary"></script>
 <script src="/ui/requests.js?v=edition-request-policy-20261103-2"></script>
 <script src="/ui/metrics.js?v=shell-1"></script>
 <script src="/ui/shell.js?v=workspace-chrome-20261104.shared-header-20261104-2.pipeline-asset-icon.shared-header-spacing.header-rename"></script>
@@ -105,7 +105,7 @@
 <script src="/ui/configuration-form.js?v=shared-configuration-form-20261106.4.configuration-autosave.2.silent-autosave"></script>
 <script src="/ui/source-pipeline-panels.js?v=unified-task-detail-20261110.employee-task-context-20261110.task-current-configuration-20261106.employee-pipeline-groups-20261106.task-detail.failure-reason.section-actions.stage-retry.execution-context.retry-status-row.retry-chip-focus.task-deliveries.document-links.retry-neutral.drawer-section-footer.task-report.task-report-entry.delivery-rows.delivery-description.handoff-context.inline-retry-execution.unified-employee-conversation.execution-detail-layout.2.task-inline-actions.drawer-inline-actions.execution-record-readonly.2.signing-setup.signing-conversation.current-execution-history.current-execution-name.section-footer-right.skill-default-outputs.configuration-autosave.silent-autosave.human-feedback-options.feedback-placeholder.shared-credential-controls.reveal-saved-credential.parked-result-reason.wait-in-position.confirm-required-configuration.reason.shared-field-spacing.confirmed-work-refresh.live-workspace-status.feedback-choice-input.select-specific-fields.ai-approval-options.execution-state-receipts.grouped-record-time.drawer-loading-skeletons.launch-recovery.inline-launch-reason.preparation-review.pipeline-live-activity.current-wait-in-heading.records-only-completion.feedback-input-contract.inline-work-activity.feedback-original-case.compact-feedback-context.visible-blocker-reason.activity-stream.compact-choice-context.parked-summary.inline-feedback-only.no-native-disclosures-20261110.remove-routing-panel-20261110.consolidated"></script>
 
-<script src="/ui/employee-directory.js?v=employee-conversation-loading-20261105.employee-roster-20261105.employee-switch-first-paint-20261105.employee-pending-selection-20261105.employee-resource-default-20261105.unified-employee-conversation.trash-menu-style.stable-roster-order.sidebar-scroll-dismiss"></script>
+<script src="/ui/employee-directory.js?v=employee-conversation-loading-20261105.employee-roster-20261105.employee-switch-first-paint-20261105.employee-pending-selection-20261105.employee-resource-default-20261105.unified-employee-conversation.trash-menu-style.stable-roster-order.sidebar-scroll-dismiss.employee-conversation-summary"></script>
 <script src="/modules/employee.js?v=work-permission-settings-20261105.trash-menu-style"></script>
 <link rel="stylesheet" href="/ui/configuration-fields.css?v=configuration-info-size-20261106.drawer-inline-actions.credential-filename.credential-selection.shared-credential-controls.credential-configured-field.direct-secret-input.reveal-saved-credential.shared-config-input-style.shared-field-spacing">
 <link rel="stylesheet" href="/ui/employee-configuration.css?v=shared-configuration-form-20261106.4">
@@ -6348,6 +6348,7 @@ function deleteChatSession(cid){
   confirmModal("删除这段对话？",local?"本机消息和附件将被删除。已有备份会保留。":"所有消息都将永久删除。",()=>{
     return changeChatSession(cid,"delete",undefined,async()=>{
       S.chats=S.chats.filter(chat=>Number(chat.id)!==Number(cid));
+      RunTeamsEmployeeDirectory.forgetConversation(cid);
       S.railPinnedChats=S.railPinnedChats.filter(id=>Number(id)!==Number(cid));saveRailPinnedChats();
       if(S.chatId===cid){S.chatId=null;S.chatMsgs=[];S.chatCfg=defaultChatConfig();}
       if(S.conversationPanel?.id===cid)await dismissConversationPanel({render:false,forget:true});
@@ -6799,19 +6800,21 @@ async function openBotConversation(employeeId=0,options={}){
     await openRailConversationSession(employee.conversation_id,{forceWorkspace:true,replace:true,device:true,employeeKey:options.employeeKey});return;
   }
   if(!RunTeamsHost.session.workspace(S)&&RunTeamsEmployeeDirectory.downloaded().some(item=>Number(item.id)===employeeId)){
-    const recent=options.forceNew?null:(S.chats||[]).filter(row=>row.storage_scope==='device'&&RunTeamsEmployeeDirectory.matches(RunTeamsEmployeeDirectory.assetEntry(employeeId),row)).sort((a,b)=>String(b.updated_at||'').localeCompare(String(a.updated_at||'')))[0];
+    const recent=options.forceNew?null:RunTeamsEmployeeDirectory.workConversation(RunTeamsEmployeeDirectory.assetEntry(employeeId));
     if(recent){
+      deviceChatRemember(recent);
+      if(recent.public_id)RunTeamsStaticPages.rememberConversationLayouts({conversation_layouts:{[recent.public_id]:recent.last_message_id?'history':'employee'}});
       await openRailConversationSession(recent.id,{forceWorkspace:true,replace:true,device:true,employeeKey:options.employeeKey});
       if(String(S.conversationPanel?.id)!==String(recent.id))return;
     }else{
-      const result=await api('/api/conversations','POST',{kind:'general',employee_id:employeeId,
+      const result=await api('/api/conversations','POST',{kind:'general',employee_id:employeeId,reuse_employee_conversation:!options.forceNew,
         context:{context_type:'worker',intent:'chat',target_employee_id:employeeId,worker_name:employee.name,label:employee.name}});
       if(!switchCurrent())return;
       if(result.error){toast(result.error,'err');return;}
       const session=result.session;
       deviceChatRemember(session);
       rememberConversationPanel({...conversationPanelFromSession(session,{railHosted:true}),employeeListKey:options.employeeKey});
-      S.chats=[session,...(S.chats||[]).filter(row=>Number(row.id)!==Number(session.id))];
+      S.chats=[{...session,last_message_id:session.messages?.at(-1)?.id??null},...(S.chats||[]).filter(row=>Number(row.id)!==Number(session.id))];
       await openRailConversationSession(session.id,{forceWorkspace:true,replace:true,device:true,employeeKey:options.employeeKey});
       if(String(S.conversationPanel?.id)!==String(session.id))return;
     }

@@ -99,6 +99,18 @@
   install(rows.map((row,n)=>n===index?{...row,asset,record:{...asset,...(row.source?{name:row.record.name,avatar:row.record.avatar,avatar_src:row.record.avatar_src||null}:{})}}:row),token());
  }
  const openings=new Map();
+ function workConversation(entry){
+  if(!entry)return null;
+  const rows=(S.chats||[]).filter(row=>row.storage_scope==='device'&&row.kind==='general'&&
+   !row.context?.pipeline_work&&!row.context?.source_pipeline_workspace&&matches(entry,row));
+  const saved=entry.conversation;
+  if(saved&&!rows.some(row=>String(row.id)===String(saved.id)))rows.push(saved);
+  return rows.sort((a,b)=>Number(!!b.last_message_id)-Number(!!a.last_message_id)||
+   String(b.updated_at||'').localeCompare(String(a.updated_at||''))||Number(b.id)-Number(a.id))[0]||null;
+ }
+ function forgetConversation(id){
+  for(const row of current())if(String(row.conversation?.id)===String(id))delete row.conversation;
+ }
  async function activate(key,{newSession=false}={}){
   const entry=current().find(row=>row.key===key);if(!entry)throw Error('员工目录已变化，请重新打开');
   if(!entry.source&&!newSession&&typeof workspaceEmployeeWindowIdentity==='function'){
@@ -108,7 +120,10 @@
   const expected=token(),requestKey=expected+':'+key+(newSession?':new-session':':work');
   const existing=openings.get(requestKey);
   if(existing?.sequence===activationSequence&&S.workspaceSwitchPending===existing.pending)return existing.task;
-  const layout=newSession?'employee':(S.chats||[]).some(row=>row.storage_scope==='device'&&row.last_message_id&&matches(entry,row))?'history':'';
+  const recent=newSession||entry.source?null:workConversation(entry);
+  const history=recent?.last_message_id||(!newSession&&entry.source&&(S.chats||[]).some(row=>
+   row.storage_scope==='device'&&row.last_message_id&&String(row.id)===String(entry.source.chat_id)));
+  const layout=history?'history':'employee';
   const pending=workspaceBeginEmployeeOpen(key,layout);
   const sequence=++activationSequence,drawerSequence=_detailOpenSequence;
   const ownsOpen=()=>expected===token()&&sequence===activationSequence&&S.workspaceSwitchPending===pending&&
@@ -323,6 +338,6 @@
   accept(session.employee);
  }
  const sourceFor=value=>(entryFor(value)||assetEntry(value))?.source||null;
- window.RunTeamsEmployeeDirectory=Object.freeze({entryFor,assetEntry,forPanel,panelReference,referenceKey,references,matches,employeePanel,status,statuses,paintStatus,rowMenu,pinnedKeys,sourceFor,refresh,isLoading,accept,current,assets,downloaded,assetIdentity,upsertAsset,open,settings,finishCreation,sessions,sessionMenu,newSession,reset});
+ window.RunTeamsEmployeeDirectory=Object.freeze({entryFor,assetEntry,forPanel,panelReference,referenceKey,references,matches,employeePanel,status,statuses,paintStatus,rowMenu,pinnedKeys,sourceFor,refresh,isLoading,accept,current,assets,downloaded,assetIdentity,upsertAsset,open,settings,finishCreation,sessions,sessionMenu,newSession,workConversation,forgetConversation,reset});
  window.addEventListener('runteams:business-scope-changed',reset);
 })();

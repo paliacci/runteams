@@ -91,6 +91,7 @@ function localConversationLayout(value){
 }
 function localSessionLayout(session){
  if(session.messages.length||session.messages_page?.has_more||session.active_turn?.active)return 'history';
+ if(session.kind==='employee_design')return 'employee';
  if(session.kind!=='general')return '';
  const context=session.context||{};
  return context.source_pipeline_workspace?'pipeline':context.context_type==='worker'?'employee':context.purpose==='create-employee'?'create-employee':'general';
