@@ -1,13 +1,14 @@
 /* The only mutable employee catalog. Views below are computed projections. */
 (()=>{
  'use strict';
- let items=[],scope='',pending=null,cloudPending=null,cloudNextAt=0,sequence=0,activationSequence=0;
+ const cloudRefreshInterval=5*60*1000,cloudRetryInterval=60*1000;
+ let items=[],scope='',pending=null,cloudPending=null,cloudRefresh=null,sequence=0,activationSequence=0;
  let activity=null,activityReadAt=0;
  let localError='',cloudError='';
  const token=()=>`${_workspaceBusinessGeneration}:${workspaceAccountCacheToken()}`;
  const current=()=>scope===token()?items:[];
  const isLoading=()=>pending?.scope===token()||cloudPending?.scope===token();
- function reset(){items=[];scope='';pending=null;cloudPending=null;cloudNextAt=0;activity=null;activityReadAt=0;localError='';cloudError='';sequence++;activationSequence++;}
+ function reset(){items=[];scope='';pending=null;cloudPending=null;cloudRefresh=null;activity=null;activityReadAt=0;localError='';cloudError='';sequence++;activationSequence++;}
  const showErrors=()=>{S.coreTeamError=[localError,cloudError].filter(Boolean).join('；');};
  function install(rows,expected){
   if(expected!==token())return false;
@@ -21,6 +22,8 @@
   const flight=local?pending:cloudPending;
   if(flight?.scope===expected&&flight.sequence===sequence)return flight.promise;
   const own=sequence,started=Date.now();
+  const refresh=local?null:{scope:expected,nextAt:Infinity};
+  if(refresh)cloudRefresh=refresh;
   const promise=(async()=>{
    const reply=await api(local?'/api/employee-directory?view=local':'/api/employee-directory',undefined,undefined,
     {readCurrent:true,readPriority:options.readPriority});
@@ -40,11 +43,13 @@
    if(!local||!current().some(row=>row.asset)){
     install(reply.items,expected);
    }
+   if(refresh&&!reply.errors?.assets)refresh.nextAt=Date.now()+cloudRefreshInterval;
    showErrors();
    if(!local||S.localLibrary||current().length)S.coreTeamLoaded=true;
    S.deviceSessionActor=String(S.localLibrary?.library_id||RunTeamsHost.session.actor(S)||'');
    return {employees:assets(),items:current(),errors:reply.errors};
   })().finally(()=>{
+   if(refresh?.nextAt===Infinity)refresh.nextAt=Date.now()+cloudRetryInterval;
    if(local&&pending?.promise===promise)pending=null;
    if(!local&&cloudPending?.promise===promise)cloudPending=null;
    if(expected===token()){
@@ -58,16 +63,18 @@
  }
  async function refresh(options={}){
   const expected=token();
-  if(RunTeamsHost.session.workspace(S))return readDirectory(expected,options,false);
+  const cloudDue=()=>cloudRefresh?.scope!==expected||Date.now()>=cloudRefresh.nextAt;
+  if(RunTeamsHost.session.workspace(S)){
+   if(options.readPriority==='background'&&!cloudDue())return;
+   return readDirectory(expected,options,false);
+  }
   const local=await readDirectory(expected,options,true);
   if(expected!==token()||!local||S.localLibrary)return local;
   if(!options.localFirst&&options.readPriority!=='background'){
-   cloudNextAt=Date.now()+60000;
    if(!S.booting)refreshBotList();
    return readDirectory(expected,options,false);
   }
-  if(Date.now()>=cloudNextAt){
-   cloudNextAt=Date.now()+60000;
+  if(cloudDue()){
    const own=sequence;
    void readDirectory(expected,{...options,readPriority:'background'},false).catch(error=>{
     if(expected!==token()||own!==sequence)return;
