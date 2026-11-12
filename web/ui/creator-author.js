@@ -61,10 +61,6 @@ async function openLocal(id){
   if(known){s.resourceFolders=previous.folders.filter(path=>s.files.some(file=>file.path.startsWith(path+'/')));s.resourceFocus=s.files.some(file=>file.path===previous.focus||file.path.startsWith(previous.focus+'/'))?previous.focus:'';
    if(activeFile&&previous.file?.sha256===s.files.find(file=>file.path===activeFile)?.sha256){s.activeFile=activeFile;s.file=previous.file;}}
   try{const draft=JSON.parse(window.RunTeamsBusinessStorage?.getItem(draftKey(s))||'null');if(draft){s.editing=draft.editing;s.pending=draft.pending;s.buildRequest=draft.buildRequest;}}catch(e){}
-  if(!known&&s.settingsEntry&&s.files.some(file=>file.path===s.employeeSource)){
-   const parts=s.employeeSource.split('/');
-   s.resourceFolders=parts.slice(0,-1).map((_,index)=>parts.slice(0,index+1).join('/'));
-  }
   if(s.editing){if(!s.settingsEntry)s.activeFile=s.editing.path;}
   else if(activeFile&&s.files.some(f=>f.path===activeFile))await select(activeFile,false,true);
   else if(!s.settingsEntry){const path=await defaultSoulPath(s);if(valid(s)&&s.localDraft?.id===id&&s.revision===workspace.revision&&!s.activeFile&&!s.editing&&path)await select(path,false);}
