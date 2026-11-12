@@ -42,7 +42,7 @@ def stage(core, expected, signer):
     shutil.copyfile(ROOT/LICENSE,builder/'esbuild-LICENSE.txt')
     shutil.copytree(expected['runtime'],runtime)
     signer.sign(builder/'esbuild',executable=True)
-    signer.sign(runtime/'node',executable=True)
+    signer.sign(runtime/'node',executable=True,jit=True)
     toolchain = strict_json((builder/'toolchain.json').read_bytes())
     toolchain['esbuild']['sha256'] = hashlib.sha256((builder/'esbuild').read_bytes()).hexdigest()
     (builder/'toolchain.json').write_bytes(canonical(toolchain))

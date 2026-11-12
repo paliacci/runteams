@@ -32,6 +32,8 @@ def main():
     subprocess.run(['node', str(ROOT / 'tests/configuration_form.test.cjs')], cwd=ROOT, check=True)
     subprocess.run(['node', str(ROOT / 'tests/pipeline_task_configuration.test.cjs')], cwd=ROOT, check=True)
     report['ui_host_contract_tests'] = True
+    subprocess.run([sys.executable, '-B', '-m', 'unittest', 'discover', '-s',
+                    str(ROOT / 'tests'), '-p', 'test_desktop_dmg.py'], cwd=ROOT, check=True)
     subprocess.run([sys.executable, '-B', '-m', 'unittest', 'discover', '-s', str(ROOT / 'tests'), '-p', 'test_language*.py'], cwd=ROOT, check=True)
     subprocess.run(['node', '--test', str(ROOT / 'tests/language_transport.test.cjs')], cwd=ROOT, check=True)
     subprocess.run([sys.executable, '-B', '-m', 'unittest', 'discover', '-s', str(ROOT / 'tests'), '-p', 'test_pipeline_*.py'], cwd=ROOT, check=True)

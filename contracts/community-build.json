@@ -579,7 +579,7 @@
     "desktop/community/Bootstrap.swift",
     "desktop/community/main.swift",
     "desktop/community/build.py",
-    "desktop/community/notarization.py",
+    "desktop/notarization.py",
     "desktop/creator/CreatorDesktopHost.swift",
     "desktop/creator/CreatorCloudWork.swift",
     "desktop/creator/CreatorWebHost.swift"
@@ -596,7 +596,7 @@
     "desktop/RunTeamsPicker-Info.plist",
     "desktop/attachment_picker.swift",
     "desktop/community/build.py",
-    "desktop/community/notarization.py",
+    "desktop/notarization.py",
     "desktop/community/sdk_resources.py",
     "desktop/macos_signing.py",
     "docs/legal/THIRD_PARTY_DOCUMENTS.md",

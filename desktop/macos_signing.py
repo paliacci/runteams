@@ -60,16 +60,19 @@ class Signer:
         value=choices[0]
         return cls(False,value[1],value[3],str(Path(keychain).expanduser().absolute()) if keychain else None)
 
-    def sign(self,path,*,executable=False):
+    def sign(self,path,*,executable=False,jit=False):
+        if jit and not executable:
+            raise ValueError('JIT entitlements apply only to an executable runtime')
         command=['/usr/bin/codesign','--force','--sign',self.identity]
         if self.keychain:command+=['--keychain',self.keychain]
         if not self.local:
             command+=['--timestamp']
             if executable:command+=['--options','runtime']
+            if jit:command+=['--entitlements',str(Path(__file__).with_name('node-entitlements.plist'))]
         subprocess.run([*command,str(path)],check=True,capture_output=True)
-        self.verify(path,executable=executable)
+        self.verify(path,executable=executable,jit=jit)
 
-    def verify(self,path,*,executable=False):
+    def verify(self,path,*,executable=False,jit=False):
         subprocess.run(['/usr/bin/codesign','--verify','--strict',str(path)],check=True,capture_output=True)
         if self.local:return
         text,fields=signature(path)
@@ -80,8 +83,11 @@ class Signer:
             raise ValueError('Developer ID / secure timestamp / hardened runtime validation failed: '+str(path))
         if Path(path).suffix=='.dmg':return
         entitlements=subprocess.run(['/usr/bin/codesign','-d','--entitlements',':-',str(path)],check=True,capture_output=True).stdout.strip()
-        if entitlements and plistlib.loads(entitlements).get('com.apple.security.get-task-allow') is True:
+        values=plistlib.loads(entitlements) if entitlements else {}
+        if values.get('com.apple.security.get-task-allow') is True:
             raise ValueError('Debug entitlement is forbidden in a release')
+        if jit and values.get('com.apple.security.cs.allow-jit') is not True:
+            raise ValueError('The signed JavaScript runtime is missing its JIT entitlement')
 
 
 def seal_runtime(root):
@@ -112,7 +118,7 @@ def verify_release_app(app,signer):
         or (app/'Contents/Frameworks/Sparkle.framework').exists()):
         raise ValueError('Expected an explicit community release without automatic updates')
     config=json.loads((app/'Contents/Resources/bootstrap.json').read_bytes())
-    forbidden={'core/app_update.py','core/sparkle_bridge.py','core/desktop/macos_signing.py','core/desktop/community/notarization.py'}
+    forbidden={'core/app_update.py','core/sparkle_bridge.py','core/desktop/macos_signing.py','core/desktop/notarization.py'}
     if any(row.get('path') in forbidden for row in config.get('inputs',[])):
         raise ValueError('Update or signing infrastructure must not be bundled in community runtime')
     if config.get('schema')!='runteams.community-desktop/3' or config.get('data_directory') is not None:

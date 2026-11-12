@@ -225,10 +225,10 @@ def main():
                 from runteams_core.devtools.package_desktop_dmg import package
                 result['package']=package(result['output'],args.dmg)
             else:
-                from desktop.community.notarization import Workflow
+                from desktop.notarization import Workflow
                 signer=Signer.resolve(identity=args.sign_identity,keychain=args.sign_keychain)
                 workflow=Workflow(result['output'],args.dmg,signer,args.notary_profile,
-                    args.notary_state or args.dmg.with_suffix('.notarization.json'),keychain=args.notary_keychain,resume=args.resume)
+                    args.notary_state or args.dmg.with_suffix('.notarization.json'),keychain=args.notary_keychain,resume=args.resume,verify_app=verify_release_app,manifest='Contents/Resources/bootstrap.json')
                 result['package']=workflow.finish();result['notarized']=True
     except (ValueError,OSError,subprocess.SubprocessError) as error:parser.exit(2,str(error)+'\n')
     print(json.dumps(result,ensure_ascii=False))

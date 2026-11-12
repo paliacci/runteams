@@ -11,10 +11,33 @@ import plistlib
 import subprocess
 import tempfile
 
-# hdiutil counts sectors (512 bytes), not bytes. Larger LZMA chunks preserve
-# cross-file/repeated binary data that the default 1 MiB chunks miss. Keep the
-# bound at 64 MiB to keep compression memory use bounded.
-LZMA_CHUNK_SECTORS = 131072
+# hdiutil counts sectors (512 bytes), not bytes. Finder's DiskImages2 backend
+# rejects oversized compressed runs even when hdiutil can verify/mount them.
+# Use the standard 1 MiB run size for images opened through Finder.
+LZMA_CHUNK_SECTORS = 2048
+
+
+def verify_image(image, app_name):
+    subprocess.run(['hdiutil', 'verify', str(image)], check=True)
+    # macOS 26 exposes the same backend used by Finder. Older build hosts only
+    # have the legacy verifier; they still use the compatible 1 MiB encoding.
+    probe = subprocess.run(['diskutil', 'image', 'attach', '--help'], capture_output=True)
+    if probe.returncode:
+        return False
+    with tempfile.TemporaryDirectory(prefix='runteams-dmg-mount-') as temporary:
+        mount = Path(temporary) / 'mount'
+        mount.mkdir()
+        attached = False
+        try:
+            subprocess.run(['diskutil', 'image', 'attach', '--readOnly', '--nobrowse',
+                            '--mountPoint', str(mount), str(image)], check=True, capture_output=True)
+            attached = True
+            subprocess.run(['codesign', '--verify', '--deep', '--strict', str(mount / app_name)],
+                           check=True, capture_output=True)
+        finally:
+            if attached or mount.is_mount():
+                subprocess.run(['hdiutil', 'detach', str(mount)], check=True, capture_output=True)
+    return True
 
 
 
@@ -61,14 +84,15 @@ def package(app, output, image_format='ULMO', *, signer=None):
                             '-o', str(image)], check=True)
         if signer is not None:
             signer.sign(image)
-        subprocess.run(['hdiutil', 'verify', str(image)], check=True)
+        finder_verified = verify_image(image, app.name)
         image.rename(output)
     with (app / 'Contents/Info.plist').open('rb') as stream:
         version = plistlib.load(stream)['CFBundleShortVersionString']
     return {'app': str(app), 'version': version, 'dmg': str(output),
             'bytes': output.stat().st_size, 'format': image_format,
             'lzma_chunk_bytes': LZMA_CHUNK_SECTORS * 512 if image_format == 'ULMO' else None,
-            'asset_files_preserved_independently': True, 'verified': True}
+            'asset_files_preserved_independently': True, 'verified': True,
+            'finder_backend_verified': finder_verified}
 
 
 if __name__ == '__main__':

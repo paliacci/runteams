@@ -8,7 +8,7 @@ import tempfile
 import shutil
 import uuid
 
-from desktop.macos_signing import signature,verify_release_app
+from desktop.macos_signing import signature
 from runteams_core.devtools.package_desktop_dmg import package
 
 
@@ -16,7 +16,8 @@ class PendingNotarization(ValueError):
     pass
 
 
-def sha(path):return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+def sha(path):
+    with Path(path).open('rb') as stream:return hashlib.file_digest(stream,'sha256').hexdigest()
 
 
 def save(path,value):
@@ -26,21 +27,34 @@ def save(path,value):
 
 
 class Workflow:
-    def __init__(self,app,dmg,signer,profile,state,*,keychain=None,resume=False):
+    def __init__(self,app,dmg,signer,profile,state,*,keychain=None,resume=False,verify_app=None,api_key=None,manifest='Contents/Info.plist'):
         if signer.local:raise ValueError('Local builds cannot request notarization')
-        if not profile or profile.startswith('-') or len(profile)>128 or any(ord(c)<32 for c in profile):
-            raise ValueError('Provide a saved notarytool --notary-profile; never pass passwords in build arguments')
+        if not callable(verify_app):raise ValueError('Provide the distribution-specific signed app verifier')
+        self.verify_app=verify_app
+        if bool(profile)==bool(api_key):raise ValueError('Choose exactly one saved profile or API key configuration')
+        if profile and (profile.startswith('-') or len(profile)>128 or any(ord(c)<32 for c in profile)):
+            raise ValueError('Provide a saved notarytool profile; never pass passwords in build arguments')
         self.app=Path(app).expanduser().absolute();self.dmg=Path(dmg).expanduser().absolute()
         self.signer=signer;self.path=Path(state).expanduser().absolute()
         if self.path.is_symlink() or self.app.is_symlink() or self.dmg.is_symlink():raise ValueError('Release paths cannot be symbolic links')
-        self.credentials=['--keychain-profile',profile]
-        if keychain:self.credentials+=['--keychain',str(Path(keychain).expanduser().absolute())]
-        version=verify_release_app(self.app,signer)
+        if api_key:
+            if set(api_key)!={'key_path','key_id','issuer'}:raise ValueError('Invalid notary API key configuration')
+            key=Path(api_key['key_path']).expanduser().absolute()
+            if not key.is_file() or key.is_symlink() or not api_key['key_id'].isalnum():raise ValueError('Invalid notary API key file or ID')
+            uuid.UUID(api_key['issuer'])
+            self.credentials=['--key',str(key),'--key-id',api_key['key_id'],'--issuer',api_key['issuer']]
+        else:
+            self.credentials=['--keychain-profile',profile]
+            if keychain:self.credentials+=['--keychain',str(Path(keychain).expanduser().absolute())]
+        version=self.verify_app(self.app,signer)
         _,metadata=signature(self.app)
+        manifest_path=self.app/manifest
+        if Path(manifest).is_absolute() or '..' in Path(manifest).parts or manifest_path.is_symlink():
+            raise ValueError('App manifest must be inside the signed bundle')
         binding={'app':str(self.app),'dmg':str(self.dmg),'identity':signer.identity,'team':signer.team,
-                 'profile':profile,'keychain':str(Path(keychain).expanduser().absolute()) if keychain else None,
+                 'profile':profile,'api_key':api_key,'keychain':str(Path(keychain).expanduser().absolute()) if keychain else None,
                  'version':version,'cdhash':metadata['CDHash'][0],
-                 'bootstrap_sha256':sha(self.app/'Contents/Resources/bootstrap.json')}
+                 'manifest':manifest,'manifest_sha256':sha(manifest_path)}
         if self.dmg.suffix!='.dmg' or self.app.suffix!='.app' or self.app in self.path.parents or self.path==self.dmg:
             raise ValueError('Notary state must be outside the App and separate from the DMG')
         import fcntl
@@ -54,16 +68,16 @@ class Workflow:
     def initialize(self,binding,resume):
         if resume:
             self.value=json.loads(self.path.read_bytes())
-            if self.value.get('schema')!='runteams.community-notarization/1' or self.value.get('binding')!=binding:
+            if self.value.get('schema')!='runteams.macos-notarization/1' or self.value.get('binding')!=binding:
                 raise ValueError('Resume requires the exact original signed App, destinations and credential profile')
             work=Path(self.value['work'])
-            if work.parent!=self.path.parent or not work.name.startswith('.community-notary-') or work.is_symlink():
+            if work.parent!=self.path.parent or not work.name.startswith('.macos-notary-') or work.is_symlink():
                 raise ValueError('Invalid notarization workspace')
         else:
             if self.path.exists() or self.dmg.exists():raise ValueError('Choose new release outputs, or explicitly --resume the original receipt')
             self.path.parent.mkdir(parents=True,exist_ok=True)
-            work=Path(tempfile.mkdtemp(prefix='.community-notary-',dir=self.path.parent))
-            self.value={'schema':'runteams.community-notarization/1','binding':binding,'work':str(work),'stages':{},'complete':False}
+            work=Path(tempfile.mkdtemp(prefix='.macos-notary-',dir=self.path.parent))
+            self.value={'schema':'runteams.macos-notarization/1','binding':binding,'work':str(work),'stages':{},'complete':False}
             save(self.path,self.value)
         self.work=work
 
@@ -71,6 +85,25 @@ class Workflow:
 
     def command(self,*arguments,timeout=60):
         return subprocess.run(['/usr/bin/xcrun','notarytool',*arguments,*self.credentials],capture_output=True,text=True,timeout=timeout)
+
+    def import_app_submission(self,archive,identifier,digest):
+        """Adopt an already acknowledged upload; never issue a replacement submit."""
+        identifier=str(uuid.UUID(identifier));archive=Path(archive)
+        if archive.is_symlink() or sha(archive)!=digest:raise ValueError('Imported archive checksum changed')
+        path=self.work/'application.zip'
+        existing=self.value['stages'].get('app')
+        if existing:
+            if (existing.get('submission_id'),existing['sha256'])!=(identifier,digest):
+                raise ValueError('Original Apple submission cannot be replaced')
+            return
+        if path.exists():
+            if sha(path)!=digest:raise ValueError('Original notarization ZIP differs')
+        else:
+            shutil.copyfile(archive,path)
+            path.chmod(0o600)
+        self.value['stages']['app']={'archive':str(path),'sha256':digest,
+            'status':'In Progress','submission_id':identifier,'imported':True}
+        self.persist()
 
     def notarize(self,name,path):
         path=Path(path);stages=self.value['stages'];digest=sha(path)
@@ -97,17 +130,20 @@ class Workflow:
         if stage['status'] not in ('Accepted','Invalid','Rejected'):
             result=self.command('wait',identifier,'--timeout','45s','--output-format','json',timeout=60)
             try:received=json.loads(result.stdout)
-            except ValueError:raise PendingNotarization('尚未取得 Apple 公证结果；请用相同参数加 --resume 查询原提交。') from None
+            except ValueError:
+                result=self.command('info',identifier,'--output-format','json',timeout=30)
+                try:received=json.loads(result.stdout)
+                except ValueError:raise PendingNotarization('尚未取得 Apple 公证结果；继续查询原提交。') from None
             if received.get('id')!=identifier:raise ValueError('Apple response does not match the original submission')
             stage['status']=received.get('status','In Progress');self.persist()
         if stage['status'] not in ('Accepted','Invalid','Rejected'):
             raise PendingNotarization('Apple 仍在处理；请用相同参数加 --resume 继续原提交，不要重新构建或上传。')
-        log=self.work/(name+'-notary-log.json')
+        log=self.work/(name+'-'+identifier+'-notary-log.json')
         if not stage.get('log_verified'):
             result=self.command('log',identifier,str(log),timeout=60)
             if result.returncode:raise ValueError('Could not retrieve the original Apple notarization log; receipt retained')
             data=json.loads(log.read_bytes())
-            if data.get('jobId',identifier)!=identifier or data.get('sha256',digest)!=digest:
+            if data.get('jobId')!=identifier or data.get('sha256')!=digest:
                 raise ValueError('Apple log does not match the submitted bytes')
             stage['log']=str(log);stage['warnings']=[x for x in data.get('issues') or [] if x.get('severity')=='warning']
             if stage['status']!='Accepted' or any(x.get('severity')=='error' for x in data.get('issues') or []):
@@ -141,7 +177,7 @@ class Workflow:
             if 'app' in self.value['stages']:raise ValueError('Original submission ZIP missing; do not rebuild it')
             subprocess.run(['/usr/bin/ditto','-c','-k','--sequesterRsrc','--keepParent',str(self.app),str(archive)],check=True)
         self.notarize('app',archive);self.staple('app',self.app)
-        verify_release_app(self.app,self.signer)
+        self.verify_app(self.app,self.signer)
         image=self.work/'installer.dmg'
         if not image.exists():
             if 'dmg' in self.value['stages']:raise ValueError('Original submission DMG missing; do not repackage it')
@@ -172,7 +208,7 @@ class Workflow:
             if sha(self.dmg)!=expected:raise ValueError('Final DMG destination contains different bytes; no overwrite')
             self.assess();return
         self.dmg.parent.mkdir(parents=True,exist_ok=True)
-        fd,name=tempfile.mkstemp(prefix='.community-release-',suffix='.dmg',dir=self.dmg.parent)
+        fd,name=tempfile.mkstemp(prefix='.macos-release-',suffix='.dmg',dir=self.dmg.parent)
         try:
             with os.fdopen(fd,'wb') as output,Path(stapled).open('rb') as source:
                 shutil.copyfileobj(source,output);os.fchmod(output.fileno(),0o644);output.flush();os.fsync(output.fileno())
@@ -182,7 +218,7 @@ class Workflow:
         finally:Path(name).unlink(missing_ok=True)
 
     def assess(self):
-        verify_release_app(self.app,self.signer);self.signer.verify(self.dmg)
+        self.verify_app(self.app,self.signer);self.signer.verify(self.dmg)
         for path in [self.app,self.dmg]:subprocess.run(['/usr/bin/xcrun','stapler','validate',str(path)],check=True,capture_output=True,timeout=60)
         self.gatekeeper(self.dmg)
 
