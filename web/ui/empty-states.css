@@ -63,16 +63,22 @@
 :where(.creator-work-viewport,.employee-automation-body):has(>.rt-empty-state:not([hidden])){flex:1 1 0}
 .rt-empty-state-copy>span:empty{display:none}
 
-/* All current and future shared artwork follows the effective theme, including
+/* Empty and failure artwork follows the effective theme, including
    system appearance before account preferences load. Painted insets (magnifier
    handles) retain their fill role. Keep system selectors low-specificity so the
    decorative-guide suppression below still wins. */
+[data-theme="dark"] .rt-failure-art :where([stroke]:not([stroke="none"],[stroke="var(--editor-palette-bg-blue)"])),
 [data-theme="dark"] .rt-empty-state-art :where([stroke]:not([stroke="none"],[stroke="var(--editor-palette-bg-blue)"])){stroke:var(--text-primary)}
+[data-theme="dark"] .rt-failure-art [stroke="var(--border-control)"],
 [data-theme="dark"] .rt-empty-state-art [stroke="var(--border-control)"]{stroke:color-mix(in srgb,var(--text-primary) 65%,transparent)}
+[data-theme="dark"] .rt-failure-art [stroke="var(--border-default)"],
 [data-theme="dark"] .rt-empty-state-art [stroke="var(--border-default)"]{stroke:color-mix(in srgb,var(--text-primary) 32%,transparent)}
 @media(prefers-color-scheme:dark){
+  :where(:root:not([data-theme="light"])) .rt-failure-art :where([stroke]:not([stroke="none"],[stroke="var(--editor-palette-bg-blue)"])),
   :where(:root:not([data-theme="light"])) .rt-empty-state-art :where([stroke]:not([stroke="none"],[stroke="var(--editor-palette-bg-blue)"])){stroke:var(--text-primary)}
+  :where(:root:not([data-theme="light"])) .rt-failure-art [stroke="var(--border-control)"],
   :where(:root:not([data-theme="light"])) .rt-empty-state-art [stroke="var(--border-control)"]{stroke:color-mix(in srgb,var(--text-primary) 65%,transparent)}
+  :where(:root:not([data-theme="light"])) .rt-failure-art [stroke="var(--border-default)"],
   :where(:root:not([data-theme="light"])) .rt-empty-state-art [stroke="var(--border-default)"]{stroke:color-mix(in srgb,var(--text-primary) 32%,transparent)}
 }
 

@@ -3,4 +3,4 @@
 html[data-theme="light"] .home-scene [data-scene-paint="accent-default"]{fill:var(--action-primary);color:var(--action-primary)!important}
 html[data-theme="light"] .home-scene [data-scene-paint="accent-subtle"]{fill:var(--surface-subtle);color:var(--surface-subtle)!important}
 /* Original decorative blue/white images; keep their geometry and transparency. */
-html[data-theme="light"] :is(.guide-scene,.reading-error-art)>img{filter:grayscale(1)}
+html[data-theme="light"] .guide-scene>img{filter:grayscale(1)}

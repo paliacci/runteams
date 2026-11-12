@@ -76,8 +76,9 @@ window.RunTeamsEmptyStates = (() => {
     const escape=value=>String(value).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
     const title=titleOverride===undefined?defaultTitle:escape(titleOverride);
     const description = descriptionOverride===undefined?(kind === 'responsibilities' && readonly ? '该员工还没有配置职责。' : defaultDescription):escape(descriptionOverride);
-    return `<div class="rt-empty-state rt-empty-state--${kind}" data-empty-state="${kind}"${kind === 'skills' ? ' data-skills-empty' : ''}${hidden ? ' hidden' : ''} role="status"><div class="rt-empty-state-art">${art[kind]}</div><div class="rt-empty-state-copy"><b${titleKey?` data-app-i18n="${escape(titleKey)}"`:""}>${title}</b><span${descriptionKey?` data-app-i18n="${escape(descriptionKey)}"`:""}>${description}</span></div></div>`;
+    return `<div class="rt-empty-state rt-empty-state--${kind}" data-empty-state="${kind}"${kind === 'skills' ? ' data-skills-empty' : ''}${hidden ? ' hidden' : ''} role="status"><div class="rt-empty-state-art">${artwork(kind)}</div><div class="rt-empty-state-copy"><b${titleKey?` data-app-i18n="${escape(titleKey)}"`:""}>${title}</b><span${descriptionKey?` data-app-i18n="${escape(descriptionKey)}"`:""}>${description}</span></div></div>`;
   }
+  function artwork(kind){return Object.hasOwn(art,kind)?art[kind]:'';}
   function register(entries){for(const [kind,value] of Object.entries(entries)){if(Object.hasOwn(copy,kind)||!Array.isArray(value.copy)||value.copy.length!==2||typeof value.art!=='string')throw Error('Invalid empty-state contribution: '+kind);copy[kind]=value.copy;art[kind]=value.art;}}
-  return Object.freeze({markup,register});
+  return Object.freeze({markup,artwork,register});
 })();

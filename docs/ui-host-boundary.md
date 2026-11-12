@@ -45,6 +45,20 @@ Library checks and every host's authoritative backend checks remain required.
 Stateful operations must retain the original scope/generation checks and retry
 semantics when moved between owners.
 
+## Empty and error illustrations
+
+Use the document empty state as the color reference. Shared artwork takes its
+main outline from `--avatar-blue` in light mode and `--text-primary` in dark
+mode. Dark secondary outlines use the primary color at 65% or 32% opacity.
+Fills use the active theme's surface and accent tokens. The same rules apply
+to explicit themes and system appearance.
+
+Use `RunTeamsEmptyStates.markup` for a complete empty state or its `artwork`
+method when the host supplies the copy and actions. For reading failures, use
+`RunTeamsLoadFailure.markup`. Full-page and modal failures show artwork, and
+inline failures use a status icon. Native resources derived from shared
+artwork use the same shape and color roles.
+
 ## Boundary checks
 
 Run `python -B -m runteams_core.devtools.check_ui_boundary` for all UI source,
