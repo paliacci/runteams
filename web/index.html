@@ -42,7 +42,7 @@
 <script src="/ui/page-routes.js?v=route-first-paint-20261102-1-sdk-only-panels-20261024"></script>
 <script src="/ui/page-skeletons.js?v=conversation-loading-copy-20261104.pipeline-stage-employee-skeleton-20261105.drawer-loading-skeletons"></script>
 <link rel="stylesheet" href="/ui/load-failure.css?v=sidebar-read-recovery-20261026.search-trash-recovery-20261105.shared-art-theme-20261113" />
-<script src="/ui/load-failure.js?v=conversation-actions-copy-20261104"></script>
+<script src="/ui/load-failure.js?v=conversation-actions-copy-20261104.title-only-20261113"></script>
 
 
 
@@ -65,8 +65,8 @@
 <script src="/ui/controls.js?v=right-click-card-restart-20261110.saved-runtime-copy-20261104.board-groups-copy-20261104.position-runtime-skeleton-20261104.local-position-runtime-20261104.runtime-model-dismiss-20261105.confirmation-copy-20261105.sidebar-scroll-dismiss"></script>
 <link rel="stylesheet" href="/ui/search-fields.css?v=input-state-uniform-20261028-1" />
 <link rel="stylesheet" href="/ui/input-fields.css?v=input-state-uniform-20261028-1.shared-config-input-style" />
-<link rel="stylesheet" href="/ui/empty-states.css?v=empty-region-center-20261028-1.shared-art-theme-20261113" />
-<script src="/ui/empty-states.js?v=work-records-list-20261104.drawer-empty-heading-20261105"></script>
+<link rel="stylesheet" href="/ui/empty-states.css?v=empty-region-center-20261028-1.shared-art-theme-20261113.title-only" />
+<script src="/ui/empty-states.js?v=work-records-list-20261104.drawer-empty-heading-20261105.title-only-20261113"></script>
 <link rel="stylesheet" href="/ui/kit/theme.css?v=1">
 <link rel="stylesheet" href="/ui/kit/components/styles.css?v=drawer-heading-20261110">
 <script type="module" src="/ui/kit/index.js?v=1"></script>
@@ -1346,7 +1346,7 @@ function railSearchMatches(item,query){return !query||String(item.name||item.tit
 function railSearchText(key,label){return `<span data-app-i18n="${key}">${esc(label)}</span>`;}
 function railSearchEmptyHtml(query){
   if(!query)return `<div class="rail-command-empty">${ICON("search")}<b data-app-i18n="globalSearch.prompt">输入关键词开始搜索</b></div>`;
-  return `<div class="rail-command-empty">${RunTeamsEmptyStates.markup('globalSearch',{titleKey:'globalSearch.noResults',descriptionKey:'globalSearch.tryAgain'})}</div>`;
+  return `<div class="rail-command-empty">${RunTeamsEmptyStates.markup('globalSearch',{titleKey:'globalSearch.noResults'})}</div>`;
 }
 function railSearchDocumentStatusHtml(){
   const state=S.railDocumentSearch;
@@ -2076,7 +2076,7 @@ function trashMain(){
     label:'重新加载垃圾箱',labelKey:'trash.reload',busyLabelKey:'trash.loading',buttonClassName:'trash-review-retry',
     retry:'openTrash({route:false})',focusFallback:'.trash-head h1'
   }):'';
-  const body=!trashSources().device?`<p data-app-i18n="trash.deviceUnavailable">请切换到本机工作区查看垃圾箱。</p>`:items.length?`<section class="trash-list-wrap"><div class="trash-list" role="list">${rows}</div></section>`:S.trashError?'':S.trashLoading||!S.trashLoaded||!trashCanClearAll()?RunTeamsSkeletons.region('trash',undefined,'trash.loading'):`<section class="trash-empty-state">${RunTeamsEmptyStates.markup('trash',{titleKey:'trash.empty',descriptionKey:'trash.emptyHint'})}</section>`;
+  const body=!trashSources().device?`<p data-app-i18n="trash.deviceUnavailable">请切换到本机工作区查看垃圾箱。</p>`:items.length?`<section class="trash-list-wrap"><div class="trash-list" role="list">${rows}</div></section>`:S.trashError?'':S.trashLoading||!S.trashLoaded||!trashCanClearAll()?RunTeamsSkeletons.region('trash',undefined,'trash.loading'):`<section class="trash-empty-state">${RunTeamsEmptyStates.markup('trash',{titleKey:'trash.empty'})}</section>`;
   return `<main class="trash-page list-page"><div class="trash-content list-page-content"><header class="trash-head list-page-header"><div class="trash-head-copy"><h1 tabindex="-1" data-app-i18n="trash.title">垃圾箱</h1><div class="trash-head-subline"><p data-app-i18n="trash.retention">文档通常保留 30 天。移入垃圾箱的流水线和任务可在此恢复。</p>${clearAction}</div></div></header>${recovery}${body}${S.trashError?RunTeamsLoadFailure.markup({variant:items.length?'local':'page',title:partial?'部分项目暂时无法加载':'垃圾箱暂时无法加载',titleKey:partial?'trash.partial':'trash.failed',note:items.length?'已加载的项目仍可查看。':partial?'已读取的来源中没有项目。':'',noteKey:items.length?'trash.partialHint':partial?'trash.partialEmpty':undefined,labelKey:'trash.retry',busyLabelKey:'trash.loading',retry:'openTrash({route:false})',focusFallback:'.trash-head h1',error:S.trashError}):''}</div></main>`;
 }
 function trashItem(kind,id,scope='device'){
@@ -2492,12 +2492,7 @@ function docsListMarkup(){
   const sameRead=!S.documentSources||S.documentSources.key===readKey,confirmed=sameRead&&S.documentSources?.device?.loaded===true;
   const items=sameRead?docsSortedVisible():[],query=String(S.docsQuery||"").trim();
   if(sameRead&&S.documentSources&&!documentsLocalAvailable()){
-    const inWorkspace=!!RunTeamsHost.session.workspace(S);
-    return `<div class="docs-body" id="docs_list">${RunTeamsEmptyStates.markup('documents',{
-      title:'本机文档暂不可用',titleKey:'documentList.localUnavailable',
-      description:inWorkspace?'切换到个人工作区即可查看本机文档。':'登录后即可查看本机文档。',
-      descriptionKey:inWorkspace?'documentList.personalWorkspace':'documentList.signInForLocal'
-    })}</div>`;
+    return `<div class="docs-body" id="docs_list">${RunTeamsEmptyStates.markup('documents',{title:'本机文档暂不可用',titleKey:'documentList.localUnavailable'})}</div>`;
   }
   const recovery=RunTeamsLoadFailure.pending(recoveryKey)||(S.documentsError?RunTeamsLoadFailure.markup({
     variant:items.length?'local':'page',
@@ -2511,7 +2506,7 @@ function docsListMarkup(){
   const refreshing=confirmed&&S.documentsLoading&&!recovery?'<p role="status" class="read-list-more" data-app-i18n="documentList.updating">正在更新文档列表…</p>':'';
   if(S.documentsLoading&&!items.length&&!confirmed)return `<div class="docs-body" id="docs_list">${recovery||RunTeamsStaticPages.documentSkeleton()}</div>`;
   if(!items.length&&(recovery||refreshing))return `<div class="docs-body" id="docs_list">${recovery||refreshing}</div>`;
-  if(!items.length)return `<div class="docs-body" id="docs_list">${RunTeamsEmptyStates.markup(query?'documentsSearch':'documents',{titleKey:query?'documentList.noMatches':'documentList.empty',descriptionKey:query?'documentList.noMatchesHint':'documentList.emptyHint'})}</div>`;
+  if(!items.length)return `<div class="docs-body" id="docs_list">${RunTeamsEmptyStates.markup(query?'documentsSearch':'documents',{titleKey:query?'documentList.noMatches':'documentList.empty'})}</div>`;
   return `<div class="docs-body" id="docs_list"><div class="docs-table" role="table" aria-label="文档" data-app-i18n-aria-label="documentList.title"><div class="docs-thead" role="row"><button type="button" class="docs-cell docs-cell-title docs-sort-btn" role="columnheader" aria-sort="${docsSortDirection("name")}" data-doc-sort="name" onclick="docsSortBy('name')"><span data-app-i18n="documentList.name">标题</span>${docsSortMark("name")}</button><span class="docs-cell docs-cell-editor" role="columnheader" data-app-i18n="documentList.editor">最后编辑者</span><button type="button" class="docs-cell docs-cell-time docs-sort-btn" role="columnheader" aria-sort="${docsSortDirection("created_at")}" data-doc-sort="created_at" onclick="docsSortBy('created_at')"><span data-app-i18n="documentList.created">创建时间</span>${docsSortMark("created_at")}</button><span class="docs-cell docs-cell-more" role="columnheader"></span></div>${items.map(docsRowMarkup).join("")}</div>${recovery||refreshing}${!S.documentsLoading?readListMoreMarkup("documents",S.documentsPage,S.documentsAppendLoading,S.documentsAppendError,"loadMoreDocuments()"):""}</div>`;
 }
 function docsMain(){
@@ -3180,10 +3175,7 @@ async function selectResultEvidenceFile(id){
       const countLabel=resultEvidenceCopyNode('span',count===1?'archiveOneFile':'archiveFileCount',`${count} 个文件`,{count});
       host.querySelector('#result_evidence_size').replaceChildren(countLabel);
       content.className='result-evidence-preview-content is-archive';
-      content.innerHTML=data.files.length?`<div class="result-evidence-archive-list">${data.files.map(file=>`<button type="button" class="result-evidence-archive-item" data-path="${esc(file.path)}" data-kind="${resultEvidencePreviewKind({filename:file.path})}" onclick="openResultEvidenceArchiveEntry(${Number(id)},this.dataset.path,${Number(file.size)||0})">${ICON(resultEvidenceIcon({filename:file.path}))}<span>${esc(file.path)}</span><small>${formatFileSize(file.size)}</small>${ICON('chev')}</button>`).join('')}</div>`:RunTeamsEmptyStates.markup('archive',{titleKey:'workRecordDetail.emptyArchive',
-        description:files.length>1?'可在文件列表中选择其他文件。':'',
-        descriptionKey:files.length>1?'workRecordDetail.emptyArchiveDescription':undefined
-      });
+      content.innerHTML=data.files.length?`<div class="result-evidence-archive-list">${data.files.map(file=>`<button type="button" class="result-evidence-archive-item" data-path="${esc(file.path)}" data-kind="${resultEvidencePreviewKind({filename:file.path})}" onclick="openResultEvidenceArchiveEntry(${Number(id)},this.dataset.path,${Number(file.size)||0})">${ICON(resultEvidenceIcon({filename:file.path}))}<span>${esc(file.path)}</span><small>${formatFileSize(file.size)}</small>${ICON('chev')}</button>`).join('')}</div>`:RunTeamsEmptyStates.markup('archive',{titleKey:'workRecordDetail.emptyArchive'});
     }catch{showError();}
     return;
   }
@@ -3310,7 +3302,7 @@ function contextResultsDrawer(){
   const failed=selection.status==='error',stale=failed&&!!selection.data,staleEmpty=stale&&!results.length;
   const empty=!!selection.data&&!failed&&!selected&&!results.length;
   const failure=failed?RunTeamsLoadFailure.markup({variant:stale?'local':'modal',title:stale?'无法读取最新工作记录':'无法读取工作记录',titleKey:stale?'workRecords.refreshFailed':'workRecords.readFailed',note:staleEmpty?'上次加载时，这里还没有工作记录。':stale?'这里显示的是上次载入的结果。':'',noteKey:staleEmpty?'workRecords.cachedEmpty':stale?'workRecords.cachedNote':undefined,label:'重试',labelKey:'employeeHistory.retry',busyLabelKey:stale?'workRecords.refreshing':'workRecords.loading',retry:execution?'RunTeamsWorkRecords.retryAttempt()':'refreshContextResults(true)',focusFallback:'.context-results-drawer .detail-panel-collapse',error:selection.error}):'';
-  const content=selected?contextResultDetailMarkup(selected,selection):results.length?`<div class="result-delivery-list work-record-list" role="list" aria-label="${listTitle}" data-app-i18n-aria-label="${listTitleKey}">${results.map(contextResultDeliveryMarkup).join('')}</div>`:RunTeamsEmptyStates.markup('records',{description:isPipeline?'向这条流水线添加任务后，工作记录会显示在这里。':'交办工作后，可在这里查看进度、结果和后续。',titleKey:'workRecords.empty',descriptionKey:isPipeline?'workRecords.pipelineEmptyDescription':'workRecords.emptyDescription'});
+  const content=selected?contextResultDetailMarkup(selected,selection):results.length?`<div class="result-delivery-list work-record-list" role="list" aria-label="${listTitle}" data-app-i18n-aria-label="${listTitleKey}">${results.map(contextResultDeliveryMarkup).join('')}</div>`:RunTeamsEmptyStates.markup('records',{titleKey:'workRecords.empty'});
   const refreshing=selection.status==='loading'&&!!selection.data?`<p class="${selected?'sr-only':'work-record-report-loading'}" role="status" data-app-i18n="workRecords.refreshing">正在更新工作记录…</p>`:'';
   const body=pending?RunTeamsSkeletons.region(execution?'detail':'work-records',undefined,'workRecords.loading'):refreshing+failure+(failed&&!results.length?'':content);
   const back=execution?'<button class="run-back" type="button" title="返回执行记录" aria-label="返回执行记录" data-app-i18n-title="workRecords.backToExecutions" data-app-i18n-aria-label="workRecords.backToExecutions" onclick="RunTeamsWorkRecords.returnFromAttempt()">'+ICON('back')+'</button>':selected?'<button class="run-back" type="button" title="返回工作记录" aria-label="返回工作记录" data-app-i18n-title="workRecords.backToList" data-app-i18n-aria-label="workRecords.backToList" onclick="returnToResultList()">'+ICON('back')+'</button>':selection.returnTo?.type==='core-workflow'?'<button class="run-back" type="button" title="返回任务" aria-label="返回任务" data-app-i18n-title="workRecords.backToTask" data-app-i18n-aria-label="workRecords.backToTask" onclick="returnToContextResultTask()">'+ICON('back')+'</button>':'';
@@ -7198,7 +7190,7 @@ function botListRowsMarkup(){
     if(!S.coreTeamLoaded&&(RunTeamsEmployeeDirectory.isLoading()||S.workspaceStartup?.accountPending||S.booting))return railListSkeleton("bots");
     if(S.coreTeamError||!S.coreTeamLoaded)return RunTeamsLoadFailure.markup({variant:'modal',title:'员工暂时无法加载',titleKey:'shell.employeesFailed',labelKey:'trash.retry',busyLabelKey:'shell.employeesLoading',retry:'retryBotList()',error:S.coreTeamError||'员工目录尚未载入，请重试。'});
   }
-  if(!query&&!all)return RunTeamsEmptyStates.markup("railEmployees",{titleKey:"shell.employeesEmpty",descriptionKey:"shell.employeesEmptyHint"});
+  if(!query&&!all)return RunTeamsEmptyStates.markup("railEmployees",{titleKey:"shell.employeesEmpty"});
   const empty=query?`<span data-app-i18n="shell.employeesNoMatches">没有匹配的员工</span><br><small data-app-i18n="shell.employeesNoMatchesHint">试试其他名字。</small>`:`<span data-app-i18n="shell.employeesNoChats">还没有对话</span><br><small data-app-i18n="shell.employeesNoChatsHint">搜索员工，开始单独交办。</small>`;
   return `<div class="bot-list-empty">${empty}</div>`;
 }

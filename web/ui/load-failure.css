@@ -7,7 +7,7 @@
 .rt-failure-copy{min-width:0;max-width:100%}
 .rt-failure-copy>b{display:block;font-size:calc(20px * var(--interface-font-scale,1));font-weight:500;line-height:calc(28px * var(--interface-font-scale,1));overflow-wrap:anywhere}
 .rt-load-failure--page>.rt-failure-copy{margin-top:16px}
-.rt-failure-copy>p{margin:8px 0 0;font-size:calc(13px * var(--interface-font-scale,1));font-weight:400;line-height:calc(20px * var(--interface-font-scale,1));color:var(--text-secondary);overflow-wrap:anywhere}
+.rt-load-failure--local .rt-failure-copy>p{margin:8px 0 0;font-size:calc(13px * var(--interface-font-scale,1));font-weight:400;line-height:calc(20px * var(--interface-font-scale,1));color:var(--text-secondary);overflow-wrap:anywhere}
 .rt-load-failure--modal{max-width:480px;min-height:270px;padding:28px 20px}
 .rt-load-failure--modal>.rt-failure-art{width:168px;height:110.4px}
 .rt-load-failure--modal>.rt-failure-copy{margin-top:12px}

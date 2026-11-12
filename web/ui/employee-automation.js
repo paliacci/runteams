@@ -152,11 +152,9 @@
    content=RunTeamsLoadFailure.markup({variant:'local',title:'无法载入自动化',titleKey:'automationList.readFailed',note:noteKey?(list?'正在显示上次载入的计划。':'上次载入时还没有计划。'):'',noteKey,labelKey:'employeeHistory.retry',busyLabelKey:'automationList.loading',retry:'RunTeamsEmployeeAutomation.refresh()'})+list;
   }else if(loading)content=RunTeamsSkeletons.region('employee-automations',3,'automationList.loading');
   else if(s.unavailable)content=RunTeamsEmptyStates.markup('automations',{
-   title:'暂时无法设置自动化',titleKey:'scheduledAutomation.unavailable',
-   description:s.pipeline?'请检查流水线及其版本。已有计划和记录会保留。':'请检查这名员工的资源，然后重新打开自动化。',
-   descriptionKey:s.pipeline?'scheduledAutomation.pipelineUnavailable':'scheduledAutomation.employeeUnavailable'
+   title:'暂时无法设置自动化',titleKey:'scheduledAutomation.unavailable'
   })+list;
-  else if(!list)content=RunTeamsEmptyStates.markup('automations',{titleKey:'automationList.empty',descriptionKey:'scheduledAutomation.empty'});
+  else if(!list)content=RunTeamsEmptyStates.markup('automations',{titleKey:'automationList.empty'});
   const recovery=pending(s)&&!s.submitting?`<div class="employee-automation-recovery" role="status">
    ${copy('scheduledAutomation.operationPending','上次操作结果待确认。')}
    <button type="button" class="btn" onclick="RunTeamsEmployeeAutomation.recover()" ${s.busy?'disabled':''}>${copy('scheduledAutomation.checkOperation','核对操作')}</button>

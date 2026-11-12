@@ -3,18 +3,15 @@
 .rt-empty-state[hidden]{display:none!important}
 .rt-empty-state-art{width:280px;aspect-ratio:280/184;max-width:100%;flex:0 0 auto}
 .rt-empty-state-art>svg{display:block;width:100%;max-width:100%;height:auto}
-.rt-empty-state-copy{display:flex;flex-direction:column;gap:8px;width:100%;max-width:560px;min-width:0}
+.rt-empty-state-copy{display:flex;flex-direction:column;width:100%;max-width:560px;min-width:0}
 .rt-empty-state-copy>b{margin:0;font-size:calc(20px * var(--interface-font-scale,1));font-weight:500;line-height:calc(28px * var(--interface-font-scale,1));color:var(--text-primary);overflow-wrap:anywhere}
-.rt-empty-state-copy>span{font-size:calc(13px * var(--interface-font-scale,1));line-height:calc(22px * var(--interface-font-scale,1));font-weight:400;color:var(--text-secondary);overflow-wrap:anywhere}
 .rt-empty-state--records{gap:18px}
 .rt-empty-state--records .rt-empty-state-art{width:224px}
 .rt-empty-state--records .rt-empty-state-copy>b{font-size:calc(16px * var(--interface-font-scale,1));line-height:calc(24px * var(--interface-font-scale,1))}
 
 /* Approved connection/responsibility states, native Figma batch 2. */
 :is(.rt-empty-state--channels,.rt-empty-state--mobileGuest,.rt-empty-state--devices,.rt-empty-state--responsibilities){width:100%;gap:16px}
-:is(.rt-empty-state--channels,.rt-empty-state--mobileGuest,.rt-empty-state--devices,.rt-empty-state--responsibilities) .rt-empty-state-copy{gap:10px}
 :is(.rt-empty-state--channels,.rt-empty-state--mobileGuest,.rt-empty-state--devices,.rt-empty-state--responsibilities) .rt-empty-state-copy>b{font-size:calc(16px * var(--interface-font-scale,1));line-height:calc(24px * var(--interface-font-scale,1))}
-:is(.rt-empty-state--channels,.rt-empty-state--mobileGuest,.rt-empty-state--devices,.rt-empty-state--responsibilities) .rt-empty-state-copy>span{font-size:calc(12px * var(--interface-font-scale,1));line-height:calc(20px * var(--interface-font-scale,1))}
 .rt-empty-state--channels .rt-empty-state-art{width:168px}
 :is(.rt-empty-state--mobileGuest,.rt-empty-state--devices) .rt-empty-state-art{width:196px}
 .rt-empty-state--responsibilities .rt-empty-state-art{width:224px}
@@ -32,9 +29,7 @@
 #skills_search_empty[hidden]{display:none!important}
 .rail-command-empty>.rt-empty-state--globalSearch{gap:12px}
 .rt-empty-state--globalSearch .rt-empty-state-art{width:112px}
-.rt-empty-state--globalSearch .rt-empty-state-copy{gap:6px}
 .rt-empty-state--globalSearch .rt-empty-state-copy>b{font-size:calc(16px * var(--interface-font-scale,1));line-height:calc(24px * var(--interface-font-scale,1))}
-.rt-empty-state--globalSearch .rt-empty-state-copy>span{font-size:calc(13px * var(--interface-font-scale,1));line-height:calc(22px * var(--interface-font-scale,1))}
 
 /* Batch 7: catalog and published pages; compact public-comment states. */
 :is(.rt-empty-state--marketComments,.rt-empty-state--marketPipelineComments){gap:20px}
@@ -51,9 +46,7 @@
 /* Compact first-use illustration for the employee rail. Keep its existing create action. */
 .bot-list>.rt-empty-state--railEmployees{gap:16px}
 .rt-empty-state--railEmployees .rt-empty-state-art{width:168px}
-.rt-empty-state--railEmployees .rt-empty-state-copy{gap:6px}
 .rt-empty-state--railEmployees .rt-empty-state-copy>b{font-size:calc(14px * var(--interface-font-scale,1));line-height:calc(22px * var(--interface-font-scale,1))}
-.rt-empty-state--railEmployees .rt-empty-state-copy>span{font-size:calc(12px * var(--interface-font-scale,1));line-height:calc(20px * var(--interface-font-scale,1))}
 
 /* Empty regions own the available content space. Headers, filters and actions
    remain siblings; only the successful empty branch establishes this layout.
@@ -61,7 +54,6 @@
 .rt-empty-region{display:flex;flex-direction:column;flex:1 0 auto;min-width:0;min-height:0}
 :where(.creator-work-viewport,.employee-automation-body,.result-evidence-preview-content.is-archive):has(>.rt-empty-state:not([hidden])){display:flex;flex-direction:column;overflow:auto}
 :where(.creator-work-viewport,.employee-automation-body):has(>.rt-empty-state:not([hidden])){flex:1 1 0}
-.rt-empty-state-copy>span:empty{display:none}
 
 /* Empty and failure artwork follows the effective theme, including
    system appearance before account preferences load. Painted insets (magnifier

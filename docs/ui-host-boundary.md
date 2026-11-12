@@ -56,7 +56,9 @@ to explicit themes and system appearance.
 Use `RunTeamsEmptyStates.markup` for a complete empty state or its `artwork`
 method when the host supplies the copy and actions. For reading failures, use
 `RunTeamsLoadFailure.markup`. Full-page and modal failures show artwork, and
-inline failures use a status icon. Native resources derived from shared
+inline failures use a status icon. Pair a full-size illustration with a
+short title and any available actions. Inline failures can explain what
+happened to existing content. Native resources derived from shared
 artwork use the same shape and color roles.
 
 ## Boundary checks

@@ -35,50 +35,29 @@ window.RunTeamsEmptyStates = (() => {
 
   art.globalSearch = "<svg aria-hidden=\"true\" focusable=\"false\" width=\"280\" height=\"184\" viewBox=\"0 0 280 184\" xmlns=\"http://www.w3.org/2000/svg\" fill=\"none\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><ellipse cx=\"138\" cy=\"96\" rx=\"94\" ry=\"66\" fill=\"var(--accent-subtle)\" opacity=\".55\"/><ellipse cx=\"142\" cy=\"166\" rx=\"82\" ry=\"5\" fill=\"var(--border-control)\" opacity=\".1\"/><g transform=\"rotate(7 140 86)\"><rect x=\"91\" y=\"32\" width=\"97\" height=\"116\" rx=\"10\" fill=\"var(--surface-subtle)\" stroke=\"var(--border-control)\" stroke-width=\"1.4\"/></g><g transform=\"rotate(-6 115 102)\"><rect x=\"65\" y=\"48\" width=\"112\" height=\"111\" rx=\"10\" fill=\"var(--surface)\" stroke=\"var(--avatar-blue)\" stroke-width=\"1.5\"/><rect x=\"80\" y=\"64\" width=\"25\" height=\"25\" rx=\"6\" fill=\"var(--editor-palette-bg-blue)\"/><path d=\"M114 70h45m-45 11h30M81 106h72m-72 13h56m-56 13h35\" stroke=\"var(--border-default)\" stroke-width=\"3\"/></g><g transform=\"rotate(-6 191 113)\"><path d=\"m213 131 22 23\" stroke=\"var(--avatar-blue)\" stroke-width=\"12\"/><path d=\"m213 131 22 23\" stroke=\"var(--editor-palette-bg-blue)\" stroke-width=\"8\"/><circle cx=\"191\" cy=\"108\" r=\"32\" fill=\"var(--editor-palette-bg-blue)\" stroke=\"var(--avatar-blue)\" stroke-width=\"1.6\"/><circle cx=\"191\" cy=\"108\" r=\"24\" fill=\"var(--surface)\"/><path d=\"M177 103q3-9 12-10\" stroke=\"var(--border-default)\" stroke-width=\"2.2\"/><path d=\"M182 112h17\" stroke=\"var(--border-control)\" stroke-width=\"1.6\"/></g><path d=\"M47 103v10m-5-5h10M224 37v8m-4-4h8\" stroke=\"var(--avatar-blue)\" stroke-width=\"1.3\"/><circle cx=\"64\" cy=\"45\" r=\"2\" fill=\"var(--avatar-blue)\" opacity=\".5\"/><circle cx=\"237\" cy=\"88\" r=\"3\" fill=\"var(--editor-palette-bg-blue)\"/></svg>";
 
-  const copy = {
-    railEmployees: ["还没有员工", "创建员工，帮你处理日常工作。"],
-
-
-
-    trash: ["垃圾箱是空的", "移除的项目会暂存在这里，方便找回。"],
-    archive: ["文件包里没有文件", "选择左侧的其他资料继续查看。"],
-
-
-
-
-
-    documentsSearch: ["\u6ca1\u6709\u5339\u914d\u7684\u6587\u6863", "\u8bd5\u8bd5\u66f4\u77ed\u7684\u5173\u952e\u8bcd\uff0c\u6216\u6e05\u7a7a\u641c\u7d22\u5185\u5bb9\u3002"],
-    skillsSearch: ["\u6ca1\u6709\u5339\u914d\u7684\u6280\u80fd", "\u8bd5\u8bd5\u5176\u4ed6\u5173\u952e\u8bcd\uff0c\u67e5\u627e\u53ef\u590d\u7528\u7684\u6280\u80fd\u3002"],
-
-    globalSearch: ["未找到相关结果", "换个关键词试试。"],
-
-    skillAuthor: ["你想创建什么技能？", "描述常用方法，整理成可复用的技能。"],
-    employeeVersions: ["尚无已发布版本", "首次发布后，在这里查看版本记录。"],
-    automations: ["还没有自动化", "安排定时工作，执行电脑需保持在线。"],
-
-
-
-
-
-
-
-    documents: ['还没有文档', '对话和员工交付的文档会显示在这里。'],
-    skills: ['还没有自己的技能', '把常用方法保存为技能，方便下次使用。'],
-    records: ['还没有工作记录', '工作开始后，可在这里查看进度和结果。'],
-    channels: ['还未连接模型渠道', '选择已登录的订阅，继续使用现有模型。'],
-
-
-    responsibilities: ['尚未选用工作技能', '选用技能后，工作范围会显示在这里。']
+  const titles = {
+    railEmployees: "还没有员工",
+    trash: "垃圾箱是空的",
+    archive: "文件包里没有文件",
+    documentsSearch: "\u6ca1\u6709\u5339\u914d\u7684\u6587\u6863",
+    skillsSearch: "\u6ca1\u6709\u5339\u914d\u7684\u6280\u80fd",
+    globalSearch: "未找到相关结果",
+    skillAuthor: "你想创建什么技能？",
+    employeeVersions: "尚无已发布版本",
+    automations: "还没有自动化",
+    documents: '还没有文档',
+    skills: '还没有自己的技能',
+    records: '还没有工作记录',
+    channels: '还未连接模型渠道',
+    responsibilities: '尚未选用工作技能'
   };
-  function markup(kind, {hidden = false, readonly = false, title: titleOverride, description: descriptionOverride, titleKey, descriptionKey} = {}) {
-    if (!copy[kind]) return '';
-    const [defaultTitle, defaultDescription] = copy[kind];
+  function markup(kind, {hidden = false, title: titleOverride, titleKey} = {}) {
+    if (!Object.hasOwn(titles,kind)) return '';
     const escape=value=>String(value).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-    const title=titleOverride===undefined?defaultTitle:escape(titleOverride);
-    const description = descriptionOverride===undefined?(kind === 'responsibilities' && readonly ? '该员工还没有配置职责。' : defaultDescription):escape(descriptionOverride);
-    return `<div class="rt-empty-state rt-empty-state--${kind}" data-empty-state="${kind}"${kind === 'skills' ? ' data-skills-empty' : ''}${hidden ? ' hidden' : ''} role="status"><div class="rt-empty-state-art">${artwork(kind)}</div><div class="rt-empty-state-copy"><b${titleKey?` data-app-i18n="${escape(titleKey)}"`:""}>${title}</b><span${descriptionKey?` data-app-i18n="${escape(descriptionKey)}"`:""}>${description}</span></div></div>`;
+    const title=titleOverride===undefined?titles[kind]:escape(titleOverride);
+    return `<div class="rt-empty-state rt-empty-state--${kind}" data-empty-state="${kind}"${kind === 'skills' ? ' data-skills-empty' : ''}${hidden ? ' hidden' : ''} role="status"><div class="rt-empty-state-art">${artwork(kind)}</div><div class="rt-empty-state-copy"><b${titleKey?` data-app-i18n="${escape(titleKey)}"`:""}>${title}</b></div></div>`;
   }
   function artwork(kind){return Object.hasOwn(art,kind)?art[kind]:'';}
-  function register(entries){for(const [kind,value] of Object.entries(entries)){if(Object.hasOwn(copy,kind)||!Array.isArray(value.copy)||value.copy.length!==2||typeof value.art!=='string')throw Error('Invalid empty-state contribution: '+kind);copy[kind]=value.copy;art[kind]=value.art;}}
+  function register(entries){for(const [kind,value] of Object.entries(entries)){if(Object.hasOwn(titles,kind)||typeof value.title!=='string'||typeof value.art!=='string')throw Error('Invalid empty-state contribution: '+kind);titles[kind]=value.title;art[kind]=value.art;}}
   return Object.freeze({markup,artwork,register});
 })();

@@ -20,7 +20,7 @@ function button(options={}){
 function markup(options={}){
  const cacheKey=token(keyOf(options));if(!options.busy){last.set(cacheKey,{...options});if(last.size>200)last.delete(last.keys().next().value);}
  const variant=['page','modal','local'].includes(options.variant)?options.variant:'page',key=keyOf(options),title=String(options.title||'内容暂时无法加载');
- const note=options.note||'';
+ const note=variant==='local'?options.note:'';
  const art=variant==='local'?`<span class="rt-failure-info">${info}</span>`:`<div class="rt-failure-art">${ART}</div>`;
  return `<div class="rt-load-failure rt-load-failure--${variant}${options.compact?' rt-load-failure--compact':''}${options.className?' '+esc(options.className):''}" data-load-failure="${variant}" data-read-state="${esc(key)}" role="alert">${art}<div class="rt-failure-copy"><b${options.titleKey?` data-app-i18n="${esc(options.titleKey)}"`:""}>${esc(title)}</b>${note?`<p${options.noteKey?` data-app-i18n="${esc(options.noteKey)}"`:""}>${esc(note)}</p>`:''}</div>${button({...options,key,variant})}</div>`;
 }
