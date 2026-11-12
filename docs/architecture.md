@@ -13,7 +13,6 @@
 | `contracts/` | 业务合同、资源清单和运行时锁 |
 | `desktop/` | macOS 壳、自包含打包与签名 |
 | `agent_skills/`、`builtin_skills/` | 产品技能与保留原许可的内置技能 |
-| `runtime/` | 原生辅助运行时源码 |
 | `tests/` | 自动检查使用的测试和确定性夹具 |
 | `tooling/` | 工具清单及检查所需的 JavaScript 锁 |
 | `requirements/` | Python 运行与构建依赖 |

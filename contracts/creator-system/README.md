@@ -1,5 +1,9 @@
 # Creator product integration
 
+This document records the historical creator integration candidate. The Wasm
+helper and local coordinator have been retired. See the [current SDK](../../sdk/README.md)
+for the MCP Apps development and release path.
+
 `v1/` is an exact copy of the frozen SDK 1.0.0 contract, including its historical
 SPEC/status and provenance manifest. The original isolated sources are unchanged.
 `ui-v2/` contains the generic view/context profiles; there is no six-slot taxonomy.
