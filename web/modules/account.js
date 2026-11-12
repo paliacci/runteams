@@ -32,9 +32,6 @@ function settingsPageHead(title,detail=''){return `<header class="settings-page-
 /* module-function:settingsSectionHead */
 function settingsSectionHead(title,detail='',action=''){return `<div class="settings-section-title-row"><span><h3>${title}</h3>${detail?`<small>${detail}</small>`:''}</span>${action}</div>`;}
 
-/* module-function:settingsLoadingLine */
-function settingsLoadingLine(className=''){return `<span class="skeleton-block ${className}"></span>`;}
-
 /* module-function:settingsError */
 function settingsError(title,detail,message,retry){return `${settingsPageHead(title,detail)}${RunTeamsLoadFailure.markup({variant:'modal',title:title+'暂时无法加载',error:message,retry})}`;}
 
