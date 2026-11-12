@@ -21,11 +21,11 @@
       if(!['needs_approval','needs_human'].includes(work.state))continue;
       rows.push(workRow(work,true));seen.add('device:'+work.id);
     }
-    // Interventions already carry an explicit workflow/automation destination.
+    // Interventions already carry an explicit workflow destination.
     for(const item of host?.attention?.()||[]){
       if(item.workflow_id&&seen.has((item.storage_scope==='device'?'device:':'cloud:')+item.workflow_id))continue;
-      if(!item.id||!(item.workflow_id||item.automation_id||item.kind==='automation'))continue;
-      const kind=item.kind==='automation'?'automation':item.work_kind||(item.pipeline_id?'pipeline':'employee');
+      if(!item.id||!item.workflow_id)continue;
+      const kind=item.work_kind||(item.pipeline_id?'pipeline':'employee');
       rows.push({key:'attention:'+item.id,id:String(item.id),attention:true,storage_scope:item.storage_scope,
         title:item.card_title||item.title||item.reason,kind,pipeline_name:item.pipeline_name,
         employee:item.employee||{name:item.employee_name}});
@@ -38,9 +38,9 @@
     const employee=host.employee?.(item.employee)||item.employee;
     const pipeline=kind==='pipeline'&&(item.pipeline_name||item.name);
     const subtitle=[employee?.name||(kind==='employee'?item.name:''),pipeline].filter(Boolean).join('\u2002');
-    const fallback={pipeline:'流水线',employee:'员工',automation:'自动化'}[kind]||'员工';
+    const fallback={pipeline:'流水线',employee:'员工'}[kind]||'员工';
     const nameCopy=subtitle?` title="${escape(subtitle)}"`:` data-app-i18n="sidebarAttention.${kind}"`;
-    const icon=employee?.name&&host.avatar?host.avatar(employee):host.icon(kind==='pipeline'?'flow':kind==='automation'?'clock':'user');
+    const icon=employee?.name&&host.avatar?host.avatar(employee):host.icon(kind==='pipeline'?'flow':'user');
     return `<button type="button" class="rail-pending-item" data-pending-key="${escape(item.key)}" onclick="RunTeamsSidebar.openItem(this.dataset.pendingKey)"><span class="rail-pending-source-icon${kind==='pipeline'&&!employee?.name?' is-pipeline-fallback':''}" aria-hidden="true">${icon}</span><span class="rail-pending-copy"><span class="rail-pending-title" title="${escape(title)}"${titleCopy}>${escape(title)}</span><small${nameCopy}>${escape(subtitle||fallback)}</small></span></button>`;}
   const statusCopy=count=>`<span data-app-i18n="sidebarAttention.${count?'partial':'failed'}">${count?'部分待处理事项无法读取。':'无法读取待处理事项。'}</span>`;
   function contents(values,value){

@@ -6157,15 +6157,13 @@ function deleteChatSession(cid){
 /* module:conversation:sendChat */
 
 // ---- 统一侧栏对话：流水线编排与员工/任务/能力设计只切换会话策略，共用状态、UI、发送和恢复 ----
-const CONVERSATION_CONTEXT_TYPES=new Set(["general","pipeline","worker","standard","card","automation"]);
+const CONVERSATION_CONTEXT_TYPES=new Set(["general","pipeline","worker","standard","card"]);
 function normalizedConversationContext(session={}){
   const context={...(session.context||{})},kind=session.kind||"general",scopePipelineId=session.scope_pipeline_id||context.pipeline_id||null;
   let type=CONVERSATION_CONTEXT_TYPES.has(context.context_type)?context.context_type:"";
   if(!type){
     if(kind==="employee_design")type="worker";
-    else if(kind==="automation")type="automation";
     else if(context.intent==="pipeline-create"||scopePipelineId!=null&&scopePipelineId!=="")type="pipeline";
-    else if(context.mode_title==="创建自动化")type="automation";
     else type="general";
   }
   let intent=String(context.intent||"").trim();
@@ -6175,7 +6173,6 @@ function normalizedConversationContext(session={}){
     else if(type==="worker")intent=context.mode_title&&/修复/.test(context.mode_title)?"repair":context.target_employee_id?"edit":"create";
     else if(type==="standard")intent=context.skill_key?"edit":"create";
     else if(type==="card")intent="edit";
-    else if(type==="automation")intent=kind==="automation"?"run":"create";
     else intent="general";
   }
   return {...context,context_type:type,intent};
@@ -6197,7 +6194,6 @@ const CONVERSATION_DEBUG_PREVIEWS=[
   {key:"pipeline-manage",label:"调整流水线",group:"流水线",type:"pipeline",intent:"manage",icon:"flow"},
   {key:"card-edit",label:"调整任务",group:"任务",type:"card",intent:"edit",icon:"doc"},
   {key:"card-repair",label:"继续任务",group:"任务",type:"card",intent:"repair",icon:"shield"},
-  {key:"automation-create",label:"创建自动化",group:"自动化",type:"automation",intent:"create",icon:"clock"},
 ];
 /* module:conversation:conversationDebugDescriptor */
 /* module:conversation:conversationDebugPanel */
@@ -6275,7 +6271,6 @@ function conversationFixedContext(panel=S.conversationPanel){
   if(type==="card")return {kind:"任务",label:context.card_title||context.label||"未命名任务",icon:"clipboard-check"};
   if(type==="worker")return {kind:"员工",label:context.worker_name||context.label||context.node_name||"未命名员工",icon:"user-guide"};
   if(type==="standard")return {kind:"规范",label:context.skill_name||context.label||"未命名规范",icon:"doc"};
-  if(type==="automation")return {kind:"自动化",label:context.automation_name||context.label||(conversationIntent(panel)==="create"?"新自动化":"自动化运行"),icon:"clock"};
   return null;
 }
 

@@ -1407,10 +1407,10 @@ function conversationPanelWorkspaceKey(panel=S.conversationPanel){if(panel?.id!=
 function conversationPanelIsVisibleHere(panel=S.conversationPanel){return !!panel;}
 
 /* module-function:conversationPanelDraftKey */
-function conversationPanelDraftKey(panel=S.conversationPanel){if(!panel)return "";if(panel.id!=null)return `chat:${panel.id}`;const context=panel.context||{},type=context.context_type||panel.kind||"general",intent=context.intent||"general",target=RunTeamsEmployeeDirectory.referenceKey(RunTeamsEmployeeDirectory.panelReference(panel))||RunTeamsEmployeeDirectory.forPanel(panel)?.key||context.workflow_id||context.automation_id||(context.purpose==='create-employee'?'create-employee':'default');return `new:global:${type}:${intent}:${target}`;}
+function conversationPanelDraftKey(panel=S.conversationPanel){if(!panel)return "";if(panel.id!=null)return `chat:${panel.id}`;const context=panel.context||{},type=context.context_type||panel.kind||"general",intent=context.intent||"general",target=RunTeamsEmployeeDirectory.referenceKey(RunTeamsEmployeeDirectory.panelReference(panel))||RunTeamsEmployeeDirectory.forPanel(panel)?.key||context.workflow_id||(context.purpose==='create-employee'?'create-employee':'default');return `new:global:${type}:${intent}:${target}`;}
 
 /* module-function:conversationModeTitle */
-function conversationModeTitle(panel=S.conversationPanel){const type=conversationContextType(panel),intent=conversationIntent(panel);if(type==="pipeline")return intent==="create"?"创建流水线":"调整流水线";if(type==="worker")return intent==="chat"||intent==="work"?`与 ${panel?.context?.worker_name||panel?.context?.label||"员工"} 对话`:intent==="repair"?"修复员工":intent==="create"?"创建员工":"调整员工";if(type==="standard")return intent==="create"?"创建工作规范":"调整工作规范";if(type==="card")return intent==="repair"?"继续任务":"调整任务";if(type==="automation")return intent==="run"?"查看运行":"创建自动化";return "新对话";}
+function conversationModeTitle(panel=S.conversationPanel){const type=conversationContextType(panel),intent=conversationIntent(panel);if(type==="pipeline")return intent==="create"?"创建流水线":"调整流水线";if(type==="worker")return intent==="chat"||intent==="work"?`与 ${panel?.context?.worker_name||panel?.context?.label||"员工"} 对话`:intent==="repair"?"修复员工":intent==="create"?"创建员工":"调整员工";if(type==="standard")return intent==="create"?"创建工作规范":"调整工作规范";if(type==="card")return intent==="repair"?"继续任务":"调整任务";return "新对话";}
 
 /* module-function:conversationPanelTitle */
 function conversationPanelTitle(panel=S.conversationPanel){if(!panel)return "新对话";const fixed=conversationFixedContext(panel);if(fixed?.kind==="员工"&&["chat","work"].includes(conversationIntent(panel)))return fixed.label||"员工";if(panel.kind!=="general")return conversationModeTitle(panel);const chat=S.chats.find(item=>String(item.id)===String(panel.id)),title=chat&&chat.title||panel.title||"";return !(panel.messages||[]).length||!title||title==="新对话"?conversationModeTitle(panel):title;}
@@ -1487,16 +1487,6 @@ function conversationPanelStarterItems(panel=S.conversationPanel,employeeGuidanc
     ["调整适用范围","帮我判断应该应用到哪些员工","更新影响范围","user"],
     ["检查冲突","检查这条规范是否过度约束或互相冲突","识别执行风险","search"],
   ];
-  if(type==="automation"&&intent==="run")return [
-    ["查看结果","总结这次运行的结果","查看本次运行完成了什么","search"],
-    ["处理问题","检查这次运行遇到的问题","找出本次运行的问题","shield"],
-    ["调整自动化","调整这项自动化之后的运行方式","优化后续运行","clock"],
-  ];
-  if(type==="automation")return [
-    ["定期整理","帮我定期整理一项工作","定期汇总或整理内容","spark"],
-    ["持续监控","帮我持续监控一项变化","监控变化并在需要时行动","search"],
-    ["按时执行","帮我按计划执行一项工作","让重复工作按时完成","clock"],
-  ];
   if(type==="pipeline"&&intent==="create")return [
     ["从零搭建","从目标开始帮我搭建这条流水线","从目标设计流程","spark"],
     ["迁移现有流程","把我现有的工作流程迁移到这里","把已有工作变成流水线","import"],
@@ -1558,7 +1548,7 @@ function conversationPanelPlaceholderCopy(panel){
   const name=(typeof RunTeamsEmployeeDirectory==='undefined'?null:RunTeamsEmployeeDirectory.forPanel(panel)?.record?.name)||panel.context?.worker_name||panel.context?.label;
   return name?{key:'employeeChat.assignNamed',text:`给${name}交办工作…`,vars:{name}}:{key:'employeeChat.assign',text:'交办工作…'};
 }
-function conversationPanelPlaceholder(panel=S.conversationPanel,copy=conversationPanelPlaceholderCopy(panel)){if(copy)return globalThis.RunTeamsLocale?.t(copy.key,copy.vars,copy.text)??copy.text;if(conversationEmployeeCreation(panel))return "描述员工要负责的工作…";const type=conversationContextType(panel),intent=conversationIntent(panel);if(type==="card")return intent==="repair"?"描述任务遇到的问题":"告诉助手接下来怎么做";if(type==="worker")return intent==="create"?"描述员工要负责的工作…":intent==="repair"?"描述遇到的问题":"描述你想改变的地方";if(type==="standard")return intent==="create"?"描述团队要共同遵守的规则":"描述规范内容或适用范围的变化";if(type==="pipeline")return intent==="create"?"描述一项持续发生的工作":"描述你想调整的地方";if(type==="automation")return intent==="run"?"描述你想了解或调整的内容":"例如：每周五整理本周进展";return "说说你想做什么…";}
+function conversationPanelPlaceholder(panel=S.conversationPanel,copy=conversationPanelPlaceholderCopy(panel)){if(copy)return globalThis.RunTeamsLocale?.t(copy.key,copy.vars,copy.text)??copy.text;if(conversationEmployeeCreation(panel))return "描述员工要负责的工作…";const type=conversationContextType(panel),intent=conversationIntent(panel);if(type==="card")return intent==="repair"?"描述任务遇到的问题":"告诉助手接下来怎么做";if(type==="worker")return intent==="create"?"描述员工要负责的工作…":intent==="repair"?"描述遇到的问题":"描述你想改变的地方";if(type==="standard")return intent==="create"?"描述团队要共同遵守的规则":"描述规范内容或适用范围的变化";if(type==="pipeline")return intent==="create"?"描述一项持续发生的工作":"描述你想调整的地方";return "说说你想做什么…";}
 
 
 

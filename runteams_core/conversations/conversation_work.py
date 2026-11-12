@@ -29,7 +29,6 @@ def conversation_work(repository, chat_id=None, employee_id=None):
         rows = c.execute(
             "SELECT w.id,w.state,w.created_at,w.updated_at,w.cursor_key,json_extract(w.snapshot_json,'$.employee_reference') AS employee_reference,"
             "json_extract(w.snapshot_json,'$.definition.positions') AS positions,"
-            "json_extract(w.snapshot_json,'$.source.automation_id') AS automation_id,"
             "r.id AS latest_run_id,r.state AS latest_run_state,"
             "CASE WHEN w.state IN ('blocked','failed','interrupted','needs_human') THEN r.output_json END AS latest_output,"
             "CASE WHEN w.state IN ('running','waiting_retry') AND r.state='running' THEN "
