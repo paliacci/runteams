@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "runteams-core"
-version = "0.1.4"
+version = "0.1.5"
 license = "LicenseRef-RunTeams-Source-Available-1.0"
 license-files = ["LICENSE", "docs/legal/LICENSING.md", "docs/legal/THIRD_PARTY_DOCUMENTS.md"]
 requires-python = ">=3.12"
