@@ -15,14 +15,3 @@ def use(organization_id=''):
     token=_selected.set(value)
     try:yield value
     finally:_selected.reset(token)
-
-_mobile_command=ContextVar('runteams_mobile_command',default='')
-_mobile_actor=ContextVar('runteams_mobile_actor',default='')
-@contextmanager
-def mobile_command(command_id,actor_id=""):
-    actor=str(uuid.UUID(str(actor_id))) if actor_id else ""
-    token=_mobile_command.set(command_id);actor_token=_mobile_actor.set(actor)
-    try:yield
-    finally:_mobile_command.reset(token);_mobile_actor.reset(actor_token)
-def selected_mobile_command():return _mobile_command.get()
-def selected_mobile_actor():return _mobile_actor.get()
