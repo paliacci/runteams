@@ -4,14 +4,12 @@
 Personal transcripts live in durable device storage. Business-bound, creator,
 organization and automation conversations continue through their cloud owner.
 """
-import base64
 import uuid
 from contextlib import nullcontext
 import json
 import os
 import re
 import secrets
-import sqlite3
 import subprocess
 from datetime import datetime
 
@@ -26,7 +24,7 @@ now = local_database.now
 _lock = local_database.lock
 
 
-PRODUCT_SCHEMA = "CREATE TABLE IF NOT EXISTS credential_entries(\n  name TEXT PRIMARY KEY,\n  pos INTEGER NOT NULL DEFAULT 0,\n  source_name TEXT NOT NULL DEFAULT '',\n  created_at TEXT NOT NULL, updated_at TEXT NOT NULL);\nCREATE TABLE IF NOT EXISTS model_channels(\n  id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL,\n  provider TEXT NOT NULL DEFAULT 'claude-code', executable TEXT NOT NULL DEFAULT '',\n  config_dir TEXT NOT NULL DEFAULT '', default_model TEXT NOT NULL DEFAULT '',\n  default_effort TEXT NOT NULL DEFAULT '',\n  enabled INTEGER NOT NULL DEFAULT 1, is_default INTEGER NOT NULL DEFAULT 0,\n  created_at TEXT NOT NULL, updated_at TEXT NOT NULL);\nCREATE TABLE IF NOT EXISTS mobile_host_sync(\n  singleton_id INTEGER PRIMARY KEY CHECK(singleton_id=1),\n  account_id TEXT NOT NULL DEFAULT '',\n  host_id TEXT NOT NULL UNIQUE, snapshot_key TEXT NOT NULL, writer_token TEXT NOT NULL,\n  created_at TEXT NOT NULL, relay_registered_at TEXT NOT NULL DEFAULT '',\n  relay_last_synced_at TEXT NOT NULL DEFAULT '', relay_last_snapshot_version INTEGER NOT NULL DEFAULT 0,\n  relay_last_snapshot_hash TEXT NOT NULL DEFAULT '', relay_last_error TEXT NOT NULL DEFAULT '',\n  relay_push_state_json TEXT NOT NULL DEFAULT '', relay_device_count INTEGER NOT NULL DEFAULT 0);\nCREATE TABLE IF NOT EXISTS mobile_host_retirements(\n  host_id TEXT PRIMARY KEY, writer_token TEXT NOT NULL,\n  created_at TEXT NOT NULL, last_attempt_at TEXT NOT NULL DEFAULT '', last_error TEXT NOT NULL DEFAULT '');\nCREATE TABLE IF NOT EXISTS mobile_command_receipts(\n  command_id TEXT PRIMARY KEY, device_id TEXT NOT NULL, sequence INTEGER NOT NULL,\n  issued_at TEXT NOT NULL, expires_at TEXT NOT NULL, action TEXT NOT NULL,\n  target_id TEXT NOT NULL, action_id TEXT NOT NULL,\n  status TEXT NOT NULL DEFAULT 'processing', result_json TEXT NOT NULL DEFAULT '{}',\n  created_at TEXT NOT NULL, completed_at TEXT NOT NULL DEFAULT '',\n  UNIQUE(device_id,sequence));\nCREATE TABLE IF NOT EXISTS mobile_command_result_outbox(\n  command_id TEXT PRIMARY KEY, result_json TEXT NOT NULL,\n  created_at TEXT NOT NULL, uploaded_at TEXT NOT NULL DEFAULT '');\nCREATE TABLE IF NOT EXISTS local_asset_grants(\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  name TEXT NOT NULL, path TEXT NOT NULL,\n  dev INTEGER NOT NULL DEFAULT 0, ino INTEGER NOT NULL DEFAULT 0,\n  is_git INTEGER NOT NULL DEFAULT 0, git_root_commit TEXT NOT NULL DEFAULT '',\n  excluded_json TEXT NOT NULL DEFAULT '[]',\n  revoked_at TEXT NOT NULL DEFAULT '',\n  created_at TEXT NOT NULL, updated_at TEXT NOT NULL, last_used_at TEXT NOT NULL DEFAULT '');\n"
+PRODUCT_SCHEMA = "CREATE TABLE IF NOT EXISTS credential_entries(\n  name TEXT PRIMARY KEY,\n  pos INTEGER NOT NULL DEFAULT 0,\n  source_name TEXT NOT NULL DEFAULT '',\n  created_at TEXT NOT NULL, updated_at TEXT NOT NULL);\nCREATE TABLE IF NOT EXISTS model_channels(\n  id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL,\n  provider TEXT NOT NULL DEFAULT 'claude-code', executable TEXT NOT NULL DEFAULT '',\n  config_dir TEXT NOT NULL DEFAULT '', default_model TEXT NOT NULL DEFAULT '',\n  default_effort TEXT NOT NULL DEFAULT '',\n  enabled INTEGER NOT NULL DEFAULT 1, is_default INTEGER NOT NULL DEFAULT 0,\n  created_at TEXT NOT NULL, updated_at TEXT NOT NULL);\nCREATE TABLE IF NOT EXISTS local_asset_grants(\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  name TEXT NOT NULL, path TEXT NOT NULL,\n  dev INTEGER NOT NULL DEFAULT 0, ino INTEGER NOT NULL DEFAULT 0,\n  is_git INTEGER NOT NULL DEFAULT 0, git_root_commit TEXT NOT NULL DEFAULT '',\n  excluded_json TEXT NOT NULL DEFAULT '[]',\n  revoked_at TEXT NOT NULL DEFAULT '',\n  created_at TEXT NOT NULL, updated_at TEXT NOT NULL, last_used_at TEXT NOT NULL DEFAULT '');\n"
 
 # 本地资产授权：只存在本机，和凭据保险箱同一类数据（见 design/LOCAL_ASSET_GRANTS.md）。
 # 默认排除项：机密文件、依赖/虚拟环境目录和超限二进制；授权时展示，用户可逐项放开。
@@ -310,7 +308,6 @@ def init_host_db():
         connection.executescript(PRODUCT_SCHEMA)
         _ensure_channels(connection)
         connection.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_model_channels_provider ON model_channels(provider)")
-        connection.execute("CREATE INDEX IF NOT EXISTS idx_mobile_commands_device_sequence ON mobile_command_receipts(device_id,sequence DESC)")
         connection.execute("PRAGMA user_version=300")
 
 
@@ -492,195 +489,6 @@ def delete_credential_entry(name):
             "DELETE FROM credential_entries WHERE name=?", (str(name or "").strip(),)
         ).rowcount
     return bool(removed)
-
-
-# Mobile relay durability.
-def claim_mobile_command(command_id, device_id, sequence, issued_at, expires_at,
-                         action, target_id, action_id):
-    with _lock, conn() as connection:
-        existing = connection.execute(
-            "SELECT status,result_json FROM mobile_command_receipts WHERE command_id=?",
-            (command_id,),
-        ).fetchone()
-        if existing:
-            try:
-                result = json.loads(existing["result_json"] or "{}")
-            except (TypeError, ValueError):
-                result = {}
-            return {"existing": True, "status": existing["status"], "result": result}
-        latest = connection.execute(
-            "SELECT MAX(sequence) FROM mobile_command_receipts WHERE device_id=?", (device_id,)
-        ).fetchone()[0]
-        if latest is not None and int(sequence) <= int(latest):
-            return {"claimed": False, "message": "检测到重复或乱序指令"}
-        try:
-            connection.execute(
-                "INSERT INTO mobile_command_receipts(command_id,device_id,sequence,issued_at,"
-                "expires_at,action,target_id,action_id,status,created_at) "
-                "VALUES(?,?,?,?,?,?,?,?,'processing',?)",
-                (command_id, device_id, int(sequence), issued_at, expires_at,
-                 action, target_id, action_id, now()),
-            )
-        except sqlite3.IntegrityError:
-            return {"claimed": False, "message": "检测到重复指令"}
-        return {"claimed": True}
-
-
-def complete_mobile_command(command_id, status, result):
-    if status not in ("succeeded", "rejected"):
-        raise ValueError("invalid mobile command status")
-    with _lock, conn() as connection:
-        connection.execute(
-            "UPDATE mobile_command_receipts SET status=?,result_json=?,completed_at=? "
-            "WHERE command_id=?",
-            (status, json.dumps(result or {}, ensure_ascii=False, separators=(",", ":")),
-             now(), command_id),
-        )
-
-
-def queue_mobile_command_result(command_id, result):
-    with _lock, conn() as connection:
-        connection.execute(
-            """INSERT INTO mobile_command_result_outbox(command_id,result_json,created_at)
-                 VALUES(?,?,?) ON CONFLICT(command_id) DO UPDATE SET
-                 result_json=excluded.result_json,uploaded_at=''""",
-            (command_id, json.dumps(result, ensure_ascii=False, separators=(",", ":")), now()),
-        )
-
-
-def pending_mobile_command_results(limit=100):
-    with conn() as connection:
-        rows = connection.execute(
-            "SELECT command_id,result_json FROM mobile_command_result_outbox "
-            "WHERE uploaded_at='' ORDER BY created_at,command_id LIMIT ?",
-            (max(1, min(500, int(limit or 100))),),
-        ).fetchall()
-    result = []
-    for row in rows:
-        try:
-            envelope = json.loads(row["result_json"] or "{}")
-        except (TypeError, ValueError):
-            continue
-        result.append({"command_id": row["command_id"], "result": envelope})
-    return result
-
-
-def mark_mobile_command_result_uploaded(command_id):
-    with _lock, conn() as connection:
-        connection.execute(
-            "UPDATE mobile_command_result_outbox SET uploaded_at=? WHERE command_id=?",
-            (now(), command_id),
-        )
-
-
-def _retire_mobile_host(connection, row):
-    if not row:
-        return None
-    connection.execute(
-        "INSERT INTO mobile_host_retirements(host_id,writer_token,created_at) VALUES(?,?,?) "
-        "ON CONFLICT(host_id) DO UPDATE SET writer_token=excluded.writer_token,last_error=''",
-        (row["host_id"], row["writer_token"], now()),
-    )
-    connection.execute("DELETE FROM mobile_host_sync WHERE singleton_id=1")
-    connection.execute("DELETE FROM mobile_command_result_outbox")
-    connection.execute("DELETE FROM mobile_command_receipts")
-    return dict(row)
-
-
-def get_mobile_host_sync():
-    with conn() as connection:
-        row = connection.execute(
-            "SELECT * FROM mobile_host_sync WHERE singleton_id=1"
-        ).fetchone()
-        return dict(row) if row else None
-
-
-def get_or_create_mobile_host_sync(account_id=""):
-    account_id = str(account_id or "")
-    with _lock, conn() as connection:
-        row = connection.execute(
-            "SELECT * FROM mobile_host_sync WHERE singleton_id=1"
-        ).fetchone()
-        if row and account_id and row["account_id"] != account_id:
-            _retire_mobile_host(connection, row)
-            row = None
-        if not row:
-            encoded_key = base64.urlsafe_b64encode(
-                secrets.token_bytes(32)).rstrip(b"=").decode("ascii")
-            connection.execute(
-                "INSERT INTO mobile_host_sync(singleton_id,account_id,host_id,snapshot_key,writer_token,created_at) "
-                "VALUES(1,?,?,?,?,?)",
-                (account_id, secrets.token_hex(16), encoded_key, secrets.token_urlsafe(32), now()),
-            )
-            row = connection.execute(
-                "SELECT * FROM mobile_host_sync WHERE singleton_id=1"
-            ).fetchone()
-        return dict(row)
-
-
-def retire_mobile_host_sync():
-    with _lock, conn() as connection:
-        row = connection.execute(
-            "SELECT * FROM mobile_host_sync WHERE singleton_id=1"
-        ).fetchone()
-        return _retire_mobile_host(connection, row)
-
-
-def pending_mobile_host_retirements():
-    with conn() as connection:
-        return [dict(row) for row in connection.execute(
-            "SELECT host_id,writer_token,created_at,last_attempt_at,last_error "
-            "FROM mobile_host_retirements ORDER BY created_at"
-        ).fetchall()]
-
-
-def mark_mobile_host_retired(host_id):
-    with _lock, conn() as connection:
-        connection.execute("DELETE FROM mobile_host_retirements WHERE host_id=?", (host_id,))
-
-
-def mark_mobile_host_retirement_error(host_id, error):
-    with _lock, conn() as connection:
-        connection.execute(
-            "UPDATE mobile_host_retirements SET last_attempt_at=?,last_error=? WHERE host_id=?",
-            (now(), (error or "撤销失败")[:500], host_id),
-        )
-
-
-def mark_mobile_host_registered(device_count=0):
-    with _lock, conn() as connection:
-        connection.execute(
-            "UPDATE mobile_host_sync SET relay_registered_at=?,relay_device_count=?,relay_last_error='' "
-            "WHERE singleton_id=1", (now(), max(0, int(device_count or 0))),
-        )
-
-
-def mark_mobile_host_synced(snapshot_version, snapshot_hash, device_count=0):
-    timestamp = now()
-    with _lock, conn() as connection:
-        connection.execute(
-            "UPDATE mobile_host_sync SET relay_registered_at=COALESCE(NULLIF(relay_registered_at,''),?),"
-            "relay_last_synced_at=?,relay_last_snapshot_version=?,relay_last_snapshot_hash=?,"
-            "relay_last_error='',relay_device_count=? WHERE singleton_id=1",
-            (timestamp, timestamp, int(snapshot_version), snapshot_hash,
-             max(0, int(device_count or 0))),
-        )
-
-
-def mark_mobile_host_push_state(state_json):
-    with _lock, conn() as connection:
-        connection.execute(
-            "UPDATE mobile_host_sync SET relay_push_state_json=? WHERE singleton_id=1",
-            ((state_json or "")[:20000],),
-        )
-
-
-def mark_mobile_host_relay_error(error):
-    with _lock, conn() as connection:
-        connection.execute(
-            "UPDATE mobile_host_sync SET relay_last_error=? WHERE singleton_id=1",
-            ((error or "中转同步失败")[:500],),
-        )
 
 
 # Chats and Employee design sessions.

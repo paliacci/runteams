@@ -11,27 +11,6 @@ CREATE TABLE IF NOT EXISTS model_channels(
   default_effort TEXT NOT NULL DEFAULT '',
   enabled INTEGER NOT NULL DEFAULT 1, is_default INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
-CREATE TABLE IF NOT EXISTS mobile_host_sync(
-  singleton_id INTEGER PRIMARY KEY CHECK(singleton_id=1),
-  account_id TEXT NOT NULL DEFAULT '',
-  host_id TEXT NOT NULL UNIQUE, snapshot_key TEXT NOT NULL, writer_token TEXT NOT NULL,
-  created_at TEXT NOT NULL, relay_registered_at TEXT NOT NULL DEFAULT '',
-  relay_last_synced_at TEXT NOT NULL DEFAULT '', relay_last_snapshot_version INTEGER NOT NULL DEFAULT 0,
-  relay_last_snapshot_hash TEXT NOT NULL DEFAULT '', relay_last_error TEXT NOT NULL DEFAULT '',
-  relay_push_state_json TEXT NOT NULL DEFAULT '', relay_device_count INTEGER NOT NULL DEFAULT 0);
-CREATE TABLE IF NOT EXISTS mobile_host_retirements(
-  host_id TEXT PRIMARY KEY, writer_token TEXT NOT NULL,
-  created_at TEXT NOT NULL, last_attempt_at TEXT NOT NULL DEFAULT '', last_error TEXT NOT NULL DEFAULT '');
-CREATE TABLE IF NOT EXISTS mobile_command_receipts(
-  command_id TEXT PRIMARY KEY, device_id TEXT NOT NULL, sequence INTEGER NOT NULL,
-  issued_at TEXT NOT NULL, expires_at TEXT NOT NULL, action TEXT NOT NULL,
-  target_id TEXT NOT NULL, action_id TEXT NOT NULL,
-  status TEXT NOT NULL DEFAULT 'processing', result_json TEXT NOT NULL DEFAULT '{}',
-  created_at TEXT NOT NULL, completed_at TEXT NOT NULL DEFAULT '',
-  UNIQUE(device_id,sequence));
-CREATE TABLE IF NOT EXISTS mobile_command_result_outbox(
-  command_id TEXT PRIMARY KEY, result_json TEXT NOT NULL,
-  created_at TEXT NOT NULL, uploaded_at TEXT NOT NULL DEFAULT '');
 CREATE TABLE IF NOT EXISTS local_asset_grants(
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL, path TEXT NOT NULL,

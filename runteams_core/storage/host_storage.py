@@ -12,11 +12,11 @@ def _unsupported(module):
     current_provider().reject_host_business(module)
 
 HOST_TABLES = frozenset({'model_channels','credential_entries','local_asset_grants',
-    'mobile_host_sync','mobile_host_retirements','mobile_command_receipts',
-    'mobile_command_result_outbox','chat_runtime_links'})
+    'chat_runtime_links'})
 
-# Old OAuth rows may remain on disk; no current route may read or write them.
-RETIRED_HOST_TABLES = frozenset({'mail_oauth_pending'})
+# Recognize retired tables at startup so upgrades can leave their rows on disk.
+RETIRED_HOST_TABLES = frozenset({'mail_oauth_pending','mobile_host_sync',
+    'mobile_host_retirements','mobile_command_receipts','mobile_command_result_outbox'})
 
 
 def referenced_tables(sql):
