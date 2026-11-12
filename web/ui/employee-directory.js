@@ -294,7 +294,7 @@
   const items=[{label:pinned?'取消置顶':'置顶',labelKey:pinned?'conversationDetail.unpin':'conversationDetail.pin',icon:pinned?'pin-off':'pin',fn:()=>togglePin(key,expected)}];
   const uninstall=RunTeamsHost.assets.uninstallAction?.('employee',entry);
   if(uninstall)items.push({...uninstall,fn:()=>{if(canManage())uninstall.fn();}});
-  else if(entry.asset?.editable&&entry.asset.origin?.kind!=='marketplace'){
+  else if(entry.asset?.editable&&RunTeamsHost.assets.canTrashEmployee?.(entry.asset)){
    items.push({label:'移到垃圾箱',labelKey:'employeeSettings.trash',icon:'trash',fn:()=>{
     if(canManage())trashCoreEmployee(entry.asset.id);
    }});
