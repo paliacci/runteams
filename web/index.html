@@ -507,8 +507,8 @@ function deviceWorkDetailActive(){
 
 
 function workspaceBusinessRequest(path){
-  return /^\/api\/(?:core\/|workspace\/|chat(?:s|\/)|bots(?:\/|\?|$)|conversations(?:\/|\?|$)|interventions(?:\/|\?|$)|work-items(?:\/|\?|$)|documents(?:\/|\?|$)|work-modules(?:\/|\?|$)|automation(?:s|-attention|-run|\/)|trash(?:\/|\?|$)|attachments(?:\/|\?|$)|local-asset-grants(?:\/|\?|$)|local-references(?:\/|\?|$))/.test(path)&&
-    !['/api/core/profile','/api/core/contracts','/api/work-modules/catalog'].includes(path);
+  return /^\/api\/(?:core\/|workspace\/|chat(?:s|\/)|bots(?:\/|\?|$)|conversations(?:\/|\?|$)|interventions(?:\/|\?|$)|work-items(?:\/|\?|$)|documents(?:\/|\?|$)|automation(?:s|-attention|-run|\/)|trash(?:\/|\?|$)|attachments(?:\/|\?|$)|local-asset-grants(?:\/|\?|$)|local-references(?:\/|\?|$))/.test(path)&&
+    !['/api/core/profile','/api/core/contracts'].includes(path);
 }
 function loadConversationPanelDrafts(){try{const value=JSON.parse(workspaceBusinessStorage.getItem(CONVERSATION_DRAFTS_KEY)||"{}"),now=Date.now();if(!value||typeof value!=="object"||Array.isArray(value))return {};return Object.fromEntries(Object.entries(value).filter(([,draft])=>draft&&typeof draft==="object"&&(!draft.saved_at||now-Number(draft.saved_at)<CONVERSATION_DRAFT_TTL)));}catch(e){return {};}}
 function normalizeWorkspaceWindows(rows){const seen=new Set(),valid=/^(?:chat:(?:new(?::create-employee)?|[0-9]+)|pipeline:[A-Za-z0-9_-]+|pipeline-local:[a-f0-9]{64}:[A-Za-z0-9_-]{1,1280}|document:[A-Za-z0-9_-]+|docs:list|trash|design-system)$/;return (Array.isArray(rows)?rows:[]).filter(item=>item&&typeof item.key==="string"&&(valid.test(item.key)||RunTeamsHost.shell.validWindowKey?.(item.key)===true)&&typeof item.route==="string"&&item.route).filter(item=>{if(seen.has(item.key))return false;seen.add(item.key);return true;});}
