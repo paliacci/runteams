@@ -218,7 +218,7 @@ function header(p,title,description,titleKey,asset,locked){
  }:{};
  return {toolbar:RunTeamsEmployeeDrawerHeader.markup('source-pipeline-settings')+(author?historyMarkup(p):'')+
   (settings?window.RunTeamsPipelineMarket?.versionPopover?.(s)||'':''),
-  intro:`<section class="workspace-detail-head detail-drawer-intro">${detailDrawerHeading(editable?title.trimEnd():title,editable&&!shownDescription?'尚未填写说明。':shownDescription,'',editable?settingsEditForm(p,'description'):'',{titleKey,...controls})}</section>`};
+  intro:`<section class="workspace-detail-head detail-drawer-intro">${detailDrawerHeading(editable?title.trimEnd():title,editable&&!shownDescription?'尚未填写说明。':shownDescription,'',editable?settingsEditForm(p,'description'):'',{titleKey,descriptionMarkdown:settings,...controls})}</section>`};
 }
 const settingsFields={
  name:{path:['pipeline','name'],label:'名称',labelKey:'name',edit:'编辑名称',editKey:'editName',limit:160},

@@ -32,6 +32,10 @@
 .right-detail-drawer :is(.detail-drawer-title,.detail-drawer-description,.workspace-detail-head .tt,.workspace-detail-head .sub,.detail-employee-identity .tt,.detail-employee-identity .sub,.card-detail-title,.run-work-name,.run-card-context){white-space:pre-line;overflow-wrap:anywhere}
 :is(.detail-drawer-heading,.detail-drawer-heading-row)>.detail-drawer-title{margin:0;font-size:calc(22px * var(--interface-font-scale,1));line-height:32px;font-weight:600;letter-spacing:normal;color:var(--text-primary)}
 :is(.detail-drawer-heading,.detail-drawer-heading-row)>.detail-drawer-description{margin:8px 0 0;font-size:calc(12px * var(--interface-font-scale,1));line-height:18px;font-weight:400;color:var(--text-secondary)}
+.detail-drawer-heading .detail-drawer-description.markdown-compact{white-space:normal}
+.detail-drawer-heading-row--description:has(>.markdown-compact){display:flex;align-items:flex-start;gap:4px}
+.detail-drawer-heading-row--description>.markdown-compact{flex:1}
+.detail-drawer-heading-row--description>.source-pipeline-field-edit{flex:none}
 
 /* Drawer body top spacing belongs to the header, regardless of content type. */
 .right-detail-drawer>.right-detail-body,
