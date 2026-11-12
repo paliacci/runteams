@@ -82,13 +82,13 @@ class WorkAssets:
             if grant is None:
                 if slot.get("required", True):
                     return True, self._asset_blocked_result(
-                        "「{}」还没有绑定本地资产授权，请到设置 → 本地资产 里选择或新建".format(name)
+                        "「{}」还没有绑定本地文件夹，请在任务详情中选择或添加授权".format(name)
                     ), None
                 continue
             ok, reason = local_assets.preflight(grant, name)
             if not ok:
                 return True, self._asset_blocked_result(
-                    "{}，请到设置 → 本地资产 里处理".format(reason)), None
+                    "{}，请在任务详情中重新选择或添加文件夹授权".format(reason)), None
             destination = assets_root / name
             destination.mkdir(parents=True, exist_ok=True)
             try:

@@ -70,11 +70,6 @@
       "kind": "trash"
     },
     {
-      "internal": "/automations",
-      "public": "/automations",
-      "kind": "automations"
-    },
-    {
       "internal": "/design-system",
       "public": "/design-system",
       "kind": "design-system"

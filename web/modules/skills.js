@@ -36,7 +36,7 @@ async function warmEnvironment(refresh,notify){
     result.channels=(status.channels||[]).map(channel=>(result.channels||[]).find(row=>String(row.id)===String(channel.id))||{...channel,ready:false,status:channel.status==='ready'?'disconnected':channel.status});
     if(result.counts)result.counts.channels=result.channels.length;
     S.environment=result;availabilityChanged=previousAvailability!==environmentChannelAvailabilityKey(result);
-    syncChannelsFromEnvironment(result);saveEnvironmentSnapshot(result);refreshPersistentAgentWarnings();
+    syncChannelsFromEnvironment(result);saveEnvironmentSnapshot(result);
     if(document.getElementById("channel_list"))renderChannels(false);return true;
   })();_environmentWarmPromise=pending;skillsWarmGeneration=scope;
   try{return await pending;}catch(e){if(skillsScopeCurrent(scope)&&notify)toast(refresh?"环境检查没有完成。请确认 Agent CLI 可用后再试":"模型与可执行技能没有载入。请确认本地服务正在运行","err");return false;}

@@ -1739,44 +1739,6 @@ select.ptbl-in{padding-right:20px}
 
 .syslabel-title{font-size:calc(13px * var(--interface-font-scale,1));font-weight:560;color:var(--sub)}
 
-/* 自动化是一等全局 Agent 能力：列表只呈现计划与状态，Prompt 留在配置详情。 */
-.automation-page .environment-content{max-width:900px;margin:0 auto;padding-bottom:72px}
-.automation-page .environment-title{margin-bottom:28px}
-.automation-toolbar{margin-bottom:22px}
-.automation-filters{display:flex;align-items:center;gap:4px;margin-top:16px}
-.automation-filter{height:32px;padding:0 11px;border:0;border-radius:10px;background:transparent;color:var(--sub);font:600 calc(13px * var(--interface-font-scale,1)) var(--ui);cursor:pointer;transition:color .14s ease,background-color .14s ease}
-.automation-filter:hover{color:var(--ink)}
-.automation-filter.on{background:var(--rail);color:var(--ink)}
-.automation-list{display:flex;flex-direction:column;gap:4px}
-.automation-row{display:grid;grid-template-columns:26px minmax(0,1fr) 34px;align-items:center;gap:12px;min-height:68px;padding:10px 10px 10px 12px;border-radius:14px;background:transparent;cursor:pointer;transition:background-color .14s ease}
-.automation-row[hidden]{display:none!important}
-.automation-row:hover{background:var(--rail)}
-.automation-row.paused .automation-row-copy{opacity:.72}
-.automation-row-state{position:relative;display:grid;place-items:center;width:15px;height:15px;margin-left:3px;border:1.5px solid var(--muted);border-radius:50%;color:var(--muted)}
-.automation-row-state i{width:5px;height:5px;border-radius:50%;background:currentColor;opacity:0}
-.automation-row-state.ready{border-color:color-mix(in srgb,var(--status-running) 68%,var(--line2));color:var(--status-running)}
-.automation-row-state.warning{border-color:color-mix(in srgb,var(--status-attention) 68%,var(--line2));color:var(--status-attention)}
-.automation-row-state.blocked{border-color:color-mix(in srgb,var(--status-danger) 68%,var(--line2));color:var(--status-danger)}
-.automation-row-state.blocked i,.automation-row-state.warning i{opacity:1}
-.automation-row-state.paused{border-color:var(--line2);color:var(--muted)}
-.automation-row-state.ready[title="正在运行"]{box-shadow:0 0 0 4px color-mix(in srgb,var(--status-running) 10%,transparent)}
-.automation-row-state.action{padding:0;border:0;border-radius:0;box-shadow:none;background:transparent;font:inherit;cursor:pointer;appearance:none;transition:color .14s ease,opacity .14s ease}
-.automation-row-state.action .i{width:15px;height:15px}
-.automation-row-state.action.running{color:var(--ink2);border:0!important;border-radius:0!important;box-shadow:none!important;background:transparent}
-.automation-row-state.action.running i{width:11px;height:11px;border-radius:2px;background:currentColor;opacity:1}
-.automation-row-state.action.paused{color:var(--muted)}
-.automation-row-state.action:hover,.automation-row-state.action:focus-visible{color:var(--ink)}
-.automation-row-copy{display:flex;min-width:0;flex-direction:column;gap:4px}
-.automation-row-copy b{overflow:hidden;color:var(--ink);font-size:calc(15px * var(--interface-font-scale,1));font-weight:620;line-height:1.3;text-overflow:ellipsis;white-space:nowrap}
-.automation-row-copy small{overflow:hidden;color:var(--sub);font-size:calc(13px * var(--interface-font-scale,1));line-height:1.35;text-overflow:ellipsis;white-space:nowrap}
-.automation-row-menu{display:grid;place-items:center;width:34px;height:34px;border:0;border-radius:10px;background:transparent;color:var(--muted);cursor:pointer;opacity:.58;transition:opacity .14s ease,background-color .14s ease,color .14s ease}
-.automation-row:hover .automation-row-menu,.automation-row-menu:focus-visible,.automation-row-menu[aria-expanded="true"]{opacity:1}
-.automation-row-menu:hover{background:var(--hover);color:var(--ink)}
-.automation-row-menu .i{width:17px;height:17px}
-.automation-filter-empty{padding:56px 16px;text-align:center;color:var(--muted);font-size:calc(13px * var(--interface-font-scale,1))}
-.automation-filter-empty[hidden]{display:none}
-.automation-action-menu{width:max-content;min-width:max-content}
-.automation-empty{margin-top:24px;min-height:240px;border:1px dashed var(--line);border-radius:20px}
 .automation-editor{width:min(720px,calc(100vw - 32px));height:min(720px,calc(100vh - 28px));max-height:none}
 .automation-editor>.mh{align-items:center;padding:16px 20px 14px;border-bottom:1px solid var(--line)}
 .automation-editor>.mb{min-height:0;flex:1 1 auto;overflow-y:auto;overscroll-behavior:contain;padding:0 20px 16px}

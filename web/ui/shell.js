@@ -167,7 +167,7 @@
     }
   }
 
-  const fixedTabTitles = Object.freeze({trash:"trash.title", "docs:list":"shell.documents", "chat:new":"shell.newChat", "chat:new:create-employee":"shell.newChat", "pipeline:draft":"shell.newPipeline", automations:"automationList.title", "design-system":"shell.designSystem"});
+  const fixedTabTitles = Object.freeze({trash:"trash.title", "docs:list":"shell.documents", "chat:new":"shell.newChat", "chat:new:create-employee":"shell.newChat", "pipeline:draft":"shell.newPipeline", "design-system":"shell.designSystem"});
 
   function windowTabs(rows, activeKey, icon, renderIcon = row => icon(row.icon), options = {}) {
     const pending = options.pending === true;
