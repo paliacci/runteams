@@ -56,6 +56,17 @@ struct CommunityBootstrap: Decodable {
     }
     enum Failure: Error { case invalid, damaged }
     static let pythonEntry = "import sys;sys.path.insert(0,sys.argv.pop(1));sys.path.append(sys.argv.pop(1));from runteams_core.application.community import main;main(sys.argv[1:])"
+
+    func runSDK(_ arguments: [String]) -> Never {
+        let entry = "import sys;sys.path.insert(0,sys.argv.pop(1));sys.path.append(sys.argv.pop(1));from runteams_creator_dev.cli import main;raise SystemExit(main(sys.argv[1:],packaged=True))"
+        let command = [python, "-I", "-S", "-B", "-u", "-c", entry, coreDirectory, packageDirectory] + arguments
+        let environment = ["PATH=/usr/bin:/bin:/usr/sbin:/sbin", "HOME=" + NSHomeDirectory(),
+                           "TMPDIR=" + NSTemporaryDirectory(), "LANG=en_US.UTF-8"]
+        // Replace the launcher so Ctrl-C reaches the foreground preview process.
+        _ = execve(python, command.map { strdup($0) } + [nil], environment.map { strdup($0) } + [nil])
+        fputs("Unable to start the bundled RunTeams SDK\n", stderr)
+        exit(2)
+    }
 }
 
 struct CommunityArguments {

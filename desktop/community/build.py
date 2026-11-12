@@ -162,7 +162,7 @@ def build(output=None, build_python=None, data_directory=None, validate_only=Fal
         env={k:v for k,v in __import__('os').environ.items() if k not in ('PYTHONHOME','PYTHONPATH') and not k.startswith(('RUNTEAMS_','DYLD_','_PYI'))}
         subprocess.run([str(python),'-I','-S','-B','-c',probe,str(core),str(packages)],env=env,check=True,capture_output=True,timeout=30)
         subprocess.run([str(python),'-E','-s','-B','-m','runteams_core.agents.environment.agent_python','--help'],env=env,check=True,capture_output=True,timeout=30)
-        sdk_probe='import sys;sys.path.insert(0,sys.argv[1]);from runteams_core.authoring.compilation.creator_build_tools import load;from runteams_core.employees.mcp.employee_mcp import platform_runtime;from runteams_core.authoring.workers.creator_worker_process import WORKERS;from pathlib import Path;load();r=platform_runtime();r.verify();assert all((Path(sys.argv[1])/"runteams_core"/n).is_file() for n in WORKERS.values())'
+        sdk_probe='import sys;sys.path.insert(0,sys.argv[1]);from runteams_core.authoring.compilation.creator_build_tools import load;from runteams_core.employees.mcp.employee_mcp import platform_runtime;from runteams_core.authoring.workers.creator_worker_process import WORKERS;from runteams_core.authoring.creator_mcp_preview import MCPPreview;from runteams_creator_dev.mcp_preview import serve;from pathlib import Path;load();r=platform_runtime();r.verify();assert all((Path(sys.argv[1])/"runteams_core"/n).is_file() for n in WORKERS.values())'
         subprocess.run([str(python),'-I','-B','-c',sdk_probe,str(core)],env=env,check=True,timeout=30)
         executable=app/'Contents/MacOS/RunTeamsLocal';executable.parent.mkdir()
         subprocess.run(['/usr/bin/xcrun','swiftc','-swift-version','5','-target',
@@ -180,7 +180,7 @@ def build(output=None, build_python=None, data_directory=None, validate_only=Fal
         (app/'Contents/Info.plist').write_bytes(plistlib.dumps({'RunTeamsLocalBuild':signer.local,'CFBundleIdentifier':BUNDLE_ID,'CFBundleName':'RunTeams Local','CFBundleDisplayName':'RunTeams 本机版','CFBundleExecutable':'RunTeamsLocal','CFBundlePackageType':'APPL','CFBundleVersion':config['version'],'CFBundleShortVersionString':config['version'],'CFBundleIconFile':'RunTeams.icns','LSMinimumSystemVersion':'13.5','NSHighResolutionCapable':True,'NSAppTransportSecurity':{'NSAllowsLocalNetworking':True}}))
         signer.sign(app,executable=True)
         subprocess.run(['/usr/bin/codesign','--verify','--deep','--strict',str(app)],check=True)
-        subprocess.run([str(executable),'--check-bootstrap'],check=True,capture_output=True,timeout=30)
+        subprocess.run([str(executable),'--sdk','doctor'],check=True,capture_output=True,timeout=30)
         if not signer.local:verify_release_app(app,signer)
         app.rename(target)
     return {'output':str(target),'runtime_inputs':len(sources),'sealed_resource_files':len(config['inputs']),'self_contained_installer':True,'python_version':config['python_version'],'distribution':'local' if signer.local else 'developer-id','notarized':False}

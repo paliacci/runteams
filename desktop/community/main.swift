@@ -367,9 +367,13 @@ final class CommunityApp: NSObject, NSApplicationDelegate, NSWindowDelegate, WKN
     }
 }
 
-if Array(CommandLine.arguments.dropFirst()) == ["--check-bootstrap"] {
+let launchArguments = Array(CommandLine.arguments.dropFirst())
+if launchArguments == ["--check-bootstrap"] {
     do { let value = try CommunityBootstrap.read(); print("{\"valid\":true,\"version\":\"\(value.version)\"}") }
     catch { fputs("Native bootstrap validation failed\n",stderr); exit(2) }
+} else if launchArguments.first == "--sdk" {
+    do { try CommunityBootstrap.read().runSDK(Array(launchArguments.dropFirst())) }
+    catch { fputs("Unable to start the bundled RunTeams SDK\n", stderr); exit(2) }
 } else {
     let app = NSApplication.shared; app.setActivationPolicy(.regular)
     let delegate = CommunityApp(); app.delegate = delegate

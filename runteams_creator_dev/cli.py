@@ -4,10 +4,10 @@ import json
 from pathlib import Path
 import stat
 import sys
+from tempfile import TemporaryDirectory
 
 from runteams_core.foundation.content_hashes import sha256 as sha
-from runteams_core.authoring.creator_contracts import MAX_BYTES, MAX_FILES, CreatorContractError, canonical, compile_source, relative, source_files, strict_json, tree
-from runteams_core.authoring.creator_definitions import definition_artifacts
+from runteams_core.authoring.creator_contracts import MAX_BYTES, MAX_FILES, CreatorContractError, relative, source_files, strict_json, tree
 from . import VERSION
 from .archive import inspect_file, pack
 
@@ -57,17 +57,39 @@ def toolchain(path):
     raise ValueError('unsupported_toolchain')
 
 
-def build(files, configuration):
-    check(files)
-    from runteams_core.authoring.compilation.creator_mcp_source import mcp_project
-    if mcp_project(files):
-        from runteams_core.authoring.compilation.creator_mcp_build import MCPSourceBuilder
-        from runteams_core.authoring.creator_mcp_preview import MCPPreview
-        config,paths=toolchain(configuration)
-        if config['schema']!='runteams.dev-toolchain/2':raise ValueError('mcp_toolchain_required')
-        built=MCPSourceBuilder(paths['runtime'],esbuild=paths['esbuild'],esbuild_sha256=config['esbuild']['sha256']).build(files);built['files']=files
-        return built,MCPPreview(built,paths['runtime'],Path(configuration).absolute().parent.parent/'dev/mcp-preview'/built['manifest']['source_sha256'])
-    raise ValueError('unsupported_source_contract')
+def local_builder(configuration):
+    if configuration is None:
+        from runteams_core.authoring.compilation.creator_build_tools import load
+        from runteams_core.employees.mcp.employee_mcp import platform_runtime
+        builder, _ = load()
+        builder.runtime = platform_runtime()
+        return builder
+
+    from runteams_core.authoring.compilation.creator_mcp_build import MCPSourceBuilder
+    config, paths = toolchain(configuration)
+    return MCPSourceBuilder(paths['runtime'], esbuild=paths['esbuild'],
+                            esbuild_sha256=config['esbuild']['sha256'])
+
+
+def run_local_code(args, built, runtime, root):
+    from runteams_core.authoring.creator_mcp_preview import MCPPreview
+
+    source_root = Path(args.project).absolute()
+    expected = built['manifest']['source_sha256']
+
+    def current_source():
+        if tree(read_source(source_root))['sha256'] != expected:
+            raise PermissionError('源码已变化，请重新构建并明确启用新的预览。')
+
+    preview = MCPPreview(built, runtime, root, check=current_source)
+    if args.command == 'preview':
+        from .mcp_preview import serve
+        serve(preview, args.port)
+        return None
+    try:
+        return preview.run_tests(strict_json(Path(args.cases).read_bytes()))
+    finally:
+        preview.close()
 
 
 def write_new(path, body):
@@ -77,17 +99,20 @@ def write_new(path, body):
         stream.write(body)
 
 
-def main(argv=None):
+def main(argv=None, *, packaged=False):
     parser = argparse.ArgumentParser(description='RunTeams local creator development; preview and self-test require trusted author code')
     parser.add_argument('--project', default='source')
-    parser.add_argument('--toolchain', default=str(ROOT / 'toolchain.json'))
+    if not packaged:
+        parser.add_argument('--toolchain', default=str(ROOT / 'toolchain.json'))
     commands = parser.add_subparsers(dest='command', required=True)
-    init = commands.add_parser('init', help='Create a standalone employee workspace from the bundled example')
-    init.add_argument('directory')
-    init.add_argument('--key', required=True)
-    init.add_argument('--name', required=True)
-    reopen = commands.add_parser('open', help='Continue a platform source ZIP in a new standalone workspace')
-    reopen.add_argument('archive'); reopen.add_argument('directory')
+    if not packaged:
+        init = commands.add_parser('init', help='Create a standalone employee workspace from the bundled example')
+        init.add_argument('directory')
+        init.add_argument('--key', required=True)
+        init.add_argument('--name', required=True)
+        reopen = commands.add_parser('open', help='Continue a platform source ZIP in a new standalone workspace')
+        reopen.add_argument('archive')
+        reopen.add_argument('directory')
     commands.add_parser('doctor')
     commands.add_parser('check')
     commands.add_parser('build')
@@ -96,6 +121,7 @@ def main(argv=None):
     inspect = commands.add_parser('inspect'); inspect.add_argument('archive')
     preview = commands.add_parser('preview'); preview.add_argument('--port', type=int, default=0)
     args = parser.parse_args(argv)
+    configuration = None if packaged else args.toolchain
     result = {'sdk_dev': VERSION, 'scope': 'local-code-development', 'cloud_verified': False, 'published': False}
     try:
         if args.command == 'init':
@@ -105,11 +131,23 @@ def main(argv=None):
             from .scaffold import open_archive
             result.update(open_archive(ROOT,args.archive,args.directory),ok=True)
         elif args.command == 'doctor':
-            config, paths = toolchain(args.toolchain)
-            result.update(ok=True, platform=sys.platform, tools={k: config[k]['sha256'] if k!='runtime' else paths[k].manifest_sha256 for k in paths})
+            builder = local_builder(configuration)
+            result.update(ok=True, platform=sys.platform, tools={
+                'esbuild': builder.esbuild_sha256,
+                'runtime': builder.runtime.manifest_sha256,
+            })
         else:
             files = inspect_file(args.archive) if args.command == 'inspect' else read_source(args.project)
-            compiled = check(files)
+            if args.command in ('build', 'test', 'preview'):
+                if args.command == 'test' and not args.trust_local_code:
+                    raise ValueError('local_code_trust_required: self-test executes the current local author program')
+                builder = local_builder(configuration)
+                built = builder.build(files)
+                compiled = built['compiled']
+                result['artifacts'] = [{'path': path, 'sha256': sha(body)}
+                                       for path, body in sorted(built['artifacts'].items())]
+            else:
+                compiled = check(files)
             result.update(ok=True, source_sha256=compiled['source']['sha256'], files=len(files))
             if args.command == 'pack':
                 target = Path(args.output).resolve()
@@ -117,22 +155,16 @@ def main(argv=None):
                     raise ValueError('output_must_be_outside_source')
                 raw = pack(files); write_new(target, raw)
                 result.update(archive=str(target), archive_sha256=sha(raw), format='runteams.source-archive/1-dev')
-            if args.command in ('build', 'test', 'preview'):
-                built, sandbox = build(files, args.toolchain)
-                source_root=Path(args.project).absolute();expected=built['manifest']['source_sha256']
-                def current_source():
-                    if tree(read_source(source_root))['sha256']!=expected:
-                        raise PermissionError('源码已变化，请重新构建并明确启用新的预览。')
-                sandbox.check_callback=current_source
-                result.update(artifacts=[{'path': p, 'sha256': sha(b)} for p, b in sorted(built['artifacts'].items())])
-                if args.command == 'test':
-                    if not args.trust_local_code:raise ValueError('local_code_trust_required: self-test executes the current local author program')
-                    try:result['cases']=sandbox.run_tests(strict_json(Path(args.cases).read_bytes()))
-                    finally:sandbox.close()
+            if args.command in ('test', 'preview'):
+                if packaged:
+                    with TemporaryDirectory(prefix='runteams-sdk-') as folder:
+                        cases = run_local_code(args, built, builder.runtime, Path(folder).resolve())
+                else:
+                    root = Path(configuration).absolute().parent.parent / 'dev/mcp-preview'
+                    cases = run_local_code(args, built, builder.runtime, root / result['source_sha256'])
                 if args.command == 'preview':
-                    from .mcp_preview import serve
-                    serve(sandbox,args.port)
                     return 0
+                result['cases'] = cases
         print(json.dumps(result, ensure_ascii=False, indent=2))
         return 0
     except (ValueError, OSError, RuntimeError) as error:

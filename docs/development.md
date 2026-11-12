@@ -45,6 +45,20 @@ npm ci --prefix tooling/js --ignore-scripts --no-audit --no-fund
 
 ## SDK 开发包
 
+macOS 本地版桌面安装包可直接运行 SDK。进入工程目录后，用安装包内的 Python、Node 和 esbuild 检查、编译、预览和自测。
+
+```sh
+app="/Applications/RunTeams Local.app/Contents/MacOS/RunTeamsLocal"
+"$app" --sdk --project source check
+"$app" --sdk --project source build
+"$app" --sdk --project source preview
+"$app" --sdk --project source test --cases dev/tests.json --trust-local-code
+```
+
+官网 macOS 安装包使用 `/Applications/RunTeams.app/Contents/Resources/server/runteams-server` 作为上述命令的入口。
+
+预览命令输出本机地址。在浏览器打开地址后，确认信任源码即可启用预览。
+
 SDK 源码直接在本仓库维护。独立开发包由同源导出器生成，无需第三个仓库：
 
 ```sh
