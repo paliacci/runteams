@@ -235,7 +235,8 @@ class EmployeeMCP:
                     extra = self.environment_stack.enter_context(self.environment_scope())
                     data={'RUNTEAMS_PIPELINE_HOST','RUNTEAMS_PIPELINE_CAPABILITY'}
                     connections={'RUNTEAMS_CONNECTION_HOST','RUNTEAMS_CONNECTION_CAPABILITY'}
-                    if set(extra) not in (set(),data,connections,data|connections):
+                    capabilities = set(extra) - {'RUNTEAMS_TASK_CREDENTIAL_SCOPES'}
+                    if capabilities not in (set(), data, connections, data | connections):
                         raise MCPError('invalid_mcp_host_environment')
                     env.update(extra)
                 except BaseException:
