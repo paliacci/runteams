@@ -82,9 +82,12 @@
 .source-pipeline-settings-home .detail-drawer-heading-row--description{margin-block-start:8px}
 .source-pipeline-settings-home .detail-drawer-heading-row--description:has(+.source-pipeline-field-form){display:none}
 .source-pipeline-settings-home .detail-drawer-heading-row>.detail-drawer-description{margin:0}
-.source-pipeline-standards :is(.settings-section-content,.source-pipeline-standard-line)>p{
- margin:0;font-size:calc(12px * var(--interface-font-scale,1));line-height:18px;color:var(--text-secondary);white-space:pre-wrap;overflow-wrap:anywhere
+.source-pipeline-standards :is(.settings-section-content,.source-pipeline-standard-line)>:is(p,.markdown-compact){
+ margin:0;font-size:calc(12px * var(--interface-font-scale,1));line-height:18px;color:var(--text-secondary);overflow-wrap:anywhere
 }
+.source-pipeline-standard-line{display:flex;align-items:flex-start;gap:4px}
+.source-pipeline-standard-line>.markdown-compact{flex:1}
+.source-pipeline-standard-line>.source-pipeline-field-edit{flex:none}
 .source-pipeline-field-edit{
  display:inline-grid;place-items:center;inline-size:24px;block-size:18px;padding:0;
  vertical-align:-3px;border:0;border-radius:6px;background:transparent;color:var(--text-secondary);

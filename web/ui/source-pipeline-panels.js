@@ -298,10 +298,11 @@ function toggleSettingsSection(button){
  RunTeamsEmployeeDrawerHeader.toggleSection(button,state(s).collapsedSettings||=new Set());
 }
 function teamStandard(p,asset,locked,editable){
- const standard=asset.pipeline.team_standard;
- const text=standard?`<p>${esc(standard)}</p>`:'<p data-app-i18n="pipelineSettings.empty">尚未填写团队规范。</p>';
+ const standard=asset.pipeline.team_standard?.trimEnd();
+ const text=standard?`<div class="markdown-compact">${renderMarkdown(standard)}</div>`:
+  '<p data-app-i18n="pipelineSettings.empty">尚未填写团队规范。</p>';
  const body=editable?settingsEditForm(p,'team_standard')||
-  `<div class="source-pipeline-standard-line"><p>${detailDrawerTextWithAction(standard?.trimEnd()||'尚未填写团队规范。',settingsEditButton(p,'team_standard',locked),standard?undefined:'pipelineSettings.empty')}</p></div>`:text;
+  `<div class="source-pipeline-standard-line">${text}${settingsEditButton(p,'team_standard',locked)}</div>`:text;
  return RunTeamsEmployeeDrawerHeader.section({id:'pipeline-settings-standards',
   title:'<span data-app-i18n="pipelineSettings.standards">团队规范</span>',
   body,collapsedSections:p.collapsedSettings,action:'RunTeamsSourcePipelinePanels.toggleSettingsSection',
