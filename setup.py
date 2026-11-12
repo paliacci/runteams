@@ -8,7 +8,7 @@ from setuptools.command.build_py import build_py
 
 ROOT = Path(__file__).resolve().parent
 DATA_DIRS = ('web', 'contracts', 'sdk', 'agent_skills', 'builtin_skills', 'frontend')
-EXCLUDED = {'node_modules', '__pycache__', '.git', 'build', '.build'}
+EXCLUDED = {'node_modules', '__pycache__', '.git', 'build', '.build', '.DS_Store'}
 
 
 def resource_inputs():
