@@ -24,7 +24,7 @@ def configuration_fields(frozen):
     declarations = fields(frozen)
     if not declarations:return declarations
     from runteams_core.pipelines.source_pipeline_workspace import _definition
-    _, asset = _definition(frozen['pipeline_work']['reference'])
+    _, asset, _ = _definition(frozen['pipeline_work']['reference'])
     current = {p['key']:p for p in asset['pipeline'].get('parameters', [])
                if p.get('source') == 'user' and p.get('display') == 'setup'}
     for field in declarations:

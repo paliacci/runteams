@@ -47,13 +47,22 @@ def source(ref):
     return Revisions(store, ref['source_id'])
 
 
-def _selection(asset,start_column_key=None):
-    if start_column_key is not None and (not isinstance(start_column_key,str) or not re.fullmatch('[a-z][a-z0-9-]{0,79}',start_column_key)):
+def _entry(asset, start_column_key=None):
+    if start_column_key is not None and (not isinstance(start_column_key, str) or not re.fullmatch('[a-z][a-z0-9-]{0,79}', start_column_key)):
         raise ContractError('请选择有效的开始岗位。')
-    positions = asset['pipeline']['positions'];key=start_column_key or workflow_policy.start_position(asset['pipeline'])
-    position = next((p for p in positions if p['key']==key),None)
-    if position is None:raise ContractError('新工作必须选择流水线中实际存在的岗位。')
-    if position['kind']!='employee':position=next(p for p in positions if p['kind']=='employee')
+    definition = asset['pipeline']
+    key = start_column_key or workflow_policy.start_position(definition)
+    entry = next((p for p in [*definition['positions'], *definition.get('states', [])] if p['key'] == key), None)
+    if entry is None:
+        raise ContractError('新工作必须选择流水线中实际存在的岗位。')
+    return entry
+
+
+def _selection(asset, start_column_key=None):
+    position = _entry(asset, start_column_key)
+    # Non-executing entries retain the same frozen package anchor as approval entries.
+    if position['kind'] != 'employee':
+        position = next(p for p in asset['pipeline']['positions'] if p['kind'] == 'employee')
     return _position(asset, position['key'])
 
 
@@ -82,7 +91,7 @@ def describe(ref, start_column_key=None):
     employee = description['asset']
     bundle = next(b for b in employee['skill_bundles'] if b['package_key'] == position['skill_key'])
     declared = extension(bundle).get('work')
-    entry = next(p for p in asset['pipeline']['positions'] if p['key'] == (start_column_key or workflow_policy.start_position(asset['pipeline'])))
+    entry = _entry(asset, start_column_key)
     return {'reference': ref, 'revision': revision, 'name': asset['pipeline']['name'],
         'position_key': entry['key'], 'position_name': entry['name'], 'kind': entry['kind'],
         'employee_source': selector(member), 'employee_name': employee['employee']['name'] if entry['kind'] == 'employee' else None,
@@ -446,21 +455,23 @@ def create(core, data):
             bundle=control.read(core,request['reference'],connection)['bundle']
             cursor=request.get('start_column_key') or workflow_policy.start_position(context['asset']['pipeline'])
             frozen,payload=flow.initial(core,connection,selected,bundle,request['payload'],cursor)
-            position, _ = _position(context['asset'],context['position_key'])
             now = utc_now(); encoded = canonical(frozen).decode()
             task_id = connection.execute('INSERT INTO tasks(employee_reference,title,payload_json,state,start_column_key,pipeline_snapshot_json,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)',
                 (canonical(package['reference']).decode(), request['title'], canonical(payload).decode(), 'ready', cursor, encoded, now, now)).lastrowid
             identifier = connection.execute('INSERT INTO workflow_runs(task_id,state,available_at,cursor_key,snapshot_json,created_at,updated_at) VALUES(?,?,?,?,?,?,?)',
                 (task_id, 'ready', now, cursor, encoded, now, now)).lastrowid
-            entry=next(p for p in context['asset']['pipeline']['positions'] if p['key']==cursor)
+            entry = _entry(context['asset'], cursor)
             if entry['kind']=='approval':
                 frozen['pipeline_waiting']={'kind':'approval','position_key':cursor,'source_run_id':None}
                 row=flow._row(connection,identifier)
                 flow._save(core,connection,row,frozen,'needs_approval',cursor)
+            elif entry['kind'] in ('done', 'dropped', 'pool'):
+                state = {'done': 'completed', 'dropped': 'canceled', 'pool': 'blocked'}[entry['kind']]
+                flow._save(core, connection, flow._row(connection, identifier), frozen, state, cursor)
             core.repository.event('task:' + str(task_id), 'task.created',
                 {'task_id': task_id, 'pipeline_reference': request['reference'], 'title': request['title']}, connection=connection)
             core.repository.event('workflow_run:' + str(identifier), 'workflow.created',
-                {'task_id': task_id, 'pipeline_reference': request['reference'], 'position_key': position['key']}, connection=connection)
+                {'task_id': task_id, 'pipeline_reference': request['reference'], 'position_key': cursor}, connection=connection)
             core.repository.event('source-pipeline-operation:' + key, 'pipeline.work_admitted',
                 {'request_sha256': digest(request), 'workflow_id': identifier}, connection=connection)
             from runteams_core.pipelines.pipeline_task_report import sync

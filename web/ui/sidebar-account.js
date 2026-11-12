@@ -6,30 +6,41 @@
   let host,timer,state={scope:null};
   const empty=scope=>({scope,status:'idle',data:null,localStatus:'idle',localData:null,pending:null,due:0,localPending:null,localDue:0});
   function context(){const value=host?.context()||{},scope=value.signedIn?String(value.scope):'';if(state.scope!==scope)state=empty(scope);return value;}
+  function workRow({id,title,name,kind,employee,pipeline_name},device=false){
+    return {key:(device?'device-work:':'work:')+id,id,title,name,kind,employee,pipeline_name,
+      storage_scope:device?'device':undefined};
+  }
   function items(){
     const rows=[],seen=new Set();
     for(const work of state.status==='ready'?state.data.work_items:[]){
       if(!['needs_approval','needs_human'].includes(work.state))continue;
-      rows.push({key:'work:'+work.id,id:work.id,title:work.title,name:work.name,kind:work.kind});seen.add('cloud:'+work.id);
+      rows.push(workRow(work));seen.add('cloud:'+work.id);
     }
     for(const work of host?.context()?.localReady&&state.localStatus==='ready'?state.localData.work_items:[]){
       if(!['needs_approval','needs_human'].includes(work.state))continue;
-      rows.push({key:'device-work:'+work.id,id:work.id,title:work.title,name:work.name,kind:work.kind,storage_scope:'device'});seen.add('device:'+work.id);
+      rows.push(workRow(work,true));seen.add('device:'+work.id);
     }
     // Interventions already carry an explicit workflow/automation destination.
     for(const item of host?.attention?.()||[]){
       if(item.workflow_id&&seen.has((item.storage_scope==='device'?'device:':'cloud:')+item.workflow_id))continue;
       if(!item.id||!(item.workflow_id||item.automation_id||item.kind==='automation'))continue;
-      rows.push({key:'attention:'+item.id,id:String(item.id),attention:true,storage_scope:item.storage_scope,title:item.title||item.reason,name:item.pipeline_name||item.employee_name||item.automation_name,fallbackName:true,kind:item.pipeline_id?'pipeline':'employee'});
+      const kind=item.kind==='automation'?'automation':item.work_kind||(item.pipeline_id?'pipeline':'employee');
+      rows.push({key:'attention:'+item.id,id:String(item.id),attention:true,storage_scope:item.storage_scope,
+        title:item.card_title||item.title||item.reason,kind,pipeline_name:item.pipeline_name,
+        employee:item.employee||{name:item.employee_name}});
     }
     return rows;
   }
   function row(item){
-    const kind=item.kind==='pipeline'?'pipeline':'employee',title=item.title||'等待处理';
+    const kind=item.kind,title=item.title||'等待处理';
     const titleCopy=item.title?'':' data-app-i18n="sidebarAttention.item" data-app-i18n-title="sidebarAttention.item"';
-    const nameCopy=!item.name&&item.fallbackName?` data-app-i18n="sidebarAttention.${kind}"`:'';
-    const name=item.name||(item.fallbackName?(kind==='pipeline'?'流水线':'员工'):'');
-    return `<button type="button" class="rail-pending-item" data-pending-key="${escape(item.key)}" onclick="RunTeamsSidebar.openItem(this.dataset.pendingKey)"><span class="rail-pending-source-icon" aria-hidden="true">${host.icon(item.kind==='pipeline'?'flow':'users')}</span><span class="rail-pending-copy"><span class="rail-pending-title" title="${escape(title)}"${titleCopy}>${escape(title)}</span><small${nameCopy}>${escape(name)}</small></span></button>`;}
+    const employee=host.employee?.(item.employee)||item.employee;
+    const pipeline=kind==='pipeline'&&(item.pipeline_name||item.name);
+    const subtitle=[employee?.name||(kind==='employee'?item.name:''),pipeline].filter(Boolean).join('\u2002');
+    const fallback={pipeline:'流水线',employee:'员工',automation:'自动化'}[kind]||'员工';
+    const nameCopy=subtitle?` title="${escape(subtitle)}"`:` data-app-i18n="sidebarAttention.${kind}"`;
+    const icon=employee?.name&&host.avatar?host.avatar(employee):host.icon(kind==='pipeline'?'flow':kind==='automation'?'clock':'user');
+    return `<button type="button" class="rail-pending-item" data-pending-key="${escape(item.key)}" onclick="RunTeamsSidebar.openItem(this.dataset.pendingKey)"><span class="rail-pending-source-icon${kind==='pipeline'&&!employee?.name?' is-pipeline-fallback':''}" aria-hidden="true">${icon}</span><span class="rail-pending-copy"><span class="rail-pending-title" title="${escape(title)}"${titleCopy}>${escape(title)}</span><small${nameCopy}>${escape(subtitle||fallback)}</small></span></button>`;}
   function readState(value){
     const local=!!value.localReady&&!!host.localWork;
     const failed=state.status==='error'||local&&state.localStatus==='error'||!value.deviceWorkOnly&&!value.ready&&state.localStatus==='ready';
@@ -45,7 +56,7 @@
   function contents(values,value){
     const {failed,ready}=readState(value);
 
-    const rows=values.length?values.slice(0,3).map(row).join('')+`<button class="rail-pending-more" type="button" onclick="RunTeamsSidebar.showAll()" data-app-i18n="sidebarAttention.showAll">查看全部</button>`:'';
+    const rows=values.length?values.slice(0,3).map(row).join('')+`<button class="rail-section-more rail-pending-more" type="button" aria-haspopup="dialog" onclick="RunTeamsSidebar.showAll()" data-app-i18n="shell.showMore">显示更多</button>`:'';
     const error=failed?`<div class="rail-pending-error" role="alert">${statusCopy(values.length)}${global.RunTeamsLoadFailure.button({variant:'local',compact:true,retry:'RunTeamsSidebar.refresh(true)',labelKey:'sidebarAttention.retry',busyLabelKey:'sidebarAttention.loading',busy:!!state.pending||!!state.localPending,focusFallback:'[data-rail-section="pending"] > summary'})}</div>`:'';
     const body=rows+error+(!rows&&!error&&ready?emptyCopy:'');
     return `<details class="rail-pending-section" data-rail-section="pending" ${host.sectionOpen()?'open':''}><summary class="rail-section-toggle" onclick="RunTeamsSidebar.toggle(event)"><span data-app-i18n="sidebarAttention.title">待处理</span><span class="rail-section-chevron" aria-hidden="true">${host.icon('chev')}</span></summary><div class="rail-pending-list">${body}</div></details>`;

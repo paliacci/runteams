@@ -83,7 +83,8 @@
   // It does not derive employee identity from a conversation title or chat ID.
   const rows=current(),same=(a,b)=>{const identity=referenceKey(a);return !!identity&&identity===referenceKey(b);},prior=rows.find(row=>row.key===entry.key||same(row.reference,entry.reference));sequence++;
   const next=prior?{...prior,key:entry.key,source:entry.source,record:{...prior.record,name:entry.record.name,avatar:entry.record.avatar,avatar_src:entry.record.avatar_src||null}}:entry;
-  install([next,...rows.filter(row=>row!==prior&&row.key!==entry.key)],token());
+  const updated=prior?rows.filter(row=>row===prior||row.key!==entry.key).map(row=>row===prior?next:row):[next,...rows];
+  install(updated,token());
  }
  const downloaded=()=>current().map(row=>row.work).filter(row=>row&&!row.history_only);
  const assets=()=>current().filter(row=>row.asset||row.work).map(row=>row.record);
@@ -247,11 +248,43 @@
   }
   RunTeamsHeaderStatus.sync();
  }
+ const pinStorageKey='runteams_sidebar_pinned_employees_v1';
+ function pinnedKeys(){
+  try{
+   const value=JSON.parse(RunTeamsBusinessStorage.getItem(pinStorageKey)||'[]');
+   return new Set(Array.isArray(value)?value.filter(key=>typeof key==='string'):[]);
+  }catch{return new Set();}
+ }
+ function togglePin(key,expected){
+  const entry=entryFor(key);
+  if(expected!==token()||!entry||entry.pipeline_groups?.length)return;
+  const pinned=pinnedKeys();
+  const next=pinned.delete(key)?[...pinned]:[key,...pinned];
+  try{
+   if(!RunTeamsBusinessStorage.key(pinStorageKey))throw Error('Employee pin scope is unavailable');
+   RunTeamsBusinessStorage.setItem(pinStorageKey,JSON.stringify(next));
+  }catch{
+   toast('无法保存员工置顶，请重试。','err','employeeSettings.pinFailed');
+   return;
+  }
+  refreshBotList();
+ }
  function rowMenu(event,key){
-  event.preventDefault();event.stopPropagation();const entry=entryFor(key);if(!entry)return;
-  const items=[{label:employeeSettingsCopy('title','员工设置'),labelKey:'employeeSettings.title',icon:'settings',fn:()=>settings(key)},{label:employeeSettingsCopy('records','工作记录'),labelKey:'employeeSettings.records',icon:'clock',fn:()=>openContextResults({employee_reference:entry.source?.reference||entry.reference})}];
-  if(entry.asset?.editable)items.push({divider:true},{label:employeeSettingsCopy('trash','移到垃圾箱'),labelKey:'employeeSettings.trash',icon:'trash',fn:()=>trashCoreEmployee(entry.asset.id)});
-  openMenu(event.currentTarget,items,{variant:'workerAction',...(event.type==='contextmenu'?{at:{x:event.clientX,y:event.clientY}}:{})});
+  event.preventDefault();event.stopPropagation();const entry=entryFor(key);if(!entry||entry.pipeline_groups?.length)return;
+  const pinned=pinnedKeys().has(key),expected=token();
+  const canManage=()=>{
+   const current=entryFor(key);
+   return expected===token()&&current&&!current.pipeline_groups?.length;
+  };
+  const items=[{label:pinned?'取消置顶':'置顶',labelKey:pinned?'conversationDetail.unpin':'conversationDetail.pin',icon:pinned?'pin-off':'pin',fn:()=>togglePin(key,expected)}];
+  const uninstall=RunTeamsHost.assets.uninstallAction?.('employee',entry);
+  if(uninstall)items.push({...uninstall,fn:()=>{if(canManage())uninstall.fn();}});
+  else if(entry.asset?.editable&&entry.asset.origin?.kind!=='marketplace'){
+   items.push({label:'移到垃圾箱',labelKey:'employeeSettings.trash',icon:'trash',fn:()=>{
+    if(canManage())trashCoreEmployee(entry.asset.id);
+   }});
+  }
+  openMenu(event.currentTarget,items,{variant:'workerAction',dismissOnScroll:'#rgRail .bot-list-scroll',...(event.type==='contextmenu'?{at:{x:event.clientX,y:event.clientY}}:{})});
  }
  function sessionTitle(row,panel=S.conversationPanel){
   const clean=value=>String(value||'').replace(/\[\[capability:[A-Za-z0-9_-]+\]\]/g,'').replace(/\s+/g,' ').trim();
@@ -290,6 +323,6 @@
   accept(session.employee);
  }
  const sourceFor=value=>(entryFor(value)||assetEntry(value))?.source||null;
- window.RunTeamsEmployeeDirectory=Object.freeze({entryFor,assetEntry,forPanel,panelReference,referenceKey,references,matches,employeePanel,status,statuses,paintStatus,rowMenu,sourceFor,refresh,isLoading,accept,current,assets,downloaded,assetIdentity,upsertAsset,open,settings,finishCreation,sessions,sessionMenu,newSession,reset});
+ window.RunTeamsEmployeeDirectory=Object.freeze({entryFor,assetEntry,forPanel,panelReference,referenceKey,references,matches,employeePanel,status,statuses,paintStatus,rowMenu,pinnedKeys,sourceFor,refresh,isLoading,accept,current,assets,downloaded,assetIdentity,upsertAsset,open,settings,finishCreation,sessions,sessionMenu,newSession,reset});
  window.addEventListener('runteams:business-scope-changed',reset);
 })();

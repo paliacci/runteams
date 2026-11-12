@@ -408,6 +408,10 @@ def detail(core,identifier):
             if original is None:raise ContractError('岗位尝试缺少原员工版本记录。')
             item['employee_name']=original['employee']['name']
         item['artifacts']=owned.get(canonical_reference(reference),artifacts);item['work']={'employee_reference':reference,'objective':item['input_json']['payload']['objective']}
+        if not frozen.get('pipeline_work') and item['state']=='running' and item['id']==frozen.get('employee_run_id'):
+            from runteams_core.pipelines.pipeline_execution_activity import read as read_activity
+            activity=read_activity(core,identifier,item['id'],frozen.get('work_chat_id'))
+            if activity:item['live_activity']=activity
         decoded.append(item)
     return {**dict(run),'snapshot_json':frozen,'task':{**dict(task),'payload_json':json.loads(task['payload_json'])},
         'employee_runs':decoded,'artifacts':artifacts,'team_parameters':{},'events':core.repository.events('workflow_run:'+str(identifier)),'storage_scope':'device'}
@@ -426,7 +430,14 @@ def delivery(core, job, reports):
             'summary':output.get('summary',''),'issues':output.get('issues',[]),
             'output':output.get('output') or {}, 'work_done':output.get('work_done') or [],
             'fields':output_fields(output['output'],{}) if output.get('output') else [],'actions':[]})
-    return apply_to_delivery(core,delivery_view({**job,'created_at':work['created_at'],'updated_at':work['updated_at'],'attempts':attempts},[]),reports)
+    result=apply_to_delivery(core,delivery_view({**job,'created_at':work['created_at'],'updated_at':work['updated_at'],'attempts':attempts},[]),reports)
+    pipeline=work['snapshot_json'].get('pipeline_work')
+    if pipeline:
+        # The record and both task entry points resolve the same authorized ledger row.
+        result['pipeline_reference']=pipeline['reference']
+    else:
+        result['task_kind']='employee'
+    return result
 
 
 def results(core,reference,workflow_id=None):

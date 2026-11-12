@@ -23,6 +23,7 @@ from runteams_core.authoring.source.creator_local_source import current_store, _
 from runteams_core.authoring.source.creator_source_revisions import Revisions
 from runteams_core.authoring.compilation.creator_local_build import LocalBuilds
 from runteams_core.authoring.creator_definitions import CATALOG_PATH
+from runteams_core.authoring.definition_contracts import without_retired_runtime_limit
 from runteams_core.authoring.creator_conversation_assets import validate_asset as verified_employee_asset, extension as _extension
 
 _revalidated_builds=OrderedDict()
@@ -153,8 +154,8 @@ def prepare(ref, operation_id, *, cancel=None, revision=None, runtime_selection=
 def resolve_runtime(requirement, *, selection=None, catalogs=None):
     from runteams_core.storage import product_store
     from runteams_core.agents.models import model_channels
-    provider=requirement['provider']
-    channels=[c for c in product_store.list_channels() if c.get('enabled') and c['provider']==provider]
+    provider=requirement.get('provider')
+    channels=[c for c in product_store.list_channels() if c.get('enabled') and (not provider or c['provider']==provider)]
     if not channels:raise ContractError('员工需要的模型渠道尚未连接。')
     settings=device_data.settings();choice=str(settings.get('default_model') or '').split('::',1)
     configured=next((c for c in channels if str(c['id'])==choice[0]),None)
@@ -174,7 +175,7 @@ def resolve_runtime(requirement, *, selection=None, catalogs=None):
     effort=selection['effort'] if selection is not None else requirement.get('effort') or settings.get('default_effort') or ''
     model,effort=model_channels.normalize_selection(channel,model,effort,catalog=catalog)
     if not model or not any(item['value']==model for item in models):raise ContractError('员工未能选定可用模型，请重新读取模型渠道。')
-    runtime = {**requirement,'channel_id':channel['id'],'provider':provider,'model':model,'effort':effort}
+    runtime = {'channel_id':channel['id'],'provider':channel['provider'],'model':model,'effort':effort}
     if selection is not None:
         if selection['effort'] and selection['effort'] != effort:
             raise ContractError('选用的模型不支持此推理档位，请重新选择。')
@@ -185,7 +186,7 @@ def resolve_runtime(requirement, *, selection=None, catalogs=None):
 def runtime_matches_requirement(runtime, requirement):
     preferences = {'model', 'effort'} if runtime.get('selection_source') == 'position_override' else set()
     return all(key in preferences or not value or runtime.get(key) == value
-               for key, value in requirement.items())
+               for key, value in without_retired_runtime_limit(requirement).items())
 
 
 def validate(package):
@@ -235,7 +236,8 @@ def employee(package):
             **identity(asset['employee'], avatar_file=asset.get('avatar_file')),
             'local_package': package,
             'active_release': {'id':None, 'digest':digest(package), 'snapshot_json':{
-                'schema':employee_work_contracts.SOURCE_PACKAGE, 'runtime':package['runtime'], 'soul':asset['employee']['soul'],
+                'schema':employee_work_contracts.SOURCE_PACKAGE,
+                'runtime':without_retired_runtime_limit(package['runtime']), 'soul':asset['employee']['soul'],
                 'skill_bundles':asset['skill_bundles']}}}
 
 

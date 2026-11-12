@@ -1,7 +1,7 @@
 /* Original work UI recovery state lives with its actual device/library owner. */
 (()=>{
  'use strict';
- const kinds=['pipeline-admission','pipeline-control','pipeline-create','pipeline-settings','pipeline-flow','employee-schedule-operation'];
+ const kinds=['pipeline-card','pipeline-admission','pipeline-control','pipeline-create','pipeline-settings','pipeline-flow','employee-schedule-operation'];
  const token=()=>`${_workspaceBusinessGeneration}:${workspaceAccountCacheToken()}`;
  const path='/api/device/work/source-pipelines/ui-state-';
  let active=null;

@@ -362,7 +362,7 @@ def initial(core, connection, role, bundle, payload,start_column_key=None):
     setup_keys = {p['key'] for p in setup}
     validate_values(setup, {k:v for k,v in payload.get('parameters', {}).items() if k in setup_keys})
     entry=start_column_key or workflow_policy.start_position(bundle['asset']['pipeline'])
-    if next(p for p in bundle['asset']['pipeline']['positions'] if p['key']==entry)['kind']=='approval':
+    if work._entry(bundle['asset'], entry)['kind'] != 'employee':
         return frozen,copy.deepcopy(payload)
     return frozen, payload_for(core, connection, frozen, role)
 
@@ -963,7 +963,16 @@ def finish_turn(core, identifier, status, reason='', *, expected_visit=None):
     with core.repository.connect() as connection:
         row = _row(connection, identifier); frozen = json.loads(row['snapshot_json'])
         if frozen['pipeline_visit']!=before['pipeline_visit']:return row['state']
-        if row['state'] == 'canceled' or frozen.get('pipeline_applied_result'):
+        if row['state'] == 'canceled':
+            if frozen.get('pipeline_execution'):
+                frozen['pipeline_execution']['active'] = False
+            if frozen.get('send_admitted') and not frozen.get('pipeline_applied_result'):
+                frozen['pipeline_unresolved'] = True
+            frozen.pop('pipeline_recovery_pending', None)
+            frozen.pop('pipeline_program_error', None)
+            _save(core, connection, row, frozen, 'canceled')
+            return 'canceled'
+        if frozen.get('pipeline_applied_result'):
             return row['state']
         frozen.pop('pipeline_recovery_pending',None);frozen.pop('pipeline_program_error',None)
         submitted = frozen.get('pipeline_submission')

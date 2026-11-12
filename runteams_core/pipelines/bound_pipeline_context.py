@@ -21,7 +21,8 @@ class BoundPipelineContext:
     def definition(self, reference):
         self._check()
         from runteams_core.pipelines.source_pipeline_workspace import _definition
-        return _definition(reference)
+        revision, asset, _ = _definition(reference)
+        return revision, asset
 
 
     def member_configuration(self, reference, package):

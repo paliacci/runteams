@@ -24,7 +24,7 @@
 .employee-automation-records>div{padding:12px 0;border-bottom:1px solid var(--border-default)}
 .employee-automation-records span{display:block;color:var(--text-secondary);font-size:12px;margin-top:4px}
 .employee-automation-records p{overflow-wrap:anywhere}
-.employee-automation-add:focus-visible,.employee-automation-icon-action:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.employee-automation-add:focus-visible,.employee-automation-icon-action:focus-visible{outline:2px solid var(--control-focus);outline-offset:2px}
 
 .employee-schedule-editor .automation-form-section-title{align-items:flex-start;flex-wrap:wrap;gap:8px}
 .employee-schedule-editor .automation-form-section-title span{min-width:0;line-height:20px}
@@ -65,7 +65,7 @@
 .employee-schedule-days input{position:absolute;opacity:0;width:100%;height:100%;margin:0;cursor:pointer}
 .employee-schedule-days label>span{display:grid;place-items:center;height:36px;border:1px solid color-mix(in srgb,var(--text-primary) 12%,transparent);border-radius:6px;background:var(--surface);font-size:14px;pointer-events:none}
 .employee-schedule-days input:checked+span{background:var(--surface-selected);border-color:var(--accent);color:var(--accent)}
-.employee-schedule-days input:focus-visible+span,.employee-schedule-summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.employee-schedule-days input:focus-visible+span,.employee-schedule-summary:focus-visible{outline:2px solid var(--control-focus);outline-offset:2px}
 .employee-schedule-name{display:flex;align-items:center;gap:12px;min-height:44px;padding:0 12px}
 .employee-schedule-name>input{flex:1;width:0;min-width:0;border:0;outline:0;background:transparent;font-family:inherit;font-size:14px;line-height:22px;color:var(--text-primary)}
 
@@ -78,7 +78,7 @@
 .employee-schedule-original>input{appearance:none;border:1px solid color-mix(in srgb,var(--text-primary) 20%,transparent);border-radius:4px;background:var(--surface);display:grid;place-content:center}
 .employee-schedule-original>input:checked{background:var(--accent);border-color:var(--accent)}
 .employee-schedule-original>input:checked::after{content:"";width:8px;height:4px;border-left:1.5px solid var(--action-on-primary);border-bottom:1.5px solid var(--action-on-primary);transform:translateY(-1px) rotate(-45deg)}
-.employee-schedule-original>input[type="checkbox"]:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.employee-schedule-original>input[type="checkbox"]:focus-visible{outline:2px solid var(--control-focus);outline-offset:2px}
 
 /* Inline naming keeps only its caret; selectors use the shared button/menu. */
 .employee-schedule-fields .csel{width:100%}

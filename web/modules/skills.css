@@ -56,7 +56,7 @@
 /* module-rule:153 */
 .environment-cap-row.clickable{cursor:pointer}
 /* module-rule:154 */
-.environment-cap-row.clickable:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+.environment-cap-row.clickable:focus-visible{outline:2px solid var(--control-focus);outline-offset:1px}
 /* module-rule:155 */
 .environment-cap-row.selected{background:var(--rail-active)}
 /* module-rule:234 */

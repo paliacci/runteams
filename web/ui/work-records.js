@@ -52,6 +52,35 @@
   return `<span class="work-record-state ${esc(tone)}" data-work-state="${esc(state)}" data-app-i18n="${copy.key}"${state==='returned'?` data-app-i18n-vars="${esc(JSON.stringify(vars))}"`:''}>${esc(copy.label)}</span>`;
  }
  function prose(value){return `<div class="doc-reader-prose work-record-report">${renderMarkdown(String(value||''))}</div>`;}
+ function taskSection(selection,key,title,body,defaultOpen=true){
+  const id=Number(selection.workflow.id),expanded=selection.workSections?.[key]??defaultOpen;
+  return RunTeamsEmployeeDrawerHeader.section({id:`source-work-${id}-${key}`,stateKey:key,title,body,
+   collapsedSections:new Set(expanded?[]:[key]),action:'RunTeamsWorkRecords.toggleTaskSection',className:'source-work-group'})
+   .replace('<section ',`<section data-source-work-section="${esc(key)}" data-work-id="${id}" `);
+ }
+ function toggleTaskSection(button){
+  const selection=S.sel,section=button.closest?.('.source-work-group'),drawer=button.closest?.('.unified-task-detail-drawer');
+  if(!button.isConnected||!section||String(selection?.workflow?.id)!==section.dataset.workId||
+   drawer?.dataset.sourceWorkflowId!==section.dataset.workId)return;
+  RunTeamsEmployeeDrawerHeader.toggleSection(button,selection.workCollapsed||=new Set());
+  (selection.workSections??={})[button.dataset.settingsSectionKey]=button.getAttribute('aria-expanded')==='true';
+ }
+ function taskDetailMarkup({selection,title,titleKey,metadata='',actions='',back='',body='',inputId=''}){
+  const heading=selection.loading?RunTeamsSkeletons.drawerHeading({title,meta:3}):
+   detailDrawerHeading(title,'',metadata,'',{titleKey});
+  const previous=inputId&&document.getElementById(inputId),focused=previous&&document.activeElement===previous;
+  const caret=focused?[previous.selectionStart,previous.selectionEnd]:null;
+  requestAnimationFrame(()=>{
+   if(S.sel!==selection)return;
+   const node=document.querySelector('.unified-task-detail-drawer > .right-detail-body');
+   if(node&&selection.workScroll!=null)node.scrollTop=selection.workScroll;
+   const input=inputId&&document.getElementById(inputId);
+   if(focused&&input&&!input.disabled){input.focus({preventScroll:true});if(caret)input.setSelectionRange(...caret);}
+  });
+  return detailDrawerShell({className:'source-pipeline-drawer node-detail-drawer source-pipeline-work-drawer unified-task-detail-drawer',
+   header:detailDrawerHeader(heading,'node-detail-head',actions,'',back),body,bodyClass:'employee-configuration-body source-pipeline-work-body',
+   attrs:`aria-label="任务详情" data-app-i18n-aria-label="pipelineWork.details" data-source-workflow-id="${Number(selection.workflow?.id||selection.workflowId||selection.id)}"`});
+ }
  function rowMarkup({key,title,summary,state,updated_at,created_at,report_document,icon,role,executionRole,returnTo,previousTime},action,attributes=''){
   const value=String(summary||''),plain=(report_document||role!==undefined?value:value.replace(/\[([^\]]+)\]\([^)]+\)/g,'$1').replace(/[*_`#]/g,'')).replace(/\s+/g,' ').trim();
   const name=title||text('untitled','未命名工作');
@@ -67,12 +96,106 @@
   const output=result.outputs?.[0],run=result.contributions?.find(item=>Number(item.id)===Number(output?.run_id));
   const ref=output?.kind==='reference'?result.references?.find(item=>item.key===output.key):null;
   const document=output?.kind==='document'?run?.artifacts?.find(item=>Number(item.id)===Number(output.id)):null;
-  return rowMarkup({...result,summary:result.summary||ref?.summary||document?.name||''},pipeline?'RunTeamsWorkRecords.openPipelineTask(this.dataset.resultKey)':'openResultDelivery(this.dataset.resultKey)');
+  const summary=result.executionPreview||result.summary||ref?.summary||document?.name||'';
+  const description=pipeline&&result.state==='paused'&&String(summary).trim()?
+   text('previousProgress',`上次进展：${summary}`,{summary}):summary;
+  return rowMarkup({...result,summary:description},pipeline?'RunTeamsWorkRecords.openPipelineTask(this.dataset.resultKey)':'openResultDelivery(this.dataset.resultKey)');
  }
  const selectedResult=selection=>(selection?.data?.results||[]).find(row=>row.key===selection.resultKey);
  const workflowId=selection=>Number(selection?.workflow?.id||selectedResult(selection)?.workflow_id)||0;
  const referenceKey=reference=>reference?RunTeamsSourcePipelines.referenceKey(reference):'';
- const pipelineCurrent=reference=>!!referenceKey(reference)&&referenceKey(reference)===referenceKey(RunTeamsSourcePipelines.current()?.reference);
+ const pipelineCurrent=reference=>!!referenceKey(reference)&&referenceKey(reference)===referenceKey(RunTeamsSourcePipelines.taskWorkspace()?.reference);
+ function employeeTaskRecord(result,selection){
+  return selection?.type==='core-results'&&!selection.attemptContext&&
+   !!(selection.scope?.employee_reference||selection.scope?.employee_id)&&
+   !!(referenceKey(result?.pipeline_reference)||result?.task_kind==='employee')&&Number.isSafeInteger(Number(result.workflow_id))&&Number(result.workflow_id)>0&&
+   ['ready','running','waiting_retry','needs_human','needs_approval','blocked','failed','interrupted','paused','completed','canceled','cancelled'].includes(result.state);
+ }
+ function openEmployeeTask(key){
+  const owner=S.sel,result=selectedResult({...owner,resultKey:key});
+  if(!employeeTaskRecord(result,owner))return;
+  position(owner);capture();
+  const url=new URL(contextResultsRoute(owner.scope),location.href);
+  const back={selection:owner,reference:result.pipeline_reference,employeeRecords:true,
+   account:workspaceAccountCacheToken(),url:url.pathname+url.search+url.hash};
+  owner.resultKey='';
+  url.searchParams.set('delivery',key);
+  const opening=result.pipeline_reference?
+   RunTeamsSourcePipelines.openEmployeeTask(result.pipeline_reference,Number(result.workflow_id),{title:result.title,returnToRecords:back}):
+   openIndependentTask(Number(result.workflow_id),{title:result.title,returnTo:owner,summary:result.summary});
+  setAppUrl(url.pathname+url.search+url.hash,true);
+  return opening;
+ }
+ const independentTaskScope=()=>JSON.stringify([workspaceAccountCacheToken(),_workspaceBusinessGeneration,workspaceDeviceStorageScope()]);
+ const independentTaskCurrent=selection=>S.sel===selection&&selection.taskScope===independentTaskScope();
+ function openIndependentTask(id,{title,returnTo,summary}={}){
+  const selection={type:'core-workflow',id,employeeTask:true,loading:true,recordTitle:title,recordSummary:summary,
+   taskScope:independentTaskScope(),...(returnTo?{returnTo}:{})};
+  selectDetailWorkspace(selection);render();
+  return refreshEmployeeTask(selection,{silent:false});
+ }
+ async function refreshEmployeeTask(selection=S.sel,{silent=true}={}){
+  if(!selection?.employeeTask||!independentTaskCurrent(selection)||selection.readingTask)return;
+  selection.readingTask=true;
+  if(!silent||!selection.workflow){selection.loading=true;selection.error='';render();}
+  try{
+   const work=await api(`/api/core/workflows/${Number(selection.id)}`);
+   if(!independentTaskCurrent(selection))return;
+   if(work?.error)throw Error(work.error);
+   if(Number(work?.id)!==Number(selection.id)||work.snapshot_json?.schema!=='runteams.employee-chat-work/v1'||work.snapshot_json.pipeline_work)
+    throw Error(text('executionUnavailable','执行记录归属未能确认。'));
+   const changed=JSON.stringify(selection.workflow)!==JSON.stringify(work)||!!selection.error||selection.loading;
+   selection.workflow=work;selection.loading=false;selection.error='';
+   if(changed)render();
+  }catch(error){if(independentTaskCurrent(selection)){selection.loading=false;selection.error=error.message;render();}}
+  finally{selection.readingTask=false;}
+ }
+ function continueEmployeeTask(){
+  const selection=S.sel,work=selection?.workflow;
+  if(!selection?.employeeTask||!independentTaskCurrent(selection)||!['needs_human','blocked','failed','interrupted','paused'].includes(work?.state))return;
+  const chat=Number(work.snapshot_json.work_chat_id||work.snapshot_json.source?.chat_id);
+  if(!Number.isSafeInteger(chat)||chat<=0)return;
+  closeDetailWorkspace();
+  return openRailConversationSession(chat,{forceWorkspace:true,replace:true,device:true});
+ }
+ function openTaskDelivery(id){
+  const work=S.sel?.workflow;if(!S.sel?.employeeTask||!work||!independentTaskCurrent(S.sel))return;
+  const file=taskDeliveries(work).files.find(file=>Number(file.id)===Number(id));
+  if(file)return previewCoreArtifact(file);
+ }
+ function employeeTaskDrawer(selection){
+  selection.employeeTask=true;selection.taskScope??=independentTaskScope();
+  const work=selection.workflow,title=work?.task?.title||selection.recordTitle||text('untitled','未命名工作');
+  const back=selection.returnTo?.type==='core-results'?`<button type="button" class="run-back" aria-label="${esc(text('backToList','返回工作记录'))}" onclick="RunTeamsWorkRecords.returnFromOrigin()">${ICON('back')}</button>`:'';
+  const failure=selection.error?RunTeamsLoadFailure.markup({variant:'local',title:'无法读取任务',titleKey:'pipelineWork.failed',
+   labelKey:'employeeHistory.retry',busyLabelKey:'pipelineWork.loading',error:selection.error,retry:'RunTeamsWorkRecords.refreshEmployeeTask()'}):'';
+  if(selection.loading||!work)return taskDetailMarkup({selection,title,back,body:selection.loading?RunTeamsSkeletons.region('task-detail',undefined,'pipelineWork.loading'):failure});
+  const runs=(work.employee_runs||[]).slice().sort((a,b)=>Number(b.id)-Number(a.id)),latest=runs[0];
+  const ongoing=['ready','running','waiting_retry'].includes(work.state),needsReply=['needs_human','blocked','failed','interrupted','paused'].includes(work.state);
+  const reason=needsReply?failureReason(latest):'';
+  const summary=reason||executionSummary(latest||{})||selection.recordSummary||'';
+  const activity=work.state==='running'&&latest?liveActivityMarkup(latest,true):'';
+  const actions=ongoing?`<button type="button" class="btn" onclick="cancelCoreWorkflow(${Number(work.id)},this)">${ICON('stop')}<span data-app-i18n="workflowDetail.stop">停止任务</span></button>`:
+   needsReply&&Number(work.snapshot_json.work_chat_id||work.snapshot_json.source?.chat_id)>0?
+    '<button type="button" class="btn pri" onclick="RunTeamsWorkRecords.continueEmployeeTask()"><span data-app-i18n="workflowDetail.continueConversation">继续处理</span></button>':'';
+  const queued=ongoing&&!activity&&!summary?'<p class="source-work-muted" data-app-i18n="workflowDetail.waiting">等待员工开始工作。</p>':'';
+  const lead=summary?prose(summary):'';
+  let body=failure+`<div class="source-work-content settings-section-stack">${lead||activity||queued||actions?`<div class="source-work-context">${lead}${activity}${queued}${actions?detailDrawerActions(actions):''}</div>`:''}`;
+  const {files}=taskDeliveries(work);
+  const deliverables=files.length?taskSection(selection,'deliveries','<span data-app-i18n="pipelineWork.deliveryItems">交付物</span>',
+   `<div class="result-delivery-list work-record-list" role="list" aria-label="交付物">${files.map((file,index)=>rowMarkup({key:'delivery-'+file.id,title:file.name,
+    summary:file.meta_json?.description||'',created_at:file.created_at,previousTime:files[index-1]?.created_at||null,icon:file.purpose==='document'?'doc':resultEvidenceIcon(file),role:''},
+    `RunTeamsWorkRecords.openTaskDelivery(${Number(file.id)})`)).join('')}</div>`,work.state==='completed'):'';
+  const history=runs.length?executionSectionMarkup(work,runs):'';
+  body+=work.state==='completed'?deliverables+history:history+deliverables;
+  const objective=work.task?.payload_json?.objective;
+  if(objective)body+=taskSection(selection,'objective','<span data-app-i18n="pipelineWork.objective">任务说明</span>',prose(objective),!runs.length);
+  body+='</div>';
+  const metadata=`<div class="work-record-meta source-work-progress">${stateMarkup(work.state)}${timeMarkup(work.updated_at||work.created_at)}</div>`;
+  const report=files.find(file=>file.meta_json?.work_report?.schema==='runteams.work-report/v1');
+  const headerActions=report?`<button type="button" class="btn sm source-work-report-open" onclick="RunTeamsWorkRecords.openTaskDelivery(${Number(report.id)})">${ICON('doc')}<span data-app-i18n="workRecordDetail.openReport">在文档中打开</span></button>`:'';
+  return taskDetailMarkup({selection,title,metadata,body,back,actions:headerActions});
+ }
  function taskResults(workflows,reference){
   if(!Array.isArray(workflows))throw Error(text('tasksUnavailable','任务列表尚未载入，请重试。'));
   return {results:workflows.slice().reverse().map(work=>{
@@ -80,10 +203,58 @@
    return {key:'workflow-'+work.id,workflow_id:Number(work.id),title:work.title,state:work.state,summary:work.summary||'',updated_at:work.updated_at,created_at:work.created_at};
   })};
  }
+ function pipelineExecutionPreview(work){
+  const runs=(work.employee_runs||[]).slice().sort((a,b)=>Number(b.id)-Number(a.id));
+  if(work.state==='failed'){
+   const id=Number(work.snapshot_json?.employee_run_id);
+   const run=id?runs.find(item=>Number(item.id)===id):runs[0];
+   return run?.state==='failed'?failureReason(run):'';
+  }
+  return runs.filter(run=>!['failed','canceled','cancelled'].includes(run.state))
+   .map(executionSummary).find(hasFailureReason)||'';
+ }
+ async function readPipelineRecordPreviews(selection,workspace,previews){
+  if(selection.readingPipelineRecordPreviews)return;
+  selection.readingPipelineRecordPreviews=true;
+  const current=()=>S.sel===selection&&RunTeamsSourcePipelines.taskWorkspace()===workspace;
+  const queue=previews.entries();
+  async function readNext(){
+   for(const [id,entry] of queue){
+    if(!current())break;
+    if(entry.summary!==undefined)continue;
+    try{
+     const {workflow,pipeline_reference:reference}=await RunTeamsSourcePipelines.request('work',{
+      reference:workspace.reference,workflow_id:id,
+     });
+     const matches=Number(workflow?.id)===id&&workflow.state===entry.state&&referenceKey(reference)===referenceKey(workspace.reference);
+     entry.summary=matches?pipelineExecutionPreview(workflow):'';
+    }catch{entry.summary='';}
+   }
+  }
+  try{
+   // Read a few details in parallel without publishing partially filled rows.
+   await Promise.all(Array.from({length:Math.min(4,previews.size)},readNext));
+  }finally{selection.readingPipelineRecordPreviews=false;}
+  if(current()){updateTaskList(workspace);render();}
+ }
  function updateTaskList(workspace){
   const selection=S.sel;
   if(selection?.type!=='core-results'||selection.sourceWorkspace!==workspace||selection.scope.workflow_id)return;
-  selection.data=taskResults(workspace.data.workflows,workspace.reference);selection.status='ready';selection.error='';
+  const data=taskResults(workspace.data.workflows,workspace.reference);
+  const previews=selection.pipelineRecordPreviews??=new Map(),eligible=new Set();
+  for(const row of data.results){
+   if(row.state!=='failed'&&!(row.state==='paused'&&!String(row.summary).trim()))continue;
+   const id=row.workflow_id,previous=previews.get(id);
+   eligible.add(id);
+   if(previous?.state===row.state&&previous.updatedAt===row.updated_at)row.executionPreview=previous.summary;
+   else previews.set(id,{state:row.state,updatedAt:row.updated_at});
+  }
+  for(const id of previews.keys())if(!eligible.has(id))previews.delete(id);
+  if([...previews.values()].some(entry=>entry.summary===undefined)){
+   void readPipelineRecordPreviews(selection,workspace,previews);
+   return;
+  }
+  selection.data=data;selection.status='ready';selection.error='';
  }
  function reportReference(report){return {id:Number(report.meta_json.revision_of||report.id),revision:Number(report.meta_json.revision||1),document_key:report.meta_json.document_key||'',name:report.name};}
  const artifactRoot=item=>Number(item.meta_json?.revision_of||item.id);
@@ -210,7 +381,7 @@
   return (title&&String(title).trim()!==shownOutcome&&title)||(!shownOutcome&&historicalOutcomeTitle(run))||
    workName||(!shownOutcome&&position)||text('executionDetail','执行详情');
  }
- function attemptsMarkup(work,attempts,start=0,end=attempts.length,label=text('executions','岗位执行记录'),shownOutcome=null){
+ function attemptsMarkup(work,attempts,start=0,end=attempts.length,label=text('executions','执行记录'),shownOutcome=null){
   const rows=attempts.slice(start,end).map((run,index)=>{
    const previous=attempts[start+index-1];
    const shown=shownOutcome?.runId===run.id?shownOutcome.text:'';
@@ -223,7 +394,7 @@
     executionRole:executionPosition(run)||run.employee_name||'',...executionState(work,run),updated_at:run.updated_at,created_at:run.created_at,previousTime:previous?.updated_at||previous?.created_at||null},
     'RunTeamsWorkRecords.openAttempt(Number(this.dataset.attemptId))',`data-attempt-id="${Number(run.id)}"`);
   }).join('');
-  return rows?`<div class="result-delivery-list work-record-list work-execution-list" role="list" aria-label="${esc(label)}">${rows}</div>`:`<p class="work-record-empty">${esc(text('noExecutions','尚无岗位执行记录。'))}</p>`;
+  return rows?`<div class="result-delivery-list work-record-list work-execution-list" role="list" aria-label="${esc(label)}">${rows}</div>`:`<p class="work-record-empty">${esc(text('noExecutions','尚无执行记录。'))}</p>`;
  }
  function earlierExecutionsLabel(expanded,count){
   return expanded?text('hideEarlierExecutions','收起较早的执行'):text('showAllExecutions','查看全部 '+count+' 次执行',{count});
@@ -236,7 +407,7 @@
  }
  function executionSectionMarkup(work,attempts,shownOutcome=null){
   const selection=S.sel,id=workflowId(selection),expanded=selection?.workSections?.history??selection?.executionExpanded??true;
-  const label=text('executions','岗位执行记录'),limit=selection?.type==='source-pipeline'?3:attempts.length;
+  const label=text('executions','执行记录'),limit=selection?.type==='source-pipeline'||selection?.employeeTask?3:attempts.length;
   const earlier=attempts.length>limit?earlierExecutionsMarkup(selection,id,work,attempts,limit,shownOutcome):null;
   return RunTeamsEmployeeDrawerHeader.section({id:'work-executions-'+id,stateKey:'executions',
    title:esc(label),
@@ -245,7 +416,7 @@
  }
  function toggleEarlierExecutions(button){
   const selection=S.sel,region='work-executions-earlier-'+workflowId(selection);
-  if(selection?.type!=='source-pipeline'||selection.id!=='work'||!button.isConnected||button.getAttribute('aria-controls')!==region)return;
+  if(!(selection?.type==='source-pipeline'&&selection.id==='work'||selection?.employeeTask)||!button.isConnected||button.getAttribute('aria-controls')!==region)return;
   const earlier=document.getElementById(region);
   if(!earlier||earlier!==button.previousElementSibling)return;
   const expanded=selection.showAllExecutions=earlier.hidden;
@@ -311,10 +482,7 @@
    lines.push(text(...stepStates[step.status],{step:text(...stepLabels[step.kind])}));
   }
   if(!lines.length&&run.state==='running')return `<p class="source-work-muted">${esc(text('liveAwaitingProgress','等待员工发出首条工作进展。'))}</p>`;
-  const chat=Number(run.input_json?.chat_id);
-  const conversation=!compact&&(questions.length||activity.approval_pending)&&Number.isSafeInteger(chat)&&chat>0?
-   `<button type="button" class="btn sm" onclick="openConversationSession(${chat},'general',{device:true})">${esc(text('liveOpenConversation','查看工作对话'))}</button>`:'';
-  return lines.map(line=>`<p>${esc(line)}</p>`).join('')+conversation;
+  return lines.map(line=>`<p>${esc(line)}</p>`).join('');
  }
  function executionFeedback(work,run){
   const frozen=work.snapshot_json||{};
@@ -338,19 +506,23 @@
    liveActivity:liveActivityMarkup(run),
    ...(report?{report_document:reportReference(report),reportDraft:isDraftReport(work,run)}:{})};
  }
- function attemptCurrent(selection){return S.sel===selection&&workspaceAccountCacheToken()===selection.attemptContext.account&&pipelineCurrent(selection.scope.source_pipeline_reference);}
+ function attemptCurrent(selection){return S.sel===selection&&workspaceAccountCacheToken()===selection.attemptContext.account&&
+  (selection.attemptContext.independent?selection.attemptContext.taskScope===independentTaskScope():pipelineCurrent(selection.scope.source_pipeline_reference));}
  async function readAttempt(selection,{silent=false}={}){
   if(!attemptCurrent(selection)||selection.readingAttempt)return;
   selection.readingAttempt=true;
   if(!silent){selection.status='loading';selection.error='';render();}
   try{
    const context=selection.attemptContext;
-   const {workflow:work}=await RunTeamsSourcePipelines.request('work',{reference:selection.scope.source_pipeline_reference,workflow_id:context.workflowId});
+   const work=context.independent?await api(`/api/core/workflows/${context.workflowId}`):
+    (await RunTeamsSourcePipelines.request('work',{reference:selection.scope.source_pipeline_reference,workflow_id:context.workflowId})).workflow;
    if(!attemptCurrent(selection))return;
-   if(Number(work?.id)!==context.workflowId||referenceKey(work?.snapshot_json?.pipeline_work?.reference)!==referenceKey(selection.scope.source_pipeline_reference))throw Error(text('executionUnavailable','执行记录归属未能确认。'));
+   if(Number(work?.id)!==context.workflowId||(context.independent?
+    work.snapshot_json?.schema!=='runteams.employee-chat-work/v1'||!!work.snapshot_json.pipeline_work:
+    referenceKey(work?.snapshot_json?.pipeline_work?.reference)!==referenceKey(selection.scope.source_pipeline_reference)))throw Error(text('executionUnavailable','执行记录归属未能确认。'));
    const run=work.employee_runs?.find(row=>Number(row.id)===context.runId);
    if(!run)throw Error(text('executionUnavailable','执行记录归属未能确认。'));
-   RunTeamsSourcePipelines.retainActivity?.(selection,run);
+   if(!context.independent)RunTeamsSourcePipelines.retainActivity(selection,run);
    const result=attemptResult(work,run);
    if(silent&&JSON.stringify(result)===JSON.stringify(selectedResult(selection)))return;
    selection.data={results:[result]};selection.resultKey=result.key;selection.status='ready';
@@ -365,13 +537,15 @@
   if(['running','needs_human','blocked'].includes(selectedResult(selection)?.state))return readAttempt(selection,{silent:true});
  }
  function openAttempt(runId){
-  const previous=S.sel,work=previous?.type==='source-pipeline'&&previous.id==='work'?previous.workflow:null;
+  const previous=S.sel,work=previous?.type==='source-pipeline'&&previous.id==='work'||previous?.employeeTask?previous.workflow:null;
+  const independent=!!previous?.employeeTask;
   const record=previous?.type==='core-results'&&!previous.attemptContext?selectedResult(previous):null;
   const reference=work?.snapshot_json?.pipeline_work?.reference||previous?.scope?.source_pipeline_reference;
   const runs=work?.employee_runs||record?.attempts||record?.contributions||[];
-  if(!Number.isSafeInteger(runId)||!runs.some(run=>Number(run.id)===runId)||!pipelineCurrent(reference))return;
-  const selection={type:'core-results',id:'execution-detail',scope:{source_pipeline_reference:reference,workflow_id:Number(work?.id||record.workflow_id)},status:'loading',data:null,
-   returnTo:previous,attemptContext:{runId,workflowId:Number(work?.id||record.workflow_id),account:workspaceAccountCacheToken(),url:location.pathname+location.search+location.hash}};
+  if(!Number.isSafeInteger(runId)||!runs.some(run=>Number(run.id)===runId)||!(independent?independentTaskCurrent(previous):pipelineCurrent(reference)))return;
+  const selection={type:'core-results',id:'execution-detail',scope:{...(reference?{source_pipeline_reference:reference}:{}),workflow_id:Number(work?.id||record.workflow_id)},status:'loading',data:null,
+   returnTo:previous,attemptContext:{runId,workflowId:Number(work?.id||record.workflow_id),account:workspaceAccountCacheToken(),url:location.pathname+location.search+location.hash,
+    ...(independent?{independent:true,taskScope:independentTaskScope()}:{} )}};
   selectDetailWorkspace(selection);return readAttempt(selection);
  }
  function retryAttempt(){if(S.sel?.attemptContext)return readAttempt(S.sel);}
@@ -392,9 +566,10 @@
  }
  function returnFromAttempt(){
   const selection=S.sel;if(!selection?.attemptContext||!attemptCurrent(selection))return;
-  const parent=selection.returnTo,s=RunTeamsSourcePipelines.current();
+  const parent=selection.returnTo,s=RunTeamsSourcePipelines.taskWorkspace();
   selectDetailWorkspace(parent);setAppUrl(selection.attemptContext.url,true);render();restore(parent);
   if(parent.type==='source-pipeline'&&parent.id==='work')void RunTeamsSourcePipelines.refreshOpenWork(s,parent,{force:true});
+  else if(parent.employeeTask)void refreshEmployeeTask(parent);
  }
  function openPipelineTask(key){
   const owner=S.sel,result=(owner?.data?.results||[]).find(row=>row.key===key),reference=owner?.scope?.source_pipeline_reference;
@@ -407,17 +582,18 @@
  function taskBackMarkup(selection){
   const back=selection.returnToRecords;
   if(!back||back.account!==workspaceAccountCacheToken()||!pipelineCurrent(back.reference))return '';
-  const label=text('backToTasks','返回任务列表');
+  const label=back.employeeRecords?text('backToList','返回工作记录'):text('backToTasks','返回任务列表');
   return `<button type="button" class="run-back" aria-label="${esc(label)}" title="${esc(label)}" onclick="RunTeamsWorkRecords.returnToTasks()">${ICON('back')}</button>`;
  }
  function returnToTasks(){
   const back=S.sel?.returnToRecords;if(!back||back.account!==workspaceAccountCacheToken()||!pipelineCurrent(back.reference))return;
   selectDetailWorkspace(back.selection);setAppUrl(back.url,true);render();restore(back.selection);
+  if(back.employeeRecords)void refreshContextResults(true);
  }
  function openCurrentTask(){
   const owner=S.sel,reference=owner?.scope?.source_pipeline_reference,id=Number(owner?.scope?.workflow_id||selectedResult(owner)?.workflow_id);
   if(owner?.type!=='core-results'||!id||!pipelineCurrent(reference)||owner.attemptContext&&!attemptCurrent(owner))return;
-  setAppUrl(RunTeamsSourcePipelines.route(reference),true);
+  if(!RunTeamsSourcePipelines.taskWorkspace()?.embeddedTask)setAppUrl(RunTeamsSourcePipelines.route(reference),true);
   return RunTeamsSourcePipelines.openWork(id,{returnToRecords:settingsOwner(owner)?.returnToRecords||owner.returnTo?.returnToRecords});
  }
  function scopeForPanel(panel=S.conversationPanel){
@@ -449,7 +625,7 @@
  }
  function controls(panel){
   const t=target(panel);if(!t)return '';
-  const on=matches(S.sel,t);
+  const on=matches(S.sel,t)||matches(S.sel?.returnToRecords?.selection,t)||S.sel?.employeeTask&&matches(S.sel.returnTo,t);
   return RunTeamsShell.headerAction({label:'工作记录',labelKey:'workRecords.title',icon:ICON('clipboard-clock'),action:'RunTeamsWorkRecords.toggle()',className:'employee-records-trigger',selected:on});
  }
  function refreshForPanel(panel){
@@ -458,6 +634,8 @@
  }
  async function toggle(){
   const t=target();if(!t)return;
+  if(S.sel?.employeeTask&&matches(S.sel.returnTo,t))return returnFromOrigin();
+  if(S.sel?.returnToRecords?.employeeRecords&&matches(S.sel.returnToRecords.selection,t))return returnToTasks();
   if(matches(S.sel,t)){capture();closeContextResults();return;}
   const previous=saved.get(t.key);
   if(previous){
@@ -580,7 +758,23 @@
   if(selection.resultKey)url.searchParams.set('delivery',selection.resultKey);
   setAppUrl(url.pathname+url.search+url.hash,true);render();restore(selection);
  }
- window.RunTeamsWorkRecords=Object.freeze({readResults,listTime,timeMarkup,stateMarkup,prose,rowMarkup,taskRowMarkup,taskResults,updateTaskList,taskDeliveries,attemptsMarkup,executionSummary,currentExecutionOutsideHistory,hasFailureReason,missingFailureReason,executionSectionMarkup,toggleExecutionSection,toggleEarlierExecutions,runtimeMarkup,openAttempt,retryAttempt,refreshOpenAttempt,attemptSection,toggleAttemptSection,returnFromAttempt,openPipelineTask,taskBackMarkup,returnToTasks,openCurrentTask,scopeForPanel,controls,toggle,refreshForPanel,capture,position,restore,loadReport,reportMarkup,reportActionMarkup,openReport,openOrigin,originTaskPending,returnFromOrigin,liveActivityMarkup});
+ function refreshVisibleTask(force=false){
+  if(typeof S==='undefined'||S.booting||document.hidden)return;
+  const selection=S.sel;
+  if(selection?.employeeTask){
+   if(!force&&Date.now()<(selection.nextTaskReadAt||0))return;
+   selection.nextTaskReadAt=Date.now()+(['ready','running','waiting_retry'].includes(selection.workflow?.state)?2000:8000);
+   void refreshEmployeeTask(selection);
+  }else if(selection?.attemptContext?.independent){
+   void refreshOpenAttempt(selection);
+  }
+ }
+ if(typeof document!=='undefined')document.addEventListener?.('scroll',event=>{
+  if(typeof S!=='undefined'&&event.target.matches?.('.unified-task-detail-drawer > .right-detail-body')&&S.sel?.workflow)S.sel.workScroll=event.target.scrollTop;
+ },true);
+ window.setInterval?.(()=>refreshVisibleTask(),2000);
+ window.addEventListener('focus',()=>refreshVisibleTask(true));
+ window.RunTeamsWorkRecords=Object.freeze({taskSection,toggleTaskSection,taskDetailMarkup,employeeTaskDrawer,refreshEmployeeTask,continueEmployeeTask,openTaskDelivery,employeeTaskRecord,openEmployeeTask,readResults,listTime,timeMarkup,stateMarkup,prose,rowMarkup,taskRowMarkup,taskResults,updateTaskList,taskDeliveries,attemptsMarkup,executionSummary,currentExecutionOutsideHistory,hasFailureReason,missingFailureReason,executionSectionMarkup,toggleExecutionSection,toggleEarlierExecutions,runtimeMarkup,openAttempt,retryAttempt,refreshOpenAttempt,attemptSection,toggleAttemptSection,returnFromAttempt,openPipelineTask,taskBackMarkup,returnToTasks,openCurrentTask,scopeForPanel,controls,toggle,refreshForPanel,capture,position,restore,loadReport,reportMarkup,reportActionMarkup,openReport,openOrigin,originTaskPending,returnFromOrigin,liveActivityMarkup});
  window.addEventListener('runteams:business-scope-will-change',()=>saved.clear());
  window.addEventListener('runteams:languagechange',()=>{
   for(const time of document.querySelectorAll('time[data-work-record-time]')){

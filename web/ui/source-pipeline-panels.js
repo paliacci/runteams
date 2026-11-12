@@ -1,7 +1,7 @@
 /* Trusted pipeline panels: existing configuration, history and records UI. */
 (()=>{
 'use strict';
-const host=()=>RunTeamsSourcePipelines,current=()=>host().current();
+const host=()=>RunTeamsSourcePipelines,current=()=>host().taskWorkspace();
 const STATUS_FIRST_ROUTING='status-first',OUTCOME_PREFIX='outcome:',WAIT_FOR_INPUT='wait-for-input';
 const owned=s=>current()===s;
 const state=s=>s.panels||(s.panels={loading:false,error:'',data:null,draft:null,pending:null,history:null,historyOpen:false});
@@ -59,7 +59,7 @@ function queueSave(s){
  scheduleDraftSave(s,p);
 }
 function activeTextField(s){
- if(!s||!owned(s)||!['editor','settings'].includes(S.sel?.id))return null;
+ if(!s||!owned(s)||S.sel?.id!=='settings')return null;
  const active=document.activeElement;
  if(!active?.matches?.('#rgDrawer .configuration-surface :is(input,textarea):not([readonly])')||active.selectionStart===null||active.closest('.pipeline-configuration-session'))return null;
  const owner=active.closest('[data-pipeline-editor-owner]')?.dataset.pipelineEditorOwner;
@@ -86,13 +86,11 @@ function scheduleDraftSave(s,p){
  },240);
 }
 function changed(path,value){
- if(path[0]==='pipeline'&&path[1]==='positions'&&path[3]==='description')value=value.trim()||undefined;
  const s=current(),p=s&&state(s),asset=p&&(p.draft||p.data?.asset);
  if(!asset||path.reduce((node,key)=>node[key],asset)===value)return;
  const editable=draft();if(!editable)return;
  const target=path.slice(0,-1).reduce((node,key)=>node[key],editable);
  target[path.at(-1)]=value;
- if(path[0]==='pipeline'&&path[1]==='states'&&path[3]==='kind'&&value!=='done')delete target.records_only;
  queueSave(s);
 }
 async function save(retry=false,s=current()){
@@ -205,7 +203,7 @@ function header(p,title,description,titleKey,asset,locked){
  if(versions)actions.push(p.settingsEdit?{...versions,disabled:true}:versions);
  requestAnimationFrame(()=>{
   if(owned(s)&&S.sel===selection)RunTeamsEmployeeDrawerHeader.mount('source-pipeline-settings',p,{
-   kind:'settings',collapseLabelKey:titleKey==='pipelineEditor.title'?'pipelineEditor.close':'pipelineSettings.close',
+   kind:'settings',collapseLabelKey:'pipelineSettings.close',
    onCollapse:()=>closeDetailWorkspace(),extras:{actions}});
  });
  const editable=settings&&author&&asset;
@@ -290,8 +288,6 @@ function historyMarkup(p){
  const notesFor=item=>item.notes_kind==='pipeline_definition'?'pipelineSettings.definitionNotes':item.notes_kind==='pinned_release'?'pipelineSettings.pinnedReleaseNotes':undefined;
  const body=p.historyLoading?RunTeamsSkeletons.region('history',undefined,'pipelineSettings.historyLoading'):p.historyError?RunTeamsLoadFailure.markup({variant:'local',title:'无法读取历史版本',titleKey:'pipelineSettings.historyFailed',labelKey:'employeeHistory.retry',busyLabelKey:'pipelineSettings.historyLoading',error:p.historyError,retry:'RunTeamsSourcePipelinePanels.history(true)',focusFallback:'.creator-history-popover'}):RunTeamsCreatorAuthor.historyList(rows,(item,index)=>s.data.ui.mode==='creator'&&p.data?.source_revision&&item.revision!==currentRevision&&!p.settingsEdit&&!p.draft&&!p.pending&&!p.commitRefresh?`RunTeamsSourcePipelinePanels.restore(${index})`:'',!!p.saving,{notesFor,currentRevision});
  return `<section class="creator-history-popover" role="dialog" tabindex="-1" aria-label="历史版本" data-app-i18n-aria-label="pipelineSettings.history"><div class="creator-history-title" data-app-i18n="pipelineSettings.history">历史版本</div><div class="creator-history-list">${body||'<p data-app-i18n="pipelineSettings.historyEmpty">还没有历史版本。</p>'}</div></section>`;}
-function input(label,path,value,multiline=false,disabled=false,labelKey="",attrs=''){const id='pipeline_'+path.join('_'),handler=`RunTeamsSourcePipelinePanels.changed(${JSON.stringify(path)},this.value)`;
- return `<div class="field"><label for="${esc(id)}"${labelKey?` data-app-i18n="${esc(labelKey)}"`:""}>${esc(label)}</label>${multiline?`<textarea id="${esc(id)}" class="inp" onchange="${esc(handler)}" ${disabled?'readonly':''}${attrs}>${esc(value||'')}</textarea>`:`<input id="${esc(id)}" class="inp" value="${esc(value||'')}" onchange="${esc(handler)}" ${disabled?'readonly':''}${attrs}>`}</div>`;}
 function toggleSettingsSection(button){
  const s=current();
  if(!s||S.sel?.type!=='source-pipeline'||S.sel.id!=='settings'||!button.isConnected)return;
@@ -322,11 +318,10 @@ function settingsContent(s,p,asset,locked){
  const fields=ownFields+programs+memberFields;
  return teamStandard(p,asset,locked,s.data.ui.mode==='creator')+(fields?`<div class="source-pipeline-own-settings settings-section-stack">${fields}</div>`:'');
 }
-function drawer(){const s=current();if(!s)return '';const p=state(s),editor=S.sel?.id==='editor',positionKey=S.sel?.id==='position'?S.sel.positionKey:null,asset=p.draft||p.data?.asset,locked=s.data.ui.mode!=='creator'||!!p.pending||p.saving||p.commitRefresh;
- let body=p.loading&&!p.data?RunTeamsSkeletons.region('detail',undefined,editor?'pipelineEditor.loading':'pipelineSettings.loading'):'';
+function drawer(){const s=current();if(!s)return '';const p=state(s),positionKey=S.sel?.id==='position'?S.sel.positionKey:null,asset=p.draft||p.data?.asset,locked=s.data.ui.mode!=='creator'||!!p.pending||p.saving||p.commitRefresh;
+ let body=p.loading&&!p.data?RunTeamsSkeletons.region('detail',undefined,'pipelineSettings.loading'):'';
  if(asset){
   if(positionKey)body+=positionMarkup(asset,positionKey,locked||p.conflict);
-  else if(editor)body+=editorMarkup(asset,locked);
   else body+=settingsContent(s,p,asset,locked||p.conflict);
  }
  if(p.conflict)body+='<div class="configuration-conflict" role="alert" data-app-i18n="pipelineEditor.conflict">源码已在其他位置更新，你的输入已保留。取消本次修改后可读取最新定义。</div>';
@@ -335,27 +330,23 @@ function drawer(){const s=current();if(!s)return '';const p=state(s),editor=S.se
   body+=`<p class="field-error" role="alert" data-app-i18n="${key}">${esc(RunTeamsLocale.t(key))}</p>`;
  }
  else if(/^(pipelineEditor|pipelineSettings|employeeHistory)\./.test(p.error))body+=`<p class="field-error" role="alert" data-app-i18n="${esc(p.error)}">${esc(RunTeamsLocale.t(p.error))}</p>`;
- else if(p.error)body+=RunTeamsLoadFailure.markup({variant:'local',title:editor?'无法读取岗位与流转':'无法读取流水线设置',titleKey:editor?'pipelineEditor.readFailed':'pipelineSettings.failed',labelKey:'employeeHistory.retry',busyLabelKey:editor?'pipelineEditor.loading':'pipelineSettings.loading',error:p.error,retry:'RunTeamsSourcePipelinePanels.read()'});
- if(p.validationError)body+=`<details><summary data-app-i18n="pipelineBoard.errorDetails">错误详情</summary><p>${esc(p.validationError)}</p></details>`;
+ else if(p.error)body+=RunTeamsLoadFailure.markup({variant:'local',title:'无法读取流水线设置',titleKey:'pipelineSettings.failed',labelKey:'employeeHistory.retry',busyLabelKey:'pipelineSettings.loading',error:p.error,retry:'RunTeamsSourcePipelinePanels.read()'});
+ if(p.validationError)body+=`<p class="field-error" role="alert">${esc(p.validationError)}</p>`;
  body+=settingsActions(p);
- const title=editor?'岗位与流转':asset?.pipeline.name||s.data.name||'流水线设置';
- const titleKey=editor?'pipelineEditor.title':asset?.pipeline.name||s.data.name?undefined:'pipelineSettings.title';
- const description=editor?'':asset?.description||'';
+ const title=asset?.pipeline.name||s.data.name||'流水线设置';
+ const titleKey=asset?.pipeline.name||s.data.name?undefined:'pipelineSettings.title';
+ const description=asset?.description||'';
 
  requestAnimationFrame(()=>{
-  if(!owned(s)||S.sel?.type!=='source-pipeline'||S.sel.id!==(editor?'editor':'settings'))return;
-  const body=document.querySelector(editor?'.source-pipeline-settings-drawer .employee-configuration-body':'.source-pipeline-settings-drawer .right-detail-scroll');
+  if(!owned(s)||S.sel?.type!=='source-pipeline'||S.sel.id!=='settings')return;
+  const body=document.querySelector('.source-pipeline-settings-drawer .right-detail-scroll');
   if(!body)return;
-  if(editor)for(const section of body.querySelectorAll('[data-pipeline-disclosure]:not([data-pipeline-disclosure-ready])')){
-   section.dataset.pipelineDisclosureReady='';
-   if(p.openSections?.has(section.dataset.pipelineDisclosure))section.open=true;
-  }
   body.scrollTop=p.scroll?.[S.sel.id]||0;
  });
- return detailDrawerShell({className:'employee-configuration-drawer source-pipeline-settings-drawer'+(positionKey?' node-detail-drawer core-position-detail-drawer':editor?'':' source-pipeline-settings-home'),
+ return detailDrawerShell({className:'employee-configuration-drawer source-pipeline-settings-drawer'+(positionKey?' node-detail-drawer core-position-detail-drawer':' source-pipeline-settings-home'),
   header:positionKey?positionHeader(s,asset,positionKey):header(p,title,description,titleKey,asset,locked||p.conflict),
-  introClass:!positionKey&&!editor?'detail-drawer-summary':'',body,bodyClass:'employee-configuration-body'+(!editor&&!positionKey?' settings-section-stack':''),
-  attrs:`data-pipeline-editor-owner="${esc(host().key(s.reference))}" aria-label="${positionKey?'岗位详情':editor?'岗位与流转':'流水线设置'}" data-app-i18n-aria-label="${positionKey?'pipelineSettings.position':editor?'pipelineEditor.title':'pipelineSettings.title'}"`});
+  introClass:!positionKey?'detail-drawer-summary':'',body,bodyClass:'employee-configuration-body'+(!positionKey?' settings-section-stack':''),
+  attrs:`data-pipeline-editor-owner="${esc(host().key(s.reference))}" aria-label="${positionKey?'岗位详情':'流水线设置'}" data-app-i18n-aria-label="${positionKey?'pipelineSettings.position':'pipelineSettings.title'}"`});
 }
 const settingsBusyCopy={
  restore:['employeeHistory.restoring','正在恢复版本…'],
@@ -400,20 +391,12 @@ async function configurationRequest(session,method,body,receipt){const ref=sessi
  const command={reference:ref,...(session.entry.pipeline_own?{}:{employee_source:session.entry.source.path}),action:receipt?'receipt':method==='POST'?'save':'read',...(receipt?{operation_id:session.pending.operation_id}:body?Object.fromEntries(Object.entries(body).filter(([k])=>k!=='employee_source')):{})};
  return host().request(session.entry.pipeline_own?'configuration':'employee-configuration',command);
 }
-async function loadEditorData(s){
+async function loadSettingsData(s){
  const p=state(s);
  if(!p.data){try{const saved=JSON.parse(RunTeamsWorkState.getItem(storageKey(s))||'null');if(saved){Object.assign(p,saved);if(p.pending)p.unknown=true;}}catch(error){p.error='上次输入暂时无法读取。';}}
  await read(s);
 }
-async function editor(){
- const s=current();if(!s||s.data.ui.mode!=='creator')return;
- select('editor');await loadEditorData(s);if(owned(s)){
-  const p=state(s);
-  if(p.draft&&!p.pending&&!p.conflict)queueSave(s);
-  if(p.finishChoices)p.finishChoices();else await readEmployeeChoices();
- }
-}
-async function readEmployeeChoices(retry=false){
+async function readEmployeeChoices(){
  const s=current(),p=s&&state(s);if(!p||p.choicesLoading)return;
  p.choicesLoading=true;render();
  let result;
@@ -421,35 +404,23 @@ async function readEmployeeChoices(retry=false){
   const reply=await host().request('creation-choices');
   if(Array.isArray(reply.items))result=reply;
  }catch{/* Keep the current binding on a catalog read failure. */}
- const finish=()=>{
-  p.finishChoices=null;p.choicesLoading=false;
-  if(!owned(s))return;
-  if(result){
-   p.choices=result.items;p.choiceErrors=Array.isArray(result.errors)?result.errors:[];
-   p.choicesFailed=!p.choices.length&&p.choiceErrors.length>0;
-  }else p.choicesFailed=true;
-  render();
-  if(retry&&!p.choicesFailed&&S.sel?.id==='editor'&&document.activeElement===document.body){
-   document.querySelector('#rgDrawer select[data-pipeline-employee-skill]:not(:disabled)')?.focus({preventScroll:true});
-  }
- };
- const active=document.activeElement;
- const editing=owned(s)&&S.sel?.id==='editor'&&active?.matches?.('#rgDrawer .configuration-surface input[id], #rgDrawer .configuration-surface textarea[id]')&&active.value!==active.defaultValue;
- // A drawer redraw would commit an unfinished edit by removing its focused field.
- if(editing){
-  p.finishChoices=finish;
-  active.addEventListener('blur',()=>{if(p.finishChoices===finish)finish();},{once:true});
- }else finish();
+ p.choicesLoading=false;
+ if(!owned(s))return;
+ if(result){
+  p.choices=result.items;p.choiceErrors=Array.isArray(result.errors)?result.errors:[];
+  p.choicesFailed=!p.choices.length&&p.choiceErrors.length>0;
+ }else p.choicesFailed=true;
+ render();
 }
 function employeeChoicesStatus(p){
- const retry='RunTeamsSourcePipelinePanels.readEmployeeChoices(true)';
+ const retry='RunTeamsSourcePipelinePanels.readEmployeeChoices()';
  const retryOptions={variant:'local',labelKey:'employeeHistory.retry',busyLabelKey:'pipelineEditor.choicesLoading',retry};
  if(p.choicesLoading)return '<p class="help" role="status" data-app-i18n="pipelineEditor.choicesLoading">正在载入员工和技能…</p>';
  if(p.choicesFailed)return RunTeamsLoadFailure.markup({...retryOptions,title:'无法载入员工和技能',titleKey:'pipelineEditor.choicesFailed'});
  if(Array.isArray(p.choices)&&!p.choices.length)return '<p class="help" data-app-i18n="pipelineEditor.choicesEmpty">没有可选的员工和技能。</p>';
  if(!p.choiceErrors?.length)return '';
  return `<div><p role="status" data-app-i18n="pipelineCreate.partialChoices">部分员工或技能暂时无法载入。</p>${RunTeamsLoadFailure.button(retryOptions)}
-  <details><summary data-app-i18n="pipelineBoard.errorDetails">错误详情</summary>${p.choiceErrors.map(e=>`<p>${esc(e.employee)}：${esc(e.error)}</p>`).join('')}</details></div>`;
+  <div class="help">${p.choiceErrors.map(e=>`<p>${esc(e.employee)}：${esc(e.error)}</p>`).join('')}</div></div>`;
 }
 const stagePresets=[['pool','待定','pipelineBoard.stagePending'],['done','完成','pipelineEditor.stateDone'],['dropped','放弃','pipelineBoard.stageAbandoned']];
 const stageTrigger=()=>document.querySelector('.source-pipeline-add-stage');
@@ -505,7 +476,7 @@ async function addStageMenu(trigger){
  const existing=document.getElementById('sourcePipelineAddStage');
  if(existing){existing.querySelector('[data-stage-close]').click();return;}
  const p=state(s);
- if(p.draft||p.pending||p.saving||p.commitRefresh)return editor();
+ if(p.draft||p.pending||p.saving||p.commitRefresh)return settings();
  closeTransientMenus();
  let nodes=false,ready=false,failed=false,observer,anchor=trigger,connections=[],routing=null;
  let scrollList;
@@ -591,9 +562,9 @@ async function addStageMenu(trigger){
  }
  async function load(){
   failed=false;paint();
-  await loadEditorData(s);
+  await loadSettingsData(s);
   if(!active())return;
-  if(p.draft||p.pending||p.saving||p.commitRefresh){close();return editor();}
+  if(p.draft||p.pending||p.saving||p.commitRefresh){close();return settings();}
   if(p.error||!p.data){failed=true;paint();return;}
   connections=stageConnections(p.data.asset.pipeline);
   ready=true;
@@ -619,7 +590,7 @@ async function addStageMenu(trigger){
   close();
   await save(false,s);
   if(!owned(s)||s.view==='conversation'||S.sel!==selection||_detailOpenSequence!==sequence)return;
-  if(p.draft||p.pending||p.commitRefresh)select('editor');
+  if(p.draft||p.pending||p.commitRefresh)select('settings');
   else if(document.activeElement===document.body||document.activeElement===anchor){
    (document.querySelector(`.column-worker-title[data-position="${CSS.escape(key)}"]`)||stageTrigger())?.focus();
   }
@@ -783,7 +754,7 @@ async function position(key){
  if(S.sel?.positionKey!==key)state(s).expandedRoutePosition=null;
  host().select('position',{positionKey:key});
  openPositionConfiguration(s);
- await loadEditorData(s);
+ await loadSettingsData(s);
 }
 function positionEmployeeEntry(s,key){
  const p=state(s),position=p.data?.asset.pipeline.positions.find(row=>row.key===key);
@@ -792,7 +763,7 @@ function positionEmployeeEntry(s,key){
 }
 async function openEmployee(s,key){
  const selection=S.sel;
- if(!state(s).data)await loadEditorData(s);
+ if(!state(s).data)await loadSettingsData(s);
  if(!owned(s)||S.sel!==selection)return;
  const entry=positionEmployeeEntry(s,key);
  if(!entry)return toast('员工暂不可用。请查看员工目录。','info','pipelineSettings.employeeMissing');
@@ -800,7 +771,7 @@ async function openEmployee(s,key){
  catch(error){if(owned(s)&&S.sel===selection)toast(error.message,'err');}
 }
 function columnClick(event,key){
- if(!event.target.closest('.card,button,a,input,textarea,select,summary'))void position(key);
+ if(!event.target.closest('.card,button,a,input,textarea,select'))void position(key);
 }
 function columnAvatar(column){
  if(column.kind!=='employee')return '';
@@ -818,7 +789,7 @@ async function columnMenu(event,key){
  const options={variant:'columnAction',...(event.type==='contextmenu'?{at:{x:event.clientX,y:event.clientY},align:'left'}:{})};
  const creator=s.data.ui.mode==='creator',selection=S.sel;
  if(creator&&column?.kind==='employee'&&!state(s).data){
-  await loadEditorData(s);
+  await loadSettingsData(s);
   if(!owned(s)||S.sel!==selection||s.data.ui.mode!=='creator')return;
   if(!anchor.isConnected)anchor=document.querySelector(`#rgMid ${options.at?'.chd':'.column-more'}[data-position="${CSS.escape(key)}"]`);
   if(!anchor)return;
@@ -887,21 +858,17 @@ function routeRows(asset,position,locked,{flat=false}={}){
  const configuredExceptions=availableExceptions.filter(([value])=>configured(value));
  const optionalExceptions=availableExceptions.filter(([value])=>!configured(value));
  const grouped=entries=>`<div class="node-route-list">${rows(entries)}</div>`;
- const extraExceptions=optionalExceptions.length?grouped(optionalExceptions):'';
- const moreExceptions=configuredExceptions.length&&extraExceptions
-  ?`<details><summary data-app-i18n="pipelineEditor.moreExceptionConditions">其他处理条件</summary>${extraExceptions}</details>`
-  :extraExceptions;
  const fallbackHint=availableExceptions.some(([value])=>value==='always')
   ?'<p class="help" data-app-i18n="pipelineEditor.legacyFallbackHint">兜底也适用于其他条件都未匹配的完成结果。</p>':'';
- const exceptionMarkup=availableExceptions.length?`<details${configuredExceptions.length?' open':''}>
-  <summary data-app-i18n="pipelineEditor.exceptionHandling">异常处理</summary>
-  ${configuredExceptions.length?grouped(configuredExceptions):''}${moreExceptions}${fallbackHint}
- </details>`:'';
- const completionFallback=statusFirst&&!approval?`<details${configured('always')?' open':''}>
-  <summary data-app-i18n="pipelineEditor.completionFallback">完成兜底</summary>
+ const exceptionMarkup=availableExceptions.length?`<section class="node-route-list">
+  <div class="node-section-head"><b data-app-i18n="pipelineEditor.exceptionHandling">异常处理</b></div>
+  ${grouped([...configuredExceptions,...optionalExceptions])}${fallbackHint}
+ </section>`:'';
+ const completionFallback=statusFirst&&!approval?`<section class="node-route-list">
+  <div class="node-section-head"><b data-app-i18n="pipelineEditor.completionFallback">完成兜底</b></div>
   ${grouped([fallback])}
- </details>`:'';
- const legacyMarkup=legacy.length?`<details open><summary data-app-i18n="pipelineEditor.existingConditions">已有条件（请核对）</summary>${grouped(legacy)}</details>`:'';
+ </section>`:'';
+ const legacyMarkup=legacy.length?`<section class="node-route-list"><div class="node-section-head"><b data-app-i18n="pipelineEditor.existingConditions">已有条件（请核对）</b></div>${grouped(legacy)}</section>`:'';
  const skillHint=position.kind==='employee'&&!skill?'<p class="help" data-app-i18n="pipelineEditor.skillRoutesUnavailable">技能出口暂不可读取。</p>':'';
  if(flat){
   const hasDeclaredResults=statusFirst?declaredOutcomes.length>0:named.length>0;
@@ -924,7 +891,7 @@ function routeRows(asset,position,locked,{flat=false}={}){
   <div class="node-section-head"><b data-app-i18n="pipelineEditor.workResults">工作结果</b></div>
   ${grouped(results)}${skillHint}${completionFallback}${exceptionMarkup}${legacyMarkup}
  </div>`;
- return `<section class="node-route-section"><div class="node-section-head"><span><b data-app-i18n="pipelineEditor.routeHeading">工作下游</b></span></div>${body}</section>`;
+ return `<section class="node-route-section">${body}</section>`;
 }
 function toggleRouteConditions(event){
  const s=current(),button=event.currentTarget;
@@ -1168,27 +1135,6 @@ function positionMarkup(asset,key,locked){
  return `<div class="settings-section-stack">${facts}${work}${config?'<div class="position-configuration settings-section-stack">'+config.body+'</div>':''}${routeRows(asset,position,locked,{flat:true})}</div>`;
 }
 function options(items,value){return items.map(([key,label,labelKey,vars])=>`<option value="${esc(key)}" ${key===value?'selected':''}${labelKey?` data-app-i18n="${esc(labelKey)}"`:''}${vars?` data-app-i18n-vars="${esc(JSON.stringify(vars))}"`:''}>${esc(label)}</option>`).join('');}
-function editorDisclosure(key){
- return `data-pipeline-disclosure="${esc(key)}" ontoggle="RunTeamsSourcePipelinePanels.editorDisclosureChanged(this)"`;
-}
-function editorDisclosureChanged(section){
- const s=current();if(!s||S.sel?.id!=='editor'||!section.isConnected)return;
- section.dataset.pipelineDisclosureReady='';
- const p=state(s),key=section.dataset.pipelineDisclosure;
- p.openSections??=new Set();
- if(section.open)p.openSections.add(key);else p.openSections.delete(key);
-}
-function stateRecordsOnlyMarkup(state,index,locked){
- if(state.kind!=='done')return '';
- return `<div class="choices vertical"><label><input type="checkbox" ${state.records_only===true?'checked':''} ${locked?'disabled':''} onchange="RunTeamsSourcePipelinePanels.changed(['pipeline','states',${index},'records_only'],this.checked)"><span data-app-i18n="pipelineEditor.recordsOnly">仅保留执行记录，不在看板显示</span></label></div><p class="help" data-app-i18n="pipelineEditor.recordsOnlyHint">工作完成后不显示此列和任务卡片，报告仍可在执行记录中查看。</p>`;
-}
-function editorMarkup(asset,locked){const s=current(),p=state(current()),nodes=[...asset.pipeline.positions,...(asset.pipeline.states||[])].map(n=>[n.key,n.name]);
- return `<div class="configuration-surface"><p class="help" data-app-i18n="pipelineEditor.draftHint">离开编辑字段后，更改会自动保存到看板。正在执行的工作沿用开始时的流程。</p>${employeeChoicesStatus(p)}<section class="group"><h3 data-app-i18n="pipelineEditor.roles">岗位</h3>${asset.pipeline.positions.map((position,i)=>`<section class="source-pipeline-rule">${input('岗位名称',['pipeline','positions',i,'name'],position.name,false,locked,'pipelineEditor.roleName')}${position.kind==='approval'?input('决定说明',['pipeline','positions',i,'prompt'],position.prompt,true,locked,'pipelineEditor.decision'):`${input('岗位说明（可选）',['pipeline','positions',i,'description'],position.description,true,locked,'pipelineEditor.roleDescription',' rows="2" maxlength="300"')}<label><span data-app-i18n="pipelineEditor.employeeSkill">员工与技能</span><select class="inp" aria-label="${esc(position.name)}的员工与技能" data-app-i18n-aria-label="pipelineEditor.employeeSkillFor" data-app-i18n-vars="${esc(JSON.stringify({name:position.name}))}" data-index="${i}" data-pipeline-employee-skill onchange="RunTeamsSourcePipelinePanels.choose(Number(this.dataset.index),this.value)" ${locked||p.choicesLoading||p.choicesFailed||!p.choices?.length?'disabled':''}>${employeeSkillOptions(asset,position,p.choices||[],s.reference)}</select></label>`}${!locked?`<button class="textbutton" type="button" onclick="RunTeamsSourcePipelinePanels.remove('positions',${i})" data-app-i18n="pipelineEditor.removeRole">移除岗位</button>`:''}</section>`).join('')}${!locked?`<button type="button" class="btn sm" onclick="RunTeamsSourcePipelinePanels.add('positions')" data-app-i18n="pipelineEditor.addEmployeeRole" ${p.choicesLoading||p.choicesFailed||!p.choices?.length?'disabled':''}>添加员工岗位</button> <button type="button" class="btn sm" onclick="RunTeamsSourcePipelinePanels.add(\'approval\')" data-app-i18n="pipelineEditor.addDecision">添加人工决定</button>`:''}</section>${asset.pipeline.positions.map(position=>`<details class="source-pipeline-guided-routes" ${editorDisclosure('downstream:'+position.key)}><summary data-app-i18n="pipelineEditor.downstream" data-app-i18n-vars="${esc(JSON.stringify({name:position.name}))}">${esc(position.name)}的工作下游</summary>${routeRows(asset,position,locked||p.conflict)}</details>`).join('')}<section class="group"><details ${editorDisclosure('advancedRoutes')}><summary data-app-i18n="pipelineEditor.advancedRoutes">高级流转规则</summary>${asset.pipeline.edges.map((edge,i)=>`<section class="source-pipeline-rule"><label><span data-app-i18n="pipelineEditor.from">从</span><select class="inp" aria-label="第${i+1}条流转的起点" data-app-i18n-aria-label="pipelineEditor.fromRule" data-app-i18n-vars="${esc(JSON.stringify({index:i+1}))}" onchange="RunTeamsSourcePipelinePanels.changed(['pipeline','edges',${i},'from'],this.value)" ${locked?'disabled':''}>${options(nodes,edge.from)}</select></label><label><span data-app-i18n="pipelineEditor.to">到</span><select class="inp" aria-label="第${i+1}条流转的终点" data-app-i18n-aria-label="pipelineEditor.toRule" data-app-i18n-vars="${esc(JSON.stringify({index:i+1}))}" onchange="RunTeamsSourcePipelinePanels.changed(['pipeline','edges',${i},'to'],this.value)" ${locked?'disabled':''}>${options(nodes,edge.to)}</select></label>${input('条件',['pipeline','edges',i,'when'],edge.when||'completed',false,locked,'pipelineEditor.condition',` aria-describedby="pipeline_route_conditions" aria-label="第${i+1}条流转的条件" data-app-i18n-aria-label="pipelineEditor.conditionFor" data-app-i18n-vars="${esc(JSON.stringify({index:i+1}))}"`)}${!locked?`<button class="textbutton" type="button" onclick="RunTeamsSourcePipelinePanels.remove('edges',${i})" data-app-i18n="pipelineEditor.removeRoute">删除流转</button>`:''}</section>`).join('')}<p class="help" id="pipeline_route_conditions" data-app-i18n="pipelineEditor.${asset.pipeline.routing_policy===STATUS_FIRST_ROUTING?'statusFirstRouteHint':'advancedRouteHint'}">员工提交结果后，流水线按结果中的 route 或状态匹配规则。可用 exception 处理异常，用 always 设置兜底。留空时使用 completed。</p>${!locked?'<button type="button" class="btn sm" onclick="RunTeamsSourcePipelinePanels.add(\'edges\')" data-app-i18n="pipelineEditor.addRoute">添加流转</button>':''}</details></section>${parameterMarkup(asset,locked)}<section class="group"><h3 data-app-i18n="pipelineEditor.endWaiting">结束与等待位置</h3>${(asset.pipeline.states||[]).map((n,i)=>`<section class="source-pipeline-rule">${input('名称',['pipeline','states',i,'name'],n.name,false,locked,'pipelineEditor.stateName')}<label><span data-app-i18n="pipelineEditor.type">类型</span><select class="inp" aria-label="${esc(n.name)}的类型" data-app-i18n-aria-label="pipelineEditor.typeFor" data-app-i18n-vars="${esc(JSON.stringify({name:n.name}))}" onchange="RunTeamsSourcePipelinePanels.changed(['pipeline','states',${i},'kind'],this.value)" ${locked?'disabled':''}>${options([['done','完成','pipelineEditor.stateDone'],['dropped','结束','pipelineEditor.stateDropped'],['pool','等待','pipelineEditor.statePool']],n.kind)}</select></label>${stateRecordsOnlyMarkup(n,i,locked)}${!locked?`<button type="button" class="textbutton" onclick="RunTeamsSourcePipelinePanels.remove('states',${i})" data-app-i18n="pipelineEditor.removeState">移除位置</button>`:''}</section>`).join('')}${!locked?'<button type="button" class="btn sm" onclick="RunTeamsSourcePipelinePanels.add(\'states\')" data-app-i18n="pipelineEditor.addState">添加位置</button>':''}</section></div>`;}
-function links(label,kind,index,field,items,selected,locked,labelKey=""){return `<fieldset class="source-pipeline-links"><legend${labelKey?` data-app-i18n="${esc(labelKey)}"`:""}>${esc(label)}</legend>${items.map(([key,name])=>`<label><input type="checkbox" ${selected?.includes(key)?'checked':''} ${locked?'disabled':''} data-key="${esc(key)}" onchange="RunTeamsSourcePipelinePanels.toggle('${kind}',${index},'${field}',this.dataset.key,this.checked)">${esc(name)}</label>`).join('')}</fieldset>`;}
-function parameterMarkup(asset,locked){const positions=asset.pipeline.positions.filter(p=>p.kind==='employee').map(p=>[p.key,p.name]);return `<section class="group"><details ${editorDisclosure('handoffFields')}><summary data-app-i18n="pipelineEditor.handoffFields">交接字段</summary><p class="help" data-app-i18n="pipelineEditor.handoffFieldHint">选择字段来自任务输入还是岗位产出，并指定哪些岗位可以维护或读取。字段名须与技能定义中的输入或输出名称一致。字段值在具体任务中填写。</p>${asset.pipeline.parameters?.length?'':'<p class="help" data-app-i18n="pipelineEditor.handoffEmpty">还没有交接字段。</p>'}${(asset.pipeline.parameters||[]).map((f,i)=>`<section class="source-pipeline-rule">${input('字段名',['pipeline','parameters',i,'key'],f.key,false,locked,'pipelineEditor.fieldKey')}${input('显示名称',['pipeline','parameters',i,'label'],f.label,false,locked,'pipelineEditor.fieldLabel')}<label><span data-app-i18n="pipelineEditor.source">来源</span><select class="inp" aria-label="${esc(f.label)}的来源" data-app-i18n-aria-label="pipelineEditor.sourceFor" data-app-i18n-vars="${esc(JSON.stringify({name:f.label}))}" onchange="RunTeamsSourcePipelinePanels.changed(['pipeline','parameters',${i},'source'],this.value)" ${locked?'disabled':''}>${options([['user','任务输入','pipelineEditor.taskInput'],['employee','岗位产出','pipelineEditor.roleOutput']],f.source)}</select></label><label><span data-app-i18n="pipelineEditor.type">类型</span><select class="inp" aria-label="${esc(f.label)}的类型" data-app-i18n-aria-label="pipelineEditor.typeFor" data-app-i18n-vars="${esc(JSON.stringify({name:f.label}))}" onchange="RunTeamsSourcePipelinePanels.parameterType(${i},this.value)" ${locked?'disabled':''}>${options([['text','文字','pipelineEditor.text'],['textarea','长文本','pipelineEditor.longText'],['number','数字','pipelineEditor.number'],['select','单选','pipelineEditor.single'],['multiselect','多选','pipelineEditor.multiple'],['checklist','清单','pipelineEditor.checklist'],['checkbox','开关','pipelineEditor.toggle'],['date','日期','pipelineEditor.date'],['secret','凭据','pipelineEditor.credential']],f.type)}</select></label><label><span data-app-i18n="pipelineEditor.purpose">用途</span><select class="inp" aria-label="${esc(f.label)}的用途" data-app-i18n-aria-label="pipelineEditor.purposeFor" data-app-i18n-vars="${esc(JSON.stringify({name:f.label}))}" onchange="RunTeamsSourcePipelinePanels.changed(['pipeline','parameters',${i},'display'],this.value)" ${locked?'disabled':''}>${options([['input','任务输入','pipelineEditor.taskInput'],['handoff','交接','pipelineEditor.handoff'],['reference','参考','pipelineEditor.reference'],['output','产出','pipelineEditor.output'],['setup','设置','pipelineEditor.setup']],f.display)}</select></label>${['select','multiselect','checklist'].includes(f.type)?`<label><span data-app-i18n="pipelineEditor.options">选项（每行一个）</span><textarea class="inp" onchange="RunTeamsSourcePipelinePanels.optionLines(${i},this.value)" ${locked?'readonly':''}>${esc((f.options||[]).join('\n'))}</textarea></label>`:''}${links('维护岗位','parameters',i,'writers',positions,f.writers,locked,'pipelineEditor.writers')}${links('可读取岗位','parameters',i,'visible_to',positions,f.visible_to,locked,'pipelineEditor.readers')}${!locked?`<button type="button" class="textbutton" onclick="RunTeamsSourcePipelinePanels.remove('parameters',${i})" data-app-i18n="pipelineEditor.removeField">删除字段</button>`:''}</section>`).join('')}${!locked?'<button type="button" class="btn sm" onclick="RunTeamsSourcePipelinePanels.add(\'parameters\')" data-app-i18n="pipelineEditor.addField">添加交接字段</button>':''}</details></section>`;}
-function parameterType(index,value){changed(['pipeline','parameters',index,'type'],value);render();}
-function optionLines(index,value){changed(['pipeline','parameters',index,'options'],value.split('\n').map(v=>v.trim()).filter(Boolean));}
-function toggle(kind,index,field,key,on){const s=current(),asset=draft();if(!asset)return;const item=asset.pipeline[kind][index];item[field]=[...new Set([...(item[field]||[]).filter(k=>k!==key),...(on?[key]:[])])];queueSave(s);}
 function add(kind,{choiceIndex=0,name,stateKind='done',immediate=false}={}){
  const s=current();if(!s)return;
  const panel=state(s),choice=panel.choicesLoading||panel.choicesFailed?null:panel.choices?.[choiceIndex];
@@ -1201,13 +1147,7 @@ function add(kind,{choiceIndex=0,name,stateKind='done',immediate=false}={}){
  const asset=draft();if(!asset)return;
  const key='n-'+crypto.randomUUID().replace(/-/g,'').slice(0,12),p=asset.pipeline;
  const copy=(key,fallback)=>globalThis.RunTeamsLocale?.t(key,{},fallback)??fallback;
- if(kind==='parameters')(p.parameters||=[]).push({key:'field_'+key.replace(/-/g,'_'),label:copy('pipelineEditor.defaultField','新字段'),type:'text',source:'employee',display:'handoff',writers:[],visible_to:[]});
- else if(kind==='states')(p.states||=[]).push({key,name:name||copy('pipelineEditor.defaultEnd','已完成'),kind:stateKind});
- else if(kind==='edges'){
-  const first=p.positions[0];
-  const when=p.routing_policy===STATUS_FIRST_ROUTING&&first.kind==='approval'?'approved':'completed';
-  p.edges.push({from:first.key,to:(p.states||[])[0]?.key||first.key,when});
- }
+ if(kind==='states')(p.states||=[]).push({key,name:name||copy('pipelineEditor.defaultEnd','已完成'),kind:stateKind});
  else if(kind==='approval')p.positions.push({key,name:name||copy('pipelineEditor.defaultDecision','人工决定'),kind:'approval',prompt:copy('pipelineWork.review','请核对结果并决定下一步。')});
  else if(choice){
   const position={key,name:choice.employee_name,kind:'employee',employee_ref:'',skill_key:choice.skill_key};
@@ -1219,37 +1159,6 @@ function add(kind,{choiceIndex=0,name,stateKind='done',immediate=false}={}){
 }
 function samePin(a,b){if(!a||!b)return false;const keys=[...new Set([...Object.keys(a),...Object.keys(b)])].sort();return keys.every(k=>k==='skills'?JSON.stringify([...(a[k]||[])].sort())===JSON.stringify([...(b[k]||[])].sort()):a[k]===b[k]);}
 function matches(member,choice,ref){return !!member&&(member.dependency?samePin(member.dependency,choice.dependency):choice.reference.schema==='runteams.local-employee-reference/1'&&ref.source_id===choice.reference.source_id&&member.source===choice.reference.employee_source);}
-function currentMemberOption(asset,position){
- const member=asset.employees.find(row=>row.ref===position.employee_ref);
- if(!member)return ['', '选择员工与技能','pipelineEditor.chooseEmployeeSkill'];
- const selection=position.name+' / '+position.skill_key, pin=member.dependency;
- if(!pin)return ['', '当前：'+selection,'pipelineEditor.currentEmployeeSkill',{selection}];
- const revision=(pin.revision||pin.sha256||'').replace(/^r-/,'').slice(0,8);
- return ['', '当前：'+selection+' · 已固定 '+revision,'pipelineEditor.pinnedEmployeeSkill',{selection,revision}];
-}
-function employeeSkillOption(row,index){
- const selection=[row.employee_name+' / '+row.skill_name,row.project_name].filter(Boolean).join(' · ');
- const version=row.version||'', revision=version.match(/^修订 (.+)$/)?.[1];
- if(revision)return [String(index),selection+' · '+version,'pipelineEditor.sourceEmployeeSkill',{selection,revision}];
- const origin=row.origin||'创作',originKeys={'创作':'localEmployeeSkill','租用':'rentedEmployeeSkill','已下载':'downloadedEmployeeSkill'};
- const key=Object.hasOwn(originKeys,origin)?originKeys[origin]:null;
- const suffix=version?' '+version:'';
- return [String(index),selection+' · '+origin+suffix,key?'pipelineEditor.'+key:undefined,{selection,suffix}];
-}
-function employeeSkillOptions(asset,position,choices,reference){
- const member=asset.employees.find(row=>row.ref===position.employee_ref);
- const selected=choices.findIndex(choice=>matches(member,choice,reference)&&choice.skill_key===position.skill_key);
- const items=choices.map(employeeSkillOption);
- if(selected<0)items.unshift(currentMemberOption(asset,position));
- return options(items,selected<0?'':String(selected));
-}
-function choose(index,value){const s=current(),panel=s&&state(s);
- const choice=panel&&!panel.choicesLoading&&!panel.choicesFailed&&value!==''?panel.choices?.[value]:null;
- if(!choice)return;
- const asset=draft();if(!asset)return;
- assignEmployee(s,asset,asset.pipeline.positions[index],choice);
- queueSave(s);render();
-}
 function assignEmployee(s,asset,position,choice){
  let member=asset.employees.find(m=>matches(m,choice,s.reference));
  if(!member){
@@ -1290,9 +1199,10 @@ async function refreshRecords(preserveExisting=false){
  if(!s||selection?.id!=='source-pipeline-records'||selection.sourceWorkspace!==s)return;
  if(!preserveExisting){selection.status='loading';render();}
  try{
+  if(preserveExisting)selection.pipelineRecordPreviews?.clear();
   if(preserveExisting||!Array.isArray(s.data.workflows))await host().refresh();
   if(!owned(s)||S.sel!==selection)return;
-  selection.data=RunTeamsWorkRecords.taskResults(s.data.workflows,s.reference);selection.status='ready';selection.error='';
+  RunTeamsWorkRecords.updateTaskList(s);
  }catch(error){
   if(owned(s)&&S.sel===selection){selection.status='error';selection.error=error.message;}
  }
@@ -1380,6 +1290,7 @@ async function flow(action,decision=''){const s=current(),selection=S.sel,w=sele
   Object.assign(f,{pending:null,unknown:false,retry:false,error:'',inputValues:null,rawInputs:null,response:''});
   delete f.choice;delete f.feedbackVisit;delete f.preparation;
   void host().refresh({silent:true});
+  host().workCommitted(s,w.id);
  }catch(error){
   if(!owned(s))return;
   if(error.code==='workflow_visit_changed'){
@@ -1492,7 +1403,7 @@ async function authorizeWork(runId){
 }
 async function configureWork(original,authorizationContext){
  const s=current();if(!s||original!==programContext())return;
- await loadEditorData(s);if(original!==programContext())return;
+ await loadSettingsData(s);if(original!==programContext())return;
  const ref=original.snapshot.package?.reference;
  const employee=state(s).data.employees.find(e=>JSON.stringify(e.reference)===JSON.stringify(ref));
  if(employee)return RunTeamsEmployeeConfiguration.open({...memberConfigurationEntry(s,employee),authorizationContext});
@@ -1506,20 +1417,6 @@ function workText(key,fallback,vars={}){const locale=window.RunTeamsLocale||(typ
 function workLabel(key,fallback,vars={}){
  const full='pipelineWork.'+key,attributes=Object.keys(vars).length?` data-app-i18n-vars="${esc(JSON.stringify(vars))}"`:'';
  return `<span data-app-i18n="${full}"${attributes}>${esc(workText(key,fallback,vars))}</span>`;
-}
-function workSection(selection,key,title,body,defaultOpen=true){
- const id=Number(selection.workflow.id),expanded=selection.workSections?.[key]??defaultOpen;
- return RunTeamsEmployeeDrawerHeader.section({id:`source-work-${id}-${key}`,stateKey:key,title,body,
-  collapsedSections:new Set(expanded?[]:[key]),action:'RunTeamsSourcePipelinePanels.toggleWorkSection',
-  className:'source-work-group'})
-  .replace('<section ',`<section data-source-work-section="${esc(key)}" data-work-id="${id}" `);
-}
-function toggleWorkSection(button){
- const selection=S.sel,section=button.closest?.('.source-work-group'),drawer=button.closest?.('.source-pipeline-work-drawer');
- if(!current()||selection?.type!=='source-pipeline'||selection.id!=='work'||!button.isConnected||
-  !section||String(selection.workflow?.id)!==section.dataset.workId||drawer?.dataset.sourceWorkflowId!==section.dataset.workId)return;
- RunTeamsEmployeeDrawerHeader.toggleSection(button,selection.workCollapsed||=new Set());
- (selection.workSections??={})[button.dataset.settingsSectionKey]=button.getAttribute('aria-expanded')==='true';
 }
 const taskConfigurationKey=(s,id)=>'runteams.pipeline-flow:'+s.storageScope+':'+JSON.stringify(s.reference)+':'+id+':configuration';
 const taskConfigurationFields=()=>RunTeamsConfigurationFields.create({icon:ICON,singleSelect:csel,idPrefix:'source_task_configuration_'});
@@ -1687,7 +1584,7 @@ function taskConfigurationMarkup(selection,position,needed,actions=''){
   attrs:'onsubmit="event.preventDefault();RunTeamsSourcePipelinePanels.taskConfigurationDraft(this,true)" oninput="RunTeamsSourcePipelinePanels.taskConfigurationDraft(this,false,event.target)" onchange="RunTeamsSourcePipelinePanels.taskConfigurationDraft(this,true,event.target)"',
   body});
  const title=required?workLabel('configurationRequired','补充配置'):workLabel('configuration','任务配置');
- return workSection(selection,'configuration',title,form,!!(needed||state.pending||state.draft||status));
+ return RunTeamsWorkRecords.taskSection(selection,'configuration',title,form,!!(needed||state.pending||state.draft||status));
 }
 function attemptLink(runId,key,label){
  return `<button type="button" class="settings-section-action" onclick="RunTeamsWorkRecords.openAttempt(${Number(runId)})">${workLabel(key,label)}</button>`;
@@ -1790,7 +1687,7 @@ function taskDeliveriesMarkup(selection,{files}){
    summary:taskDeliveryDescription(file,document),role:file.role||''
   },`${action}(${id})`);
  }).join('');
- return workSection(selection,'deliveries',workLabel('deliveryItems','交付物'),`<div class="result-delivery-list work-record-list" role="list" aria-label="交付物" data-app-i18n-aria-label="pipelineWork.deliveryItems">${rows}</div>`,selection.workflow.state==='completed');
+ return RunTeamsWorkRecords.taskSection(selection,'deliveries',workLabel('deliveryItems','交付物'),`<div class="result-delivery-list work-record-list" role="list" aria-label="交付物" data-app-i18n-aria-label="pipelineWork.deliveryItems">${rows}</div>`,selection.workflow.state==='completed');
 }
 function signingEntry(selection){
  const s=current(),w=selection?.workflow,source=selection?.signingSetup?.employee_source;
@@ -1824,7 +1721,7 @@ function signingConfigurationMarkup(selection){
  const entry=signingEntry(selection);
  if(!entry)return '';
  const config=RunTeamsEmployeeConfiguration.inlineParts(entry.key);
- return workSection(selection,'signing',workLabel('signingTitle','iPhone 真机签名'),
+ return RunTeamsWorkRecords.taskSection(selection,'signing',workLabel('signingTitle','iPhone 真机签名'),
   `<div class="source-work-signing" data-signing-configuration>
    <p>${workLabel('signingTeamHelp','在下方填写项目所属的 Apple Team ID，离开输入框后自动保存。')}</p>
    <p>${workLabel('signingMacHelp','在执行用的 Mac 上准备有效的 Apple Development 证书（含私钥），以及覆盖当前 Bundle ID 和这台 iPhone 的开发描述文件。使用 Xcode 自动签名时，描述文件由 Xcode 管理。')}</p>
@@ -1845,7 +1742,7 @@ function feedbackBlocker(wait){
  return wait.prompt?.trim()||wait.result?.summary?.trim()||
   (wait.kind==='result'&&wait.result?.issues?.filter(RunTeamsWorkRecords.hasFailureReason).join('\n'))||'';
 }
-function workContent(selection,w,definition,names,interaction,workActions,statusEvent,deliveries,currentExecution,parkedRun,resultChecked=false,preparationReason,originalQuestion=''){
+function workContent(selection,w,definition,names,interaction,workActions,statusEvent,deliveries,currentExecution,parkedRun,resultChecked=false,preparationReason,labelChoicesWithSummary=false){
  const frozen=w.snapshot_json||{},wait=frozen.pipeline_waiting||{},handoff=frozen.pipeline_handoff||{},feedback=frozen.pipeline_feedback||{};
  const runs=w.employee_runs||[],latest=runs[0],objective=w.task?.payload_json?.objective||'';
  const approval=wait.kind==='approval'&&w.state==='needs_approval',position=definition.positions.find(p=>p.key===w.cursor_key);
@@ -1868,11 +1765,10 @@ function workContent(selection,w,definition,names,interaction,workActions,status
  const systemHint=(key,fallback)=>`<p class="source-work-muted">${workLabel('systemNotice','系统提示')} · ${workLabel(key,fallback)}</p>`;
  const sourceLabel=configuredApproval?workLabel('configuredApproval','流程审批'):
   primary&&signingVerified&&!attention?workLabel('systemNotice','系统提示'):'';
- const sameQuestion=originalQuestion&&normalize(primary)===normalize(originalQuestion);
  const summary=primary?RunTeamsWorkRecords.prose(primary):'';
  let currentBody=(sourceLabel?`<p class="source-work-muted">${sourceLabel}</p>`:'')+
-  (originalQuestion?`<div id="source_pipeline_question">${summary}</div>`:summary);
- const diagnostic=detail=>detail?`<details><summary data-app-i18n="pipelineBoard.errorDetails">错误详情</summary><p>${esc(detail)}</p></details>`:'';
+  (labelChoicesWithSummary?`<div id="source_pipeline_question">${summary}</div>`:summary);
+ const diagnostic=detail=>detail?`<p class="source-work-muted">${esc(detail)}</p>`:'';
  if(configuredApproval){
   if(!attention)currentBody=`<p>${workLabel('configuredApproval','流程审批')}</p><p>${workLabel('approvalNoBrief','这项审批没有附上说明。你可以查看上一岗位的结果，再做决定。')}</p>`;
   if(wait.source_run_id)currentBody+=attemptLink(wait.source_run_id,'viewHandoffExecution','查看来源执行');
@@ -1929,9 +1825,6 @@ function workContent(selection,w,definition,names,interaction,workActions,status
  const configuration=inlineConfiguration?'':taskConfigurationMarkup(selection,position,configurationNeeded,configurationActions);
  if(configurationNeeded)content+=configuration;
  if(materialWait&&!selection.signingSetup)content+=actionBody;
- if(originalQuestion&&!sameQuestion){
-  content+=`<details class="source-work-feedback-context"><summary>${workLabel('feedbackContext','查看原问题')}</summary><div class="doc-reader-prose work-record-report"><p>${esc(originalQuestion)}</p></div></details>`;
- }
  const historyRuns=currentExecution?runs.filter(run=>run!==currentExecution):runs;
  const shownOutcome=parkedRun&&parkedReason&&primary===parkedReason&&!w.launch_error&&!frozen.pipeline_setup_required
   ?{runId:parkedRun.id,text:parkedReason}:null;
@@ -1939,12 +1832,12 @@ function workContent(selection,w,definition,names,interaction,workActions,status
  if(w.state==='completed')content+=taskDeliveriesMarkup(selection,deliveries);
  if(runs.length)content+=history;
  if(w.state!=='completed')content+=taskDeliveriesMarkup(selection,deliveries);
- if(objective)content+=workSection(selection,'objective',workLabel('objective','任务说明'),RunTeamsWorkRecords.prose(objective),!runs.length);
+ if(objective)content+=RunTeamsWorkRecords.taskSection(selection,'objective',workLabel('objective','任务说明'),RunTeamsWorkRecords.prose(objective),!runs.length);
  if(!configurationNeeded)content+=configuration;
  if(!runs.length)content+=history;
  return `<div class="source-work-content settings-section-stack">${content}</div>`;
 }
-function workDrawer(selection){const s=current(),w=selection.workflow;let body='',interaction='',workActions='',statusAction='',originalQuestion='';
+function workDrawer(selection){const s=current(),w=selection.workflow;let body='',interaction='',workActions='',statusAction='',labelChoicesWithSummary=false;
  const statusEvent=w&&workStatusEvent(w);
  const deliveries=w&&RunTeamsWorkRecords.taskDeliveries(w);
  const currentExecution=w&&RunTeamsWorkRecords.currentExecutionOutsideHistory(w);
@@ -1985,10 +1878,11 @@ function workDrawer(selection){const s=current(),w=selection.workflow;let body='
   }else if(s.data.runtime.status==='running'&&['blocked','needs_human'].includes(w.state)&&wait.kind==='result'&&['blocked','needs_human'].includes(wait.result?.status)){
    const request=selection.humanRequest,options=workflowHumanOptions(request),sameVisit=f.feedbackVisit===frozen.pipeline_visit;
    const typed=options.some(option=>option.input_mode),selected=feedbackOption(selection),requiresText=feedbackRequiresText(selected);
-   if(options.length&&feedbackBlocker(wait))originalQuestion=request?.question||'';
+   labelChoicesWithSummary=!!(options.length&&feedbackBlocker(wait));
+   const questionId=labelChoicesWithSummary||request?.question?'source_pipeline_question':'';
    let responseBody='';
-   if(request?.question&&!originalQuestion)responseBody+=`<p class="core-human-question" id="source_pipeline_question">${esc(request.question)}</p>`;
-   if(options.length)responseBody+=workflowHumanChoicesMarkup(options,'source_pipeline_choice',sameVisit?f.choice:'','RunTeamsSourcePipelinePanels.answer(document.getElementById(\'source_pipeline_response\')?.value||\'\',this.value)','source_pipeline_question');
+   if(request?.question&&!labelChoicesWithSummary)responseBody+=`<p class="core-human-question" id="source_pipeline_question">${esc(request.question)}</p>`;
+   if(options.length)responseBody+=workflowHumanChoicesMarkup(options,'source_pipeline_choice',sameVisit?f.choice:'','RunTeamsSourcePipelinePanels.answer(document.getElementById(\'source_pipeline_response\')?.value||\'\',this.value)',questionId);
    else responseBody+=`${request?.question?'':`<p class="source-work-muted">${workLabel('systemNotice','系统提示')} · ${workLabel('noEmployeeQuestion','员工没有留下具体问题。你可以根据上方执行结果补充信息。')}</p>`}<label class="lbl" for="source_pipeline_response">${workLabel('supplementInformation','补充信息')}</label>`;
    const feedbackFields=(!typed||selected)?feedbackConfigurationFields(selection):[];
    if(feedbackFields.length)responseBody+=taskConfigurationMarkup(selection,definition.positions.find(row=>row.key===w.cursor_key),true);
@@ -2021,33 +1915,19 @@ function workDrawer(selection){const s=current(),w=selection.workflow;let body='
    if(resultChecked&&w.retry_mode==='verify')workActions=`<button type="button" class="btn" data-stage-recovery onclick="RunTeamsSourcePipelinePanels.flow('retry',true)" ${s.data.runtime.status==='running'?'':'disabled'}>${workLabel('confirmedRestart','确认未生效，重新执行')}</button>`;
    else workActions=`<button type="button" class="btn" onclick="RunTeamsSourcePipelinePanels.flow('recover')">${workLabel('checkExecutionResult','核对执行结果')}</button>`;
   }
-  body=workContent(selection,w,definition,names,interaction,workActions,statusEvent,deliveries,currentExecution,parkedRun,resultChecked,preparationReason,originalQuestion);
+  body=workContent(selection,w,definition,names,interaction,workActions,statusEvent,deliveries,currentExecution,parkedRun,resultChecked,preparationReason,labelChoicesWithSummary);
  }
- const definition=w?.snapshot_json?.pipeline_work?.asset?.pipeline||s.data.pipeline;
+ const definition=w?.snapshot_json?.pipeline_work?.asset?.pipeline||s.data?.pipeline;
  const progress=w?workProgress(w,definition,statusEvent,currentExecution,statusAction):'';
  const title=w?.task?.title;
- const cardTitle=s.data.workflows.find(row=>Number(row.id)===Number(selection.workflowId))?.title;
- const heading=selection.loading?RunTeamsSkeletons.drawerHeading({title:cardTitle,meta:3}):
-  detailDrawerHeading(title||cardTitle||workText('title','任务'),'',progress,'',{titleKey:title||cardTitle?undefined:'pipelineWork.title'});
- const actions=w?taskReportAction():'';
- const previous=document.getElementById('source_pipeline_response'),focused=previous&&document.activeElement===previous;
- const caret=focused?[previous.selectionStart,previous.selectionEnd]:null;
- requestAnimationFrame(()=>{
-  if(!owned(s)||S.sel!==selection)return;
-  const node=document.querySelector('.source-pipeline-work-drawer[data-source-workflow-id="'+Number(w?.id||selection.workflowId)+'"] > .right-detail-body');
-  if(node&&selection.workScroll!=null)node.scrollTop=selection.workScroll;
-  const response=document.getElementById('source_pipeline_response');
-  if(focused&&response&&!response.disabled){response.focus({preventScroll:true});if(caret)response.setSelectionRange(...caret);}
- });
- return detailDrawerShell({className:'source-pipeline-drawer node-detail-drawer source-pipeline-work-drawer',
-  header:detailDrawerHeader(heading,'node-detail-head',actions,'',RunTeamsWorkRecords.taskBackMarkup(selection)),body,bodyClass:'employee-configuration-body source-pipeline-work-body',
-  attrs:`aria-label="任务详情" data-app-i18n-aria-label="pipelineWork.details" data-source-workflow-id="${Number(w?.id||selection.workflowId)}"`});
+ const cardTitle=s.data?.workflows?.find(row=>Number(row.id)===Number(selection.workflowId))?.title||selection.recordTitle;
+ return RunTeamsWorkRecords.taskDetailMarkup({selection,title:title||cardTitle||workText('title','任务'),
+  titleKey:title||cardTitle?undefined:'pipelineWork.title',metadata:progress,actions:w?taskReportAction():'',
+  back:RunTeamsWorkRecords.taskBackMarkup(selection),body,inputId:'source_pipeline_response'});
 }
-document.addEventListener?.('scroll',event=>{
- if(S.sel?.type==='source-pipeline'&&S.sel.id==='work'&&event.target.matches?.('.source-pipeline-work-drawer > .right-detail-body'))S.sel.workScroll=event.target.scrollTop;
-},true);
+
 function closeHistory(){const s=current(),p=s&&state(s);if(!p?.historyOpen)return;p.historyOpen=false;document.querySelector('.source-pipeline-settings-drawer .creator-history-popover')?.remove();document.getElementById('source_pipeline_history_trigger')?.setAttribute('aria-expanded','false');}
-document.addEventListener?.('scroll',event=>{const s=current();if(s&&S.sel?.type==='source-pipeline'&&['settings','members','editor'].includes(S.sel.id)&&event.target.isConnected&&event.target.matches?.('.source-pipeline-settings-drawer > .right-detail-scroll,.source-pipeline-settings-drawer > .employee-configuration-body')){const p=state(s);p.scroll||={};p.scroll[S.sel.id]=event.target.scrollTop;}},true);
+document.addEventListener?.('scroll',event=>{const s=current();if(s&&S.sel?.type==='source-pipeline'&&['settings','members'].includes(S.sel.id)&&event.target.isConnected&&event.target.matches?.('.source-pipeline-settings-drawer > .right-detail-scroll,.source-pipeline-settings-drawer > .employee-configuration-body')){const p=state(s);p.scroll||={};p.scroll[S.sel.id]=event.target.scrollTop;}},true);
 document.addEventListener?.('pointerdown',event=>{const p=current()?.panels;if(p?.historyOpen&&!event.target.closest?.('.source-pipeline-settings-drawer .creator-history-popover,#source_pipeline_history_trigger'))closeHistory();});
 document.addEventListener?.('keydown',event=>{
  const s=current();
@@ -2064,5 +1944,5 @@ async function revealTaskCredential({s,selection,w,c,state},field){
  return owned(s)&&S.sel===selection&&selection.taskConfiguration===c?reply.value:null;
 }
 RunTeamsConfigurationFields.bindCredentialEditor(taskCredentialOwner,saveTaskCredential,revealTaskCredential);
-window.RunTeamsSourcePipelinePanels={openTaskDocument,openTaskReport,mountSigningConfiguration,resumeSigning,openSigningConversation,taskConfigurationDraft,leaveTaskConfiguration,saveTaskConfiguration,reloadTaskConfiguration,toggleTaskConfigurationSection,addStageMenu,columns,columnClick,columnAvatar,columnMenu,position,retryPositionRuntime,setRoute,routeMenu,togglePositionSection,toggleRouteConditions,positionSkillHint,dismissSkillHint,programContext,authorizeWork,configureWork,configureOwn,workSettings:runId=>{const original=workAuthorizationContext(runId);if(original)return configureWork(original,RunTeamsWorkAuthorization.state({panel:original,privateWork:original,pipeline:false}));},settings,toggleSettingsSection,startSettingsEdit,updateSettingsEdit,finishSettingsEdit,rename,read,drawer,changed,save,receipt,retryCommittedRefresh,cancel,history,restore,readEmployeeChoices,configurationRequest,editor,editorDisclosureChanged,holdTextField,add,choose,remove,records,toggleRecords,refreshRecords,workDrawer,toggleWorkSection,flow,retryFlow,answer,inputDraft,toggle,parameterType,optionLines};
+window.RunTeamsSourcePipelinePanels={openTaskDocument,openTaskReport,mountSigningConfiguration,resumeSigning,openSigningConversation,taskConfigurationDraft,leaveTaskConfiguration,saveTaskConfiguration,reloadTaskConfiguration,toggleTaskConfigurationSection,addStageMenu,columns,columnClick,columnAvatar,columnMenu,position,retryPositionRuntime,setRoute,routeMenu,togglePositionSection,toggleRouteConditions,positionSkillHint,dismissSkillHint,programContext,authorizeWork,configureWork,configureOwn,workSettings:runId=>{const original=workAuthorizationContext(runId);if(original)return configureWork(original,RunTeamsWorkAuthorization.state({panel:original,privateWork:original,pipeline:false}));},settings,toggleSettingsSection,startSettingsEdit,updateSettingsEdit,finishSettingsEdit,rename,read,drawer,changed,save,receipt,retryCommittedRefresh,cancel,history,restore,readEmployeeChoices,configurationRequest,holdTextField,records,toggleRecords,refreshRecords,workDrawer,flow,retryFlow,answer,inputDraft};
 })();

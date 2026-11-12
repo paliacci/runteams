@@ -156,7 +156,7 @@ def dispatch_contract(core, ref,start_column_key=None):
     employee = employee_context().package_asset(role['package'])
     skill = next(b for b in employee['skill_bundles'] if b['package_key'] == position['skill_key'])
     declared = extension(skill).get('work')
-    entry=next(p for p in bundle['asset']['pipeline']['positions'] if p['key']==(start_column_key or workflow_policy.start_position(bundle['asset']['pipeline'])))
+    entry = work._entry(bundle['asset'], start_column_key)
     return {'reference': ref, 'revision': bundle['revision'], 'name': bundle['asset']['pipeline']['name'],
         'position_key': entry['key'], 'position_name': entry['name'],'kind':entry['kind'],
         'employee_source': member.get('source', member['ref']), 'employee_name': employee['employee']['name'] if entry['kind']=='employee' else None,
@@ -166,6 +166,8 @@ def dispatch_contract(core, ref,start_column_key=None):
 
 
 def admit(connection, core, ref, candidate,start_column_key=None):
+    from runteams_core.pipelines.source_pipeline_trash import check_available
+    check_available(core, ref, connection)
     current = read(core, ref, connection)
     if current['status'] != 'running':
         raise ContractError('流水线已暂停，不能开始新工作。')
@@ -380,7 +382,7 @@ def _updated(core, row, bundle, previous):
     frozen = work.stage_snapshot(role['package'], role['context'], role['configuration'])
     from runteams_core.pipelines.source_pipeline_flow import archive, _lineage
     frozen.update(pipeline_visit=previous['pipeline_visit']+1,
-        **{k:copy.deepcopy(previous[k]) for k in ('pipeline_input','pipeline_lineage','pipeline_feedback','pipeline_response','pipeline_waiting') if k in previous})
+        **{k:copy.deepcopy(previous[k]) for k in ('pipeline_input','pipeline_lineage','pipeline_feedback','pipeline_response','pipeline_waiting','pipeline_card_pause') if k in previous})
     frozen['pipeline_history'] = archive(previous)
     if material_wait:
         frozen['pipeline_waiting'] = material_wait
@@ -473,7 +475,7 @@ def command(core, data, active_ids=()):
             with core.repository.read_snapshot() as connection:rows=_rows(connection,ref)
             ready_chats=[f['work_chat_id'] for r in rows if r['state']=='paused'
                 for f in [json.loads(r['snapshot_json'])] if f.get('work_chat_id') and
-                not f.get('pipeline_unresolved') and not f.get('send_admitted') and not _retired_position(bundle, f)]
+                not f.get('pipeline_card_pause') and not f.get('pipeline_unresolved') and not f.get('send_admitted') and not _retired_position(bundle, f)]
             callback=getattr(core,'pipeline_program_control',None)
             if callable(callback):callback('start',sorted(set(ready_chats) | set(own_program_chats(ref))))
     revisions = work.source(ref) if action == 'update' else None
@@ -525,6 +527,8 @@ def command(core, data, active_ids=()):
                     for row in rows:
                         if row['state'] in TERMINAL: continue
                         frozen = json.loads(row['snapshot_json'])
+                        if frozen.get('pipeline_card_pause'):
+                            continue
                         if row['state']=='paused' and _retired_position(bundle, frozen):
                             continue
                         core.repository.storage.assert_executable(row['id'])
@@ -555,8 +559,13 @@ def command(core, data, active_ids=()):
 
 def claim_filter():
     return """(json_type(wr.snapshot_json,'$.pipeline_work') IS NULL OR (
+        t.trashed_at IS NULL AND json_type(wr.snapshot_json,'$.pipeline_card_pause') IS NULL AND
         COALESCE(json_extract(wr.snapshot_json,'$.pipeline_unresolved'),0)=0 AND
         COALESCE(json_extract(wr.snapshot_json,'$.pipeline_execution.active'),0)=0 AND
+        (SELECT json_extract(e.data_json,'$.trashed_at') FROM events e WHERE e.stream=
+         'source-pipeline-trash:'||json_extract(wr.snapshot_json,'$.pipeline_work.reference.source_id')||':'||
+         json_extract(wr.snapshot_json,'$.pipeline_work.reference.pipeline_source') AND e.type='pipeline.trash_state'
+         ORDER BY e.id DESC LIMIT 1) IS NULL AND
         (SELECT json_extract(e.data_json,'$.status') FROM events e WHERE e.stream=
          'source-pipeline-runtime:'||json_extract(wr.snapshot_json,'$.pipeline_work.reference.source_id')||':'||
          json_extract(wr.snapshot_json,'$.pipeline_work.reference.pipeline_source') AND e.type='pipeline.runtime_state'

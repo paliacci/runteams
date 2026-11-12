@@ -24,7 +24,8 @@ def dispatch(core, method, path, data):
     if path == '/api/device/work/trash':
         if method != 'GET':raise ContractError('不支持的垃圾箱操作。')
         core.purge_expired_documents()
-        return DocumentResponse({'items': core.document_trash_catalog(), 'complete':True,
+        from runteams_core.pipelines.pipeline_card_actions import trash_catalog
+        return DocumentResponse({'items': [*core.document_trash_catalog(), *trash_catalog(core)], 'complete':True,
                                  'storage_scope':'device','device_page_ids':core.page_ids()})
     suffix = path.split('/',4)[4] if path.startswith('/api/device/work/') else path[len('/api/core/'):]
     parts = suffix.split('/'); resource=parts[0]

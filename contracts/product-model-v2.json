@@ -28,11 +28,6 @@
         "effort": {
           "type": "string",
           "maxLength": 40
-        },
-        "time_limit_minutes": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 1440
         }
       },
       "required": [
@@ -60,11 +55,6 @@
           "type": "string",
           "maxLength": 40
         },
-        "time_limit_minutes": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 1440
-        },
         "provider": {
           "enum": [
             "codex",
@@ -79,6 +69,20 @@
         "effort"
       ],
       "additionalProperties": false
+    },
+    "draft_model_preference": {
+      "type": "object",
+      "properties": {
+        "model": {"type": "string", "maxLength": 160},
+        "effort": {"type": "string", "maxLength": 40}
+      },
+      "additionalProperties": false
+    },
+    "release_runtime": {
+      "anyOf": [
+        {"$ref": "#/$defs/runtime_snapshot"},
+        {"$ref": "#/$defs/portable_runtime"}
+      ]
     },
     "skill_ref": {
       "type": "object",
@@ -609,7 +613,10 @@
           "maxItems": 64
         },
         "runtime": {
-          "$ref": "#/$defs/runtime"
+          "anyOf": [
+            {"$ref": "#/$defs/runtime"},
+            {"$ref": "#/$defs/draft_model_preference"}
+          ]
         },
         "direct_assignment": {
           "type": "boolean"
@@ -738,7 +745,7 @@
           "maxLength": 120000
         },
         "runtime": {
-          "$ref": "#/$defs/runtime_snapshot"
+          "$ref": "#/$defs/release_runtime"
         },
         "skill_revisions": {
           "type": "array",
@@ -1277,18 +1284,8 @@
         "effort": {
           "type": "string",
           "maxLength": 40
-        },
-        "time_limit_minutes": {
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 1440
         }
       },
-      "required": [
-        "provider",
-        "model",
-        "effort"
-      ],
       "additionalProperties": false
     },
     "employee_configuration": {

@@ -121,7 +121,8 @@ def compile_catalog(files,compiled):
             from runteams_core.employees.employee_avatars import attachment
             picture = attachment(source['avatar'], files)
             employees[path]=validate_asset({'schema':SCHEMA,**({'avatar_file':picture} if picture else {}),'employee':{
-                **{key:copy.deepcopy(source[key]) for key in ('name','avatar','runtime_requirement')},'soul':soul,
+                **{key:copy.deepcopy(source[key]) for key in ('name','avatar')},'soul':soul,
+                'runtime_requirement':copy.deepcopy(source.get('runtime_requirement', {})),
                 **({'configuration':copy.deepcopy(source['configuration'])} if 'configuration' in source else {})},
                 'skill_bundles':bundles})
     pipelines = {path: {**copy.deepcopy(source), 'schema':'runteams.conversation-pipeline/v1'}

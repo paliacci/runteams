@@ -4,6 +4,20 @@ from runteams_core.foundation.contracts import ContractError
 def dispatch(core,action,data,active_ids=(),wake=lambda:None):
     from runteams_core.pipelines import source_pipeline_work as pipelines
     core._actor()
+    from runteams_core.pipelines import source_pipeline_trash as trash
+    if action == 'trash-catalog' and not data:
+        return {'items': trash.catalog(core), 'storage_scope': 'device'}, 200
+    if action == 'trash' and set(data) == {'reference'}:
+        return trash.change(core, data['reference'], active_ids=active_ids), 200
+    if action == 'restore' and set(data) == {'reference', 'id'} and type(data['id']) is int:
+        return trash.change(core, data['reference'], restore_id=data['id']), 200
+    trash.check_available(core, data.get('reference'))
+    if action in ('card', 'card-operation'):
+        from runteams_core.pipelines.pipeline_card_actions import command
+        result = command(core, data, active_ids, read_only=action == 'card-operation')
+        if action == 'card' and data.get('action') in ('resume', 'edit'):
+            wake()
+        return result, 200
     if action in ('ui-state-read','ui-state-save'):
         from runteams_core.work import work_ui_state
         if action=='ui-state-read':

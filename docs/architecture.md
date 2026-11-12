@@ -48,3 +48,5 @@ Task configuration sections use the parameter definition’s optional `group` ti
 Configuration field markers and information hints come from declarations (`required`, conditional `required_when`, `note`, and `constraints`). Conditional markers explain when a field is needed and allow staged setup; they must not turn an unused integration into a mandatory dependency. Task configuration edits validate declared value limits in the native save API and show field errors without echoing submitted values. Missing legacy field metadata can inherit from a matching current declaration; the effective declarations participate in the save revision to reject concurrent rule changes.
 
 员工设置、岗位设置、流水线设置与任务详情的同类元素必须只有一个实现。抽屉头部与折叠组使用 `employee-drawer-header.js/css`，配置字段、说明图标、必填标识、限制及字段错误使用 `configuration-fields.js/css`，配置组、表单、保存栏、草稿比较和保存／回执状态使用 `configuration-form.js`。普通字段默认使用同一说明图标；通用字段样式不得放回员工或任务专用样式表。面板只适配字段定义、作用域、权限、存储、API 和专有业务；不得复制公共 HTML、CSS 或另写一份保存状态流程。任务值仍归当前任务，团队凭据仍归团队配置，凭据入口及资源授权保留专用处理。修改公共组件必须通过 `tests/configuration_form.test.cjs` 的四入口一致性与异常恢复检查，以及任务保存协议检查；两项已纳入核心 CI。
+
+流水线面板不使用浏览器原生 `details/summary` 三角折叠。错误信息直接显示在相关状态旁；岗位下游、流转规则与交接字段按标题分组直接展示。需要折叠的内容分组继续复用公共抽屉组件。

@@ -223,7 +223,7 @@
   --accent-solid-ink: var(--action-primary);
   --on-accent: var(--action-on-primary);
   --accent-line: var(--accent-default);
-  --control-focus: var(--accent-default);
+  --control-focus: light-dark(#595959, #BFBFBF);
   --control-bg: var(--surface);
   --control-bg-hover: var(--surface-subtle);
   --control-bg-soft: var(--canvas);
@@ -440,3 +440,7 @@
   color-scheme: dark;
 }
 :root[data-theme="light"] { color-scheme: light; }
+
+/* Set a neutral fallback for controls that use the browser focus outline. */
+:where(:focus:not(:focus-visible)) { outline: none; }
+:where(:focus-visible) { outline: 1px solid var(--control-focus); outline-offset: -1px; }

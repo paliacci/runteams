@@ -38,6 +38,8 @@ function fixture() {
   const context = {
     S: state,
     current: () => pipeline,
+    taskWorkspace: () => pipeline,
+    ownsTask: candidate => candidate === pipeline,
     owned: candidate => candidate === pipeline,
     matches: candidate => candidate === pipeline,
     activeTaskConfiguration: () => null,
@@ -58,6 +60,7 @@ function fixture() {
       return context.reply(action, data);
     },
     host: () => ({
+      workCommitted() {},
       request: context.request,
       refresh: context.refresh,
       applyWorkReply: context.applyWorkReply,
@@ -284,13 +287,9 @@ test('a choice-based wait shows configuration only within its selected response'
   assert.match(render('<selected-policy-field>'), /selected-policy-field/);
   work.snapshot_json.pipeline_waiting.result = {summary: '登录已失效'};
   const form = context.workContent(owner, work, definition, new Map(), '<choice-inputs>', '', null, [], null, null,
-    false, undefined, '你能恢复登录吗？');
-  assert.match(form, /id="source_pipeline_question">登录已失效.*<choice-inputs>.*<details.*查看原问题.*你能恢复登录吗？/);
-  assert.doesNotMatch(form.slice(form.indexOf('<details')), /登录已失效|source_pipeline_question/);
-  const duplicate = context.workContent(owner, work, definition, new Map(), '<choice-inputs>', '', null, [], null, null,
-    false, undefined, '  登录已失效  ');
-  assert.match(duplicate, /id="source_pipeline_question">登录已失效/);
-  assert.doesNotMatch(duplicate, /查看原问题/);
+    false, undefined, true);
+  assert.match(form, /id="source_pipeline_question">登录已失效.*<choice-inputs>/);
+  assert.doesNotMatch(form, /查看原问题|source-work-feedback-context/);
   owner.humanRequest = null;
   assert.match(render(''), /all-configuration-fields/);
 });

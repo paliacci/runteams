@@ -6,7 +6,7 @@
 
 - Shared Section and full-workspace components, two-mode composition with one live content node.
 - Independent presentation client and a working standalone preview adapter.
-- Generated light/dark foundations from `design/ui-tokens.json`; same component source available to platform consumers in `packages/ui-components/`.
+- Locked light/dark foundations in `sdk/ui/foundation/theme.css`; same component source available to platform consumers in `web/ui/kit/components/`.
 - Public top drawer-toolbar template with a fixed collapse control and optional custom text/actions, including updates and cleanup. Use it directly in standalone hosts; the native platform mounts this same component for `createHostControls(...).setHeader(...)`.
 - Native platform source now supplies optional display metadata and theme updates through `window.runteamsHost`; the UI Kit binds them with `connectHostTheme`. This passed a real native WebView/SDK/Wasm engineering test with fixture authority and data. The installed application has not been updated.
 - **Native presentation and header-extension source bridges are integrated and fixture-tested; installed-app and real-account acceptance remain pending.** The frozen business `ui-v2` bridge is unchanged. No platform deployment or full component migration is claimed.
@@ -130,10 +130,9 @@ See `examples/module/preview.js` for host composition and error handling. It kee
 From repository root:
 
 ```sh
-python3 runteams_official/devtools/build_ui_tokens.py --check
 python3 sdk/ui/build.py
 node --test sdk/ui/tests/presentation.test.mjs
-python3 runteams_official/devtools/check_ui_contract.py
+python3 sdk/ui/build.py --check
 ```
 
 In the preview, expand “交互检查” and run component checks. Generated `dist/` is a byte-for-byte distribution copy of the shared implementation and foundation; never edit it. `build-manifest.json` records sources and hashes. The repository's existing platform token output is preserved; adopting these components in production is a separate integration step.
@@ -165,4 +164,8 @@ Header updates replace all extras, accept at most 256 characters of plain text a
 
 Normal transitions preserve the document. A cancelled or unconfirmed native layout closes the work view and clears its platform presentation instead of leaving a late transition live. Unsaved page-only state can be lost on this failure path; applications that require recoverable drafts must use their authorized business draft contract. Opening again is explicit. This display protocol never claims a business write succeeded and does not participate in the Chat business sequence.
 
-`python3 sdk/ui/build.py` now emits both SDK distribution and platform component files from `packages/ui-components`; `--check` detects drift. The platform theme adapter maps `--rt-*` to existing global tokens. The external SDK carries its locked generated palette. No second hand-maintained palette or component implementation is introduced.
+`python3 sdk/ui/build.py` emits the SDK distribution from the platform component source in `web/ui/kit/components`; `--check` detects drift. The platform theme adapter maps `--rt-*` to existing global tokens. The external SDK carries its locked generated palette. No second hand-maintained palette or component implementation is introduced.
+
+## Shared panel heading
+
+The SDK panel heading follows the platform drawer contract: 8px top padding, 20px horizontal padding, a 22px/32px title at weight 600, and a 12px/18px description at weight 400 with an 8px gap. Font sizes honor the host interface scale when provided. Edit `web/ui/kit/components/styles.css`, then run `python3 sdk/ui/build.py`; do not edit `dist/` directly. The locked portable palette is maintained in `sdk/ui/foundation/theme.css`.

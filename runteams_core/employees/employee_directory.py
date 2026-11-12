@@ -49,7 +49,8 @@ def _source_entries(store,source_id,sessions,created_at,files,pipeline_membershi
         entries.append({'key':source_links.source_key(source_id,path),'record':record,'asset':None,'work':None,
             'source':{'id':source_id,'path':path,'reference':source_reference(source_id,path),'chat_id':session['id'] if session else None,'target':(session or {}).get('context',{}).get('creator_source_target')},
             'reference':bound.get(path),'open':{'action':'source-work'},
-            'updated_at':(session or {}).get('updated_at',created_at)})
+            # A conversation can change the navigation target without changing roster order.
+            'updated_at':created_at})
     if pipeline_memberships is not None:
         _collect_pipeline_memberships(source_id, project['entrypoints'].get('pipelines'), files, pipeline_memberships)
     return entries

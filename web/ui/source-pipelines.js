@@ -17,12 +17,24 @@
  const sameScope=s=>s?.scope===scope();
  const current=()=>S.surface==='source-pipeline'&&sameScope(S.sourcePipelineWorkspace)?S.sourcePipelineWorkspace:null;
  const matches=(s)=>!!s&&current()===s;
+ function taskWorkspace(){
+  const board=current();if(board)return board;
+  const seen=new Set();let selection=S.sel;
+  while(selection&&!seen.has(selection)){
+   seen.add(selection);
+   const workspace=selection.employeeTaskWorkspace;
+   if(workspace&&sameScope(workspace)&&String(workspace.employeePanelId)===String(S.conversationPanel?.id))return workspace;
+   selection=selection.returnTo;
+  }
+  return null;
+ }
+ const ownsTask=s=>!!s&&taskWorkspace()===s;
  function navigationTicket(){const owner=scope(),key=workspaceCurrentKey(),route=_routeSequence,switching=_workspaceSwitchSequence;return ()=>owner===scope()&&key===workspaceCurrentKey()&&route===_routeSequence&&switching===_workspaceSwitchSequence;}
  function leaveForBoard(){captureConversationPanelDraft();if(S.conversationPanel?.loading)++_conversationPanelLoadSequence;S.railMode='navigation';S._pendingRailMode='';saveRailLayout();}
  async function request(action,data={}){
   const token=scope(),configuration=action==='configuration'||action==='employee-configuration'||action==='work-configuration';
-  const control=action==='control'||action==='control-operation',edit=action==='edit'||action==='edit-operation',flow=action==='flow'||action==='flow-operation';let reply;
-  try{reply=await api('/api/device/work/source-pipelines/'+action,'POST',data,{readCurrent:action==='catalog'||action==='workspace'||action==='settings'||action==='work',errorStatus:configuration||control||edit||flow});}
+  const control=action==='control'||action==='control-operation',edit=action==='edit'||action==='edit-operation',flow=['flow','flow-operation','card','card-operation'].includes(action);let reply;
+  try{reply=await api('/api/device/work/source-pipelines/'+action,'POST',data,{readCurrent:action==='catalog'||action==='trash-catalog'||action==='workspace'||action==='settings'||action==='work',errorStatus:configuration||control||edit||flow});}
   catch(error){
    if(token!==scope())throw Error('工作区已改变，请重新打开流水线。');
    if((configuration||control||edit||flow)&&error.status>=400&&error.status<500)error.confirmedReply=true;
@@ -53,10 +65,6 @@
    }
   })();
   pending.token=token;readCatalog.pending=pending;
-  if(catalogScope!==token&&catalogErrorScope!==token){
-   const status=document.querySelector('[data-pipeline-catalog-status]');
-   if(status){status.hidden=false;status.innerHTML=catalogLoadingCopy;window.RunTeamsLocale?.apply(status);}
-  }
   window.dispatchEvent(new Event('runteams:pipeline-catalog-changed'));
   try{return await pending;}finally{
    if(readCatalog.pending===pending){
@@ -89,15 +97,22 @@
   render();
   document.querySelector(`[data-pipeline-row="${CSS.escape(id)}"]>a`)?.focus({preventScroll:true});
  }
- async function renameFromSidebar(row){
-  const token=scope(),id=referenceKey(row.reference);
-  try{
-   if(referenceKey(current()?.reference)!==id)await openFromLink(route(row.reference));
-   if(token!==scope()||referenceKey(current()?.reference)!==id)return;
-   const heading=document.querySelector('#rgPipelineHead h2[data-pipeline-rename]');
-   if(heading)startNameEdit(heading);
-   else toast('当前流水线名称不可编辑。','info','pipelineCreate.renameUnavailable');
-  }catch(error){if(token===scope())toast(error.message,'err');}
+ function trashFromSidebar(row){
+  const token=scope();
+  confirmModal('将流水线移到垃圾箱？','可以从垃圾箱恢复整条流水线。原有任务、对话和文档会随流水线保留。',async()=>{
+   if(token!==scope())return;
+   try{
+    const result=await request('trash',{reference:row.reference});
+    if(result.trashed!==true)throw Error('未能确认垃圾箱状态。');
+    await refreshCatalog();
+    if(token!==scope())return;
+    const windowKey=key(row.reference);
+    if(S.activeWorkspaceKey===windowKey&&S.workspaceWindows?.length===1)await openTrash();
+    else closeWorkspaceWindow(windowKey);
+    if(S.surface==='trash')await refreshTrash({source:'device'});
+    toast('已移到垃圾箱','ok','pipelineBoard.trashed');
+   }catch(error){if(token===scope())toast(error.message,'err');}
+  },true,{titleKey:'pipelineBoard.trashTitle',messageKey:'pipelineBoard.trashDetails',action:'移到垃圾箱',actionKey:'pipelineBoard.trash',focusCancel:true});
  }
  function sidebarMenu(event){
   if(event.type==='keydown'&&event.key!=='ContextMenu'&&!(event.key==='F10'&&event.shiftKey))return;
@@ -108,58 +123,85 @@
   const own=fn=>()=>{if(token===scope()&&catalogScope===token&&rows.some(item=>referenceKey(item.reference)===id))return fn();};
   const pinned=sidebarPins().includes(id);
   const items=[{label:pinned?'取消置顶':'置顶',labelKey:pinned?'conversationDetail.unpin':'conversationDetail.pin',icon:pinned?'pin-off':'pin',fn:own(()=>toggleSidebarPin(id))}];
-  if(row.reference.schema==='runteams.local-pipeline-reference/1'&&row.allowed_modes?.includes('creator'))items.push({label:'重命名',labelKey:'conversationDetail.rename',icon:'edit',fn:own(()=>renameFromSidebar(row))});
+  if(row.reference.schema==='runteams.local-pipeline-reference/1'&&row.allowed_modes?.includes('creator')){
+   items.push({label:'移到垃圾箱',labelKey:'pipelineBoard.trash',icon:'trash',fn:own(()=>trashFromSidebar(row))});
+  }
+  const extra=RunTeamsHost.assets.uninstallAction?.('pipeline',row);
+  if(extra)items.push({divider:true},{...extra,fn:own(extra.fn)});
   const options=event.type==='contextmenu'?{at:{x:event.clientX,y:event.clientY}}:{align:'right'};
   const button=element.querySelector('.rail-source-pipeline-more');
   const fromLink=event.type==='keydown'&&event.target!==button;
   const currentRow=()=>token===scope()?document.querySelector(`[data-pipeline-row="${CSS.escape(id)}"]`):null;
   const currentAnchor=()=>currentRow()?.querySelector('.rail-source-pipeline-more');
   const keyboardReturn=()=>token===scope()?((fromLink?currentRow()?.querySelector('a'):currentAnchor())||document.querySelector('.rail-pipelines')):null;
-  openMenu(button,items,{variant:'railItem',keyboardReturn,currentAnchor,...options});
+  openMenu(button,items,{variant:'railItem',keyboardReturn,currentAnchor,dismissOnScroll:'#rgRail .railmid',...options});
  }
- const catalogLoadingCopy='<span role="status" data-app-i18n="globalSearch.pipelinesLoading">正在读取流水线目录…</span>';
- function catalogStatus(token,count){
+ function catalogErrorMarkup(token,count){
   const error=catalogErrorScope===token?catalogError:'';
-  if(error){
-   const key=!count?'catalogUnavailable':error==='incomplete'?'catalogIncomplete':'catalogRefreshFailed';
-   const copy=!count?'无法读取流水线。':error==='incomplete'?'部分流水线无法读取。':'无法更新流水线列表。';
-   const retry=RunTeamsLoadFailure.button({key:'sidebar-pipeline-catalog',variant:'local',compact:true,labelKey:'globalSearch.retry',busyLabelKey:'globalSearch.pipelinesLoading',retry:'RunTeamsSourcePipelines.refreshCatalog()',focusFallback:'.rail-pipelines'});
-   return `<span role="alert" data-app-i18n="pipelineBoard.${key}">${copy}</span> ${retry}`;
-  }
-  if(catalogScope===token&&!count)return '<span role="status" data-app-i18n="pipelineBoard.catalogEmpty">暂无流水线。</span>';
-  return readCatalog.pending?.token===token&&!count?catalogLoadingCopy:'';
+  if(!error)return '';
+  const key=!count?'catalogUnavailable':error==='incomplete'?'catalogIncomplete':'catalogRefreshFailed';
+  const copy=!count?'无法读取流水线。':error==='incomplete'?'部分流水线无法读取。':'无法更新流水线列表。';
+  const retry=RunTeamsLoadFailure.button({key:'sidebar-pipeline-catalog',variant:'local',compact:true,labelKey:'globalSearch.retry',busyLabelKey:'globalSearch.pipelinesLoading',retry:'RunTeamsSourcePipelines.refreshCatalog()',focusFallback:'.rail-pipelines'});
+  return `<div class="rail-section-hint" data-pipeline-catalog-status><span role="alert" data-app-i18n="pipelineBoard.${key}">${copy}</span> ${retry}</div>`;
+ }
+ function sidebarAvatar(value){
+  const src=typeof value==='string'&&/^(?:https:\/\/|\/worker-avatars\/|data:image\/(?:png|jpeg|webp|svg\+xml);base64,)/i.test(value)?value:'';
+  const image=src?`<img src="${esc(src)}" alt="" decoding="async" onerror="this.remove()">`:'';
+  return `<span class="rail-pipeline-avatar" aria-hidden="true">${image}${ICON('flow')}</span>`;
  }
  function sidebar({active}){
   const token=scope();
   const activeKey=active?referenceKey(current()?.reference):'';
   let selected=false;
-  const byId=new Map((catalogScope===token?rows:[]).map(row=>[referenceKey(row.reference),row]));
+  const byId=new Map((catalogScope===token?rows:[]).filter(row=>!RunTeamsHost.assets?.placeholderPipeline?.(row)).map(row=>[referenceKey(row.reference),row]));
+  const ownerKey=referenceKey(byId.get(activeKey)?.creator_reference);
+  const visibleActiveKey=byId.has(ownerKey)?ownerKey:activeKey;
+  for(const [id,row] of byId){
+   const creator=referenceKey(row.creator_reference);
+   if(creator&&creator!==id&&byId.has(creator))byId.delete(id);
+  }
   const pins=new Set(sidebarPins());
   const ordered=[...pins].filter(id=>byId.has(id)).concat([...byId.keys()].filter(id=>!pins.has(id)));
   const menuAnchor=document.getElementById('popmenu')?._currentAnchor?.();
   const html=ordered.map(id=>{
-   const row=byId.get(id),isCurrent=activeKey===id,menuOpen=menuAnchor?.closest('[data-pipeline-row]')?.dataset.pipelineRow===id;
+   const row=byId.get(id),isCurrent=visibleActiveKey===id,menuOpen=menuAnchor?.closest('[data-pipeline-row]')?.dataset.pipelineRow===id;
+   const target=isCurrent&&current()?.reference||row.reference;
    selected||=isCurrent;
-   return `<div class="rl rail-source-pipeline-row" data-pipeline-row="${esc(id)}" oncontextmenu="RunTeamsSourcePipelines.sidebarMenu(event)" onkeydown="RunTeamsSourcePipelines.sidebarMenu(event)" onmouseenter="railMarqueeStart(this)" onmouseleave="railMarqueeStop(this)"><a class="pl${isCurrent?' on':''}${pins.has(id)?' pinned':''}" aria-current="${isCurrent?'page':'false'}" href="${esc(route(row.reference))}" onclick="event.preventDefault();RunTeamsSourcePipelines.openFromLink(this.href)"><span class="rail-pipeline-main"><span class="nm rail-marquee"><span class="rail-marquee-text">${esc(row.name)}</span></span></span></a><button type="button" class="rail-source-pipeline-more rail-item-more${menuOpen?' menu-trigger-active':''}" data-menu-trigger="quiet" aria-haspopup="menu" aria-expanded="${menuOpen}" aria-label="${esc(row.name)}的更多操作" data-app-i18n-aria-label="pipelineBoard.rowActionsFor" data-app-i18n-vars="${esc(JSON.stringify({name:row.name}))}" onclick="RunTeamsSourcePipelines.sidebarMenu(event)">${ICON('more')}</button></div>`;
+   return `<div class="rl rail-source-pipeline-row" data-pipeline-row="${esc(id)}" oncontextmenu="RunTeamsSourcePipelines.sidebarMenu(event)" onkeydown="RunTeamsSourcePipelines.sidebarMenu(event)" onmouseenter="railMarqueeStart(this)" onmouseleave="railMarqueeStop(this)"><a class="pl${isCurrent?' on':''}${pins.has(id)?' pinned':''}" aria-current="${isCurrent?'page':'false'}" href="${esc(route(target))}" onclick="event.preventDefault();RunTeamsSourcePipelines.openFromLink(this.href)"><span class="rail-pipeline-main">${sidebarAvatar(row.avatar_src)}<span class="nm rail-marquee"><span class="rail-marquee-text">${esc(row.name)}</span></span></span></a><button type="button" class="rail-source-pipeline-more rail-item-more${menuOpen?' menu-trigger-active':''}" data-menu-trigger="quiet" aria-haspopup="menu" aria-expanded="${menuOpen}" aria-label="${esc(row.name)}的更多操作" data-app-i18n-aria-label="pipelineBoard.rowActionsFor" data-app-i18n-vars="${esc(JSON.stringify({name:row.name}))}" onclick="RunTeamsSourcePipelines.sidebarMenu(event)">${ICON('more')}</button></div>`;
   }).join('');
-  const status=catalogStatus(token,ordered.length);
-  return {selected,markup:html+`<div class="rail-section-hint" data-pipeline-catalog-status${status?'':' hidden'}>${status}</div>`};
+  return {selected,markup:html+(RunTeamsHost.assets?.marketRows?.('pipeline')||'')+catalogErrorMarkup(token,ordered.length)};
  }
  async function openFromLink(url){await setAppUrl(url);await applyAppRoute();}
- async function openRoute(value){
+ async function openVersion(s,reference,creationMode){
+  if(!matches(s)||!referenceKey(reference)||referenceKey(s.reference)===referenceKey(reference))return false;
+  const from=key(s.reference),target=key(reference),active=navigationTicket();
+  const cached=catalogScope===scope()?rows:[];
+  const known=cached.some(row=>referenceKey(row.reference)===referenceKey(reference));
+  const [catalog,workspace]=await Promise.all([known?cached:readCatalog(),request('workspace',{reference})]);
+  if(!active()||!matches(s)||!catalog.some(row=>referenceKey(row.reference)===referenceKey(reference))||
+     referenceKey(workspace.reference)!==referenceKey(reference))return false;
+  if(!await setAppUrl(route(reference),true)||!matches(s))return false;
+  await applyAppRoute({pipelineVersion:{catalog,workspace,creationMode}});
+  if(key(current()?.reference||{})!==target||!current()?.data)return false;
+  closeWorkspaceWindow(from);
+  return true;
+ }
+ async function openRoute(value,version){
   const own=++sequence,token=scope(),panelQuery=new URLSearchParams(typeof location==='object'?location.search:'');++viewSequence;opening=false;
   workspaceCaptureCurrent({beforeRoute:true});leaveForBoard();cancelPageTransition();resetDetailWorkspace();
   S.surface='source-pipeline';S.corePipeline=null;S.chatId=null;S.chatMode='';
   const s={scope:token,storageScope:durableScope(),reference:null,data:null,error:'',loading:true,view:'board',restoringConversation:RunTeamsStaticPages.pipelineViewHint()==='conversation',pending:null,composer:null};S.sourcePipelineWorkspace=s;render();
   try{
    const pipeline_source=entryPath(value.entry);
-   const [items]=await Promise.all([readCatalog(),RunTeamsWorkState.ready?null:RunTeamsWorkState.connect()]);
+   const [items]=await Promise.all([version?.catalog||readCatalog(),RunTeamsWorkState.ready?null:RunTeamsWorkState.connect()]);
    if(sequence!==own||!matches(s))return;
    const entry=items.find(row=>row.reference.source_id===value.sourceId&&row.reference.pipeline_source===pipeline_source);
    if(!entry){s.loading=false;s.restoringConversation=false;s.error='这条流水线不在当前工作区中。';s.errorKey='pipelineBoard.missingPipeline';render();return;}
    s.reference=entry.reference;s.name=entry.name;await setAppUrl(route(s.reference),true);if(sequence!==own||!matches(s))return;
-   s.data=await request('workspace',{reference:s.reference});if(sequence!==own||!matches(s))return;
+   s.data=referenceKey(version?.workspace?.reference)===referenceKey(s.reference)?version.workspace:await request('workspace',{reference:s.reference});if(sequence!==own||!matches(s))return;
    restorePendingCommands(s);s.loading=false;
+   if(s.data===version?.workspace)s.creationMode=version.creationMode;
+   RunTeamsHost.pipeline?.readCreationMode(s);
    RunTeamsStaticPages.rememberPipelineView(route(s.reference),s.data.ui.view);
    s.restoringConversation=s.data.ui.view==='conversation';
    if(s.restoringConversation)await conversation(false,{restoring:true});
@@ -173,7 +215,7 @@
  }
  function restorePendingCommands(s){
   s.pending=loadPending(s);
-  if(s.pending)s.composer={position:s.pending.start_column_key,title:s.pending.title||'',objective:s.pending.payload?.objective||'',parameters:s.pending.payload?.parameters||{},loading:false};
+  if(s.pending){s.composer={position:s.pending.start_column_key,title:s.pending.title||'',parameters:s.pending.payload?.parameters||{},loading:false};s.pendingComposer=s.composer;}
   s.admissionUnknown=!!s.pending;
   s.controlPending=loadControl(s);
   s.controlUnknown=!!s.controlPending;
@@ -187,9 +229,9 @@
   render();
  }
  async function refresh({afterEdit=false,silent=false}={}){
-  const s=current();if(!s?.reference||reading&&!afterEdit)return false;
+  const s=taskWorkspace();if(!s?.reference||reading&&!afterEdit)return false;
   const requestId=s.refreshSequence=(s.refreshSequence||0)+1;
-  const active=()=>matches(s)&&s.refreshSequence===requestId;
+  const active=()=>ownsTask(s)&&s.refreshSequence===requestId;
   reading=true;let repaint=!silent;
   try{
    const data=await request('workspace',{reference:s.reference});if(!active())return false;
@@ -287,17 +329,43 @@
   };
   heading.replaceWith(input);window.RunTeamsLocale?.apply(input);input.focus({preventScroll:true});input.setSelectionRange(input.value.length,input.value.length);
  }
+ const canEditIcon=s=>s?.data?.ui?.mode==='creator'&&s.reference.schema==='runteams.local-pipeline-reference/1'&&!s.loading&&!s.errorKey;
+ function editIcon(event){
+  const s=current();if(!canEditIcon(s))return;
+  return openWorkerAvatarPicker(event,{
+   current:()=>matches(s)&&canEditIcon(s),
+   identity:()=>s.data,
+   async save(avatar){
+    const operation_id=crypto.randomUUID(),reference=s.reference;
+    try{await request('edit',{reference,operation_id,base_revision:s.data.source_revision,avatar});}
+    catch(error){
+     if(error.confirmedReply){if(matches(s))await refresh({afterEdit:true});throw error;}
+     const receipt=await request('edit-operation',{reference,operation_id}).catch(()=>null);
+     if(receipt?.state!=='confirmed')throw error;
+    }
+    if(matches(s))await Promise.all([refresh({afterEdit:true}),refreshCatalog()]);
+   },
+  });
+ }
+ function pipelineIcon(s){
+  const src=s.data?.avatar_src,editable=canEditIcon(s),tag=editable?'button':'span';
+  const attrs=editable?` type="button" onclick="RunTeamsSourcePipelines.editIcon(event)" aria-label="更换流水线图标" title="更换流水线图标" data-app-i18n-aria-label="pipelineBoard.iconChange" data-app-i18n-title="pipelineBoard.iconChange" aria-haspopup="dialog" aria-expanded="false"`:' aria-hidden="true"';
+  return `<${tag} id="pipeline_avatar" class="av pipeline-avatar ${src?'has-image':'is-default'}${editable?' worker-avatar-button':''}"${attrs}>${src?`<img src="${esc(src)}" alt="" onerror="workerAvatarLoadFailed(this)">`:ICON('flow')}</${tag}>`;
+ }
  function header(){
   const s=current();if(!s)return '';
   if(s.loading)return RunTeamsSkeletons.workspaceHeader({pipeline:true});
   const name=s.data?.name||s.name||'流水线',disabled=s.loading||!!s.errorKey||!s.data;
-  const titleAttributes=`${s.data?.name||s.name?'':' data-app-i18n="pipelineBoard.pipeline"'}${!disabled&&s.data.ui.mode==='creator'&&s.reference.schema==='runteams.local-pipeline-reference/1'?` role="button" tabindex="0" data-pipeline-rename data-app-i18n-aria-label="pipelineBoard.rename" data-app-i18n-vars="${esc(JSON.stringify({name}))}"`+' aria-label="'+esc(name)+'，编辑流水线名称" onclick="RunTeamsSourcePipelines.editName(event)" onkeydown="RunTeamsSourcePipelines.editName(event)"':''}`;
-  const identity=RunTeamsShell.workspaceHeading(name,titleAttributes,runtimeAction(s,disabled)+statusMarkup(s));
+  const canRename=!disabled&&s.data.ui.mode==='creator'&&s.reference.schema==='runteams.local-pipeline-reference/1';
+  const titleAttributes=`${s.data?.name||s.name?'':' data-app-i18n="pipelineBoard.pipeline"'}${canRename?` role="button" tabindex="0" data-pipeline-rename data-app-i18n-aria-label="pipelineBoard.rename" data-app-i18n-vars="${esc(JSON.stringify({name}))}"`+' aria-label="'+esc(name)+'，编辑流水线名称" onclick="RunTeamsSourcePipelines.editName(event)" onkeydown="RunTeamsSourcePipelines.editName(event)"':''}`;
+  const icon=`<span class="conversation-panel-context-icon bot">${pipelineIcon(s)}</span>`;
+  const heading=RunTeamsShell.workspaceHeading(name,titleAttributes,runtimeAction(s,disabled)+statusMarkup(s),canRename);
   const drawerAction=(label,labelKey,icon,action,selected)=>RunTeamsShell.headerAction({label,labelKey,icon:ICON(icon),action,selected,disabled});
   const pipelineDrawer=S.sel?.type==='source-pipeline'?S.sel.id:'';
   const recordsOpen=S.sel?.type==='core-results'&&S.sel.sourceWorkspace===s;
-  const controls=`<div class="conversation-panel-controls">${drawerAction('工作记录','workRecords.title','clipboard-clock','RunTeamsSourcePipelinePanels.toggleRecords()',recordsOpen)}${drawerAction('自动化','pipelineBoard.automation','header-automation','RunTeamsEmployeeAutomation.toggle()',pipelineDrawer==='automation')}${s.data?.programs_available?window.RunTeamsCreatorWork?.controls(workContext())||'':''}${drawerAction('设置','pipelineBoard.settings','settings','RunTeamsSourcePipelines.settings()',['settings','members'].includes(pipelineDrawer))}</div>`;
-  return RunTeamsShell.pageHeader(identity,controls,true);
+  const creationMode=disabled?'':RunTeamsHost.pipeline?.creationModeControl(s)||'';
+  const controls=`<div class="conversation-panel-controls">${creationMode}${drawerAction('工作记录','workRecords.title','clipboard-clock','RunTeamsSourcePipelinePanels.toggleRecords()',recordsOpen)}${drawerAction('自动化','pipelineBoard.automation','header-automation','RunTeamsEmployeeAutomation.toggle()',pipelineDrawer==='automation')}${s.data?.programs_available?window.RunTeamsCreatorWork?.controls(workContext())||'':''}${drawerAction('设置','pipelineBoard.settings','settings','RunTeamsSourcePipelines.settings()',['settings','members'].includes(pipelineDrawer))}</div>`;
+  return RunTeamsShell.pageHeader(icon+heading,controls,true);
  }
  function boardEmpty(s,columns,cards){
   if(s.error||s.pending)return '';
@@ -346,19 +414,20 @@
   const s=current();if(!s)return '';
   if(s.loading)return RunTeamsSkeletons.pipelineBoard();
   if(!s.data)return `<main class="home-workspace">${RunTeamsLoadFailure.markup({variant:'local',title:s.errorKey?s.error:"无法读取流水线",titleKey:s.errorKey||'pipelineBoard.readFailed',labelKey:'employeeHistory.retry',busyLabelKey:'pipelineBoard.loading',error:s.error,retry:'applyAppRoute()'})}</main>`;
+  captureComposer(s);
   const columns=RunTeamsSourcePipelinePanels.columns(s);
-  const checkColumn=!s.errorKey&&s.pending&&(columns.find(column=>column.key===s.pending.start_column_key&&['employee','approval'].includes(column.kind))||columns.find(column=>['employee','approval'].includes(column.kind)));
+  const checkColumn=!s.errorKey&&s.pending&&(columns.find(column=>column.key===s.pending.start_column_key)||columns[0]);
   const cards=boardWorkflows(s).map(row=>({...row,task:{title:row.title,payload_json:{objective:row.objective}},pipeline_reference:s.reference}));
   const html=columns.map(column=>{
    const items=cards.filter(row=>row.cursor_key===column.key);
    const accepts=['employee','approval'].includes(column.kind),canCheck=column===checkColumn,canRun=!s.errorKey&&!s.pending&&s.data.runtime.status==='running';
-   const selected=S.sel?.type==='source-pipeline'&&S.sel.id==='position'&&S.sel.positionKey===column.key;
+   const selected=S.sel?.type==='source-pipeline'&&S.sel.id==='position'&&S.sel.positionKey===column.key,deferred=s.composerDrafts?.[column.key];
    const key=esc(column.key),name=esc(column.name);
    const more=`<button type="button" class="column-more" data-menu-trigger="quiet" aria-haspopup="menu" aria-expanded="false" title="更多列操作" aria-label="${name}的更多操作" data-app-i18n-title="pipelineBoard.columnActions" data-app-i18n-aria-label="pipelineBoard.columnActionsFor" data-app-i18n-vars="${esc(JSON.stringify({name:column.name}))}" data-position="${key}" onclick="RunTeamsSourcePipelinePanels.columnMenu(event,this.dataset.position)">${ICON('more')}</button>`;
-   return `<div class="col ${accepts?'column-job':'column-status core-state-column'} column-color-${esc(column.tone)} core-pipeline-column${selected?' sel':''}"><div class="col-surface" data-position="${key}" onclick="RunTeamsSourcePipelinePanels.columnClick(event,this.dataset.position)"><div class="chd k-${esc(column.kind)}" data-position="${key}" oncontextmenu="RunTeamsSourcePipelinePanels.columnMenu(event,this.dataset.position)"><button type="button" class="column-worker-title" data-position="${key}" onclick="RunTeamsSourcePipelinePanels.position(this.dataset.position)">${RunTeamsSourcePipelinePanels.columnAvatar(column)}<span class="t">${name}</span></button><div class="column-actions">${more}</div></div><div class="lane" data-node-id="${esc(column.key)}">${items.map(row=>coreWorkflowCard(row,column.kind)).join('')}${accepts?`<button type="button" class="addcard core-add-task" data-position="${esc(column.key)}" onclick="RunTeamsSourcePipelines.compose(this.dataset.position)" ${canRun||canCheck?'':'disabled'}>${ICON(canCheck?'check':'plus')}<span data-app-i18n="pipelineBoard.${canCheck?'checkTask':'newTask'}">${canCheck?'核对任务状态':'新建任务'}</span></button>`:''}</div></div></div>`;
+   return `<div class="col ${accepts?'column-job':'column-status core-state-column'} column-color-${esc(column.tone)} core-pipeline-column${selected?' sel':''}"><div class="col-surface" data-position="${key}" onclick="RunTeamsSourcePipelinePanels.columnClick(event,this.dataset.position)"><div class="chd k-${esc(column.kind)}" data-position="${key}" oncontextmenu="RunTeamsSourcePipelinePanels.columnMenu(event,this.dataset.position)"><button type="button" class="column-worker-title" data-position="${key}" onclick="RunTeamsSourcePipelinePanels.position(this.dataset.position)">${RunTeamsSourcePipelinePanels.columnAvatar(column)}<span class="t">${name}</span></button><div class="column-actions">${more}</div></div><div class="lane" data-node-id="${esc(column.key)}">${items.map(row=>coreWorkflowCard(row,column.kind)).join('')}${s.composer?.position===column.key?composeCard(s,column):deferred&&(deferred.autoStartAt||deferred.submitError||deferred.error)?queuedComposeCard(s,column,deferred):`<button type="button" class="addcard core-add-task" data-position="${esc(column.key)}" onclick="RunTeamsSourcePipelines.compose(this.dataset.position)" ${canRun||canCheck?'':'disabled'}>${ICON(canCheck?'check':'plus')}<span data-app-i18n="pipelineBoard.${canCheck?'checkTask':'newTask'}">${canCheck?'核对任务状态':'新建任务'}</span></button>`}</div></div></div>`;
   }).join('');
   const addStage=s.data.ui.mode==='creator'?'<div class="col"><button type="button" class="draft-column-trigger source-pipeline-add-stage" aria-haspopup="dialog" aria-expanded="false" onclick="RunTeamsSourcePipelinePanels.addStageMenu(this)" '+(s.error?'disabled':'')+'>'+ICON('plus')+'<span class="t" data-app-i18n="pipelineBoard.newStage">新环节</span></button></div>':'';
-  return `<main class="home-workspace source-pipeline-workspace" aria-label="流水线工作区" data-app-i18n-aria-label="pipelineBoard.workspace"><section class="board core-pipeline-board" aria-label="任务看板" data-app-i18n-aria-label="pipelineBoard.taskBoard"><div class="cols">${html}${addStage}</div>${!columns.length?'<button type="button" class="btn ghost source-pipeline-add-role" onclick="RunTeamsSourcePipelinePanels.columnMenu(event)" data-app-i18n="pipelineEditor.editGroup">编辑分组</button>':''}${s.data.ui.mode==='creator'?'<button type="button" class="btn ghost source-pipeline-add-role" onclick="RunTeamsSourcePipelinePanels.editor()" data-app-i18n="pipelineBoard.editRoles">编辑岗位与流转</button>':''}${boardEmpty(s,columns,cards)}</section></main>`;
+  return `<main class="home-workspace source-pipeline-workspace" aria-label="流水线工作区" data-app-i18n-aria-label="pipelineBoard.workspace"><section class="board core-pipeline-board" aria-label="任务看板" data-app-i18n-aria-label="pipelineBoard.taskBoard"><div class="cols">${html}${addStage}</div>${!columns.length?'<button type="button" class="btn ghost source-pipeline-add-role" onclick="RunTeamsSourcePipelinePanels.columnMenu(event)" data-app-i18n="pipelineEditor.editGroup">编辑分组</button>':''}${boardEmpty(s,columns,cards)}</section></main>`;
  }
  function workspace(){
   const s=current(),expanded=s?.view==='conversation';
@@ -631,69 +700,282 @@
  function loadPending(s){
   return readPendingCommand(s,pendingKey(s),command=>typeof command.start_column_key==='string'&&!!command.start_column_key&&command.payload?.schema==='runteams.task-input/v2','pipelineBoard.taskRecoveryFailed','无法读取上次提交的任务。');
  }
- async function compose(position,retry=false){
-  const s=current();if(!s?.data||s.errorKey)return;
-  if(s.pending){select('compose');return;}
-  const previous=s.composer?.position===position?s.composer:null;
-  if(previous&&(previous.contract||previous.loading)){select('compose');return;}
-  const c={loading:true,position,error:'',title:previous?.title||'',objective:previous?.objective||'',parameters:previous?.parameters||{}};
-  s.composer=c;select('compose');
-  const visible=()=>matches(s)&&s.composer===c&&S.sel?.type==='source-pipeline'&&S.sel.id==='compose';
+ function composeDraft(form){
+  const s=current(),c=s?.composer;if(!c||s.pendingComposer===c||form?.dataset.position!==c.position)return;
+  c.title=form.querySelector('[name="title"]')?.value||'';
+  c.controls=[...form.querySelectorAll('input,textarea,select')].map(node=>({id:node.id,value:node.value,checked:node.checked}));
+ }
+ function cardState(s,id){
+  const key='runteams.pipeline-card:'+s.storageScope+':'+referenceKey(s.reference)+':'+id;
+  s.cardStates??={};if(!s.cardStates[id]){try{s.cardStates[id]={...JSON.parse(RunTeamsWorkState.getItem(key)||'{}'),key,busy:false,unknown:true};}catch{s.cardStates[id]={key,error:'任务操作记录暂时无法读取。'};}}
+  return s.cardStates[id];
+ }
+ function cardFeedback(row){
+  const s=current();if(!s||referenceKey(row.pipeline_reference)!==referenceKey(s.reference))return '';
+  const f=cardState(s,row.id);
+  return (f.error?`<div class="task-card-feedback" role="status">${esc(f.error)}${f.pending?`<button type="button" onclick="event.stopPropagation();RunTeamsSourcePipelines.cardCommand(${Number(row.id)})" data-app-i18n="pipelineBoard.checkControl">核对操作结果</button>`:''}</div>`:'');
+ }
+ function cardKeydown(event,id){
+  if(event.target!==event.currentTarget||event.isComposing)return;
+  if(event.key==='ContextMenu'||event.key==='F10'&&event.shiftKey)cardMenu(event,id);
+ }
+ function openCardMenu(anchor,items,options){
+  const onClose=options.onClose;
+  const dismiss=event=>{const menu=document.getElementById('popmenu');if(!menu?.contains(event.target))closePop();};
+  openMenu(anchor,items,{...options,onClose:()=>{document.removeEventListener('scroll',dismiss,true);window.removeEventListener('resize',dismiss);onClose?.();}});
+  if(!document.getElementById('popmenu'))return;
+  document.addEventListener('scroll',dismiss,true);window.addEventListener('resize',dismiss);
+ }
+ function cardMenuItems(s,row,f){
+  const id=Number(row.id),caps=row.card_actions||{},pending=!!(f.pending||f.busy),running=s.data.runtime.status==='running';
+  const action=(label,labelKey,icon,enabled,reason,fn)=>({label,labelKey,icon,disabled:pending||!enabled,
+   disabledReason:RunTeamsLocale.t('pipelineCard.'+(pending?'pendingAction':reason),{},pending?'请先核对当前操作结果。':{
+    editUnavailable:'当前任务状态不支持编辑。',startUnavailable:'当前任务不能直接开始，请查看详情。',
+    autoStart:'任务已排队，将自动开始。',alreadyRunning:'任务已经在工作。',
+   settling:'原任务正在停止收尾，请稍后再开始。',
+    pipelinePaused:'请先启动流水线。',ended:'任务已经结束。',stopBeforeTrash:'请先停止任务并等待收尾。'}[reason]),
+   fn:()=>{if(!pending&&enabled&&matches(s))fn();}});
+  const items=[
+   {label:'查看详情',labelKey:'pipelineCard.details',icon:'doc',fn:()=>openWork(id)},
+   action('编辑任务','workflowDetail.editTask','edit',!!caps.edit,'editUnavailable',()=>editCard(null,id)),
+   action('开始任务','pipelineCard.start','play',!!caps.resume&&running,!running?'pipelinePaused':caps.settling?'settling':['ready','waiting_retry'].includes(row.state)?'autoStart':row.state==='running'?'alreadyRunning':['completed','failed','canceled'].includes(row.state)?'ended':'startUnavailable',()=>cardCommand(id,'resume')),
+   action('停止任务','workflowDetail.stop','stop',!!caps.stop,'ended',()=>cardCommand(id,'stop')),
+   action('移到垃圾箱','workflowDetail.trashTask','trash',!!caps.trash,'stopBeforeTrash',()=>cardCommand(id,'trash'))
+  ];
+  if(f.pending)items.push({label:'核对操作结果',labelKey:'pipelineBoard.checkControl',icon:'refresh',disabled:f.busy,fn:()=>{if(!f.busy)void cardCommand(id);}});
+  return items;
+ }
+ function cardMenu(event,id){
+  event.preventDefault();event.stopPropagation();const s=current(),row=s?.data?.workflows.find(row=>Number(row.id)===Number(id));if(!row)return;
+  const anchor=event.currentTarget,card=anchor.closest('.card'),items=cardMenuItems(s,row,cardState(s,id));
+  openCardMenu(anchor,items,{variant:'cardContext',align:'right',positionAnchor:card,keyboardReturn:()=>document.querySelector(`.source-pipeline-workspace [data-workflow-id="${Number(id)}"]`),...(event.type==='contextmenu'?{at:{x:event.clientX,y:event.clientY}}:{})});
+ }
+ async function cardCommand(id,action,extra={}){
+  const s=current(),row=s?.data?.workflows.find(row=>Number(row.id)===Number(id));if(!row)return null;
+  const f=cardState(s,id);if(f.busy)return null;
+  if(!f.pending){if(!action||!row.card_actions?.visit)return null;f.pending={operation_id:crypto.randomUUID(),reference:s.reference,workflow_id:Number(id),expected_visit:row.card_actions.visit,action,...extra};f.unknown=false;}
+  const command=f.pending;
+  try{RunTeamsWorkState.setItem(f.key,JSON.stringify({pending:command,unknown:true}));}catch{f.error='无法保存操作记录，请重试。';render();return null;}
+  f.busy=true;f.error='';render();
   try{
-   const contract=await request('contract',{reference:s.reference,start_column_key:position});
-   if(matches(s)&&s.composer===c)c.contract=contract;
-  }catch(error){if(matches(s)&&s.composer===c)c.error=error.message;}
-  finally{
-   c.loading=false;
-   if(visible()){
-    render();
-    if(retry&&c.contract&&document.activeElement===document.body)document.getElementById('source_pipeline_title')?.focus({preventScroll:true});
+   if(RunTeamsWorkState.pending)await RunTeamsWorkState.flush();
+   let result=await request(f.unknown?'card-operation':'card',command);
+   if(!sameScope(s))return null;
+   if(result.status==='unknown')result=await request('card',command);
+   if(result.operation_id!==command.operation_id||result.status!=='committed'||Number(result.workflow?.id)!==Number(id))throw Error('任务回执尚未确认。');
+   RunTeamsWorkState.removeItem(f.key);f.pending=null;f.unknown=false;
+   workCommitted(s,id);
+   if(matches(s)){
+    if(command.action==='trash'&&Number(S.sel?.workflowId)===Number(id))resetDetailWorkspace();
+    await refresh({silent:true});
+    if(S.sel?.id==='work'&&Number(S.sel.workflowId)===Number(id))await refreshOpenWork(s,S.sel,{force:true});
+    if(command.action==='resume'&&['interrupted','needs_human','blocked','needs_approval'].includes(result.workflow.state))await openWork(id);
    }
+   return result;
+  }catch(error){if(sameScope(s)){if(error.confirmedReply){RunTeamsWorkState.removeItem(f.key);f.pending=null;}else f.unknown=true;f.error=error.confirmedReply?error.message:'操作结果尚未确认，请核对原操作。';}return null;}
+  finally{f.busy=false;if(matches(s))render();}
+ }
+ async function editCard(event,id){
+  event?.preventDefault();event?.stopPropagation();const s=current();let row=s?.data?.workflows.find(row=>Number(row.id)===Number(id));if(!row?.card_actions?.edit)return;
+  const resume=row.card_actions.pause;
+  if(resume){if(!await cardCommand(id,'pause'))return;if(!matches(s))return;row=s.data.workflows.find(row=>Number(row.id)===Number(id));}
+  const title=row.title,host=openDialog({className:'modal-input modal-rename',title:'编辑任务',titleKey:'workflowDetail.editTask',closeOnScrim:false,closeLabelKey:'employeeSettings.closeDialog',body:`<label class="field"><span data-app-i18n="taskEdit.name">任务名称</span><input class="inp" id="pipeline_card_title" maxlength="200" value="${esc(title)}" autocomplete="off"></label><p class="field-error" role="alert" hidden></p>`,footer:'<div class="grow"></div><button type="button" class="btn" data-card-cancel data-app-i18n="employeeSettings.cancel">取消</button><button type="button" class="btn pri" data-card-save data-app-i18n="taskEdit.save">保存</button>'});
+  const input=host.querySelector('input'),error=host.querySelector('[role="alert"]'),save=host.querySelector('[data-card-save]');
+  let saving=false;
+  const finish=async cancel=>{
+   if(cancel&&!resume&&!saving){closeModal();document.querySelector(`.source-pipeline-workspace [data-workflow-id="${Number(id)}"]`)?.focus({preventScroll:true});return;}
+   if(saving||!matches(s))return;const value=cancel?title:input.value.trim();if(!value){input.focus();return;}
+   saving=true;save.disabled=true;
+   const result=await cardCommand(id,'edit',{title:value,expected_title:title,resume_after_edit:resume});
+   if(result){closeModal();requestAnimationFrame(()=>document.querySelector(`.source-pipeline-workspace [data-workflow-id="${Number(id)}"]`)?.focus({preventScroll:true}));}
+   else if(host.isConnected){const f=cardState(s,id);error.hidden=false;error.textContent=f.error;input.disabled=!!f.pending;save.textContent=RunTeamsLocale.t(f.pending?'pipelineBoard.checkControl':'taskEdit.save',{},f.pending?'核对操作结果':'保存');save.disabled=false;saving=false;}
+  };
+  host.querySelector('[data-card-cancel]').onclick=()=>finish(true);host.querySelector('.modal-x').onclick=()=>finish(true);save.onclick=()=>finish(false);
+  input.onkeydown=event=>{if(event.key==='Enter'&&!event.isComposing){event.preventDefault();void finish(false);}};
+  RunTeamsLocale.apply(host);input.focus();input.select();
+ }
+ async function restoreCard(item){
+  const command=item.restoreCommand??={operation_id:crypto.randomUUID(),reference:item.pipeline_reference,workflow_id:Number(item.id),expected_visit:item.pipeline_visit,action:'restore'};
+  const result=await request('card',command);if(result.status==='committed')workCommitted({reference:item.pipeline_reference},item.id);return result;
+ }
+ function draftMenu(event,position){
+  event.preventDefault();event.stopPropagation();const s=current(),c=s?.composer?.position===position?s.composer:s?.composerDrafts?.[position];if(!c||s.pendingComposer===c||s.sending)return;
+  if(s.composer===c)composeDraft(document.getElementById('source_pipeline_task'));stopComposerTimer(c);c.editing=false;c.menuOpen=true;
+  const anchor=event.currentTarget,card=anchor.closest('.card');
+  const items=[{label:'编辑标题',labelKey:'pipelineCard.editTitle',icon:'edit',fn:()=>{c.editing=true;void compose(position);}},{label:'取消创建',labelKey:'pipelineCard.cancelCreation',icon:'x',fn:()=>{c.discarded=true;stopComposerTimer(c);if(s.composer===c)cancelCompose();else{delete s.composerDrafts[position];render();}}}];
+  openCardMenu(anchor,items,{variant:'cardContext',align:'right',positionAnchor:card,keyboardReturn:()=>document.querySelector(`#source_pipeline_task[data-position="${position}"],.source-pipeline-workspace .card[data-position="${position}"]`),onClose:()=>{c.menuOpen=false;queueMicrotask(()=>{if(!c.discarded&&!c.editing&&sameScope(s))deferComposer(s,c);});},...(event.type==='contextmenu'?{at:{x:event.clientX,y:event.clientY}}:{})});
+ }
+ function focusComposer(s,c,{initial=false}={}){
+  requestAnimationFrame(()=>{
+   if(!matches(s)||s.composer!==c)return;
+   const form=document.getElementById('source_pipeline_task');if(!form||form.dataset.position!==c.position)return;
+   if(s.pendingComposer!==c&&c.controls){
+    const nodes=[...form.querySelectorAll('input,textarea,select')];
+    c.controls.forEach((value,index)=>{const node=nodes[index];if(node&&node.id===value.id){node.value=value.value;if(node.type==='checkbox')node.checked=value.checked;}});
+   }
+   const saved=c.focus;delete c.focus;
+   if(!initial&&!saved)return;
+   if(!initial&&document.activeElement!==document.body&&document.activeElement?.isConnected)return;
+   const target=initial?form.querySelector(s.pendingComposer===c?'[data-task-submit]':'[name="title"]'):form.querySelectorAll('input,textarea,select,button')[saved.index];
+   if(target&&!target.disabled){target.focus({preventScroll:true});if(saved?.start!=null&&target.setSelectionRange)try{target.setSelectionRange(saved.start,saved.end);}catch{}if(initial)target.scrollIntoView({block:'nearest',inline:'nearest'});}
+  });
+ }
+ function captureComposer(s){
+  const c=s.composer,active=document.activeElement,form=active?.closest?.('#source_pipeline_task');
+  if(!c)return;
+  if(form?.dataset.position===c.position){composeDraft(form);c.focus={index:[...form.querySelectorAll('input,textarea,select,button')].indexOf(active),start:active.selectionStart,end:active.selectionEnd};}
+  focusComposer(s,c);
+ }
+ function cancelCompose(){
+  const s=current();if(!s?.composer||s.sending)return;
+  const c=s.composer;stopComposerTimer(c);composeDraft(document.getElementById('source_pipeline_task'));
+  if(!s.pending&&s.composerDrafts)delete s.composerDrafts[c.position];
+  delete c.focus;s.composer=null;if(!s.pending)s.submitError='';render();
+  requestAnimationFrame(()=>{if(matches(s)&&!s.composer)[...document.querySelectorAll('.core-add-task')].find(button=>button.dataset.position===c.position)?.focus({preventScroll:true});});
+ }
+ const taskStartDelay=5000;
+ function stopComposerTimer(c){if(!c)return;clearTimeout(c.startTimer);delete c.startTimer;delete c.autoStartAt;}
+ function composerFocusin(event){
+  const s=current(),c=s?.composer;if(!c||s.pendingComposer===c)return;
+  if(event?.target&&!event.target.matches('input,textarea,select'))return;
+  stopComposerTimer(c);c.editing=true;
+  const status=document.querySelector('#source_pipeline_task [data-start-pending]');status?.remove();
+ }
+ function deferComposer(s,c){
+  if(!sameScope(s)||!String(c.title||'').trim()||s.pendingComposer===c)return;
+  stopComposerTimer(c);c.editing=false;c.autoStartAt=Date.now()+taskStartDelay;
+  const fire=()=>{
+   delete c.startTimer;
+   if(!sameScope(s)||c.editing||!c.autoStartAt||!String(c.title||'').trim())return;
+   if(c.error){stopComposerTimer(c);return;}
+   if(c.loading||s.sending||s.pending&&s.pendingComposer!==c){c.startTimer=setTimeout(fire,200);return;}
+   stopComposerTimer(c);void submit(s,c);
+  };
+  c.startTimer=setTimeout(fire,taskStartDelay);
+ }
+ function composerFocusout(event){
+  const s=current(),c=s?.composer,root=event.currentTarget;
+  if(!c||s.pendingComposer===c||root.contains(event.relatedTarget))return;
+  composeDraft(root);
+  queueMicrotask(()=>{
+   if(!sameScope(s)||s.composer!==c||c.menuOpen||matches(s)&&document.getElementById('source_pipeline_task')!==root||root.contains(document.activeElement))return;
+   if(!String(c.title||'').trim()){cancelCompose();return;}
+   if(c.needsInput)try{c.parameters=readCoreTaskParameters(root);}catch(error){c.submitError={key:'taskNotSent',detail:error.message};render();return;}
+   deferComposer(s,c);if(matches(s))render();
+  });
+ }
+ function composerKeydown(event){
+  if(event.isComposing)return;
+  if(event.key==='ContextMenu'||event.key==='F10'&&event.shiftKey){draftMenu(event,event.currentTarget.dataset.position);return;}
+  if(event.key==='Escape'){event.preventDefault();event.stopPropagation();cancelCompose();return;}
+  if(event.target?.tagName==='TEXTAREA')return;
+  if(event.key==='Enter'&&event.target?.tagName==='INPUT'){
+   event.preventDefault();const s=current(),c=s?.composer;if(!c)return;
+   composeDraft(document.getElementById('source_pipeline_task'));
+   if(!String(c.title||'').trim()){cancelCompose();return;}
+   if(c.needsInput)try{c.parameters=readCoreTaskParameters(document.getElementById('source_pipeline_task'));}catch(error){c.submitError={key:'taskNotSent',detail:error.message};render();return;}
+   event.target.blur?.();deferComposer(s,c);render();
   }
  }
- async function submit(){
-  const s=current(),form=document.getElementById('source_pipeline_task');if(!s||s.errorKey||s.sending)return;
-  const selection=S.sel,focused=document.activeElement?.closest?.('#rgDrawer .source-pipeline-compose-drawer');
+ function composeStatus(column,failed=false){
+  const state=['done','dropped','pool'].includes(column.kind);
+  const key=state?(failed?'createBlocked':'createPending'):(failed?'startBlocked':'startPending');
+  const fallback=state?(failed?'未能创建，点击标题检查并修改':'5 秒后创建，点击标题继续修改'):(failed?'未能开始，点击标题检查并修改':'5 秒后开始，点击标题继续修改');
+  return {key:'pipelineBoard.'+key,label:RunTeamsLocale.t('pipelineBoard.'+key,{},fallback)};
+ }
+ function queuedComposeCard(s,column,c){
+  const {label}=composeStatus(column,!!(c.submitError||c.error));
+  return `<div class="card title-only" oncontextmenu="RunTeamsSourcePipelines.draftMenu(event,this.dataset.position)" role="button" tabindex="0" data-position="${esc(c.position)}" onclick="RunTeamsSourcePipelines.compose(this.dataset.position)" onkeydown="if(event.target===this){if(event.key==='ContextMenu'||event.key==='F10'&&event.shiftKey)RunTeamsSourcePipelines.draftMenu(event,this.dataset.position);else if(event.key==='Enter'||event.key===' '){event.preventDefault();this.click()}}"><div class="card-head"><div class="tt">${esc(c.title)}</div><span class="card-status ${c.submitError||c.error?'blocked':'queue'}" title="${esc(label)}" aria-label="${esc(label)}"><i class="d"></i></span></div></div>`;
+ }
+ async function compose(position,retry=false){
+  const s=current();if(!s?.data||s.errorKey)return;
+  if(requestDetailWorkspaceLeave(()=>compose(position,retry)))return;
+  if(!RunTeamsSourcePipelinePanels.columns(s).some(column=>column.key===position))return;
+  const old=s.composer;if(s.sending)return;if(old&&old.position!==position){composeDraft(document.getElementById('source_pipeline_task'));if(!s.pending){(s.composerDrafts??={})[old.position]=old;if(String(old.title||'').trim()&&!old.autoStartAt)deferComposer(s,old);}}
+  resetDetailWorkspace();
+  if(s.pending){s.composer=s.pendingComposer||s.composer||{title:s.pending.title,parameters:s.pending.payload?.parameters||{}};s.composer.position=position;s.pendingComposer=s.composer;render();focusComposer(s,s.composer,{initial:true});return;}
+  const previous=old?.position===position?old:s.composerDrafts?.[position];
+  if(previous&&(previous.contract||previous.loading)){stopComposerTimer(previous);previous.editing=true;s.composer=previous;render();focusComposer(s,previous,{initial:true});return;}
+  const c={...previous,loading:true,position,error:'',title:previous?.title||'',parameters:previous?.parameters||{}};
+  s.composer=c;s.submitError='';render();
+  try{c.contract=await request('contract',{reference:s.reference,start_column_key:position});for(const [key,field] of Object.entries(c.contract.input_schema?.properties||{}))if(field.default!==undefined&&!Object.hasOwn(c.parameters,key))c.parameters[key]=structuredClone(field.default);}
+  catch(error){c.error=error.message;}
+  finally{c.loading=false;if(matches(s)&&s.composer===c){render();if(!c.autoStartAt)focusComposer(s,c,{initial:true});}}
+ }
+ function composeCard(s,column){
+  const c=s.composer;if(!c||c.position!==column.key)return '';
+  const pending=s.pendingComposer===c?s.pending:null,busy=!!(s.sending&&pending);
+  const parameters=c.needsInput&&c.contract?coreWorkflowFrozenParameters(c.contract):[],disabled=!!(busy||pending);
+  let body=c.needsInput?coreTaskParameterFields(parameters,c.parameters,'source_pipeline'):'';
+  if(c.error)body=RunTeamsLoadFailure.markup({variant:'local',title:'无法读取任务输入',titleKey:'pipelineBoard.inputFailed',labelKey:'employeeHistory.retry',busyLabelKey:'pipelineBoard.inputLoading',error:c.error,retry:`RunTeamsSourcePipelines.compose(${JSON.stringify(c.position)},true)`});
+  if(pending)body=`<p data-app-i18n="pipelineBoard.pendingHint">输入已保存。确认任务已创建后，它会显示在看板上。</p>`;
+  const action=c.needsInput||pending?`<button class="btn sm" type="button" data-task-submit onclick="${pending&&s.canRetryAdmission?'RunTeamsSourcePipelines.retryAdmission()':'RunTeamsSourcePipelines.submit()'}" ${busy||c.loading||c.error||!pending&&s.data.runtime.status!=='running'?'disabled':''} data-app-i18n="pipelineBoard.${busy?(s.admissionUnknown?'checking':'submitting'):pending?(s.canRetryAdmission?'retryAdmission':'checkTask'):'createTask'}">${busy?(s.admissionUnknown?'正在核对…':'正在提交…'):pending?s.canRetryAdmission?'重试提交':'核对任务状态':'创建任务'}</button>`:'';
+  const status=operationError(c.submitError||s.pendingComposer===c&&s.submitError),compact=!body&&!status&&!busy,queueStatus=composeStatus(column);
+  return `<section id="source_pipeline_task" tabindex="-1" class="card ${compact?'title-only':''} source-pipeline-inline-task" data-position="${esc(c.position)}" aria-label="新建任务" data-app-i18n-aria-label="pipelineBoard.newTask" aria-busy="${!!(busy||c.loading)}" onpointerdown="event.stopPropagation()" onclick="event.stopPropagation()" oninput="RunTeamsSourcePipelines.composeDraft(this)" oncontextmenu="RunTeamsSourcePipelines.draftMenu(event,this.dataset.position)" onfocusin="RunTeamsSourcePipelines.composerFocusin(event)" onfocusout="RunTeamsSourcePipelines.composerFocusout(event)" onkeydown="RunTeamsSourcePipelines.composerKeydown(event)"><div class="card-head"><input id="source_pipeline_title" name="title" class="tt" aria-label="任务名称" data-app-i18n-aria-label="pipelineBoard.taskName" placeholder="新任务" data-app-i18n-placeholder="pipelineBoard.newTaskPlaceholder" value="${esc(pending?.title||c.title||'')}" autocomplete="off" maxlength="200" ${disabled?'disabled':''}>${c.autoStartAt?`<span class="card-status queue" data-start-pending title="${esc(queueStatus.label)}" aria-label="${esc(queueStatus.label)}" data-app-i18n-title="${queueStatus.key}" data-app-i18n-aria-label="${queueStatus.key}"><i class="d"></i></span>`:''}</div>${body}${action}${status}</section>`;
+ }
+ async function submit(s=current(),composer=s?.composer){
+  if(!s||!sameScope(s)||s.errorKey||s.sending||s.pending&&s.pendingComposer&&s.pendingComposer!==composer)return;
+  const form=matches(s)&&s.composer===composer?document.getElementById('source_pipeline_task'):null;
+  const selection=S.sel,focused=form&&document.activeElement?.closest?.('.source-pipeline-inline-task');
   if(!s.pending){
-   if(!form)return;
-   const values=new FormData(form),title=String(values.get('title')||'').trim(),objective=String(values.get('objective')||'').trim();
-   if(!title||!objective){
-    s.submitError={key:title?'taskObjectiveRequired':'taskNameRequired'};render();
-    document.getElementById(title?'source_pipeline_objective':'source_pipeline_title')?.focus();
-    return;
-   }
+   const c=composer;if(!c||c.loading||c.error||!c.contract)return;
+   if(form)composeDraft(form);stopComposerTimer(c);const title=String(c.title||'').trim();
+   if(!title){cancelCompose();return;}
    try{
-   const parameters=readCoreTaskParameters(form);
-   const command={operation_id:crypto.randomUUID(),reference:s.reference,start_column_key:s.composer.position,title,payload:{schema:'runteams.task-input/v2',objective,context:{},parameters,inputs:[],module_bindings:{},asset_bindings:{}}};
-   RunTeamsWorkState.setItem(pendingKey(s),JSON.stringify(command));s.pending=command;s.admissionUnknown=false;
-   }catch(error){s.submitError={key:'taskNotSent',detail:error.message,detailKey:error.detailKey,detailVars:error.detailVars};render();return;}
+   const parameters={...c.parameters,...(c.needsInput&&form?readCoreTaskParameters(form):{})};
+   c.parameters=parameters;
+   for(const key of c.contract.input_schema?.required||[]){const value=parameters[key];if(value==null||value===''||Array.isArray(value)&&!value.length){c.needsInput=true;throw Error(RunTeamsLocale.t('pipelineBoard.requiredInput',{field:taskSchemaFieldLabel(key,c.contract.input_schema.properties?.[key])},`请填写${taskSchemaFieldLabel(key,c.contract.input_schema.properties?.[key])}`));}}
+   const command={operation_id:crypto.randomUUID(),reference:s.reference,start_column_key:c.position,title,payload:{schema:'runteams.task-input/v2',objective:title,context:{},parameters,inputs:[],module_bindings:{},asset_bindings:{}}};
+   RunTeamsWorkState.setItem(pendingKey(s),JSON.stringify(command));s.pending=command;s.pendingComposer=composer;s.admissionUnknown=false;
+   }catch(error){s.submitError={key:'taskNotSent',detail:error.message,detailKey:error.detailKey,detailVars:error.detailVars};composer.submitError=s.submitError;if(matches(s))render();return;}
   }
-  s.sending=true;s.submitError='';render();
+  s.sending=true;s.submitError='';composer.submitError='';if(matches(s))render();
   let completedTask;
   try{
-   if(RunTeamsWorkState.pending)await RunTeamsWorkState.flush();const reply=await request(s.admissionUnknown?'operation':'dispatch',s.pending);if(!matches(s))return;
+   if(RunTeamsWorkState.pending)await RunTeamsWorkState.flush();const reply=await request(s.admissionUnknown?'operation':'dispatch',s.pending);if(!sameScope(s))return;
    if(reply.status==='unknown'){s.canRetryAdmission=true;s.submitError={key:'taskRetryHint'};return;}
-   RunTeamsWorkState.removeItem(pendingKey(s));s.pending=null;s.admissionUnknown=false;s.composer=null;
-   const showBoard=S.sel?.type==='source-pipeline'&&S.sel.id==='compose';
-   if(showBoard)resetDetailWorkspace();
-   if(showBoard)completedTask=(reply.result||reply).workflow?.id;
-   await refresh({afterEdit:true});
-  }catch(error){if(matches(s)){s.canRetryAdmission=false;s.admissionUnknown=error.code==='operation_unknown'||!error.confirmedReply;if(!s.admissionUnknown){RunTeamsWorkState.removeItem(pendingKey(s));s.pending=null;if(!s.composer?.contract&&s.composer?.position)await compose(s.composer.position);}s.submitError={key:s.admissionUnknown?'taskCheckHint':'taskFailed',detail:error.message};}}
+   RunTeamsWorkState.removeItem(pendingKey(s));s.pending=null;s.pendingComposer=null;s.admissionUnknown=false;if(s.composer===composer)s.composer=null;
+   if(s.composerDrafts&&composer)delete s.composerDrafts[composer.position];
+   completedTask=(reply.result||reply).workflow?.id;
+   if(matches(s))await refresh({afterEdit:true});
+  }catch(error){if(sameScope(s)){s.canRetryAdmission=false;s.admissionUnknown=error.code==='operation_unknown'||!error.confirmedReply;if(!s.admissionUnknown){RunTeamsWorkState.removeItem(pendingKey(s));s.pending=null;s.pendingComposer=null;}s.submitError={key:s.admissionUnknown?'taskCheckHint':'taskFailed',detail:error.message};composer.submitError=s.submitError;}}
   finally{
    s.sending=false;
    if(s.pending&&!matches(s))s.admissionUnknown=true;
    if(matches(s)){
     render();
     if(focused&&document.activeElement===document.body){
-     if(completedTask&&!S.sel)document.querySelector(`.source-pipeline-workspace [data-workflow-id="${Number(completedTask)}"]`)?.focus();
-     else if(S.sel===selection)document.querySelector('.source-pipeline-compose-drawer [data-task-submit]:not(:disabled)')?.focus({preventScroll:true});
+     if(completedTask&&S.sel===selection)document.querySelector(`.source-pipeline-workspace [data-workflow-id="${Number(completedTask)}"]`)?.focus();
+     else if(S.sel===selection)document.querySelector('.source-pipeline-inline-task [data-task-submit]:not(:disabled)')?.focus({preventScroll:true});
     }
    }
   }
  }
+ const workUpdateOwner=()=>JSON.stringify([workspaceAccountCacheToken(),workspaceDeviceStorageScope()]);
+ const workUpdates=typeof BroadcastChannel==='function'?new BroadcastChannel('runteams.pipeline-work'):null;
+ function workCommitted(workspace,workflowId){
+  const notice={owner:workUpdateOwner(),reference:workspace.reference,workflowId:Number(workflowId)};
+  try{workUpdates?.postMessage(notice);}catch{/* Polling still reads the confirmed ledger. */}
+  void window.RunTeamsEmployeeDirectory?.refresh({localFirst:true,readPriority:'background'}).catch(()=>{});
+ }
+ async function receiveWorkUpdate(notice){
+  if(!notice||notice.owner!==workUpdateOwner()||!referenceKey(notice.reference)||
+   !Number.isSafeInteger(notice.workflowId)||notice.workflowId<=0||document.hidden)return;
+  const workspace=taskWorkspace(),owner=S.sel;
+  if(workspace&&referenceKey(workspace.reference)===referenceKey(notice.reference)){
+   await refresh({silent:true});
+   if(ownsTask(workspace)&&S.sel===owner&&owner?.type==='source-pipeline'&&owner.id==='work'&&
+    Number(owner.workflowId)===notice.workflowId)await refreshOpenWork(workspace,owner,{force:true});
+  }else if(owner?.type==='core-results'&&owner.data?.results?.some(row=>
+   Number(row.workflow_id)===notice.workflowId&&referenceKey(row.pipeline_reference)===referenceKey(notice.reference))){
+   await refreshContextResults(true);
+  }
+  void window.RunTeamsEmployeeDirectory?.refresh({localFirst:true,readPriority:'background'}).catch(()=>{});
+ }
+ if(workUpdates)workUpdates.onmessage=event=>{void receiveWorkUpdate(event.data).catch(()=>{});};
  let activityConnection;
  function activityTarget(){
-  const workspace=current(),selection=S.sel;
+  const workspace=taskWorkspace(),selection=S.sel;
   if(!workspace||!selection||document.hidden)return;
   if(selection.type==='source-pipeline'&&selection.id==='work'&&selection.workflow?.state==='running'){
    const run=RunTeamsWorkRecords.currentExecutionOutsideHistory(selection.workflow);
@@ -760,7 +1042,7 @@
    .finally(()=>{connection.retryAt=Date.now()+1500;});
  }
  function applyWorkReply(owner,reply){
-  if(!current()||S.sel!==owner)return false;
+  if(!taskWorkspace()||S.sel!==owner)return false;
   if(!reply?.workflow||Number(reply.workflow.id)!==Number(owner.workflowId))throw Error('任务回执无效。');
   retainActivity(owner,RunTeamsWorkRecords.currentExecutionOutsideHistory(reply.workflow));
   Object.assign(owner,{workflow:reply.workflow,inputContract:reply.input_contract,taskConfiguration:reply.task_configuration,
@@ -776,7 +1058,7 @@
   owner.refreshingWork=true;
   try{
    const reply=await request('work',{reference:s.reference,workflow_id:previous.id});
-   if(!matches(s)||S.sel!==owner||owner.workflow!==previous)return;
+   if(!ownsTask(s)||S.sel!==owner||owner.workflow!==previous)return;
    const latest=reply.workflow;
    if(latest)retainActivity(owner,RunTeamsWorkRecords.currentExecutionOutsideHistory(latest));
    const businessChanged=latest?.state!==previous.state||latest?.updated_at!==previous.updated_at||latest?.cursor_key!==previous.cursor_key;
@@ -793,9 +1075,25 @@
   }catch{/* The task is already open. Keep its last confirmed details and try again on the next poll. */}
   finally{owner.refreshingWork=false;}
  }
- async function openWork(id,options={}){const s=current();if(!s)return;select('work',{workflowId:id,loading:true,...(options.returnToRecords?{returnToRecords:options.returnToRecords}:{}),...(options.showDeliveries?{workSections:{deliveries:true}}:{})});const owner=S.sel;
-  try{const reply=await request('work',{reference:s.reference,workflow_id:Number(id)});if(matches(s)&&applyWorkReply(owner,reply))render();}
-  catch(error){if(matches(s)&&S.sel===owner){owner.loading=false;owner.error=error.message;render();}}
+ async function openWork(id,options={}){
+  const s=options.workspace||taskWorkspace();if(!s)return;
+  const previous=S.sel,back=options.returnToRecords||(s.embeddedTask&&Number(previous?.workflowId)===Number(id)?previous.returnToRecords:null);
+  select('work',{workflowId:Number(id),loading:true,recordTitle:options.title||previous?.recordTitle,
+   ...(s.embeddedTask?{employeeTaskWorkspace:s}:{}),...(back?{returnToRecords:back}:{}),
+   ...(options.showDeliveries?{workSections:{deliveries:true}}:{})});const owner=S.sel;
+  try{
+   const [reply,data]=await Promise.all([request('work',{reference:s.reference,workflow_id:Number(id)}),
+    s.data?Promise.resolve(s.data):request('workspace',{reference:s.reference})]);
+   if(!ownsTask(s)||S.sel!==owner)return;
+   s.data=data;s.loading=false;
+   if(applyWorkReply(owner,reply))render();
+  }catch(error){if(ownsTask(s)&&S.sel===owner){owner.loading=false;owner.error=error.message;render();}}
+ }
+ function openEmployeeTask(reference,id,options={}){
+  if(!referenceKey(reference)||!Number.isSafeInteger(Number(id))||Number(id)<=0||!S.conversationPanel?.id)return;
+  const workspace={scope:scope(),storageScope:durableScope(),reference,embeddedTask:true,
+   employeePanelId:S.conversationPanel.id,view:'task',data:null,loading:true};
+  return openWork(Number(id),{...options,workspace});
  }
  const operationErrorFallback={
    "controlNotSent": "无法在这台电脑上保存操作。请重试。",
@@ -823,28 +1121,18 @@
    const translated=error.detailKey?RunTeamsLocale.t(error.detailKey,error.detailVars||{},error.detail):error.detail;
    return `<p role="alert">${esc(translated)}</p>`;
   }
-  const details=error.detail?`<details><summary data-app-i18n="pipelineBoard.errorDetails">错误详情</summary><p ${error.detailKey?`data-app-i18n="${esc(error.detailKey)}" data-app-i18n-vars="${esc(JSON.stringify(error.detailVars||{}))}"`:''}>${esc(error.detail)}</p></details>`:'';
+  const details=error.detail?`<p class="help" ${error.detailKey?`data-app-i18n="${esc(error.detailKey)}" data-app-i18n-vars="${esc(JSON.stringify(error.detailVars||{}))}"`:''}>${esc(error.detail)}</p>`:'';
   return `<p role="alert" data-app-i18n="pipelineBoard.${error.key}">${operationErrorFallback[error.key]}</p>${details}`;
  }
  function drawer(){
-  const s=current(),selection=S.sel;if(!s||selection?.type!=='source-pipeline')return '';
+  const s=taskWorkspace(),selection=S.sel;if(!s||selection?.type!=='source-pipeline')return '';
   if(selection.id==='automation')return RunTeamsEmployeeAutomation.drawer();
-  if(['settings','members','editor','position'].includes(selection.id)&&window.RunTeamsSourcePipelinePanels)return RunTeamsSourcePipelinePanels.drawer();
+  if(['settings','members','position'].includes(selection.id)&&window.RunTeamsSourcePipelinePanels)return RunTeamsSourcePipelinePanels.drawer();
   let title='',titleKey='',body='';
-  if(selection.id==='compose'){
-   title=s.pending?'核对任务状态':'新建任务';titleKey=s.pending?'pipelineBoard.checkTask':'pipelineBoard.newTask';const c=s.composer;
-   if(s.pending)body=`<p><b>${esc(s.pending.title)}</b></p><p>${esc(s.pending.payload?.objective||'')}</p><p data-app-i18n="pipelineBoard.pendingHint">输入已保存。确认任务已创建后，它会显示在看板上。</p>${operationError(s.submitError)}`;
-   else if(c?.loading)body=RunTeamsSkeletons.region('parameters',undefined,'pipelineBoard.inputLoading');
-   else if(c?.error)body=RunTeamsLoadFailure.markup({variant:'local',title:"无法读取任务输入",titleKey:'pipelineBoard.inputFailed',labelKey:'employeeHistory.retry',busyLabelKey:'pipelineBoard.inputLoading',error:c.error,retry:`RunTeamsSourcePipelines.compose(${JSON.stringify(c.position)},true)`});
-   else if(c?.contract)body=`<form id="source_pipeline_task" novalidate onsubmit="event.preventDefault();RunTeamsSourcePipelines.submit()"><label class="lbl" for="source_pipeline_title" data-app-i18n="pipelineBoard.taskName">任务名称</label><input class="input" id="source_pipeline_title" name="title" required maxlength="160" value="${esc(c.title)}" oninput="S.sourcePipelineWorkspace.composer.title=this.value"><label class="lbl" for="source_pipeline_objective" data-app-i18n="pipelineBoard.objective">工作目标</label><textarea class="input" id="source_pipeline_objective" name="objective" required oninput="S.sourcePipelineWorkspace.composer.objective=this.value">${esc(c.objective)}</textarea><div oninput="S.sourcePipelineWorkspace.composer.parameters=readCoreTaskParameters(this)">${coreTaskParameterFields(coreWorkflowFrozenParameters(c.contract),c.parameters,'source_pipeline')}</div></form>`;
-   if(s.submitError&&!s.pending)body+=operationError(s.submitError);
-   if(s.pending||c?.contract)body+=detailDrawerActions(`<button class="btn pri" type="button" data-task-submit aria-busy="${s.sending===true}" ${s.sending||!s.pending&&!c?.contract?'disabled':''} onclick="${s.pending&&s.canRetryAdmission?'RunTeamsSourcePipelines.retryAdmission()':'RunTeamsSourcePipelines.submit()'}" data-app-i18n="pipelineBoard.${s.sending?(s.admissionUnknown?'checking':'submitting'):s.pending?(s.canRetryAdmission?'retryAdmission':'checkTask'):'startWork'}">${s.sending?(s.admissionUnknown?'正在核对…':'正在提交…'):s.pending?s.canRetryAdmission?'重试提交':'核对任务状态':'开始工作'}</button>`);
-  }else if(selection.id==='work'){
+  if(selection.id==='work'){
    return RunTeamsSourcePipelinePanels.workDrawer(selection);
   }
-  return detailDrawerShell({className:'source-pipeline-drawer'+(selection.id==='compose'?' source-pipeline-compose-drawer':''),
-   header:detailDrawerHeader(title?detailDrawerHeading(title,"","","",{titleKey}):'',"","","","",titleKey?'pipelineBoard.closeTaskPane':undefined),body,
-   attrs:titleKey?`aria-label="${title}" data-app-i18n-aria-label="${titleKey}"`:''});
+  return '';
  }
  let creation=null;
  const creationKey=()=> 'runteams.pipeline-create:'+durableScope();
@@ -979,15 +1267,15 @@
  },1000);
  async function pollWorkspace({detailOnly=false}={}){
   syncActivity();
-  const s=current();
+  const s=taskWorkspace();
   if(document.hidden||!s?.data||s.sending||opening||s.pollingWorkspace)return;
   if(detailOnly&&!(S.sel?.workflow?.state==='running'||S.sel?.attemptContext&&
    S.sel.data?.results?.some(result=>result.key===S.sel.resultKey&&result.state==='running')))return;
   s.pollingWorkspace=true;
   try{
-   if(!detailOnly&&s.view==='board'&&s.data.runtime.status!=='pausing')await refresh({silent:true});
-   if(!matches(s))return;
-   if(S.sel?.type==='source-pipeline'&&S.sel.id==='work')await refreshOpenWork(s,S.sel);
+   if(!detailOnly&&(s.view==='board'||s.embeddedTask)&&s.data.runtime.status!=='pausing')await refresh({silent:true});
+   if(!ownsTask(s))return;
+   if(S.sel?.type==='source-pipeline'&&S.sel.id==='work')await refreshOpenWork(s,S.sel,{force:!!s.embeddedTask&&!detailOnly});
    else await RunTeamsWorkRecords.refreshOpenAttempt();
   }finally{s.pollingWorkspace=false;}
  }
@@ -995,5 +1283,5 @@
  setInterval(()=>void pollWorkspace({detailOnly:true}),2000);
  window.addEventListener('focus',()=>void pollWorkspace());
  document.addEventListener('visibilitychange',()=>{if(document.hidden)stopActivity();else void pollWorkspace();});
- window.RunTeamsSourcePipelines={workContext,ensureWorkContext,request,select,operationError,current,sameScope,refreshCatalog,catalogState,items:()=>catalogScope===scope()?rows.slice():[],sidebar,sidebarMenu,openRoute,openFromLink,refresh,retryRecovery,route,key,referenceKey,boot,header,editName,board,workspace,conversation,boardView,retryBoard,settings,control,compose,submit,openWork,refreshOpenWork,applyWorkReply,syncActivity,retainActivity,drawer,reset,newPipeline,closeCreation,readCreationChoices,create,retryControl,retryAdmission,creationName:value=>{if(creation)creation.name=value;}};
+ window.RunTeamsSourcePipelines={cardFeedback,cardKeydown,cardMenu,cardCommand,editCard,draftMenu,restoreCard,taskWorkspace,openEmployeeTask,workCommitted,workContext,ensureWorkContext,request,select,operationError,current,sameScope,refreshCatalog,catalogState,items:()=>catalogScope===scope()?rows.slice():[],sidebar,sidebarAvatar,sidebarMenu,openRoute,openFromLink,openVersion,refresh,retryRecovery,route,key,referenceKey,boot,header,editName,editIcon,board,workspace,conversation,boardView,retryBoard,settings,control,compose,composeDraft,cancelCompose,composerKeydown,composerFocusin,composerFocusout,submit,openWork,refreshOpenWork,applyWorkReply,syncActivity,retainActivity,drawer,reset,newPipeline,closeCreation,readCreationChoices,create,retryControl,retryAdmission,creationName:value=>{if(creation)creation.name=value;}};
 })();

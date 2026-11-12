@@ -638,7 +638,7 @@
 .conversation-messages .agent-work-group>summary>.i{width:11px;height:11px;flex:0 0 auto;color:var(--msg-text-muted);transition:transform var(--dur-1) var(--ease)}
 .conversation-messages .agent-work-group[open]>summary>.i{transform:rotate(90deg)}
 .conversation-messages .agent-work-group>summary:hover{color:var(--msg-text-secondary)}
-.conversation-messages .agent-work-group>summary:focus-visible{outline:2px solid var(--accent-default);outline-offset:2px;border-radius:3px}
+.conversation-messages .agent-work-group>summary:focus-visible{outline:2px solid var(--control-focus);outline-offset:2px;border-radius:3px}
 .conversation-messages .agent-work-group-body{--agent-fade-top:0px;--agent-fade-bottom:0px;box-sizing:border-box;min-width:0;max-height:200px;overflow-x:hidden;overflow-y:auto;overscroll-behavior-y:auto;scrollbar-width:thin;scrollbar-color:var(--line2) transparent;display:flex;flex-direction:column;gap:4px;margin:2px 0 4px;padding:0;border:0}
 .conversation-messages .agent-work-group-body[data-scrollable="true"]{-webkit-mask-image:linear-gradient(to bottom,transparent,#000 var(--agent-fade-top),#000 calc(100% - var(--agent-fade-bottom)),transparent);mask-image:linear-gradient(to bottom,transparent,#000 var(--agent-fade-top),#000 calc(100% - var(--agent-fade-bottom)),transparent)}
 .conversation-messages .agent-work-group-body:focus-visible{outline:1px solid var(--border-control);outline-offset:2px;border-radius:3px}
@@ -1449,7 +1449,7 @@
 .conversation-main .agent-question-progress { display:flex; gap:5px; }
 .conversation-main .agent-question-progress button { display:grid; place-items:center; width:22px; height:22px; border:0; border-radius:5px; background:transparent; color:var(--text-secondary); font-size:calc(11px * var(--interface-font-scale,1)); cursor:pointer; }
 .conversation-main .agent-question-progress button[aria-current="step"] { background:var(--surface-selected); color:var(--text-primary); }
-.conversation-main .agent-question-error { margin:10px 0 0; color:var(--status-danger); font-size:calc(12px * var(--interface-font-scale,1)); }.conversation-main .agent-question-card button:focus-visible,.conversation-main .agent-work-history>summary:focus-visible{ outline:2px solid var(--accent-default); outline-offset:2px; }
+.conversation-main .agent-question-error { margin:10px 0 0; color:var(--status-danger); font-size:calc(12px * var(--interface-font-scale,1)); }.conversation-main .agent-question-card button:focus-visible,.conversation-main .agent-work-history>summary:focus-visible{ outline:2px solid var(--control-focus); outline-offset:2px; }
 @media(max-width:800px) { .conversation-main .conversation-messages .agent-question-card.cmsg-optcard { padding:14px!important; } .conversation-main .agent-question-foot { align-items:flex-end; } .conversation-main .agent-question-foot>span { max-width:45%; } }
 @media(prefers-reduced-motion:reduce) { .conversation-main .conversation-waiting>span { animation:none!important; } }
 .conversation-main .conversation-messages .cmsg-optcard .cmsg-opt-t { font:500 calc(13px * var(--interface-font-scale,1))/calc(20px * var(--interface-font-scale,1)) var(--ui)!important; }
@@ -1700,7 +1700,7 @@
 .conversation-composer-stop { display:grid; place-items:center; flex:0 0 32px; width:32px; height:32px; border:0; border-radius:50%; background:var(--action-primary); color:var(--action-on-primary); cursor:pointer; }
 .conversation-composer-stop>.i { width:16px; height:16px; }
 .conversation-composer-stop:disabled { opacity:.5; }
-.agent-question-card button:focus-visible,.agent-question-reopen:focus-visible,.conversation-composer-stop:focus-visible { outline:2px solid var(--accent-default); outline-offset:2px; }
+.agent-question-card button:focus-visible,.agent-question-reopen:focus-visible,.conversation-composer-stop:focus-visible { outline:2px solid var(--control-focus); outline-offset:2px; }
 .conversation-main .conversation-composer { max-width:720px; }
 html[data-theme="dark"] .agent-question-docked { background:var(--surface-hover); }
 @media(max-width:800px) {
@@ -1761,7 +1761,7 @@ html[data-theme="dark"] .agent-question-docked { background:var(--surface-hover)
 .conversation-main .agent-question-docked .agent-question-custom.is-inline textarea,
 .conversation-main .agent-question-docked .agent-question-custom.is-inline input { min-height:32px; height:32px; padding:6px 0; border:0; border-radius:0; background:transparent; resize:none; font:400 calc(13px * var(--interface-font-scale,1))/20px var(--ui); }
 .conversation-main .agent-question-docked .agent-question-custom.is-inline textarea:focus-visible { outline:none; }
-.conversation-main .agent-question-docked .agent-question-custom.is-inline:focus-within { outline:2px solid var(--accent-default); outline-offset:3px; border-radius:6px; }
+.conversation-main .agent-question-docked .agent-question-custom.is-inline:focus-within { outline:2px solid var(--control-focus); outline-offset:3px; border-radius:6px; }
 .conversation-main .agent-question-docked .agent-question-foot { align-items:flex-end; }
 .conversation-main .conversation-composer-stop>.i { width:18px; height:18px; }
 .conversation-main .conversation-composer-stop>.i use { display:none; }
@@ -1878,7 +1878,7 @@ html[data-theme="dark"] .agent-question-docked { background:var(--surface-hover)
 .conversation-folder-trigger:hover,.conversation-folder-trigger[data-menu-open="true"],.conversation-folder-trigger[aria-expanded="true"]{background:var(--hover);color:var(--ink)}
 .conversation-folder-trigger:disabled{opacity:.5;cursor:default}
 .conversation-folder-trigger.is-unavailable{color:var(--status-danger)}
-.conversation-folder-trigger:focus-visible{outline:2px solid var(--accent-default);outline-offset:2px}
+.conversation-folder-trigger:focus-visible{outline:2px solid var(--control-focus);outline-offset:2px}
 #popmenu.conversation-folder-menu{width:max-content;min-width:0;max-width:min(220px,calc(100vw - 16px));padding:6px;gap:0;border:.5px solid var(--line);border-radius:10px;background:var(--panel);box-shadow:0 6px 20px -2px color-mix(in srgb,var(--ink) 8%,transparent),0 1px 3px color-mix(in srgb,var(--ink) 4%,transparent)}
 #popmenu.conversation-folder-menu a[data-i]{color:var(--ink);min-height:34px;padding:7px 10px;margin:0;border-radius:5px;gap:0;cursor:pointer}
 #popmenu.conversation-folder-menu a[data-i]+a[data-i]{margin-top:2px}
@@ -1890,14 +1890,14 @@ html[data-theme="dark"] .agent-question-docked { background:var(--surface-hover)
 #popmenu.conversation-folder-menu a.conversation-folder-path-row:is(:hover,.active){background:transparent}
 #popmenu.conversation-folder-menu a.conversation-folder-path-row:is(:hover,.active) .conversation-folder-path{text-decoration:underline;text-underline-offset:2px}
 #popmenu.conversation-folder-menu a[data-i]:hover .conversation-folder-path,#popmenu.conversation-folder-menu a.active .conversation-folder-path{color:var(--ink)}
-#popmenu.conversation-folder-menu a:focus-visible{outline:2px solid var(--accent-default);outline-offset:-2px}
+#popmenu.conversation-folder-menu a:focus-visible{outline:2px solid var(--control-focus);outline-offset:-2px}
 
 .conversation-folder-control{position:relative;display:inline-flex;align-items:center;max-width:146px;min-width:0;flex:0 1 auto;vertical-align:middle}
 .conversation-folder-clear{position:absolute;top:-5px;right:-5px;width:18px;height:18px;padding:2px;display:flex;align-items:center;justify-content:center;border:1px solid var(--line);border-radius:50%;background:var(--panel);color:var(--ink2);opacity:0;pointer-events:none;cursor:pointer}
 .conversation-folder-clear .i{width:11px;height:11px;flex:none}
 .conversation-folder-control:hover .conversation-folder-clear,.conversation-folder-control:focus-within .conversation-folder-clear{opacity:1;pointer-events:auto}
 .conversation-folder-clear:hover{background:var(--hover);color:var(--ink)}
-.conversation-folder-clear:focus-visible{outline:2px solid var(--accent-default);outline-offset:2px}
+.conversation-folder-clear:focus-visible{outline:2px solid var(--control-focus);outline-offset:2px}
 .conversation-folder-clear:disabled{visibility:hidden;pointer-events:none}
 
 /* The independent add actions remain usable while only skill rows are loading. */

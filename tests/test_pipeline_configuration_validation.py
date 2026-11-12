@@ -36,7 +36,7 @@ class TaskConfigurationValidationTests(unittest.TestCase):
         original = copy.deepcopy(frozen)
         latest = {'pipeline':{'parameters':[{**base,'note':'数字 ID','constraints':{'pattern':'^[0-9]+$'}},
                     {**base,'key':'other','required':True}]}}
-        with patch('runteams_core.pipelines.source_pipeline_workspace._definition', return_value=('r',latest)):
+        with patch('runteams_core.pipelines.source_pipeline_workspace._definition', return_value=('r',latest,{})):
             inherited = configuration_fields(frozen)
         self.assertEqual([p['key'] for p in inherited], ['id'])
         self.assertEqual(frozen, original)
@@ -45,7 +45,7 @@ class TaskConfigurationValidationTests(unittest.TestCase):
         b = project(row, frozen, declarations=inherited)
         self.assertNotEqual(a['revision'], b['revision'])
         frozen['pipeline_work']['asset']['pipeline']['parameters'][0]['constraints'] = {'max_length':8}
-        with patch('runteams_core.pipelines.source_pipeline_workspace._definition', return_value=('r',latest)):
+        with patch('runteams_core.pipelines.source_pipeline_workspace._definition', return_value=('r',latest,{})):
             self.assertEqual(configuration_fields(frozen)[0]['constraints'], {'max_length':8})
 
     def test_invalid_declaration_limits_are_rejected(self):
@@ -143,7 +143,7 @@ class TaskCredentialIsolationTests(unittest.TestCase):
     def test_existing_tasks_can_explicitly_configure_new_project_secret_without_rewriting_history(self):
         self.frozen['pipeline_work']['asset']['pipeline']['parameters']=self.declarations[:1]
         original=copy.deepcopy(self.frozen)
-        with patch('runteams_core.pipelines.source_pipeline_workspace._definition',return_value=('r',{'pipeline':{'parameters':self.declarations}})):
+        with patch('runteams_core.pipelines.source_pipeline_workspace._definition',return_value=('r',{'pipeline':{'parameters':self.declarations}}, {})):
             self.assertEqual(len(configuration_fields(self.frozen)),2)
         self.assertEqual(self.frozen,original)
     def test_credential_endpoint_cas_owner_and_running_guard(self):

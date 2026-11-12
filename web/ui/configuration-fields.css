@@ -8,7 +8,7 @@
 :where(.configuration-surface) :is(input[type=checkbox],input[type=radio]) {width:16px;height:16px;margin:0;accent-color:var(--accent-default);flex-shrink:0}
 :where(.configuration-surface) :is(.choices) {display:flex;gap:8px;flex-wrap:wrap}
 :where(.configuration-surface) :is(.choices label) {display:flex;align-items:center;gap:8px;padding:8px 12px;border:1px solid var(--border-default);border-radius:6px;min-height:36px}
-:where(.configuration-surface) :is(.choices label:has(:checked)) {background:var(--surface-selected);border-color:var(--accent-default)}
+:where(.configuration-surface) :is(.choices label:has(:checked)) {background:var(--surface-selected);border-color:var(--control-focus)}
 :where(.configuration-surface) :is(.choices.vertical) {display:block}
 :where(.configuration-surface) :is(.choices.vertical label) {border:0;padding:6px 0;background:transparent}
 :where(.configuration-surface) :is(.help:empty) {display:none}

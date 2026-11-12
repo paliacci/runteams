@@ -17,7 +17,8 @@
   pages:{normalize:()=>null,render:()=>null,title:()=>null,error:()=>null},
   routes:{preview:()=>null,resolve:()=>null,apply:async()=>false,restored:async()=>false,independent:no},
   resources:{tree:()=>null,detail:()=>null,origin:empty,publication:empty},
-  assets:{remember:nothing,reset:nothing},
+  pipeline:{creationModeControl:empty,readCreationMode:nothing},
+  assets:{remember:nothing,reset:nothing,marketRows:empty,placeholderEmployee:no,placeholderPipeline:no},
   workspace:{savedScope:()=>undefined,savedWindows:()=>undefined,storage:()=>null,reset:nothing},
   sidebar:{context:()=>({signedIn:false}),authority:nothing,authorityFailed:nothing},
  };

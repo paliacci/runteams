@@ -30,7 +30,7 @@ const pipeline=fs.readFileSync('web/ui/source-pipeline-panels.js','utf8');
 const selection={id:'work',workflow:{id:1,snapshot_json:{pipeline_visit:1}},taskConfiguration:{editable:true,fields:[{...fields[0],group:group.label}],values:{}}};
 const session={taskConfigurationStates:{1:{}},data:{pipeline:{}}};
 Object.assign(c,{current:()=>session,RunTeamsWorkState:{getItem:()=>null},workLabel:(_key,text)=>text,workText:(_key,text)=>text,
- workSection:(_selection,_key,_label,body)=>body});
+ RunTeamsWorkRecords:{taskSection:(_selection,_key,_label,body)=>body}});
 // The task adapter reads the same frozen feedback/visit state as the full panel.
 vm.runInContext(pipeline.slice(pipeline.indexOf('const flowKey='),pipeline.indexOf('async function flow(')),c);
 vm.runInContext(pipeline.slice(pipeline.indexOf('const taskConfigurationKey='),pipeline.indexOf('function workContent(')),c);

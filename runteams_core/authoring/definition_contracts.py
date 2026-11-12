@@ -132,15 +132,48 @@ def _work(value):
             raise ContractError("后续动作引用了未声明的来源资产槽")
 
 
+def without_retired_runtime_limit(value):
+    """Project an existing runtime onto the current configuration contract."""
+    if not isinstance(value, dict) or 'time_limit_minutes' not in value:
+        return value
+    return {key: item for key, item in value.items() if key != 'time_limit_minutes'}
+
+
+def publication_model_preference(requirement):
+    """Carry only an explicitly selected model and its portable settings."""
+    if not requirement.get('model'):
+        return {}
+    return {key: requirement[key] for key in ('provider', 'model', 'effort')
+            if requirement.get(key)}
+
+
+def marketplace_employee_validation_view(value):
+    if not isinstance(value, dict) or not isinstance(value.get('employee'), dict):
+        return value
+    employee = value['employee']
+    if 'runtime_requirement' not in employee:
+        return value
+    return {**value, 'employee': {**employee,
+        'runtime_requirement': without_retired_runtime_limit(employee['runtime_requirement'])}}
+
+
 def validate_definition(kind, value):
     """Validate without coercing types, adding defaults or dropping fields."""
-    errors = sorted(Draft202012Validator(definition_schema(kind)).iter_errors(value),
+    candidate = value
+    if kind in ('runtime', 'runtime_snapshot', 'portable_runtime', 'release_runtime'):
+        candidate = without_retired_runtime_limit(value)
+    elif isinstance(value, dict) and kind in ('employee_draft', 'employee_release') and 'runtime' in value:
+        candidate = {**value, 'runtime': without_retired_runtime_limit(value['runtime'])}
+    elif kind == 'marketplace_employee_asset':
+        candidate = marketplace_employee_validation_view(value)
+    errors = sorted(Draft202012Validator(definition_schema(kind)).iter_errors(candidate),
                     key=lambda error: str(list(error.absolute_path)))
     if errors:
         error = errors[0]
         path = "/".join(str(item) for item in error.absolute_path) or kind
         raise ContractError(path + "：" + error.message)
-    result = copy.deepcopy(value)
+    # Immutable release and asset bytes remain intact for digest verification.
+    result = copy.deepcopy(value if kind in ('employee_release', 'marketplace_employee_asset') else candidate)
     if kind == "work":
         _work(result)
     elif kind in ("skill_extension", "skill_revision"):
@@ -275,11 +308,12 @@ def _work_unit(revision, skill_key_map):
             "execution": copy.deepcopy(revision["execution"])}
 
 
-def compile_employee_release(draft, employee, revisions, runtime, *, skill_key_map=None, skill_bundles=None):
+def compile_employee_release(draft, employee, revisions, runtime, *, skill_key_map=None, skill_bundles=None,
+                             portable_runtime=False):
     """Compile only pinned immutable product revisions; never infer work."""
     draft = validate_definition("employee_draft", draft)
     employee = validate_definition("identity", employee)
-    runtime = validate_definition("runtime_snapshot", runtime)
+    runtime = validate_definition("release_runtime" if portable_runtime else "runtime_snapshot", runtime)
     for field, value in draft["runtime"].items():
         if (field == 'channel_id' or value != '') and runtime.get(field) != value:
             raise ContractError("运行时快照与员工选用配置不一致：" + field)

@@ -209,7 +209,19 @@ class LocalRuntime:
                             with core.repository.audit_context(actor_id=self.app.binding.library_id,source='executor'):
                                 while not self.closing:
                                     claimed=core.claim_workflow(identifier)
-                                    if claimed is None:break
+                                    if claimed is None:
+                                        # An edited queued card keeps a short grace period. Keep
+                                        # its existing worker wake until due; never claim it early.
+                                        from datetime import datetime, timezone
+                                        with core.repository.read_snapshot() as connection:
+                                            due=connection.execute('SELECT state,available_at FROM workflow_runs WHERE id=?',
+                                                                   (identifier,)).fetchone()
+                                        if due and due['state']=='ready' and due['available_at']:
+                                            delay=(datetime.fromisoformat(due['available_at'])-datetime.now(timezone.utc)).total_seconds()
+                                            if 0 < delay <= 6:
+                                                core._cancel_event(identifier,reset=True).wait(delay)
+                                                continue
+                                        break
                                     try:core.execute_claimed_workflow(claimed,core.runtime())
                                     except Exception as error:
                                         from runteams_core.employees.employee_chat_work import finish, snapshot

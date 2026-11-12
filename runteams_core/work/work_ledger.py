@@ -1,6 +1,7 @@
 """Canonical claim, concurrency, cancellation and durable work ledger mechanics."""
 import json
 import threading
+from datetime import datetime, timezone
 from runteams_core.storage.repository import utc_now
 from runteams_core.foundation.contracts import (
     ContractError, PIPELINE_APPROVAL_DECISIONS, PIPELINE_OUTCOME_PREFIX,
@@ -13,9 +14,9 @@ class WorkLedger:
         now = utc_now()
         with self.repository.connect() as connection:
             connection.execute("BEGIN IMMEDIATE")
-            arguments = [now]
+            arguments = [datetime.now(timezone.utc).isoformat()]
             where = ("wr.state IN ('ready','waiting_retry') "
-                     "AND (wr.available_at IS NULL OR wr.available_at<=?) "
+                     "AND (wr.available_at IS NULL OR julianday(wr.available_at)<=julianday(?)) "
                      "AND " + self._workflow_claim_filter())
             if workflow_run_id is not None:
                 where += " AND wr.id=?"

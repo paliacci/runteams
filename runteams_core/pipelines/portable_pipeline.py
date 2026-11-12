@@ -15,7 +15,7 @@ from jsonschema import Draft202012Validator
 from referencing import Registry, Resource
 
 from runteams_core.foundation.contracts import ContractError, normalize_pipeline_definition
-from runteams_core.authoring.definition_contracts import contract_catalog
+from runteams_core.authoring.definition_contracts import contract_catalog, marketplace_employee_validation_view
 
 SCHEMA = 'runteams.marketplace-pipeline/v2'
 SCHEMA_PATH = resource_root() / 'contracts/marketplace-pipeline-v2.json'
@@ -107,8 +107,16 @@ def validate_pipeline_bindings(pipeline, skills):
 
 def verified_pipeline_asset(value):
     _finite(value)
-    if next(_validator().iter_errors(value), None) is not None:
+    candidate = value
+    if isinstance(value, dict) and isinstance(value.get('employees'), list):
+        candidate = {**value, 'employees': [
+            {**row, 'asset': marketplace_employee_validation_view(row['asset'])}
+            if isinstance(row, dict) and 'asset' in row else row
+            for row in value['employees']]}
+    if next(_validator().iter_errors(candidate), None) is not None:
         raise ContractError('市场流水线不符合完整v2合同')
+    from runteams_core.pipelines.pipeline_avatars import image_src
+    image_src(value)
     if 'configuration' in value:
         from runteams_core.configuration.configuration_schema import validate_declaration
         validate_declaration(value['configuration'])

@@ -236,8 +236,10 @@
     syncWindowTabs();
   }
 
-  function workspaceHeading(title, attributes, trailing = '') {
-    return `<span class="conversation-panel-heading"><span class="conversation-panel-title-wrap"><h2 id="conversation_panel_title" class="conversation-panel-name pipeline-title"${attributes}>${escape(title)}</h2>${trailing}</span></span>`;
+  function workspaceHeading(title, attributes, trailing = '', editable = false) {
+    const name = escape(title);
+    const content = editable ? `<span class="workspace-heading-label">${name}</span><svg class="i workspace-heading-pencil" aria-hidden="true"><use href="#i-edit"></use></svg>` : name;
+    return `<span class="conversation-panel-heading"><span class="conversation-panel-title-wrap"><h2 id="conversation_panel_title" class="conversation-panel-name pipeline-title${editable ? ' workspace-heading-editable' : ''}"${attributes}>${content}</h2>${trailing}</span></span>`;
   }
 
   function headerAction({label,labelKey,icon,action,className='',selected=false,disabled=false,menu=false}) {

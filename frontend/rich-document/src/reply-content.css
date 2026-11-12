@@ -8,7 +8,7 @@
 .reply-content button{cursor:pointer;border:1px solid var(--border-default);border-radius:7px;background:var(--surface);padding:4px 9px}
 .reply-content button:hover{background:var(--surface-hover)}
 .reply-content button:disabled{opacity:.4;cursor:default}
-.reply-content :is(button,input,summary,[tabindex]):focus-visible{outline:2px solid var(--accent-default);outline-offset:2px}
+.reply-content :is(button,input,summary,[tabindex]):focus-visible{outline:2px solid var(--control-focus);outline-offset:2px}
 .reply-table-tools{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:8px 0;color:var(--text-secondary);font-size:12px}
 .reply-table-tools input{width:180px;max-width:65%;height:30px;border:1px solid var(--border-default);border-radius:7px;padding:4px 9px;background:var(--surface)}
 .reply-table-scroll{overflow-x:auto;border:1px solid var(--border-default);border-radius:8px}
@@ -27,7 +27,7 @@
 .reply-record dl{display:grid;grid-template-columns:minmax(72px,auto) 1fr;gap:7px 16px;margin:10px 0 0}
 .reply-record dt{color:var(--text-secondary)}.reply-record dd{margin:0;overflow-wrap:anywhere}
 .reply-segments{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 12px}
-.reply-segments button[aria-pressed=true]{background:var(--surface-selected);border-color:var(--accent-default);color:var(--accent-default)}
+.reply-segments button[aria-pressed=true]{background:var(--surface-selected);border-color:var(--control-focus);color:var(--accent-default)}
 .reply-chart{width:100%;min-width:0;height:230px;margin-top:4px}
 .reply-chart-data{font-size:12px;color:var(--text-secondary);margin-top:4px}
 .reply-chart-data summary{cursor:pointer;width:fit-content;padding:4px 0}

@@ -189,6 +189,7 @@ def edit(core, data):
     if is_rented(data.get('reference')):raise PermissionError('租用资产只可配置使用，不能修改或恢复源码。')
     core._actor()
     if set(data) not in ({'reference', 'base_revision', 'operation_id', 'asset'},
+                         {'reference', 'base_revision', 'operation_id', 'avatar'},
                          {'reference', 'base_revision', 'operation_id', 'restore_revision'}):
         raise ContractError('流水线保存参数无效。')
     try:
@@ -197,9 +198,25 @@ def edit(core, data):
         raise ContractError('请沿原保存操作核对。') from None
     ref, revisions = _source(data['reference'])
     files = revisions.files_at(data['base_revision']); previous = _asset(files, ref)
+    operation = 'pipeline-edit-' + digest(ref)[:32] + '-' + data['operation_id']
     asset = data.get('asset')
+    if 'avatar' in data:
+        from runteams_core.employees.employee_avatars import prepare_picture
+        reference, picture = prepare_picture(data['avatar'])
+        files[reference] = picture
+        asset = {**previous, 'avatar': reference}
+        files[ref['pipeline_source']] = canonical(asset)
+        result = revisions.commit(files, data['base_revision'], operation)
+        from runteams_core.pipelines.pipeline_avatars import image_src, source_fields
+        return {'reference': ref, 'revision': result['revision'], 'avatar': reference,
+                'avatar_src': image_src(source_fields(asset, files)), 'storage_scope': 'device'}
     if 'restore_revision' in data:
-        asset = _asset(revisions.files_at(data['restore_revision']), ref)
+        restored_files = revisions.files_at(data['restore_revision'])
+        asset = _asset(restored_files, ref)
+        from runteams_core.employees.employee_avatars import bundled
+        reference = asset.get('avatar')
+        if bundled(reference):
+            files[reference] = restored_files[reference]
     if not isinstance(asset, dict) or asset.get('key') != previous.get('key'):
         raise ContractError('流水线身份不能在编辑中改变。')
     graph = asset.get('pipeline')
@@ -216,7 +233,7 @@ def edit(core, data):
     for member in asset['employees']:
         if 'dependency' in member:
             describe_member(ref, member, data['base_revision'])
-    result = revisions.commit(files, data['base_revision'], 'pipeline-edit-' + digest(ref)[:32] + '-' + data['operation_id'])
+    result = revisions.commit(files, data['base_revision'], operation)
     return {'reference': ref, 'revision': result['revision'], 'pipeline': checked['pipelines'][ref['pipeline_source']]['pipeline'],
             'storage_scope': 'device'}
 

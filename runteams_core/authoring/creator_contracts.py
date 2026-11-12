@@ -215,6 +215,9 @@ def _compile_checked_source(files, *, schema_validator=None, source_index=None):
         pipeline = read(path)
         from runteams_core.authoring.creator_definitions import validate_author
         pipeline = validate_author('pipeline', pipeline)
+        if 'avatar' in pipeline:
+            from runteams_core.pipelines.pipeline_avatars import source_attachment
+            source_attachment(pipeline['avatar'], files)
         from runteams_core.authoring.compilation.creator_mcp_source import program_sources
         for program in program_sources(pipeline):
             asset(program['source']+'/mcp/manifest.json')

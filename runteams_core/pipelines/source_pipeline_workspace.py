@@ -33,12 +33,16 @@ def _definition(ref):
     asset = strict_json(files[ref['pipeline_source']])
     from runteams_core.authoring.creator_definitions import validate_author
     validate_author('pipeline', asset)
-    return revision, asset
+    return revision, asset, files
 
 
 def catalog(core):
+    from runteams_core.pipelines.pipeline_avatars import image_src, source_fields
+
     core._actor()
     store = current_store(device_data.identity()['cache_scope'])
+    from runteams_core.pipelines import source_pipeline_trash
+    removed = {(item['reference']['source_id'], item['reference']['pipeline_source']) for item in source_pipeline_trash.catalog(core)}
     rows, errors, after = [], [], None
     while True:
         page = store.list(after)
@@ -47,10 +51,13 @@ def catalog(core):
                 files = Revisions(store, item['id']).files()
                 project = strict_json(files['project.json'])
                 for path in project['entrypoints'].get('pipelines', []):
+                    if (item['id'], path) in removed:
+                        continue
                     ref = pipeline_references.reference(item['id'], path)
-                    revision, asset = _definition(ref)
+                    revision, asset, source_files = _definition(ref)
+                    avatar_src = image_src(source_fields(asset, source_files))
                     rows.append({'reference': ref, 'name': asset['pipeline']['name'], 'revision': revision,
-                                 'allowed_modes': allowed_modes(ref)})
+                                 'allowed_modes': allowed_modes(ref), **({'avatar_src': avatar_src} if avatar_src else {})})
             except (ValueError, OSError, ContractError) as exc:
                 errors.append({'source_id': item['id'], 'error': str(exc)})
         after = page['next_cursor']
@@ -97,15 +104,18 @@ def preferences(ref, data=None):
 
 
 def workspace(core, ref, active_ids=()):
+    from runteams_core.pipelines.pipeline_card_actions import capabilities
     from runteams_core.pipelines.source_pipeline_flow import launch_failure, retry_mode
     core._actor()
     ref = pipeline_references.checked_reference(ref)
-    revision, asset = _definition(ref)
+    revision, asset, files = _definition(ref)
+    from runteams_core.pipelines.pipeline_avatars import image_src, source_fields
+    icon = source_fields(asset, files)
     # The runtime and its cards share one snapshot without waiting for a work writer.
     with core.repository.storage.connect(readonly=True) as connection:
         runtime = control.state(core, ref, active_ids, connection=connection)
         rows = connection.execute(
-            "SELECT w.id,w.state,w.cursor_key,w.snapshot_json,t.title,t.payload_json "
+            "SELECT w.id,w.state,w.cursor_key,w.snapshot_json,t.title,t.payload_json,t.trashed_at "
             "FROM workflow_runs w JOIN tasks t ON t.id=w.task_id "
             "WHERE t.trashed_at IS NULL AND json_extract(w.snapshot_json,'$.pipeline_work.reference.source_id')=? "
             "AND json_extract(w.snapshot_json,'$.pipeline_work.reference.pipeline_source')=? ORDER BY w.id",
@@ -122,9 +132,11 @@ def workspace(core, ref, active_ids=()):
                               'title': row['title'], 'objective': json.loads(row['payload_json']).get('objective', ''),
                               'summary': error or (snapshot.get('pipeline_submission') or {}).get('result', {}).get('summary', ''),
                               'pipeline_reference': ref, 'work_chat_id': snapshot.get('work_chat_id'),
+                              'card_actions': capabilities(row, snapshot, active_ids),
                               'retry_mode': retry_mode(row['state'],row['cursor_key'],snapshot,positions,
                                                        active=row['id'] in active, launch_error=error)})
     return {'reference': ref, 'name': asset['pipeline']['name'], 'source_revision': revision,
+            **({'avatar': icon['avatar'], 'avatar_src': image_src(icon)} if icon else {}),
             'pipeline': copy.deepcopy(asset['pipeline']), 'programs_available': bool(asset.get('programs')),
             'runtime': runtime, 'workflows': workflows,
             'ui': preferences(ref), 'allowed_modes': allowed_modes(ref), 'storage_scope': 'device'}
@@ -135,7 +147,7 @@ def conversation(core, ref, runtime):
     from runteams_core.storage import product_store
     core._actor()
     ref = pipeline_references.checked_reference(ref)
-    _, asset = _definition(ref)
+    _, asset, _ = _definition(ref)
     if not isinstance(runtime, dict) or set(runtime) - {'channel_id', 'model', 'reasoning_effort'}:
         raise ContractError('会话运行设置无效。')
     # The source lock serializes competing windows, not worker execution.

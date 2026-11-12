@@ -498,7 +498,7 @@
 .account-settings-page .appearance-options{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;border:0;padding:0;background:none}
 .account-settings-page .appearance-option{display:block;position:relative;min-width:0;width:100%;height:auto;min-height:0;padding:0;border:0;border-radius:16px;background:none;box-shadow:none;text-align:center}
 .account-settings-page .appearance-preview{--preview-accent:var(--theme-light-border-default);position:relative;display:block;width:100%;height:auto;aspect-ratio:64/44;overflow:hidden;border:1px solid var(--border-default);border-radius:16px;background:var(--theme-light-surface);box-shadow:none}
-.account-settings-page .appearance-option.on .appearance-preview{border-width:2px;border-color:var(--icon-blue);outline:none}
+.account-settings-page .appearance-option.on .appearance-preview{border-width:2px;border-color:var(--control-focus);outline:none}
 .account-settings-page .appearance-option>span:nth-child(2){display:block;position:static;padding:0;margin:12px 0 0;font-size:calc(13px * var(--interface-font-scale));line-height:calc(19px * var(--interface-font-scale))}
 .account-settings-page .appearance-option b{font-size:calc(13px * var(--interface-font-scale));line-height:calc(19px * var(--interface-font-scale));font-weight:500;color:var(--text-primary)}
 .account-settings-page .appearance-radio{display:none}
@@ -614,7 +614,7 @@
 /* Fixed thumbnails show their target palette independently of the active theme. */
 .account-settings-page .appearance-preview:is(.dark,.system){--preview-accent:var(--theme-dark-border-strong)}
 .account-settings-page .appearance-preview.system:before{background:linear-gradient(90deg,var(--theme-light-border-default) 0 6.383%,var(--theme-dark-border-strong) 6.383% 100%)}
-:root[data-theme="dark"] .account-settings-page .appearance-option.on .appearance-preview{border-color:var(--accent-default)}
+:root[data-theme="dark"] .account-settings-page .appearance-option.on .appearance-preview{border-color:var(--control-focus)}
 :root[data-theme="dark"] .account-settings-page .settings-switch[aria-checked="true"]{background:var(--accent-default)}
 :root[data-theme="dark"] .account-settings-page .settings-switch[aria-checked="true"] span{background:var(--action-on-primary)}
 
@@ -668,7 +668,7 @@ body:has(#settingsWorkspace #accountLanguage[aria-expanded="true"])>.menu.settin
 :root:not([data-theme]) .account-settings-page .settings-switch:not([aria-checked="true"]){background:color-mix(in srgb,var(--overlay-scrim) 14%,var(--surface))}
 }
 @media (prefers-color-scheme: dark){
-:root:not([data-theme]) .account-settings-page .appearance-option.on .appearance-preview{border-color:var(--accent-default)}
+:root:not([data-theme]) .account-settings-page .appearance-option.on .appearance-preview{border-color:var(--control-focus)}
 :root:not([data-theme]) .account-settings-page .settings-switch[aria-checked="true"]{background:var(--accent-default)}
 :root:not([data-theme]) .account-settings-page .settings-switch[aria-checked="true"] span{background:var(--action-on-primary)}
 :root:not([data-theme]) .account-settings-page .settings-row-group{border-color:color-mix(in srgb,var(--text-primary) 12%,transparent)}

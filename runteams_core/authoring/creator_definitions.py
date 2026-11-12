@@ -13,7 +13,7 @@ import tempfile
 from jsonschema import Draft202012Validator
 
 from runteams_core.authoring.creator_contracts import CreatorContractError, canonical, relative
-from runteams_core.authoring.definition_contracts import contract_catalog
+from runteams_core.authoring.definition_contracts import contract_catalog, without_retired_runtime_limit
 
 CATALOG_PATH = 'definitions/creator.json'
 
@@ -27,7 +27,7 @@ def compiler_identity():
     return {'contracts': contract_catalog()['digest'], 'implementation': {
         name: hashlib.sha256((root / name).read_bytes()).hexdigest() for name in
         ('authoring/creator_definitions.py', 'authoring/creator_contracts.py', 'authoring/creator_schema_validation.py', 'authoring/definition_contracts.py', 'authoring/creator_conversation_assets.py',
-         'assets/skills/skill_packages.py', 'assets/skills/skill_provenance.py', 'assets/skills/skill_icons.py', 'agents/capability_runtime.py', 'configuration/configuration_schema.py', 'employees/portable_employee.py', 'assets/skills/skill_metadata.py', 'assets/skills/skill_bundles.py', 'assets/collections/collection_schema.py', 'pipelines/portable_pipeline.py', 'authoring/compilation/creator_mcp_source.py', 'employees/mcp/employee_mcp_package.py', 'employees/employee_avatars.py', 'pipelines/pipeline_dependency_contracts.py', 'pipelines/pipeline_closure_contracts.py', 'foundation/identity/resource_ids.py')}}
+         'assets/skills/skill_packages.py', 'assets/skills/skill_provenance.py', 'assets/skills/skill_icons.py', 'agents/capability_runtime.py', 'configuration/configuration_schema.py', 'employees/portable_employee.py', 'assets/skills/skill_metadata.py', 'assets/skills/skill_bundles.py', 'assets/collections/collection_schema.py', 'pipelines/portable_pipeline.py', 'pipelines/pipeline_avatars.py', 'authoring/compilation/creator_mcp_source.py', 'employees/mcp/employee_mcp_package.py', 'employees/employee_avatars.py', 'pipelines/pipeline_dependency_contracts.py', 'pipelines/pipeline_closure_contracts.py', 'foundation/identity/resource_ids.py')}}
 
 
 def author_schema(kind, *, version='3'):
@@ -37,7 +37,7 @@ def author_schema(kind, *, version='3'):
     if kind == 'employee':
         return {'$schema': 'https://json-schema.org/draft/2020-12/schema',
             'type': 'object', 'additionalProperties': False,
-            'required': ['schema', 'key', 'name', 'avatar', 'soul_file', 'skill_dirs', 'runtime_requirement'],
+            'required': ['schema', 'key', 'name', 'avatar', 'soul_file', 'skill_dirs'],
             'properties': {'schema': {'const': 'runteams.employee-source/' + version},
                 'key': {'type': 'string', 'pattern': '^[a-z][a-z0-9-]{0,79}$'},
                 'name': definitions['portable_employee']['properties']['name'],
@@ -57,6 +57,7 @@ def author_schema(kind, *, version='3'):
                 'schema': {'const': 'runteams.pipeline-source/' + version},
                 **({'key': {'type':'string','pattern':'^[a-z][a-z0-9-]{0,79}$'},
                     'description': {'type':'string','maxLength':12000},
+                    'avatar': definitions['portable_employee']['properties']['avatar'],
                     'configuration': definitions['employee_configuration'],
                     'programs': {'type':'array','maxItems':64,
                         'items':{'$ref':'#/$defs/pipeline_program_source'}}} if version == '3' else {}),
@@ -89,7 +90,10 @@ def author_schema(kind, *, version='3'):
 
 def validate_author(kind, value):
     version = str(value.get('schema', '')).rsplit('/', 1)[-1] if kind != 'skill' else '3'
-    if version != '3' or next(Draft202012Validator(author_schema(kind, version=version)).iter_errors(value), None) is not None:
+    candidate = value
+    if kind == 'employee' and 'runtime_requirement' in value:
+        candidate = {**value, 'runtime_requirement': without_retired_runtime_limit(value['runtime_requirement'])}
+    if version != '3' or next(Draft202012Validator(author_schema(kind, version=version)).iter_errors(candidate), None) is not None:
         raise CreatorContractError('invalid_' + kind + '_source')
     if kind in ('employee', 'pipeline') and 'configuration' in value:
         from runteams_core.configuration.configuration_schema import validate_declaration
@@ -150,7 +154,8 @@ def compile_definitions(files, compiled, *, require=False):
             picture = attachment(employee['avatar'], files)
             asset = verified_employee_asset({'schema': 'runteams.marketplace-employee/v2',
                 **({'avatar_file':picture} if picture else {}),
-                'employee': {k: copy.deepcopy(employee[k]) for k in ('name', 'avatar', 'runtime_requirement')} |
+                'employee': {k: copy.deepcopy(employee[k]) for k in ('name', 'avatar')} |
+                    {'runtime_requirement': copy.deepcopy(employee.get('runtime_requirement', {}))} |
                     {'soul': soul, 'skill_refs': [{'package_key': b['package_key'], 'digest': b['digest']} for b in bundles]} |
                     ({'configuration': copy.deepcopy(employee['configuration'])} if 'configuration' in employee else {}),
                 'skill_bundles': bundles})
@@ -160,6 +165,7 @@ def compile_definitions(files, compiled, *, require=False):
                     raise CreatorContractError('missing_result_action_skill')
             employees[source_path] = asset
     result_pipelines, pipeline_keys = {}, set()
+    from runteams_core.pipelines.pipeline_avatars import source_fields
     for path, pipeline in pipelines.items():
         if pipeline.get('key'):
             if pipeline['key'] in pipeline_keys: raise CreatorContractError('duplicate_pipeline_key')
@@ -167,6 +173,7 @@ def compile_definitions(files, compiled, *, require=False):
         result_pipelines[path] = verified_pipeline_asset({'schema': 'runteams.marketplace-pipeline/v2',
             'pipeline': pipeline['pipeline'], 'employees': [
                 {'ref': row['ref'], 'asset': employees[row['source']]} for row in pipeline['employees']],
+            **source_fields(pipeline, files),
             **({'configuration':copy.deepcopy(pipeline['configuration'])} if 'configuration' in pipeline else {}),
             **({'program_bundles':programs[path]} if path in programs else {})})
     return {'schema': 'runteams.creator-definitions/1', 'source_sha256': compiled['source']['sha256'],

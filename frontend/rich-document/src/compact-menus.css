@@ -23,7 +23,7 @@
 .rt-colors-popover{width:216px!important;max-width:calc(100vw - 16px);padding:6px!important;gap:0!important}
 .rt-palette{font-size:12px;line-height:18px}.rt-swatches{display:grid;grid-template-columns:repeat(8,22px);gap:2px;margin:3px 0}
 .rt-swatches button{width:22px;height:22px;padding:0;border:1px solid var(--border-default);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:14px;line-height:18px;background:var(--surface)}
-.rt-swatches button[aria-pressed=true]{border-color:var(--accent-default);box-shadow:inset 0 0 0 1px var(--accent-default)}
+.rt-swatches button[aria-pressed=true]{border-color:var(--control-focus);box-shadow:inset 0 0 0 1px var(--control-focus)}
 .rt-reset-color{width:100%;height:28px;border:1px solid var(--border-default);border-radius:4px;font-size:12px;padding:3px;margin-top:4px}
 .rt-menu-error{font-size:12px;color:var(--status-danger);padding:8px}
 @media(max-width:650px){.rt-block-trigger{width:24px;border:0;padding:2px;background:transparent}.rt-block-trigger>svg:last-child{display:none}}
