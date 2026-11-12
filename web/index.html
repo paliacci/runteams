@@ -1702,7 +1702,7 @@ async function refreshInterventions(options={}){
  if(_interventionsRefreshPromise?.scope===`${generation}:${token}`)return _interventionsRefreshPromise;
  const pending=(async()=>{try{
   if(RunTeamsHost.session.workspace(S))throw new Error('当前工作区暂时无法加载待处理事项，请稍后重试。');
-  const value=await api('/api/device/work/interventions');
+  const value=await api('/api/device/work/interventions?view=sidebar');
   if(generation!==_workspaceBusinessGeneration||token!==workspaceAccountCacheToken())return;
   if(value.error||value.storage_scope!=='device'||!Array.isArray(value.items))throw new Error(value.error||'本机待处理事项暂时无法读取。');
   S.interventions=value.items;S.interventionsError='';
@@ -1921,7 +1921,7 @@ async function syncChats(){
   }catch(error){}finally{_chatSyncBusy=false;}await workSync;
 }
 
-async function syncInterventions(){if(_attentionSyncBusy||document.hidden)return;_attentionSyncBusy=true;const before=(S.interventions||[]).map(item=>`${item.id}:${item.created_at}:${item.reason}`).join("|");try{await refreshInterventions({render:false});const after=(S.interventions||[]).map(item=>`${item.id}:${item.created_at}:${item.reason}`).join("|");if(before!==after)render();}catch(error){}finally{_attentionSyncBusy=false;}}
+async function syncInterventions(){if(_attentionSyncBusy||document.hidden)return;_attentionSyncBusy=true;const before=JSON.stringify(S.interventions||[]);try{await refreshInterventions({render:false});if(before!==JSON.stringify(S.interventions||[]))render();}catch(error){}finally{_attentionSyncBusy=false;}}
 async function syncTrash(){
   if(_trashSyncBusy||S.booting||S.pageTransition||S.trashLoading||S.surface!=="trash"||!documentsLocalAvailable()||document.hidden||Date.now()<_trashNextAt)return;
   _trashSyncBusy=true;try{await refreshTrash({silent:true,renderIfChanged:true});}catch(error){}finally{_trashSyncBusy=false;}

@@ -30,10 +30,14 @@ def _definition(ref):
     project = strict_json(files['project.json'])
     if ref['pipeline_source'] not in project['entrypoints'].get('pipelines', []):
         raise ContractError('流水线源码入口已不存在。')
-    asset = strict_json(files[ref['pipeline_source']])
+    return revision, _pipeline_definition(files, ref['pipeline_source']), files
+
+
+def _pipeline_definition(files, path):
+    asset = strict_json(files[path])
     from runteams_core.authoring.creator_definitions import validate_author
     validate_author('pipeline', asset)
-    return revision, asset, files
+    return asset
 
 
 def catalog(core):
@@ -48,14 +52,17 @@ def catalog(core):
         page = store.list(after)
         for item in page['items']:
             try:
-                files = Revisions(store, item['id']).files()
+                revisions = Revisions(store, item['id'])
+                with revisions.locked():
+                    revision = revisions._head()
+                    files = revisions._files(revision)
                 project = strict_json(files['project.json'])
                 for path in project['entrypoints'].get('pipelines', []):
                     if (item['id'], path) in removed:
                         continue
                     ref = pipeline_references.reference(item['id'], path)
-                    revision, asset, source_files = _definition(ref)
-                    avatar_src = image_src(source_fields(asset, source_files))
+                    asset = _pipeline_definition(files, path)
+                    avatar_src = image_src(source_fields(asset, files))
                     rows.append({'reference': ref, 'name': asset['pipeline']['name'], 'revision': revision,
                                  'allowed_modes': allowed_modes(ref), **({'avatar_src': avatar_src} if avatar_src else {})})
             except (ValueError, OSError, ContractError) as exc:
