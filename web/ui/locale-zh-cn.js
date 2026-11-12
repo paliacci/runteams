@@ -748,7 +748,6 @@ globalThis.RUNTEAMS_LOCALES = {
   "sidebarAttention.failed": "无法读取待处理事项。",
   "sidebarAttention.retry": "重试",
   "sidebarAttention.loading": "正在读取待处理事项…",
-  "sidebarAttention.empty": "没有待处理事项。",
   "pipelineBoard.taskBoard": "任务看板",
   "pipelineBoard.pipeline": "流水线",
   "pipelineBoard.iconChange": "更换流水线图标",

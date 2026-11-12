@@ -42,20 +42,14 @@
     const nameCopy=subtitle?` title="${escape(subtitle)}"`:` data-app-i18n="sidebarAttention.${kind}"`;
     const icon=employee?.name&&host.avatar?host.avatar(employee):host.icon(kind==='pipeline'?'flow':kind==='automation'?'clock':'user');
     return `<button type="button" class="rail-pending-item" data-pending-key="${escape(item.key)}" onclick="RunTeamsSidebar.openItem(this.dataset.pendingKey)"><span class="rail-pending-source-icon${kind==='pipeline'&&!employee?.name?' is-pipeline-fallback':''}" aria-hidden="true">${icon}</span><span class="rail-pending-copy"><span class="rail-pending-title" title="${escape(title)}"${titleCopy}>${escape(title)}</span><small${nameCopy}>${escape(subtitle||fallback)}</small></span></button>`;}
-  function readState(value){
+  const statusCopy=count=>`<span data-app-i18n="sidebarAttention.${count?'partial':'failed'}">${count?'部分待处理事项无法读取。':'无法读取待处理事项。'}</span>`;
+  function contents(values,value){
     const local=!!value.localReady&&!!host.localWork;
     const failed=state.status==='error'||local&&state.localStatus==='error'||!value.deviceWorkOnly&&!value.ready&&state.localStatus==='ready';
-    const ready=value.deviceWorkOnly?state.localStatus==='ready':state.status==='ready'&&(!local||state.localStatus==='ready');
-    return {failed,ready};
-  }
-  const statusCopy=count=>`<span data-app-i18n="sidebarAttention.${count?'partial':'failed'}">${count?'部分待处理事项无法读取。':'无法读取待处理事项。'}</span>`;
-  const emptyCopy='<div class="rail-section-hint" role="status" data-app-i18n="sidebarAttention.empty">没有待处理事项。</div>';
-  function contents(values,value){
-    const {failed,ready}=readState(value);
     const expanded=state.expanded,shown=expanded?values:values.slice(0,initialSize);
     const more=values.length>initialSize?`<button class="rail-section-more rail-pending-more" type="button" aria-expanded="${expanded}" aria-controls="rail-pending-items" onclick="RunTeamsSidebar.toggleMore()" data-app-i18n="sidebarAttention.${expanded?'showLess':'showMore'}">${expanded?'显示更少':'显示更多'}</button>`:'';
     const error=failed?`<div class="rail-pending-error" role="alert">${statusCopy(values.length)}${global.RunTeamsLoadFailure.button({variant:'local',compact:true,retry:'RunTeamsSidebar.refresh(true)',labelKey:'sidebarAttention.retry',busyLabelKey:'sidebarAttention.loading',busy:!!state.pending||!!state.localPending,focusFallback:'[data-rail-section="pending"] > summary'})}</div>`:'';
-    const body=`<div id="rail-pending-items">${shown.map(row).join('')}</div>`+more+error+(!shown.length&&!error&&ready?emptyCopy:'');
+    const body=`<div id="rail-pending-items">${shown.map(row).join('')}</div>`+more+error;
     return `<details class="rail-pending-section" data-rail-section="pending" ${host.sectionOpen()?'open':''}><summary class="rail-section-toggle" onclick="RunTeamsSidebar.toggle(event)"><span data-app-i18n="sidebarAttention.title">待处理</span><span class="rail-section-chevron" aria-hidden="true">${host.icon('chev')}</span></summary><div class="rail-pending-list">${body}</div></details>`;
   }
   function markup(){const value=context(),html=value.signedIn?contents(items(),value):'';return `<section data-sidebar-pending ${html?'':'hidden'} aria-label="待处理" data-app-i18n-aria-label="sidebarAttention.title">${html}</section>`;}

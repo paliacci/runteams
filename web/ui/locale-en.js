@@ -747,7 +747,6 @@ globalThis.RUNTEAMS_LOCALES.en = {
   "sidebarAttention.failed": "Couldn’t load items that need attention.",
   "sidebarAttention.retry": "Try Again",
   "sidebarAttention.loading": "Loading items…",
-  "sidebarAttention.empty": "Nothing needs your attention.",
   "pipelineBoard.taskBoard": "Task Board",
   "pipelineBoard.pipeline": "Pipeline",
   "pipelineBoard.iconChange": "Change pipeline icon",
