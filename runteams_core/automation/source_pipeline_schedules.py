@@ -152,30 +152,40 @@ class PipelineSchedules(EmployeeSchedules):
         c.execute("INSERT OR IGNORE INTO occurrences(schedule_id,scheduled_for,operation_id,status,snapshot) VALUES(?,?,?,'queued',?)",(row['id'],scheduled,op,canonical(request)))
 
     def materialize_due_automations(self,limit=20,has_open_work=None):
-        if self.dispatch_ids() == ():return
-        self.reconcile();core=self.core()
         from runteams_core.automation import automation_time
-        with _gate,self.connection(write=True) as c:
+        with _gate:
             selection,ids=self.dispatch_selection('id')
-            rows=c.execute("SELECT * FROM schedules WHERE enabled=1 AND deleted=0 AND next_run_at<>'' AND next_run_at<=?"+selection+" ORDER BY next_run_at,id LIMIT ?",(automation_time.now(),*ids,min(20,limit))).fetchall()
-            for row in rows:
-                try:
-                    if control.read(core,json.loads(row['reference']))['status']!='running':raise ContractError('流水线已暂停，本次未创建工作。')
-                    self.fire(c,row,row['next_run_at'])
-                except ContractError as exc:
-                    c.execute("INSERT OR IGNORE INTO occurrences(schedule_id,scheduled_for,operation_id,status,snapshot,reason) VALUES(?,?,?,'skipped',?,?)",(row['id'],row['next_run_at'],str(uuid.uuid4()),canonical(dict(row)),str(exc)))
-                c.execute('UPDATE schedules SET next_run_at=? WHERE id=?',(next_run(row['schedule_kind'],row['interval_sec'],json.loads(row['schedule'])),row['id']))
+            statement = ("SELECT * FROM schedules WHERE enabled=1 AND deleted=0 AND next_run_at<>'' "
+                         "AND next_run_at<=?" + selection + " ORDER BY next_run_at,id LIMIT ?")
+            params = (automation_time.now(), *ids, min(20,limit))
+            with self.connection() as c:
+                if c is None or c.execute(statement,params).fetchone() is None:return
+            core=self.core()
+            with self.connection(write=True) as c:
+                for row in c.execute(statement,params).fetchall():
+                    try:
+                        if control.read(core,json.loads(row['reference']))['status']!='running':raise ContractError('流水线已暂停，本次未创建工作。')
+                        self.fire(c,row,row['next_run_at'])
+                    except ContractError as exc:
+                        c.execute("INSERT OR IGNORE INTO occurrences(schedule_id,scheduled_for,operation_id,status,snapshot,reason) VALUES(?,?,?,'skipped',?,?)",(row['id'],row['next_run_at'],str(uuid.uuid4()),canonical(dict(row)),str(exc)))
+                    c.execute('UPDATE schedules SET next_run_at=? WHERE id=?',(next_run(row['schedule_kind'],row['interval_sec'],json.loads(row['schedule'])),row['id']))
 
     def claim_next_automation_run(self):
-        if self.dispatch_ids() == ():return
-        core=self.core()
-        with _gate,self.connection(write=True) as c:
+        with _gate:
             selection,ids=self.dispatch_selection('schedule_id')
-            for row in c.execute("SELECT * FROM occurrences WHERE status='queued'"+selection+" ORDER BY id",ids).fetchall():
+            with self.connection() as c:
+                rows=[] if c is None else c.execute(
+                    "SELECT * FROM occurrences WHERE status='queued'"+selection+" ORDER BY id",ids).fetchall()
+            if not rows:return
+            core=self.core()
+            for row in rows:
                 ref=json.loads(row['snapshot'])['reference']
                 if control.read(core,ref)['status']!='running':continue
-                c.execute("UPDATE occurrences SET status='running' WHERE id=?",(row['id'],))
-                return {**dict(row),'automation_id':row['schedule_id']}
+                allowed = self.dispatch_ids()
+                if allowed is not None and row['schedule_id'] not in allowed:continue
+                with self.connection(write=True) as c:
+                    if c.execute("UPDATE occurrences SET status='running' WHERE id=? AND status='queued'",(row['id'],)).rowcount:
+                        return {**dict(row),'automation_id':row['schedule_id']}
 
     def _receipt(self,core,request):
         key,body=work._request(request)
@@ -213,8 +223,9 @@ class PipelineSchedules(EmployeeSchedules):
             if self.dispatch_ids() == ():return
             selection,ids=self.dispatch_selection('schedule_id')
             with self.connection() as c:rows=[] if c is None else [dict(r) for r in c.execute("SELECT * FROM occurrences WHERE status IN ('running','waiting','blocked','interrupted')"+selection,ids)]
-            if not rows:return
+            if not rows:return False
             core=self.core()
+            tracking=False
             for row in rows:
                 if row['id'] in self._executing:continue
                 request=json.loads(row['snapshot']);identifier=row['workflow_id'] or self._receipt(core,request)
@@ -224,7 +235,9 @@ class PipelineSchedules(EmployeeSchedules):
                 if current and status=='waiting':
                     try:core.repository.storage.assert_executable(identifier)
                     except ContractError as error:status,reason='interrupted',str(error)
-                with self.connection(write=True) as c:c.execute('UPDATE occurrences SET status=?,workflow_id=?,reason=? WHERE id=?',(status,identifier,reason,row['id']))
+                self.record_outcome(row,status,identifier,reason)
+                tracking |= identifier is not None and status in ('waiting','blocked','interrupted')
+            return tracking
 
     def finish_automation_run(self,identifier,status,reason=''):
         with self.connection() as c:row=None if c is None else c.execute('SELECT * FROM occurrences WHERE id=?',(identifier,)).fetchone()

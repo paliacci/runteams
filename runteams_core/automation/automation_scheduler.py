@@ -28,6 +28,7 @@ class AutomationScheduler:
             with self.operation_scope():self._run_authorized(job,cancel_event)
         finally:
             with self._lock:self._active.pop((id(job['_backend']),int(job['id'])),None)
+            self._wake.set()
 
 
     def start(self):
@@ -87,30 +88,47 @@ class AutomationScheduler:
         return not any(control["thread"].is_alive() for control in controls)
 
     def _loop(self):
-        self._last_tick=0.0
+        self._next_reconcile = 0.0
         while not self._stopping.is_set():
-            try:
-                with self.operation_scope():launched=self._step()
-            except Exception as error:
-                self.cloud_error=str(error);launched=False
-            self._wake.wait(0.05 if launched else self.poll_interval)
             self._wake.clear()
+            if self._stopping.is_set():
+                break
+            try:
+                with self.operation_scope():
+                    delay = self._step()
+            except Exception as error:
+                self.cloud_error = str(error)
+                delay = self.poll_interval
+            self._wake.wait(delay)
 
     def _step(self):
-        if self._dispatch_backends() and self.on_tick and time.monotonic() - self._last_tick >= 2:
-            self._last_tick = time.monotonic()
-            try:
-                self.on_tick()
-            except Exception:
-                pass
-        try:
-            for store in self._dispatch_backends():
-                store.materialize_due_automations(
-                    limit=20, has_open_work=self.has_open_work_by_backend.get(
-                        store, self.has_open_work if store is self.default_backend else None))
-        except Exception:
-            pass
-        launched = False
+        backends = self._dispatch_backends()
+        if not backends:
+            return None
+        self.cloud_error = ''
+        deadlines = {}
+        for store in backends:
+            if callable(getattr(type(store), 'seconds_until_due', None)):
+                seconds = store.seconds_until_due()
+                deadlines[store] = None if seconds is None else time.monotonic() + seconds
+        now = time.monotonic()
+        due = [store for store in backends if deadlines.get(store, 0) is not None
+               and deadlines.get(store, 0) <= now]
+        if due or time.monotonic() >= self._next_reconcile:
+            if self.on_tick:
+                tracking = self.on_tick()
+            else:
+                outcomes = [store.reconcile() for store in backends
+                            if callable(getattr(type(store), 'reconcile', None))]
+                tracking = any(outcomes)
+            self._next_reconcile = time.monotonic() + 2 if tracking else 0.0
+        for store in due:
+            store.materialize_due_automations(
+                limit=20, has_open_work=self.has_open_work_by_backend.get(
+                    store, self.has_open_work if store is self.default_backend else None))
+            if store in deadlines:
+                seconds = store.seconds_until_due()
+                deadlines[store] = None if seconds is None else time.monotonic() + seconds
         while not self._stopping.is_set():
             with self._lock:
                 if len(self._active) >= self.max_concurrency:
@@ -121,7 +139,6 @@ class AutomationScheduler:
                         break
                     try:
                         job = self._claim_job(store)
-                        self.cloud_error = ''
                     except Exception as exc:
                         self.cloud_error = str(exc)
                         job = None
@@ -150,8 +167,17 @@ class AutomationScheduler:
                 # section. Pause/delete can therefore never miss a claimed
                 # occurrence in the tiny gap before it becomes cancellable.
                 thread.start()
-            launched = True
-        return launched
+        delays = []
+        if self.cloud_error:
+            delays.append(self.poll_interval)
+        if self._next_reconcile:
+            delays.append(max(0.0, self._next_reconcile - time.monotonic()))
+        if len(deadlines) != len(backends):
+            delays.append(self.poll_interval)
+        # Bound the wait to notice a forward system-clock change or wake from sleep.
+        now = time.monotonic()
+        delays.extend(max(0, min(deadline - now, 60)) for deadline in deadlines.values() if deadline is not None)
+        return min(delays, default=None)
 
 
     def _run_authorized(self, job, cancel_event):
@@ -177,4 +203,3 @@ class AutomationScheduler:
                     self.on_state_change()
                 except Exception:
                     pass
-            self._wake.set()

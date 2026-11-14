@@ -379,10 +379,15 @@ class EmployeeSchedules:
             (row['id'], scheduled, str(uuid.uuid4()), canonical(dict(row))))
 
     def materialize_due_automations(self, limit=20, has_open_work=None):
-        self.reconcile()
         from runteams_core.automation import automation_time as time_rules
+        statement = ("SELECT * FROM schedules WHERE enabled=1 AND deleted=0 AND next_run_at<>'' "
+                     "AND next_run_at<=? ORDER BY next_run_at,id LIMIT ?")
+        params = (time_rules.now(), min(20, limit))
+        with self.connection() as c:
+            if c is None or c.execute(statement, params).fetchone() is None:
+                return
         with self.connection(write=True) as c:
-            for row in c.execute("SELECT * FROM schedules WHERE enabled=1 AND deleted=0 AND next_run_at<>'' AND next_run_at<=? ORDER BY next_run_at LIMIT ?", (time_rules.now(), min(20, limit))).fetchall():
+            for row in c.execute(statement, params).fetchall():
                 try:
                     from runteams_core.employees.managed_employee_data import writer_busy
                     if writer_busy(json.loads(row['reference'])):
@@ -395,12 +400,28 @@ class EmployeeSchedules:
                     (next_run(row['schedule_kind'], row['interval_sec'], json.loads(row['schedule'])), row['id']))
 
     def claim_next_automation_run(self):
+        statement = "SELECT * FROM occurrences WHERE status='queued' ORDER BY id LIMIT 1"
+        with self.connection() as c:
+            if c is None or c.execute(statement).fetchone() is None:
+                return None
         with self.connection(write=True) as c:
-            row = c.execute("SELECT * FROM occurrences WHERE status='queued' ORDER BY id LIMIT 1").fetchone()
+            row = c.execute(statement).fetchone()
             if row is None:
                 return None
             c.execute("UPDATE occurrences SET status='running' WHERE id=?", (row['id'],))
             return {**dict(row), 'automation_id': row['schedule_id']}
+
+    def seconds_until_due(self):
+        from runteams_core.storage.local_database import timestamp
+        selection, ids = self.dispatch_selection('id')
+        with self.connection() as c:
+            due = None if c is None else c.execute(
+                "SELECT min(next_run_at) FROM schedules WHERE enabled=1 AND deleted=0 AND next_run_at<>''"
+                + selection, ids).fetchone()[0]
+        return None if due is None else max(0, (timestamp(due) - datetime.now(timezone.utc)).total_seconds())
+
+    def dispatch_selection(self, column):
+        return '', ()
 
     def admitted(self, core, operation):
         events = core.repository.events('employee-schedule:' + operation)
@@ -454,31 +475,39 @@ class EmployeeSchedules:
             rows = [] if c is None else [dict(r) for r in c.execute("SELECT * FROM occurrences WHERE status IN ('waiting','running','blocked','interrupted')")]
         if not rows:
             self.recovering = False
-            return
+            return False
         core = None
+        tracking = False
         for row in rows:
             if row['status'] == 'running' and not self.recovering:
                 continue
             if row['chat_id']:
                 from runteams_core.automation.scheduled_employee_chat import outcome
                 status, reason = outcome(row['chat_id'])
-                with self.connection(write=True) as c:
-                    c.execute('UPDATE occurrences SET status=?,reason=? WHERE id=?', (status, reason, row['id']))
+                self.record_outcome(row, status, row['workflow_id'], reason)
+                tracking |= status in ('waiting', 'blocked')
                 continue
             is_source = json.loads(json.loads(row['snapshot'])['reference']).get('schema') == 'runteams.local-employee-reference/1'
             if is_source:
-                with self.connection(write=True) as c:
-                    c.execute("UPDATE occurrences SET status='interrupted',reason='原工作结果需要核对，不会自动重做。' WHERE id=?",(row['id'],))
+                self.record_outcome(row, 'interrupted', row['workflow_id'], '原工作结果需要核对，不会自动重做。')
                 continue
             core = core or self.controller_factory().core
             receipt = self.admitted(core, row['operation_id']) if not row['workflow_id'] else None
             workflow_id = row['workflow_id'] or (receipt or {}).get('workflow_id')
             work = core.workflow(workflow_id) if workflow_id else None
             status = work['state'] if work and work['state'] in ('completed', 'failed', 'canceled', 'blocked') else 'waiting' if work else 'interrupted'
-            with self.connection(write=True) as c:
-                c.execute('UPDATE occurrences SET status=?,workflow_id=?,reason=? WHERE id=?',
-                    (status, workflow_id, '' if work else '原运行结果需要核对，不会自动重做。', row['id']))
+            self.record_outcome(row, status, workflow_id, '' if work else '原运行结果需要核对，不会自动重做。')
+            tracking |= status in ('waiting', 'blocked') or status == 'interrupted' and workflow_id is not None
         self.recovering = False
+        return tracking
+
+    def record_outcome(self, row, status, workflow_id, reason):
+        previous = (row['status'], row['workflow_id'], row['reason'])
+        if previous != (status, workflow_id, reason):
+            with self.connection(write=True) as c:
+                c.execute('UPDATE occurrences SET status=?,workflow_id=?,reason=? WHERE id=? '
+                          'AND status=? AND workflow_id IS ? AND reason=? AND chat_id IS ?',
+                          (status, workflow_id, reason, row['id'], *previous, row['chat_id']))
 
     def add_automation_run_event(self, identifier, kind, content):
         with self.connection(write=True) as c:
