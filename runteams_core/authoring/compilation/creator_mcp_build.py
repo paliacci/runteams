@@ -40,6 +40,30 @@ class MCPSourceBuilder:
         from runteams_core.authoring.compilation.creator_dependencies import validate_dependency_sources
         validate_dependency_sources(files,compiled)
         values=packages(files,compiled)
+        self.validate_packages(values)
+        if require_work:
+            artifacts=definition_artifacts(files,compiled,require=True)
+        else:
+            from runteams_core.authoring.creator_conversation_assets import artifacts as conversation_artifacts
+            artifacts=conversation_artifacts(files,compiled)
+        mode=execution(files,compiled)
+        for row in mode['packages']:artifacts[row['artifact']]=values[row['source']]
+        if len(artifacts)>500 or sum(map(len,artifacts.values()))>32*1024*1024:raise CreatorContractError('artifact_limit')
+        sha=lambda b:hashlib.sha256(b).hexdigest()
+        project=compiled['project']
+        definition_kind=(definition_target(compiled) if require_work else
+                         'pipeline-conversation/v1' if compiled['pipelines'] else 'employee-conversation/v1')
+        manifest={'schema':'runteams.release/2','project_key':project['key'],'version':project['version'],
+            'source_sha256':compiled['source']['sha256'],'lock_sha256':sha(files[project['dependency_lock']]),
+            'artifacts':[{'path':p,'size':len(b),'sha256':sha(b),'target':definition_kind if p.startswith('definitions/') else 'mcpb/0.3-node'} for p,b in sorted(artifacts.items())],
+            'builder_sha256':identity(),'dependency_blobs':[{k:d[k] for k in ('key','version','sha256')} for d in compiled['dependencies']['dependencies']],
+            'execution':mode}
+        if values:manifest['build_resources']={'node_manifest_sha256':self.runtime.manifest_sha256,'parser_sha256':self.esbuild_sha256}
+        contract('release.schema.json',manifest)
+        return {'manifest':manifest,'artifacts':artifacts,'compiled':compiled,'operations':{}}
+
+    def validate_packages(self, values):
+        """Check package syntax and import closure without producing release artifacts."""
         if values:
             if self.runtime is None:
                 from runteams_core.employees.mcp.employee_mcp import platform_runtime
@@ -80,24 +104,3 @@ class MCPSourceBuilder:
                         for output in meta['outputs'].values():
                             if any(i.get('external') and i['path'].removeprefix('node:') not in builtins for i in output['imports']):
                                 raise CreatorContractError('mcp_dependency_missing',name)
-        if require_work:
-            artifacts=definition_artifacts(files,compiled,require=True)
-        else:
-            from runteams_core.authoring.creator_conversation_assets import artifacts as conversation_artifacts
-            artifacts=conversation_artifacts(files,compiled)
-        mode=execution(files,compiled)
-        by_source=values
-        for row in mode['packages']:artifacts[row['artifact']]=by_source[row['source']]
-        if len(artifacts)>500 or sum(map(len,artifacts.values()))>32*1024*1024:raise CreatorContractError('artifact_limit')
-        sha=lambda b:hashlib.sha256(b).hexdigest()
-        project=compiled['project']
-        definition_kind=(definition_target(compiled) if require_work else
-                         'pipeline-conversation/v1' if compiled['pipelines'] else 'employee-conversation/v1')
-        manifest={'schema':'runteams.release/2','project_key':project['key'],'version':project['version'],
-            'source_sha256':compiled['source']['sha256'],'lock_sha256':sha(files[project['dependency_lock']]),
-            'artifacts':[{'path':p,'size':len(b),'sha256':sha(b),'target':definition_kind if p.startswith('definitions/') else 'mcpb/0.3-node'} for p,b in sorted(artifacts.items())],
-            'builder_sha256':identity(),'dependency_blobs':[{k:d[k] for k in ('key','version','sha256')} for d in compiled['dependencies']['dependencies']],
-            'execution':mode}
-        if values:manifest['build_resources']={'node_manifest_sha256':self.runtime.manifest_sha256,'parser_sha256':self.esbuild_sha256}
-        contract('release.schema.json',manifest)
-        return {'manifest':manifest,'artifacts':artifacts,'compiled':compiled,'operations':{}}
