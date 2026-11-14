@@ -23,6 +23,10 @@ from runteams_core.work.hosts.native_work_owner import ACTIVE_WORK_LIMIT
 ROOT = resource_root()
 
 
+class WorkClientExpired(PermissionError):
+    pass
+
+
 def transport(config, path, payload=None, *, asset=False):
     target = urlsplit(config['origin' if asset else 'control'])
     if target.scheme != 'http' or target.hostname != '127.0.0.1' or not target.port or target.path:
@@ -55,17 +59,23 @@ class BrowserWorkHost:
             with self.lock:
                 stale = [token for token, client in self.clients.items() if time.monotonic() - client['seen'] > 180]
             for token in stale:
-                self.retire(token)
+                self.retire(token, idle=True)
 
-    def retire(self, token):
+    def retire(self, token, *, idle=False):
         with self.lock:
-            client = self.clients.pop(token, None)
-        if client:
-            with client['lock']:
-                works=list(client['works'].values())
-            for work in works:
-                try: work.close()
-                except Exception: pass  # Owner retirement may already have closed this work.
+            client = self.clients.get(token)
+        if not client:
+            return
+        with client['lock']:
+            with self.lock:
+                if self.clients.get(token) is not client or (idle and time.monotonic() - client['seen'] <= 180):
+                    return
+                del self.clients[token]
+            works=list(client['works'].values())
+        for work in works:
+            try: work.close()
+            except Exception: pass  # Owner retirement may already have closed this work.
+        if client['owner_registered']:
             try: self.router.client(client['id'], close=True)
             except Exception: pass  # Cleanup cannot confer authority or replay a mutation.
 
@@ -79,19 +89,23 @@ class BrowserWorkHost:
             with self.lock:
                 if self.closed.is_set() or len(self.clients) >= 32: raise PermissionError('work_host_unavailable')
                 token = secrets.token_urlsafe(32); client_id = str(uuid.uuid4())
-                self.router.client(client_id)
                 self.clients[token] = {'id':client_id, 'scope':current, 'origin':origin, 'works':{},
-                    'lock':threading.RLock(), 'seen':time.monotonic()}
+                    'lock':threading.RLock(), 'seen':time.monotonic(), 'owner_registered':False}
             return {'client':token}
         token = value.get('client')
         with self.lock:
             client = self.clients.get(token) if isinstance(token,str) else None
+            if not self.closed.is_set() and not client and action in ('discover', 'open'):
+                raise WorkClientExpired()
             if self.closed.is_set() or not client or client['scope'] != current or client['origin'] != origin:
                 raise PermissionError('work_scope_changed')
             client['seen'] = time.monotonic()
         with client['lock']:
             with self.lock:
-                if self.clients.get(token) is not client: raise PermissionError('work_scope_changed')
+                if self.clients.get(token) is not client:
+                    if action in ('discover', 'open'):
+                        raise WorkClientExpired()
+                    raise PermissionError('work_scope_changed')
             if action == 'detach': self.retire(token); return {'active':False}
             if action == 'heartbeat': return {'active':True}
             if action == 'discover':
@@ -102,6 +116,9 @@ class BrowserWorkHost:
                 if set(value) != {'action','client','workspace_id','chat_id','installation_id','view','input','operation_key'} or value['workspace_id'] != current[2]:
                     raise PermissionError('work_scope_changed')
                 payload = {key:value[key] for key in ('workspace_id','chat_id','installation_id','view','input','operation_key')}
+                if not client['owner_registered']:
+                    self.router.client(client['id'])
+                    client['owner_registered']=True
                 # Keep failed/unknown requests in the original owner's ledger.
                 opened = self.router.open(payload, client=client['id'])
                 if opened.get('state') != 'ready': raise RuntimeError('work_open_unknown')
@@ -258,6 +275,7 @@ def handle(handler):
                 handler.server.browser_work_host=BrowserWorkHost(handler.server.creator_router(),agent_interaction.scope)
             host_service=handler.server.browser_work_host
         return handler._json(host_service.call(value,origin))
+    except WorkClientExpired:return handler._json({'error':'工作界面已失效，请重新打开。','code':'work_client_expired'},403)
     except PermissionError:return handler._json({'error':'工作界面已失效，请重新打开。'},403)
     except (ValueError,TypeError,KeyError):return handler._json({'error':'工作界面请求无效。'},400)
     except Exception:return handler._json({'error':'工作界面回执尚未确认，请重新核对。'},503)

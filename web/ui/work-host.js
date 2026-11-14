@@ -9,7 +9,9 @@
     try{
     const response=await fetch('/api/work-host',{method:'POST',headers:{'Content-Type':'application/json','X-RunTeams-Work-Host':'1','X-RunTeams-Workspace':workspace()},
       body:JSON.stringify({...value,...(own?{client:own}:{})}),signal:controller.signal,keepalive:value.action==='detach'});
-    const result=await response.json();if(!response.ok||result.error)throw Error(result.error||'工作界面暂时不可用');return result;
+    const result=await response.json();
+    if(!response.ok||result.error)throw Object.assign(Error(result.error||'工作界面暂时不可用'),{code:result.code});
+    return result;
     }finally{clearTimeout(timeout);}
   }
   async function connect(){
@@ -21,6 +23,16 @@
       client=result.client;return client;
     }).finally(()=>{if(identity===expected)registration=null;});}
     return registration;
+  }
+  async function startWorkRequest(value){
+    const expected=account(),own=await connect();
+    try{return await http(value,own);}
+    catch(error){
+      if(error.code!=='work_client_expired'||works.size||expected!==account()||disposed)throw error;
+      // This response is returned before dispatch to the work owner.
+      if(client===own)client=null;
+      return http(value,await connect());
+    }
   }
   function send(work,value){work.node.contentWindow?.postMessage({channel:'runteams.work/1',id:work.id,epoch:work.epoch,...value},work.origin);}
   function valid(work){return works.get(work.id)===work&&identity===account()&&!disposed;}
@@ -107,10 +119,9 @@
   }
   async function call(value){
     if(native())return native().postMessage(value);
-    await connect();
-    if(value.action==='discover')return http(value);
+    if(value.action==='discover')return startWorkRequest(value);
     if(value.action==='open'){
-      const {frame,...request}=value,result=await http(request);
+      const {frame,...request}=value,result=await startWorkRequest(request);
       if(identity!==account())throw Error('工作界面已切换');
       const url=new URL(result.url);if(url.protocol!=='http:'||url.hostname!=='127.0.0.1')throw Error('工作界面地址无效');
       const node=document.createElement('iframe');node.title='工作内容';node.dataset.appI18nTitle='employeeWork.workContent';node.setAttribute('sandbox','allow-scripts allow-same-origin');node.referrerPolicy='no-referrer';
@@ -123,6 +134,7 @@
         return {mounted:true,id:work.id,chat_id:work.chat};
       }catch(error){await close(work);throw error;}finally{clearTimeout(timer);work.readyReject=null;}
     }
+    await connect();
     if(value.action==='detach'){clear();const own=client;client=null;return http({action:'detach'},own);}
     const work=works.get(value.id);if(!work||work.chat!==value.chat_id)throw Error('工作界面已失效');
     if(value.action==='unmount'){await close(work);return {mounted:false,id:work.id};}
@@ -142,7 +154,12 @@
     }
     throw Error('工作界面请求无效');
   }
-  setInterval(()=>{if(client&&!native())void http({action:'heartbeat'}).catch(()=>{clear(true);client=null;});},10000);
+  setInterval(()=>{
+    const own=client;
+    if(own&&works.size&&!native())void http({action:'heartbeat'},own).catch(()=>{
+      if(client===own){clear(true);client=null;}
+    });
+  },10000);
   window.addEventListener('pagehide',()=>{disposed=true;clear();if(client)void http({action:'detach'}).catch(()=>{});});
   window.RunTeamsWorkHost=Object.freeze({postMessage:call});
 })();
