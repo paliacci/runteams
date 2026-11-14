@@ -1,11 +1,12 @@
 // Private platform subprocess. MCP framing/negotiation belongs to the official SDK.
 // This channel is never exposed to author pages or accepted as a network endpoint.
-import {Client} from '@modelcontextprotocol/client';
+import {Client, InMemoryTransport, StreamableHTTPClientTransport, UnauthorizedError} from '@modelcontextprotocol/client';
 import {StdioClientTransport} from '@modelcontextprotocol/client/stdio';
 import {createInterface} from 'node:readline';
 import {Server} from '@modelcontextprotocol/server';
 import {StdioServerTransport} from '@modelcontextprotocol/server/stdio';
 import {request as httpRequest} from 'node:http';
+import {testServer} from './test-tools.mjs';
 
 let client, transport, opened = false;
 const send = value => process.stdout.write(JSON.stringify(value) + '\n');
@@ -81,4 +82,70 @@ async function proxy(endpoint) {
   server.setRequestHandler('tools/call', request => invoke('tools/call', request.params ?? {}));
   await server.connect(new StdioServerTransport());
 }
-(process.argv[2] === '--employee-proxy' ? proxy(process.argv[3]) : main()).catch(() => { process.exitCode = 1; });
+async function testConnection() {
+  const sendTest = reply => {
+    const line = JSON.stringify(reply);
+    send(Buffer.byteLength(line) > 1024 * 1024 ? {error:'response_too_large'} : reply);
+  };
+  const input = createInterface({input: process.stdin, crlfDelay: Infinity});
+  for await (const line of input) {
+    input.close();
+    const {url, token, tool, arguments: args} = JSON.parse(line);
+    const testClient = new Client({name:'RunTeams',version:'1.0.0'});
+    let testTransport, server;
+    let authRejected = false;
+    const unauthorized = error => authRejected || error instanceof UnauthorizedError;
+    try {
+      if (url) {
+        testTransport = new StreamableHTTPClientTransport(new URL(url), {
+          requestInit: {redirect: 'error', headers: token ? {Authorization: 'Bearer '+token} : {}},
+          fetch: async (input, options) => {
+            const response = await fetch(input, options);
+            if (response.status === 401 || response.status === 403) authRejected = true;
+            return response;
+          },
+          reconnectionOptions: {maxRetries: 0}
+        });
+      } else {
+        const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
+        testTransport = clientSide;
+        server = testServer();
+        await server.connect(serverSide);
+      }
+      await testClient.connect(testTransport, {timeout: 8000});
+      const options = {timeout: 12000};
+      if (tool) {
+        try {
+          const result = await testClient.callTool({name:tool,arguments:args}, undefined, options);
+          sendTest({result});
+        } catch (error) {
+          send({error: unauthorized(error) ? 'authentication'
+            : [-32601, -32602].includes(error.code) ? 'tool_error' : 'outcome_unknown'});
+        }
+      } else {
+        const tools = [];
+        const cursors = new Set();
+        let cursor;
+        do {
+          const page = await testClient.listTools(cursor ? {cursor} : {}, options);
+          tools.push(...page.tools);
+          cursor = page.nextCursor;
+          if (tools.length > 1000 || cursors.size >= 20 || cursors.has(cursor)) throw new Error('tool_budget');
+          if (cursor) cursors.add(cursor);
+        } while (cursor);
+        if (new Set(tools.map(item=>item.name)).size !== tools.length) throw new Error('duplicate_tool');
+        sendTest({result:{tools}});
+      }
+    } catch (error) {
+      send({error: unauthorized(error) ? 'authentication' : 'connection'});
+    } finally {
+      await testClient.close().catch(() => {});
+      await server?.close().catch(() => {});
+    }
+    return;
+  }
+}
+
+const mode = process.argv[2];
+(mode === '--employee-proxy' ? proxy(process.argv[3]) : mode === '--test-connection' ? testConnection() : main())
+  .catch(() => { process.exitCode = 1; });

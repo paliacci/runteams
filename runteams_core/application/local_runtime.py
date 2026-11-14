@@ -15,7 +15,7 @@ import uuid
 
 def handles(path):
     return path in {'/api/channels', '/api/model-catalog', '/api/channel-usage',
-                    '/api/environment', '/api/environment/capabilities', '/api/app-info', '/api/attachments/pick', '/api/work-folders', '/api/chats', '/api/conversations', '/api/device/page-ids'} or bool(
+                    '/api/environment', '/api/environment/capabilities', '/api/mcp-connections', '/api/app-info', '/api/attachments/pick', '/api/work-folders', '/api/chats', '/api/conversations', '/api/device/page-ids'} or bool(
         re.fullmatch(r'/api/work-folders/(?:pick|clear|bind|open)', path) or
         re.fullmatch(r'/api/chat/[1-9][0-9]*/attachment/[a-f0-9]{24}', path) or
         re.fullmatch(r'/api/channel/[1-9][0-9]*/(?:probe|connect|remove)', path) or
@@ -442,6 +442,11 @@ class LocalRuntime:
 
     def dispatch(self, method, path, data):
         from runteams_core.agents.models import model_channels
+        if path == '/api/mcp-connections':
+            from runteams_core.employees.mcp.mcp_connections import dispatch
+            from runteams_core.employees.mcp.employee_mcp import platform_runtime
+            with self.scope():
+                return dispatch(method, data, platform_runtime)
         metadata = path == '/api/attachments/pick' or method == 'GET' or path.endswith(('/interaction', '/cancel')) or path in {'/api/channels','/api/model-catalog','/api/channel-usage','/api/environment'} or path.startswith('/api/channel/')
         with (nullcontext() if metadata or path.startswith('/api/work-folders') else self.lock), self.scope():
             if path.startswith('/api/work-folders'):

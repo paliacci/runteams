@@ -129,7 +129,8 @@ def present_step(event):
 def present_trace_events(events):
     return [{**item, 'event': present_step(item.get('event'))}
             if isinstance(item, dict) and item.get('type') == 'agent_event' else item
-            for item in events]
+            for item in events if not (isinstance(item, dict) and item.get('type') == 'agent_event'
+                                       and (item.get('event') or {}).get('kind') == 'employee_app_authorization')]
 
 
 def step_event(item, status, *, detail="", output=""):
