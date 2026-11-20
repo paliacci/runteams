@@ -50,6 +50,7 @@
     const requestId=observed?(global.crypto?.randomUUID?.()||Date.now().toString(36)+'-'+Math.random().toString(36).slice(2)):'';
     let responseCode='',responseOutcome='ok';
     const controller=new AbortController();
+    let retryDisconnect=read&&options.retryOnDisconnect===true;
     const timeout=()=>Object.assign(new Error(read?'读取超时或已取消，请重试。':'操作结果尚未确认，请重新读取后再试。'),{code:read?'read_timeout':'mutation_outcome_unknown'});
     const superseded=()=>Object.assign(new Error('请求已更新，请重试。'),{code:'request_superseded'});
     const job={key,order,cancel(){cancelled=true;controller.abort();if(!executing&&rejectWaiting){removeQueued();rejectWaiting(superseded());}}};
@@ -73,7 +74,7 @@
       if(!executing)queueMs=Math.round(now()-started);
       executing=true;
       attempts++;
-      const {readGroup,readSequence,readPriority,readCurrent,readDiagnostics,device,invalidates,...fetchOptions}=options;
+      const {readGroup,readSequence,readPriority,readCurrent,readDiagnostics,retryOnDisconnect,device,invalidates,...fetchOptions}=options;
       try{const response=await global.fetch(path,{...fetchOptions,...(observed?{headers:{...fetchOptions.headers,'X-RunTeams-Read-Id':requestId}}:{}),signal:controller.signal,cache:'no-store'});status=response.status;
         const text=await response.text();
         if(expired)throw timeout();
@@ -88,7 +89,19 @@
           catch(error){responseOutcome='invalid_json';responseCode='invalid_json';}
         }
         return {status,text};
-      }catch(error){if(error.name==='AbortError')throw read&&cancelled?superseded():timeout();throw error;}
+      }catch(error){
+        if(cancelled)throw read?superseded():timeout();
+        if(expired||error.name==='AbortError')throw timeout();
+        if(!retryDisconnect||error.name!=='TypeError')throw error;
+        retryDisconnect=false;
+        // A cached directory can survive a short service restart. Share the
+        // retry with current readers and keep the original scope and deadline.
+        await new Promise(resolve=>{
+          const finish=()=>{clearTimeout(delay);controller.signal.removeEventListener('abort',finish);resolve();};
+          const delay=setTimeout(finish,2000);
+          controller.signal.addEventListener('abort',finish,{once:true});
+        });
+      }
       }
     };
     const pending=read&&!options.device?new Promise((resolve,reject)=>{rejectWaiting=reject;job.execute=async()=>{try{resolve(await run());}catch(error){reject(error);}};pool.queue.push(job);pump(pool);}):run();

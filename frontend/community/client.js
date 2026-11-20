@@ -16,7 +16,7 @@ export class LocalClient {
     if (body !== undefined) headers['Content-Type'] = 'application/json';
     const response = await this.transport(path, {method, headers, body: body === undefined ? undefined : JSON.stringify(body), credentials: 'same-origin', redirect: 'error', device:true, readDiagnostics:false,
       invalidates:new URL(path,'http://localhost').pathname!=='/api/settings',
-      readGroup:options.readGroup,readSequence:options.readSequence,readPriority:options.readPriority,
+      readGroup:options.readGroup,readSequence:options.readSequence,readPriority:options.readPriority,retryOnDisconnect:options.retryOnDisconnect,
       readCurrent:options.readCurrent??(path==='/api/chats?device=1'&&method==='GET')}, JSON.stringify([this.libraryId,this.generation]));
     let value;
     try { value = JSON.parse(response.text); } catch { throw new LocalAPIError('invalid_response'); }

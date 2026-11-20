@@ -1661,7 +1661,8 @@ async function refreshChatDirectory(options={}){
  const current=()=>generation===_workspaceBusinessGeneration&&token===workspaceAccountCacheToken();
  const pending=(async()=>{try{
   if(RunTeamsHost.session.workspace(S))throw new Error('当前工作区暂时无法加载会话，请稍后重试。');
-  const result=await api('/api/chats?device=1',undefined,undefined,{readCurrent:true,readPriority:options.readPriority});
+  const result=await api('/api/chats?device=1',undefined,undefined,{readCurrent:true,readPriority:options.readPriority,
+   retryOnDisconnect:S.chatDirectoryLoaded&&options.readPriority==='background'});
   if(!current())return;
   if(result.error||!Array.isArray(result.chats))throw Object.assign(new Error(result.error||'本机对话列表没有载入'),{code:result.code||''});
   S.chats=result.chats;S.chatDirectoryLoaded=true;S.chatDirectoryError='';S.chatDirectoryErrorCode='';

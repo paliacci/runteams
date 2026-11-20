@@ -31,10 +31,10 @@
  const ownsTask=s=>!!s&&taskWorkspace()===s;
  function navigationTicket(){const owner=scope(),key=workspaceCurrentKey(),route=_routeSequence,switching=_workspaceSwitchSequence;return ()=>owner===scope()&&key===workspaceCurrentKey()&&route===_routeSequence&&switching===_workspaceSwitchSequence;}
  function leaveForBoard(){captureConversationPanelDraft();if(S.conversationPanel?.loading)++_conversationPanelLoadSequence;S.railMode='navigation';S._pendingRailMode='';saveRailLayout();}
- async function request(action,data={}){
+ async function request(action,data={},options={}){
   const token=scope(),configuration=action==='configuration'||action==='employee-configuration'||action==='work-configuration';
   const control=action==='control'||action==='control-operation',edit=action==='edit'||action==='edit-operation',flow=['flow','flow-operation','card','card-operation'].includes(action);let reply;
-  try{reply=await api('/api/device/work/source-pipelines/'+action,'POST',data,{readCurrent:action==='catalog'||action==='trash-catalog'||action==='workspace'||action==='settings'||action==='work',errorStatus:configuration||control||edit||flow});}
+  try{reply=await api('/api/device/work/source-pipelines/'+action,'POST',data,{readPriority:options.readPriority,retryOnDisconnect:options.retryOnDisconnect,readCurrent:action==='catalog'||action==='trash-catalog'||action==='workspace'||action==='settings'||action==='work',errorStatus:configuration||control||edit||flow});}
   catch(error){
    if(token!==scope())throw Error('工作区已改变，请重新打开流水线。');
    if((configuration||control||edit||flow)&&error.status>=400&&error.status<500)error.confirmedReply=true;
@@ -47,13 +47,13 @@
   if(action==='catalog'&&(!Array.isArray(reply.items)||!Array.isArray(reply.errors)||reply.items.some(row=>!referenceKey(row.reference)||typeof row.name!=='string'||S.localLibrary&&(row.reference.schema!=='runteams.local-pipeline-reference/1'||row.reference.storage_kind!=='local'||row.reference.library_id!==S.localLibrary.library_id))))throw Error('流水线目录回执无效。');
   return reply;
  }
- async function readCatalog(){
+ async function readCatalog({readPriority}={}){
   const token=scope();
   if(readCatalog.pending?.token===token)return readCatalog.pending;
   const own=++catalogSequence,active=()=>own===catalogSequence&&token===scope();
   const pending=(async()=>{
    try{
-    const reply=await request('catalog');
+    const reply=await request('catalog',{},{readPriority,retryOnDisconnect:catalogScope===token&&readPriority==='background'});
     if(active()){
      rows=reply.items;catalogScope=token;
      catalogError=reply.errors.length?'incomplete':'';catalogErrorScope=token;
@@ -77,9 +77,9 @@
   const token=scope();
   return {ready:catalogScope===token,loading:readCatalog.pending?.token===token,failed:catalogErrorScope===token&&!!catalogError};
  }
- async function refreshCatalog(){
+ async function refreshCatalog(options={}){
   if((!S.localLibrary&&!RunTeamsHost.session.ready(S))||RunTeamsHost.session.workspace(S)){++catalogSequence;rows=[];catalogScope='';catalogError='';catalogErrorScope='';return;}
-  try{await readCatalog();}catch{/* The current catalog error is shown in the sidebar. */}
+  try{await readCatalog(options);}catch{/* The current catalog error is shown in the sidebar. */}
   if(!S.booting)render();
  }
  const sidebarPinsKey=()=>`runteams_sidebar_source_pipeline_pins_v1:${durableScope()}`;
