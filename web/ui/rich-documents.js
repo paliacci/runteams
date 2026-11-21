@@ -99,20 +99,129 @@
   post(frame,'header-action',{action});
  }
  function exportCurrent(){editorAction('export');}
- async function downloadSaved(path){
+ // Store already-encoded attachments without recompression in a UTF-8 ZIP32 archive.
+ function zipFiles(files){
+  const utf8=new TextEncoder(),parts=[],directory=[];
+  const crcTable=Uint32Array.from({length:256},(_,i)=>{
+   for(let bit=0;bit<8;bit++)i=(i>>>1)^((i&1)?0xedb88320:0);
+   return i>>>0;
+  });
+  let offset=0,centralSize=0;
+  for(const {name,bytes} of files){
+   const path=utf8.encode(name);
+   let crc=0xffffffff;
+   for(const byte of bytes)crc=crcTable[(crc^byte)&255]^(crc>>>8);
+   crc=(crc^0xffffffff)>>>0;
+   const local=new DataView(new ArrayBuffer(30));
+   local.setUint32(0,0x04034b50,true);
+   local.setUint16(4,20,true);local.setUint16(6,0x800,true);local.setUint16(12,33,true);
+   local.setUint32(14,crc,true);local.setUint32(18,bytes.length,true);
+   local.setUint32(22,bytes.length,true);local.setUint16(26,path.length,true);
+   const central=new DataView(new ArrayBuffer(46));
+   central.setUint32(0,0x02014b50,true);central.setUint16(4,20,true);
+   new Uint8Array(central.buffer,6,26).set(new Uint8Array(local.buffer,4,26));
+   central.setUint32(42,offset,true);
+   parts.push(local.buffer,path,bytes);directory.push(central.buffer,path);
+   offset+=30+path.length+bytes.length;centralSize+=46+path.length;
+  }
+  const end=new DataView(new ArrayBuffer(22));
+  end.setUint32(0,0x06054b50,true);end.setUint16(8,files.length,true);end.setUint16(10,files.length,true);
+  end.setUint32(12,centralSize,true);end.setUint32(16,offset,true);
+  return new Blob([...parts,...directory,end.buffer],{type:'application/zip'});
+ }
+ function portableDelivery(doc,filename){
+  if(doc.schema!=='runteams.rich-document/1'||!Array.isArray(doc.blocks))throw Error('Invalid document');
+  const clean=name=>String(name).replace(/[/\\:\u0000-\u001f\u007f]/g,'_').replace(/^\.+|\.+$/g,'').slice(0,160)||'document';
+  const title=clean(filename.replace(/\.json$/i,'')).replace(/\.md$/i,'')||'document';
+  const files=new Map(),utf8=new TextEncoder();
+  const ref=p=>`[${p.label||p.blockId}](runteams://document/${p.documentId}#${p.blockId})`;
+  function inline(value){
+   if(typeof value==='string')return value;
+   if(Array.isArray(value))return value.map(inline).join('');
+   if(value?.type==='blockReference')return ref(value.props);
+   const text=value?.text??(value?.content?inline(value.content):'');
+   if(value?.href)return `[${text}](<${value.href}>)`;
+   return value?.styles?.code?'`'+text+'`':text;
+  }
+  function table(rows){
+   if(!rows.length)return '';
+   const line=r=>'| '+r.map(v=>String(v??'').replaceAll('|','\\|').replaceAll('\n','<br>')).join(' | ')+' |';
+   return [line(rows[0]),line(rows[0].map(()=>'---')),...rows.slice(1).map(line)].join('\n');
+  }
+  function fenced(text,language=''){
+   let width=3;for(const match of text.matchAll(/`+/g))width=Math.max(width,match[0].length+1);
+   const ticks='`'.repeat(width);
+   return ticks+language+'\n'+text+'\n'+ticks;
+  }
+  function blockText(b){
+   const p=b.props||{},text=inline(b.content),kind=b.type;
+   switch(kind){
+    case 'markdown':return p.text;
+    case 'heading':return '#'.repeat(Math.max(1,Math.min(6,Number(p.level)||1)))+' '+text;
+    case 'bulletListItem':return '- '+text;
+    case 'numberedListItem':return '1. '+text;
+    case 'checkListItem':return (p.checked?'- [x] ':'- [ ] ')+text;
+    case 'quote':return text.replace(/^/gm,'> ');
+    case 'codeBlock':return fenced(text,p.language);
+    case 'table':return table((b.content?.rows||[]).map(row=>row.cells.map(inline)));
+    case 'divider':return '---';
+    case 'reference':return ref(p);
+    case 'math':return '$$\n'+(p.formula||'')+'\n$$';
+    case 'metric':return [p.label,p.value].join(' ');
+    case 'barChart':case 'dataTable':case 'jsonData':{
+     const data=p.data?JSON.parse(p.data):doc.sources[p.source].data;
+     const tabular=p.data&&data.columns&&data.rows&&!data.invalidCells?.length;
+     const body=tabular?table([data.columns.map(c=>c.name),...data.rows.map(row=>data.columns.map(c=>row[c.id]))]):fenced(JSON.stringify(data,null,2),'json');
+     return [p.title,body].filter(Boolean).join('\n\n');
+    }
+    case 'file':case 'video':case 'image':{
+     if(!p.assetId)return p.name||'';
+     if(!/^[a-f0-9]{64}$/.test(p.assetId))throw Error('Invalid attachment');
+     const file=doc.assets?.[p.assetId];
+     if(!file)throw Error('Missing attachment');
+     const name='assets/'+p.assetId+'/'+clean(file.name);
+     if(!files.has(name)){
+      const data=String(file.data),i=data.indexOf(';base64,');
+      if(!data.startsWith('data:')||i<0)throw Error('Invalid attachment');
+      const binary=atob(data.slice(i+8)),bytes=new Uint8Array(binary.length);
+      for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
+      files.set(name,{name,bytes});
+     }
+     const label=(p.name||file.name).replace(/[\[\]\\]/g,'\\$&');
+     return (kind==='image'?'!':'')+`[${label}](${name.split('/').map(encodeURIComponent).join('/')})`;
+    }
+    default:return text;
+   }
+  }
+  function markdown(blocks){
+   return blocks.map(b=>{
+    let children=markdown(b.children||[]);
+    if(children&&['bulletListItem','numberedListItem','checkListItem'].includes(b.type))children=children.replace(/^/gm,'   ');
+    return [blockText(b),children].filter(Boolean).join('\n\n');
+   }).filter(Boolean).join('\n\n');
+  }
+  const body=markdown(doc.blocks),name=title+'.md';
+  if(!files.size)return {blob:new Blob([body],{type:'text/markdown;charset=utf-8'}),name};
+  return {blob:zipFiles([{name,bytes:utf8.encode(body)},...files.values()]),name:title+'.zip'};
+ }
+ async function downloadSaved(path,{handoff=false}={}){
   const scope=documentsBinding();
   try{
    const response=await fetch(path,{headers:RunTeamsHost.session.headers(S),redirect:'error'});
    const filename=response.headers.get('Content-Disposition')?.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
    if(!response.ok||!filename)throw Error();
    const blob=await response.blob();
-   if(scope===documentsBinding())download(blob,decodeURIComponent(filename));
+   const name=decodeURIComponent(filename);
+   if(handoff&&blob.size>128*1024*1024)throw Error('Export too large');
+   const file=handoff&&response.headers.get('Content-Type')?.includes('application/json')?
+    portableDelivery(JSON.parse(await blob.text()),name):{blob,name};
+   if(scope===documentsBinding())download(file.blob,file.name);
   }catch{
    if(scope===documentsBinding())toast('无法导出文件。请重试。','err','fileBrowser.exportFailed');
   }
  }
  function downloadDelivery(id){
-  return downloadSaved(deviceWorkPath(`/api/core/documents/${id}/download`)+'?format=markdown');
+  return downloadSaved(deviceWorkPath(`/api/core/documents/${id}/download`),{handoff:true});
  }
  function exportSaved(id){return downloadSaved(`/api/device/work/documents/${id}/download`);}
  function exportSelection(ids){return downloadSaved('/api/device/work/documents/export?'+new URLSearchParams({ids:ids.join(',')}));}

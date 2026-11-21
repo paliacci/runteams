@@ -1,52 +1,32 @@
-import base64
-from io import BytesIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
-from zipfile import ZipFile
 
-from runteams_core.application.http.local_document_http import dispatch
-from runteams_core.documents import rich_documents
 from runteams_core.foundation.contracts import ContractError
 from runteams_core.work.work_reports import _operate, _output_bytes
 
 
 class WorkHandoffTests(unittest.TestCase):
-    def test_saved_download_keeps_markdown_and_original_export(self):
-        from unittest.mock import Mock
-        core = Mock()
-        text = '# 审核\n\n- [ ] 修复 [定价页](https://example.com/pricing)\n'
-        core.document_detail.return_value = dict(id=1, name='检查.md', content_model='rich-document',
-                                                content=rich_documents.encode(rich_documents.from_markdown(text)))
-        path = '/api/device/work/documents/1/download'
-        file = dispatch(core, 'GET', path, {'format': 'markdown'})
-        self.assertEqual((file.filename, file.payload), ('检查.md', text.encode()))
-        self.assertTrue(dispatch(core, 'GET', path, {}).mime.startswith('application/json'))
-        core.document_detail.return_value = None
-        self.assertEqual(dispatch(core, 'GET', path, {'format':'markdown'}).status, 404)
-
-    def test_download_keeps_nested_evidence_links_and_media(self):
-        from unittest.mock import Mock
-        core = Mock()
-        doc = rich_documents.from_markdown('# 成果')
-        asset = 'a' * 64
-        doc['blocks'][0]['children'] = [
-            {'id':'one','type':'paragraph','content':[{'type':'link','href':'https://example.com','content':[{'text':'依据'}]}]},
-            {'id':'two','type':'jsonData','props':{'source':'receipt','title':'复核'}},
-            {'id':'three','type':'image','props':{'assetId':asset,'name':'proof.png','mime':'image/png'}}]
-        doc['sources']['receipt'] = {'label':'检查','data':{'observed':0,'unknown':None}}
-        core.document_detail.return_value = dict(id=1,name='内容/检查',content_model='rich-document',content=rich_documents.encode(doc))
-        with patch('runteams_core.documents.rich_document_assets.read', return_value={'data':'data:image/png;base64,'+base64.b64encode(b'image').decode()}):
-            file = dispatch(core, 'GET', '/api/device/work/documents/1/download', {'format':'markdown'})
-        self.assertEqual(file.filename, '内容_检查.zip')
-        with ZipFile(BytesIO(file.payload)) as z:
-            body = z.read('内容_检查.md').decode()
-            self.assertIn('[依据](<https://example.com>)', body)
-            self.assertIn('"unknown": null', body)
-            relative = 'assets/'+asset+'/proof.png'
-            self.assertIn(relative, body)
-            self.assertEqual(z.read(relative), b'image')
+    def test_author_workspace_routes_only_bound_delivery_to_current_work(self):
+        from runteams_core.documents.native_document_tools import dispatch
+        from runteams_core.agents.tools.agent_tool_registry import AgentToolError
+        session = {'kind':'employee_design', 'context':{'creator_employee_source':'employees/one.json'}}
+        context = {'chat_id':123}
+        values = {'operation':'create', 'name':'任务清单', 'content':'- [ ] 修正链接'}
+        with patch('runteams_core.storage.device_data.enabled',return_value=True), \
+                patch('runteams_core.storage.device_data.personal',return_value=True), \
+                patch('runteams_core.storage.product_store.device_chat',return_value=True), \
+                patch('runteams_core.storage.product_store.get_chat',return_value=session), \
+                patch('runteams_core.agents.tools.agent_tool_registry._work_report') as save:
+            dispatch('runteams_propose_document',values,context)
+            save.assert_called_once_with({'operation':'write','base_revision':0,'title':'任务清单','content':values['content']},context)
+            with self.assertRaises(AgentToolError):
+                dispatch('runteams_propose_document',{**values,'document_id':9},context)
+            session['context'].clear()
+            with self.assertRaises(AgentToolError):
+                dispatch('runteams_propose_document',values,context)
+            self.assertEqual(save.call_count,1)
 
     def test_import_checks_work_folder_scope_and_input(self):
         with TemporaryDirectory() as tmp:

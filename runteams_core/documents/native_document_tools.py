@@ -16,6 +16,32 @@ def dispatch(name, arguments, context):
     if chat_id and not store.device_chat(chat_id):
         raise registry.AgentToolError('原本机对话不存在，请重新打开。')
     session = store.get_chat(chat_id, include_messages=False) if chat_id else None
+    if (session and session.get('kind') == 'employee_design'
+            and session.get('context', {}).get('creator_employee_source') and name == 'runteams_propose_document'):
+        # This surface also accepts real assignments. Bind the result to the verified
+        # employee and initiating request, never to the personal document collection.
+        operation = arguments.get('operation')
+        allowed = {'operation','name','content','document','visualization','summary','note'}
+        if operation == 'update':
+            allowed.update(('document_id','base_revision'))
+            if type(arguments.get('document_id')) is not int or type(arguments.get('base_revision')) is not int:
+                raise registry.AgentToolError('更新成果需要原文档编号和当前版本。')
+        if operation not in ('create','update') or set(arguments) - allowed:
+            raise registry.AgentToolError('当前入口仅能保存此员工工作中的成果。')
+        body = arguments.get('content')
+        if 'document' in arguments:
+            from runteams_core.documents import rich_documents
+            if body is not None:
+                raise registry.AgentToolError('请在正文和完整文档之间选择一项。')
+            try:
+                body = rich_documents.narrative(arguments['document']) or arguments.get('name')
+            except ValueError as error:
+                raise registry.AgentToolError(str(error)) from error
+        values = {'operation':'write', 'base_revision':arguments.get('base_revision',0),'content':body}
+        for source, target in [('name','title'),('document','document'),('visualization','visualization'),('document_id','report_id')]:
+            if source in arguments:
+                values[target] = arguments[source]
+        return registry._work_report(values,context)
     if chat_id and (not session or session.get('kind') != 'general'):
         raise registry.AgentToolError('请从个人工作对话处理本机文档。')
     saved = (session or {}).get('context') or {}

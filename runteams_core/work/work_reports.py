@@ -304,7 +304,12 @@ def employee_call(arguments, context):
     employee=employee_host.resolve(context)
     if employee is None:raise PermissionError('请在已绑定员工的工作对话中维护汇报。')
     session=product_store.get_chat(context['chat_id'])
-    if session.get('kind')!='general':raise ContractError('员工创作对话不生成工作汇报，请进入工作对话。')
+    if session.get('kind') == 'employee_design':
+        author = employee_host.verify_authoring(session)
+        if not author or not same(author, employee['reference']) or arguments.get('operation') not in ('read','write') or 'path' in arguments:
+            raise PermissionError('请在已绑定的员工对话提交本次成果正文。')
+    elif session.get('kind') != 'general':
+        raise ContractError('请进入员工工作对话。')
     message=next((m for m in reversed(session.get('messages') or []) if m.get('role')=='user'),None)
     if not message:raise ContractError('原工作请求不存在。')
     binding={'schema':SCHEMA,'employee_reference':employee['reference'],'chat_id':session['id'],'message_id':message['id']}
