@@ -12,6 +12,13 @@
 .employee-application-name strong{font-weight:550;overflow-wrap:anywhere}
 .employee-application-name small,.employee-application-account{color:var(--text-secondary);font-size:var(--detail-meta-size,12px)}
 .employee-application-account{max-width:clamp(72px,22vw,176px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.employee-application-row:has(>.employee-application-account,>.employee-application-placeholder){
+ grid-template-columns:auto minmax(0,1fr) auto;grid-template-areas:"mark name menu" "mark account menu";row-gap:2px;align-content:center
+}
+.employee-application-row:has(>.employee-application-account,>.employee-application-placeholder)>.employee-application-mark{grid-area:mark}
+.employee-application-row:has(>.employee-application-account,>.employee-application-placeholder)>.employee-application-name{grid-area:name}
+.employee-application-row>.employee-application-account,.employee-application-row>.employee-application-placeholder{grid-area:account;max-width:100%}
+.employee-application-row:has(>.employee-application-account,>.employee-application-placeholder)>.employee-application-more{grid-area:menu}
 .btn.employee-application-more{display:grid;place-items:center;width:28px;height:28px;padding:0}
 .employee-application-more .i{width:14px;height:14px}
 .employee-application-footer{display:flex;justify-content:flex-end;padding-top:12px}
