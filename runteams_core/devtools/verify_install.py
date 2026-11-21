@@ -50,7 +50,7 @@ print(identity['version'])
                 descriptor = json.loads(process.stdout.readline())
                 opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
                 results = {}
-                pipeline_page = '/pipelines/' + '0' * 32
+                pipeline_page = '/pipelines/1a000000'
                 for path in ('/api/health', '/api/app-info', '/', pipeline_page, '/ui/work-page-host.js',
                              '/rich-document/dist/index.html', '/api/library'):
                     headers = {} if path == pipeline_page else {
