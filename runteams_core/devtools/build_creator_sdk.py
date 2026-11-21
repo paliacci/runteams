@@ -45,7 +45,7 @@ def verify_supported(schema):
 def generated():
     outputs = {}
     for profile, names, source in [
-        ('runtime', ['system.negotiate', 'data.query', 'data.mutate', 'connection.http'], 'v1/methods.json'),
+        ('runtime', ['system.negotiate', 'data.query', 'data.mutate', 'connection.http', 'application.status', 'application.call'], 'v1/methods.json'),
         ('view', ['context.read', 'context.select', 'context.update', 'draft.set', 'draft.discard', 'operation.invoke'], 'ui-v2/request.schema.json')]:
         raw = (ROOT / 'contracts/creator-system' / source).read_bytes()
         contract = json.loads(raw)

@@ -43,6 +43,20 @@ test('runtime preserves unknown original-key outcomes without retrying', () => {
   host.data.mutate=()=>({state:'confirmed',operation_key:'wrong',release_digest:'a'.repeat(64)});
   assert.throws(()=>createRuntime(host).data.mutate(input),e=>e.code==='sdk_invalid_reply' && e.outcome==='unknown');
 });
+test('employee runtime accepts paginated data, large application replies and multilingual drafts', () => {
+  const host = runtimeHost();
+  host.negotiate = () => ({sdk:'1.0.0', capabilities:['application.call','application.status','data.query','data.mutate']});
+  const value = {draft: '邮件草稿'.repeat(2500)};
+  host.data.query = () => ({items:[{id:'mail',revision:'1',value}],next_cursor:null});
+  const payload = {result: {data: 'x'.repeat(600 * 1024)}};
+  host.application = {status: () => ({connected:true,binding_key:'opaque'}), call: () => payload};
+  const rt = createRuntime(host);
+  const application = 'composio:mail';
+  assert.equal(rt.application.status({application}).binding_key, 'opaque');
+  assert.deepEqual(rt.application.call({application,tool:'FETCH',arguments:{},operation_key:runtimeKey('read')}), payload);
+  assert.deepEqual(rt.data.query({collection:'mail',limit:10}).items[0].value, value);
+  assert.equal(rt.data.mutate({collection:'mail',mutations:[{id:'mail',base_revision:'1',value}],operation_key:runtimeKey('save')}).state, 'confirmed');
+});
 test('view keys obey current UI contract, including numeric UUIDs', () => {
   assert.throws(()=>operationKey('12345678-1234-1234-1234-123456789abc'));
   assert.throws(()=>operationKey('A'));assert.throws(()=>operationKey('a'.repeat(65)));

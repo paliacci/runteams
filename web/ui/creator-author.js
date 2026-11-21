@@ -18,16 +18,54 @@ async function localCall(s,suffix='',options={}){
  const response=await fetch(localPath+suffix,{...options,credentials:'same-origin',cache:'no-store',redirect:'error',headers:{...sourceHeaders(s),...options.headers}});
  const value=await response.json();if(!response.ok||value.error)throw Object.assign(Error(value.error||'本机源码未能读取'),{rejected:response.status>=400&&response.status<500,code:value.code,receipt:value.receipt});return value;
 }
+function knowledgeOwner(s){
+ if(s.employeeSource)return s.employeeSource;
+ if(s.file?.kind!=='text'||!s.activeFile?.endsWith('.json'))return '';
+ try{return /^runteams\.(employee|pipeline)-source\//.test(JSON.parse(s.file.content).schema)?s.activeFile:'';}
+ catch{return '';}
+}
+async function attachKnowledge(){
+ const s=current();if(!s?.localDraft||busy(s)||s.editing)return;
+ const owner=knowledgeOwner(s);if(!owner)return;
+ s.saving=true;s.error='';repaint();
+ try{
+  await localCall(s,'/'+s.localDraft.id+'/attach-knowledge',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({owner,base_revision:s.revision,operation_key:crypto.randomUUID()})});
+ }catch(error){if(valid(s))s.error=error.message;}
+ finally{if(valid(s)){s.saving=false;await sync(true);repaint();}}
+}
+let importing=false;
+function choosePackage(){
+ if(importing)return;
+ const owner=deviceScope(),headers=sourceHeaders({library:S.localLibrary,deviceScope:owner});
+ const input=document.createElement('input');input.type='file';input.accept='.zip';
+ input.onchange=async()=>{
+  const file=input.files[0];if(!file||owner!==deviceScope()||importing)return;
+  importing=true;toast(RunTeamsLocale.t('materials.importing',{},'正在导入资产…'),'info');
+  try{
+   const response=await fetch(localPath+'/import',{method:'POST',credentials:'same-origin',redirect:'error',headers:{...headers,'Content-Type':'application/zip'},body:file});
+   const data=await response.json();if(owner!==deviceScope())return;
+   if(!response.ok)throw Error(data.error||RunTeamsLocale.t('materials.failed',{},'资产导入失败。'));
+   if(document.querySelector('[data-pipeline-create-fields]'))RunTeamsSourcePipelines.closeCreation();
+   await Promise.all([RunTeamsSourcePipelines.refreshCatalog(),RunTeamsEmployeeDirectory.refresh()]);
+   if(owner!==deviceScope())return;
+   toast(RunTeamsLocale.t('materials.imported',{},'资产已导入。'),'ok');
+   const flow=RunTeamsSourcePipelines.items().find(item=>item.reference?.source_id===data.id);
+   if(flow)await RunTeamsSourcePipelines.openReference(flow.reference);
+  }catch(error){if(owner===deviceScope())toast(error.message,'error');}
+  finally{importing=false;}
+ };
+ input.click();
+}
 async function exportSource(){
  const s=current();if(!s?.localDraft||!s.revision||busy(s)||s.editing)return;
  const id=s.localDraft.id,revision=s.revision,request=new AbortController();s.exportRequest=request;s.exporting=true;s.error='';repaint();
  try{
-  const response=await fetch(localPath+'/'+id+'/export?revision='+encodeURIComponent(revision),{signal:request.signal,credentials:'same-origin',cache:'no-store',redirect:'error',headers:sourceHeaders(s)});
+  const response=await fetch(localPath+'/'+id+'/export?revision='+encodeURIComponent(revision)+(s.employeeSource?'&entry='+encodeURIComponent(s.employeeSource):''),{signal:request.signal,credentials:'same-origin',cache:'no-store',redirect:'error',headers:sourceHeaders(s)});
   if(!valid(s)||s.localDraft?.id!==id||s.revision!==revision)return;
   if(!response.ok){s.error='无法导出源码包。请重试。';return;}
   if(response.headers.get('Content-Type')!=='application/zip'||response.headers.get('X-RunTeams-Source-Revision')!==revision){s.error='无法确认源码版本。请刷新后重试。';return;}
   const blob=await response.blob();if(!valid(s)||s.localDraft?.id!==id||s.revision!==revision)return;
-  if(!blob.size||blob.size>33*1024*1024){s.error='源码包无法使用。请重新导出。';return;}
+  if(!blob.size||blob.size!==Number(response.headers.get('Content-Length'))){s.error='源码包无法使用。请重新导出。';return;}
   const url=URL.createObjectURL(blob),link=document.createElement('a');link.href=url;link.download='runteams-source-'+id.slice(0,12)+'.zip';document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000);
  }catch(e){if(valid(s)&&s.localDraft?.id===id&&s.revision===revision&&e.name!=='AbortError')s.error='无法导出源码包。请重试。';}
  finally{if(valid(s)){s.exporting=false;s.exportRequest=null;repaint();}}
@@ -313,7 +351,7 @@ function resourceReceiptMarkup(s){
 function openOperation(kind,action){const s=current();if(!s)return;closeHistory(false);s.operationView=kind;syncOperationDialog();return action?.();}
 function closeOperation(){const s=operationOwner;if(s?.editing&&current()===s)capture();if(s){s.operationView=null;extension()?.closeOperation(s);}operationOwner=null;operationMarkup='';if(document.querySelector?.('.creator-operation-dialog'))closeModal();}
 function resourceActions(s){
- return `<div class="creator-asset-actions"><button class="btn sm" onclick="RunTeamsCreatorAuthor.edit()" ${busy(s)||s.file?.kind!=='text'?'disabled':''} data-app-i18n="employeeResource.edit">编辑文件</button><button class="btn sm" onclick="RunTeamsCreatorAuthor.add()" ${busy(s)?'disabled':''} data-app-i18n="employeeResource.add">添加文件</button><button class="btn sm" onclick="RunTeamsCreatorAuthor.remove()" ${busy(s)||!s.activeFile?'disabled':''} data-app-i18n="employeeResource.remove">删除文件</button><button class="btn sm" onclick="RunTeamsCreatorAuthor.exportSource()" ${busy(s)?'disabled':''} data-app-i18n="employeeResource.export">导出源码</button></div>`;
+ return `<div class="creator-asset-actions"><button class="btn sm" onclick="RunTeamsCreatorAuthor.edit()" ${busy(s)||s.file?.kind!=='text'?'disabled':''} data-app-i18n="employeeResource.edit">编辑文件</button><button class="btn sm" onclick="RunTeamsCreatorAuthor.add()" ${busy(s)?'disabled':''} data-app-i18n="employeeResource.add">添加文件</button><button class="btn sm" onclick="RunTeamsCreatorAuthor.remove()" ${busy(s)||!s.activeFile?'disabled':''} data-app-i18n="employeeResource.remove">删除文件</button>${knowledgeOwner(s)?`<button class="btn sm" onclick="RunTeamsCreatorAuthor.attachKnowledge()" ${busy(s)?'disabled':''} data-app-i18n="assetKnowledge.attachFolder">添加资产自带资料</button>`:''}<button class="btn sm" onclick="RunTeamsCreatorAuthor.exportSource()" ${busy(s)?'disabled':''} data-app-i18n="${s.employeeSource||s.files?.some(file=>file.path==='asset-materials.json')?'materials.export':'employeeResource.export'}">${s.employeeSource||s.files?.some(file=>file.path==='asset-materials.json')?'导出资产包':'导出源码'}</button></div>`;
 }
 function syncOperationDialog(){
  if(typeof openDialog!=='function')return;
@@ -441,10 +479,7 @@ function decorateHeader(){
  if(s.localDraft){
   // A cached action is presentation only; the handler always checks live facts.
   const actionsProvider=extension();
-  if(!actionsProvider){
-   actions.push({id:'build',label:s.build?.latest?.state==='running'?'查看构建':'构建',labelKey:s.build?.latest?.state==='running'?'employeeResource.viewBuild':'employeeResource.build',disabled:!!s.loading||!!s.editing||!!s.pending,onPress:()=>{if(current()===s)void openOperation('build',s.build?.latest?.state==='running'?readBuild:buildLocal);}});
-   actions.push({id:'resources',label:'更多操作',labelKey:'employeeResource.more',popup:'dialog',disabled,onPress:()=>{if(current()===s)openOperation('resource');}});
-  }
+  if(!actionsProvider)actions.push({id:'resources',label:'更多操作',labelKey:'employeeResource.more',popup:'dialog',disabled,onPress:()=>{if(current()===s)openOperation('resource');}});
   if(hasHistory(s))actions.push({id:'history',label:'历史版本',labelKey:'employeeHistory.title',platformId:'creator_history_trigger',popup:'dialog',expanded:!!s.historyOpen,disabled,onPress:()=>{if(current()===s)void history();}});
   if(actionsProvider)actions.push(...actionsProvider.header(s));
  }
@@ -455,5 +490,5 @@ function decorateHeader(){
   collapseLabel:s.configurationReturn?'返回员工设置':'关闭详情',collapseLabelKey:s.configurationReturn?'employeeHistory.backToSettings':undefined,extras:{text:'资源',textKey:'employeeSettings.resources',back,actions}});
 }
 for(const event of ['runteams:business-scope-will-change','runteams:business-scope-changed'])window.addEventListener(event,()=>{state?.exportRequest?.abort();if(operationOwner)closeOperation();releasePreview();state=null;});
-window.RunTeamsCreatorAuthor={historyList,leave,decorateHeader,openSource,openEmployee,close,exportSource,current,open,sync,select,edit,add,cancel,changed,pathChanged,save,remove,upload,receipt,retryLocalSave,drawer,capture,openLocal,history,closeHistory,retryHistory,confirmRestore,attachSourceActions,openOperation,closeOperation,restore,continueWithAgent,recoverAuthoring,buildLocal,readBuild,cancelBuild};
+window.RunTeamsCreatorAuthor={choosePackage,attachKnowledge,historyList,leave,decorateHeader,openSource,openEmployee,close,exportSource,current,open,sync,select,edit,add,cancel,changed,pathChanged,save,remove,upload,receipt,retryLocalSave,drawer,capture,openLocal,history,closeHistory,retryHistory,confirmRestore,attachSourceActions,openOperation,closeOperation,restore,continueWithAgent,recoverAuthoring,buildLocal,readBuild,cancelBuild};
 })();

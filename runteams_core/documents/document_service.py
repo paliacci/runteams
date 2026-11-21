@@ -679,6 +679,21 @@ class Documents(RepositoryService):
 
     DOCUMENT_SEARCH_MAX_BYTES = 2 * 1024 * 1024
 
+    # Stage pins remain readable from the work history. Once a task has a document,
+    # the main library lists its one root. Explicit folder placements stay visible.
+    def _task_document_filter(self):
+        from runteams_core.work.device_work import DeviceWorkStorage
+        if not isinstance(self.repository.storage, DeviceWorkStorage):
+            return ''
+        return """ AND (coalesce(json_extract(a.meta_json,'$.work_report.kind'),'') != 'pipeline_stage'
+        OR EXISTS (SELECT 1 FROM document_folder_entries f
+                   WHERE f.document_id=coalesce(json_extract(a.meta_json,'$.revision_of'),a.id))
+        OR NOT EXISTS (SELECT 1 FROM workflow_runs w JOIN artifacts report
+            ON json_extract(report.meta_json,'$.pipeline_task_report.task_id')=w.task_id
+            WHERE w.id=json_extract(a.meta_json,'$.work_report.workflow_id') AND report.trashed_at IS NULL
+            AND json_extract(report.meta_json,'$.source')='pipeline_task_report'
+            AND json_extract(report.meta_json,'$.revision_of')=report.id)) """
+
     def document_catalog(self, limit=500, query=""):
         """Project every published artifact with the lineage needed to read it.
 
@@ -695,7 +710,7 @@ class Documents(RepositoryService):
                 "FROM artifacts a "
                 "LEFT JOIN employee_runs er ON er.id=a.employee_run_id "
                 "LEFT JOIN workflow_runs wr ON wr.id=er.workflow_run_id "
-                "WHERE a.trashed_at IS NULL "
+                "WHERE a.trashed_at IS NULL " + self._task_document_filter() +
                 "ORDER BY a.id DESC LIMIT ?",
                 (max(limit, min(4000, limit * 4)),)).fetchall()
         with self.repository.connect() as connection:
@@ -716,38 +731,49 @@ class Documents(RepositoryService):
                 owner_names = self._document_owner_names(connection, owner_ids)
         return self._document_catalog_projection(rows, current_by_ref, chain_sizes, owner_names, limit, query)
 
-    def document_page(self, limit=40, query='', cursor=None, sort='created_at', descending=True):
+    def document_page(self, limit=40, query='', cursor=None, sort='created_at', descending=True, *, folder_id=None):
         from runteams_core.foundation.read_pages import scope_key, cursor_after, cursor_for, page_size
         size=page_size(limit)
         if sort not in ('created_at','name') or type(descending) is not bool:
             raise ContractError('文档排序无效')
         query=str(query or '').strip().lower()
-        scope=scope_key('documents',self._actor(),self.repository.data_epoch(),query,sort,descending)
+        scope_parts=('documents',self._actor(),self.repository.data_epoch(),query,sort,descending)
+        scope=scope_key(*scope_parts) if folder_id is None else scope_key(*scope_parts,folder_id)
         after=cursor_after(cursor,scope)
         if after is not None and (len(after)!=2 or not isinstance(after[0],str) or type(after[1]) is not int):
             raise ContractError('文档分页位置无效')
         direction='DESC' if descending else 'ASC';operator='<' if descending else '>'
         expression='lower(a.name)' if sort=='name' else 'a.created_at'
+        folder_join=folder_filter=folder_column=''
+        if folder_id is not None:
+            folder_join=(" LEFT JOIN document_folder_entries placement ON placement.document_id="
+                         "coalesce(json_extract(a.meta_json,'$.revision_of'),a.id)")
+            folder_column='placement.folder_id AS folder_id, '
+            folder_filter=' AND placement.folder_id=?' if folder_id else '' if query else ' AND placement.folder_id IS NULL'
         collected=[];sort_values={}
         with self.repository.connect() as connection:
             while len(collected)<=size:
-                params=[];position=''
+                params=[folder_id] if folder_id else [];position=''
                 if after is not None:
                     position=f' AND ({expression},a.id) {operator} (?,?)';params.extend(after)
                 rows=connection.execute(
                     'SELECT a.id,a.name,a.ref,a.meta_json,a.created_at,a.employee_run_id,'
-                    f'er.position_key,er.workflow_run_id,wr.task_id,wr.snapshot_json,{expression} AS page_sort, '
+                    f'er.position_key,er.workflow_run_id,wr.task_id,wr.snapshot_json,{expression} AS page_sort, {folder_column}'
                     "(SELECT count(*) FROM artifacts rev WHERE rev.trashed_at IS NULL AND coalesce(json_extract(rev.meta_json,'$.revision_of'),rev.id)=coalesce(json_extract(a.meta_json,'$.revision_of'),a.id)) AS chain_size "
                     'FROM artifacts a LEFT JOIN employee_runs er ON er.id=a.employee_run_id '
-                    'LEFT JOIN workflow_runs wr ON wr.id=er.workflow_run_id '
+                    'LEFT JOIN workflow_runs wr ON wr.id=er.workflow_run_id' + folder_join + ' '
                     'WHERE a.trashed_at IS NULL AND NOT EXISTS(SELECT 1 FROM artifacts newer WHERE newer.trashed_at IS NULL '
                     "AND coalesce(json_extract(newer.meta_json,'$.revision_of'),newer.id)=coalesce(json_extract(a.meta_json,'$.revision_of'),a.id) AND newer.id>a.id)"
-                    +position+f' ORDER BY {expression} {direction},a.id {direction} LIMIT 64',params).fetchall()
+                    +self._task_document_filter()+folder_filter+position+f' ORDER BY {expression} {direction},a.id {direction} LIMIT 64',params).fetchall()
                 if not rows:break
                 owner_ids={int(self._decode_meta(row['meta_json']).get('employee_id') or 0) for row in rows}
                 owners=self._document_owner_names(connection, owner_ids)
                 chain_sizes={int(self._decode_meta(row['meta_json']).get('revision_of') or row['id']):int(row['chain_size']) for row in rows}
                 items=self._document_catalog_projection(rows,{},chain_sizes,owners,size+1-len(collected),query)
+                if folder_id is not None:
+                    placements={row['id']:row['folder_id'] for row in rows}
+                    for item in items:
+                        item['folder_id']=placements[item['id']]
                 collected.extend(items)
                 sort_values.update({int(row['id']):row['page_sort'] for row in rows})
                 after=[rows[-1]['page_sort'],int(rows[-1]['id'])]
@@ -819,7 +845,7 @@ class Documents(RepositoryService):
                 "pipeline_id": int(snapshot.get("pipeline_id") or 0),
                 "pipeline_name": str(snapshot.get("pipeline_name") or
                                       ("" if is_agent_document or is_employee_document
-                                       else "未命名流水线")),
+                                       else "未命名智能体团队")),
                 "position_key": str(row["position_key"] or ""),
                 "position_name": self.position_display_name(position) if position else str(row["position_key"] or ""),
                 "employee_id": (int(meta.get("employee_id") or 0) if is_employee_document

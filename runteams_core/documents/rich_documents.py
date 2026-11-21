@@ -150,14 +150,14 @@ def narrative(value):
 
 
 def write(core, *, name, document, document_id=None, base_revision=0, document_key=None, author='human', data_view=None, note='',
-          task_report=None, connection=None):
+          task_report=None, connection=None, attachments=None):
     title = str(name or '').strip()
     if not title or len(title)>200: raise ContractError('请填写文档名称，最多200个字。')
     if type(base_revision) is not int or base_revision < 0: raise ContractError('请先读取当前文档再保存。')
-    body = encode(document).encode()
+    document = validate(document)
     from runteams_core.documents.document_service import _normalize_agent_document_key, _normalize_document_data_view
     data_view=_normalize_document_data_view(data_view)
-    if task_report is not None and (connection is None or author != 'system'):
+    if (task_report is not None or attachments) and (connection is None or author != 'system' or task_report is None):
         raise ContractError('任务汇报只能由任务记录生成。')
     lock = core.repository.definition_lock() if connection is None else nullcontext()
     transaction = core.repository.connect() if connection is None else nullcontext(connection)
@@ -170,17 +170,38 @@ def write(core, *, name, document, document_id=None, base_revision=0, document_k
         elif document_key:
             current = core._find_agent_document(c, document_key)
         meta = json.loads(current['meta_json']) if current else {}
-        if current and meta.get('pipeline_task_report') != task_report:
+        previous_report = meta.get('pipeline_task_report')
+        if current and (bool(previous_report) != bool(task_report) or task_report and any(
+                task_report[key] != previous_report[key] for key in ('task_id', 'workflow_id'))):
             raise ContractError('任务汇报只能由任务记录更新。')
         if data_view is None:data_view=meta.get('data_view')
         if current and (meta.get('content_model') != MODEL or not core.is_document_artifact(meta,current['name']) or current['trashed_at']):
             raise ContractError('这份内容不是当前文档格式，请新建文档。')
         revision = int(meta.get('revision') or 1) if current else 0
         from runteams_core.documents import rich_document_assets
-        asset_refs=rich_document_assets.references(core,validate(document),current['id'] if current else None)
+        root = int(meta.get('revision_of') or current['id']) if current else None
+        reserved = None
+        if attachments and root is None:
+            reserved = c.execute(
+                'INSERT INTO artifacts(name,ref,meta_json,created_at) VALUES(?,?,?,?)',
+                (title, '', json.dumps({'content_model': MODEL, 'purpose': 'document'}), utc_now())).lastrowid
+            root = int(reserved)
+        if attachments:
+            def rebind(blocks):
+                for block in blocks:
+                    props = block.get('props', {})
+                    identifier = props.get('assetId')
+                    if identifier in attachments:
+                        saved = rich_document_assets.store(core, root, attachments[identifier])
+                        props.update(assetId=saved['id'], name=saved['name'], mime=saved['type'])
+                    rebind(block.get('children', []))
+            rebind(document['blocks'])
+        body = encode(document).encode()
+        asset_refs=rich_document_assets.references(core,document,root)
         digest = hashlib.sha256(body).hexdigest()
         # A lost response can be retried without adding a revision.
-        identical = current and digest == meta.get('sha256') and title == current['name'] and data_view == meta.get('data_view')
+        identical = (current and digest == meta.get('sha256') and title == current['name']
+                     and data_view == meta.get('data_view') and previous_report == task_report)
         if base_revision != revision and not identical:
             return {'ok': False, 'conflict': True, 'current_revision': revision,
                     'error': '文档已被更新。请先导出本页修改，再重新打开核对，避免覆盖他人的内容。'}
@@ -196,9 +217,13 @@ def write(core, *, name, document, document_id=None, base_revision=0, document_k
         if task_report is not None:
             updated.update(source=TASK_REPORT_SOURCE, pipeline_task_report=task_report)
         root = int(meta.get('revision_of') or current['id']) if current else None
-        if root: updated['revision_of'] = root
-        row_id = c.execute('INSERT INTO artifacts(employee_run_id,name,ref,meta_json,created_at) VALUES(?,?,?,?,?)',
-            (current['employee_run_id'] if current else None,title,str(destination),json.dumps(updated,ensure_ascii=False),utc_now())).lastrowid
+        if reserved:
+            row_id = reserved
+            c.execute('UPDATE artifacts SET ref=? WHERE id=?', (str(destination), row_id))
+        else:
+            if root: updated['revision_of'] = root
+            row_id = c.execute('INSERT INTO artifacts(employee_run_id,name,ref,meta_json,created_at) VALUES(?,?,?,?,?)',
+                (current['employee_run_id'] if current else None,title,str(destination),json.dumps(updated,ensure_ascii=False),utc_now())).lastrowid
         root = root or int(row_id)
         updated['revision_of'] = root
         c.execute('UPDATE artifacts SET meta_json=? WHERE id=?',(json.dumps(updated,ensure_ascii=False),row_id))

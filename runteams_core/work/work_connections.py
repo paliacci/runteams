@@ -132,9 +132,7 @@ def for_host(host,chat):
     owner,_,_,_=host._identity(chat)
     ref=owner.get('reference') or (owner.get('local_package') or {}).get('reference',{})
     if ref.get('schema') in ('runteams.local-employee-reference/1','runteams.local-pipeline-reference/1'):return WorkConnections(host)
-    if ref.get('schema') not in ('runteams.acquired-employee-reference/1','runteams.rented-employee-reference/1','runteams.rented-pipeline-reference/1') and (not owner.get('native_asset') or not owner.get('sdk_asset')):return None
-    from runteams_core.employees.employee_context import current
-    return current().connection_provider(host,chat)
+    return None
 
 
 def dispatch(host,chat,body):

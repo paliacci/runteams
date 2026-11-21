@@ -20,7 +20,7 @@ export function createRuntime(host) {
     if (!result || result.sdk !== '1.0.0' || !Array.isArray(result.capabilities) || !result.capabilities.every(v => typeof v === 'string')) throw new RunTeamsError('sdk_invalid_reply');
     const copied = jsonCopy(result);
     if (required.some(m => !copied.capabilities.includes(m))) throw new RunTeamsError('sdk_capability_unavailable');
-    available = Object.freeze(copied.capabilities.filter(m => ['data.query', 'data.mutate', 'connection.http'].includes(m)));
+    available = Object.freeze(copied.capabilities.filter(m => ['data.query', 'data.mutate', 'connection.http', 'application.status', 'application.call'].includes(m)));
     return Object.freeze({sdk: '1.0.0', capabilities: available});
   }
   function call(method, input) {
@@ -28,15 +28,19 @@ export function createRuntime(host) {
     const [group, name] = method.split('.');
     if (typeof host[group]?.[name] !== 'function') throw new RunTeamsError('sdk_capability_unavailable');
     if (!available.includes(method)) negotiate([method]);
-    const write = method !== 'data.query';
+    const write = !['data.query', 'application.status'].includes(method);
     let result;
     try { result = host[group][name](params); }
     catch (error) { throw hostFailure(error, write, params.operation_key); }
     try {
-      const copied = jsonCopy(result);
+      const copied = method === 'application.call' ? jsonCopy(result, 4 * 1024 * 1024, 32, 65536)
+        : method.startsWith('data.') ? jsonCopy(result, 512 * 1024, 32, 65536) : jsonCopy(result);
       if (method === 'data.query' && (!Array.isArray(copied?.items) || !(copied.next_cursor === null || typeof copied.next_cursor === 'string') || !copied.items.every(r => r && typeof r.id === 'string' && typeof r.revision === 'string' && r.value !== null && typeof r.value === 'object' && !Array.isArray(r.value)))) throw Error('query shape');
       if (method === 'data.mutate' && (!copied || !['pending', 'confirmed', 'unknown', 'canceled', 'failed'].includes(copied.state) || copied.operation_key !== params.operation_key || typeof copied.release_digest !== 'string')) throw Error('receipt shape');
       if (method === 'connection.http' && (!copied || !Number.isSafeInteger(copied.status) || !Object.hasOwn(copied, 'body'))) throw Error('http shape');
+      if (method === 'application.status' && (typeof copied?.connected !== 'boolean' ||
+          !(copied.binding_key === null || typeof copied.binding_key === 'string'))) throw Error('application status shape');
+      if (method === 'application.call' && (!copied || typeof copied !== 'object' || Array.isArray(copied))) throw Error('application reply shape');
       return copied;
     } catch (cause) {
       throw new RunTeamsError('sdk_invalid_reply', {retry: write ? 'reconcile' : 'read', outcome: write ? 'unknown' : 'unavailable', operationKey: params.operation_key, cause});
@@ -45,5 +49,6 @@ export function createRuntime(host) {
   return Object.freeze({version: sdkVersion, negotiate,
     get capabilities() { return available; },
     data: Object.freeze({query: p => call('data.query', p), mutate: p => call('data.mutate', p)}),
+    application: Object.freeze({status: p => call('application.status', p), call: p => call('application.call', p)}),
     connection: Object.freeze({http: p => call('connection.http', p)})});
 }

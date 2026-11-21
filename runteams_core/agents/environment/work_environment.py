@@ -48,7 +48,7 @@ def workflow_work(workspace, workflow_id):
     workspace = Path(workspace)
     if (workspace.name != 'workspace' or workspace.parent.name != 'workflow-' + str(workflow_id)
             or workspace.parent.parent.name != 'workspaces'):
-        raise EnvironmentError('流水线工作目录与运行身份不一致。')
+        raise EnvironmentError('智能体团队工作目录与运行身份不一致。')
     return {'root': str(workspace.parents[2] / 'work-environments'),
             'key': digest(['workflow', str(workflow_id)])}
 

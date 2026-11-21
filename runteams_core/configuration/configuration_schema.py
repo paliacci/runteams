@@ -3,6 +3,7 @@ import copy
 from datetime import date
 from decimal import Decimal
 import math
+import os
 from jsonschema import Draft202012Validator
 from runteams_core.assets.collections import collection_schema
 
@@ -42,7 +43,12 @@ def _value_error(field, value):
         return '此项必须通过平台的资料选择、连接或凭据入口配置。'
     if value is None:
         return '请填写此项。' if field.get('required') else ''
-    if kind in ('text', 'textarea', 'date', 'select'):
+    if kind in ('file_path', 'directory_path'):
+        if value == '':
+            return '请填写此项。' if field.get('required') else ''
+        if not isinstance(value, str) or '\x00' in value or not os.path.isabs(value):
+            return '请选择有效的本机位置。'
+    elif kind in ('text', 'textarea', 'date', 'select'):
         if not isinstance(value, str):
             return '请填写文本。'
         if field.get('required') and not value.strip():
@@ -92,6 +98,8 @@ def validate_declaration(value):
         kind = field['type']
         if 'file_input' in field and kind != 'secret':
             raise ValueError('只有本机凭据可以声明密钥文件入口。')
+        if kind in ('file_path', 'directory_path') and 'default' in field:
+            raise ValueError('本机位置由使用者选择。')
         if kind in PRIVATE and 'default' in field:
             raise ValueError('资料、连接、凭据和运行条件不能带使用者默认值。')
         if kind in CHOICES:
@@ -129,5 +137,12 @@ def validate_declaration(value):
             raise ValueError('普通配置不能声明权限绑定。')
         if 'default' in field and _value_error(field, field['default']):
             raise ValueError('配置默认值不符合字段声明。')
-    return copy.deepcopy(value)
+    applications = [row['key'] for row in value.get('application_requirements', [])]
+    if len(applications) != len(set(applications)):
+        raise ValueError('应用需求标识重复。')
+    result = copy.deepcopy(value)
+    if 'onboarding' in result:
+        from runteams_core.configuration.asset_onboarding import validate_guide
+        result['onboarding'] = validate_guide(result['onboarding'], result)
+    return result
 

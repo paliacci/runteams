@@ -61,7 +61,7 @@ test('paused and failed records show their own execution previews', async () => 
     {id: 3, state: 'completed', summary: 'Submitted result'}, {id: 4, state: 'failed'},
     {id: 5, state: 'paused', summary: 'Saved progress'},
   ]}};
-  const selection = {type: 'core-results', sourceWorkspace: workspace, scope: {source_pipeline_reference: reference}};
+  const selection = {type: 'source-pipeline', id: 'settings', activityExpanded: true};
   const attempts = new Map([
     [1, [{id: 3, state: 'completed', output_json: {summary: 'Latest completed step'}},
       {id: 4, state: 'failed', failure_reason: 'Previous failure'}]],
@@ -88,8 +88,13 @@ test('paused and failed records show their own execution previews', async () => 
   });
   vm.runInContext(fs.readFileSync('web/ui/work-records.js', 'utf8'), context);
   const records = context.window.RunTeamsWorkRecords;
-  const row = id => records.taskRowMarkup(selection.data.results.find(item => item.workflow_id === id));
-  records.updateTaskList(workspace);
+  let rows;
+  function draw(){
+    rows=records.taskResults(workspace.data.workflows,reference).results;
+    records.activityPreviews(selection,workspace,rows);
+  }
+  const row = id => records.rowMarkup(rows.find(item => item.workflow_id === id),'open()');
+  draw();
   assert.deepEqual(requests, [4, 2, 1]);
   replies.get(1)();
   replies.get(4)();
@@ -99,6 +104,7 @@ test('paused and failed records show their own execution previews', async () => 
   replies.get(2)();
   await new Promise(setImmediate);
   assert.equal(paints, 1);
+  draw();
   assert.match(row(1), /上次进展：Latest completed step/);
   assert.match(row(2), /Connection interrupted/);
   assert.doesNotMatch(row(2), /Older task summary|Previous success/);
@@ -106,10 +112,10 @@ test('paused and failed records show their own execution previews', async () => 
   assert.doesNotMatch(row(4), /result-delivery-conclusion/);
   assert.match(row(5), /上次进展：Saved progress/);
 
-  records.updateTaskList(workspace);
+  draw();
   assert.match(row(1), /上次进展：Latest completed step/);
   assert.deepEqual(requests, [4, 2, 1]);
   workspace.data.workflows[0] = {id: 1, state: 'running'};
-  records.updateTaskList(workspace);
+  draw();
   assert.doesNotMatch(row(1), /Latest completed step/);
 });

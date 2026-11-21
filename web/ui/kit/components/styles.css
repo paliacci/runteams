@@ -2,6 +2,16 @@
 [data-rt-ui] {font-family:var(--rt-font);color:var(--rt-text-primary);background:var(--rt-surface);line-height:1.5}
 [data-rt-ui] :where(.rt-section,.rt-full-view,.rt-panel-header,.rt-button,.rt-section-body,.rt-full-body,.rt-full-header,.rt-section-heading) {box-sizing:border-box}
 [data-rt-ui] [hidden] {display:none!important}
+[data-rt-ui] .rt-skeleton {
+  display:block;
+  height:10px;
+  border-radius:4px;
+  background:linear-gradient(100deg,var(--rt-surface-hover) 8%,var(--rt-surface-subtle) 18%,var(--rt-surface-hover) 33%);
+  background-size:200% 100%;
+  animation:rt-skeleton-shimmer 1.5s ease-in-out infinite;
+}
+@keyframes rt-skeleton-shimmer {from {background-position:100% 0} to {background-position:-100% 0}}
+@media (prefers-reduced-motion:reduce) {[data-rt-ui] .rt-skeleton {animation:none}}
 [data-rt-ui] .rt-button {font:inherit;font-size:13px;line-height:1.5;color:var(--rt-text-primary);background:transparent;border:1px solid transparent;border-radius:var(--rt-r-xs);cursor:pointer;min-height:32px;padding:var(--rt-s1) var(--rt-s2);box-shadow:none;display:inline-flex;align-items:center;justify-content:center;gap:var(--rt-s2);text-align:start}
 [data-rt-ui] .rt-button:hover {background:var(--rt-surface-hover)}
 [data-rt-ui] .rt-button:active {background:var(--rt-surface-subtle)}

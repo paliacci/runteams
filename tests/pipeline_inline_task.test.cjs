@@ -128,7 +128,7 @@ test('saved task menus keep all actions in the same order for every state',()=>{
  for(const caps of states){const items=f.context.cardMenuItems(f.s,{id:7,card_actions:caps},{});assert.deepEqual(Array.from(items,x=>x.label),expected);for(const item of items.filter(x=>x.disabled)){assert.ok(item.disabledReason);item.fn();}}
  assert.equal(f.calls.length,0);
  const paused=f.context.cardMenuItems(f.s,{id:7,card_actions:{resume:true}},{});assert.equal(paused[2].disabled,false);
- f.s.data.runtime.status='paused';const stopped=f.context.cardMenuItems(f.s,{id:7,card_actions:{resume:true}},{});assert.equal(stopped[2].disabled,true);assert.match(stopped[2].disabledReason,/启动流水线/);
+ f.s.data.runtime.status='paused';const stopped=f.context.cardMenuItems(f.s,{id:7,card_actions:{resume:true}},{});assert.equal(stopped[2].disabled,true);assert.match(stopped[2].disabledReason,/启动智能体团队/);
 });
 test('pending receipts keep the full menu and append recovery without enabling another mutation',()=>{
  const f=fixture(),items=f.context.cardMenuItems(f.s,{id:7,card_actions:{edit:true,pause:true,stop:true,trash:true}},{pending:{},busy:true});

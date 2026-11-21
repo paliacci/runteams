@@ -6,6 +6,7 @@ ordinary-user local extension execution, not a malicious-code sandbox.
 """
 from dataclasses import dataclass, asdict
 from contextlib import ExitStack,nullcontext
+import copy
 import json
 import os
 from pathlib import Path
@@ -335,6 +336,14 @@ class EmployeeMCP:
             if isinstance(error, MCPError):
                 raise
             raise MCPError('mcp_request_failed') from error
+
+    def tool_catalog(self):
+        """Reuse the current worker's discovery when opening an MCP App."""
+        with self.lock:
+            if self.tools is None:
+                return self.list_tools()
+            self.authority()
+            return copy.deepcopy(list(self.tools.values()))
 
     def list_tools(self):
         with self.lock:

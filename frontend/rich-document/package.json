@@ -3,19 +3,22 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "vite build && node publish.mjs"
+    "build": "vite build && node publish.mjs && python3.12 -B ../../runteams_core/devtools/build_community_web_manifest.py"
   },
   "dependencies": {
     "@blocknote/core": "0.56.0",
     "@blocknote/react": "0.56.0",
     "@blocknote/shadcn": "0.56.0",
+    "@json-render/core": "0.22.0",
+    "@json-render/react": "0.22.0",
     "@tanstack/react-table": "8.21.3",
     "katex": "0.19.1",
     "lucide-react": "1.64.0",
-    "react": "19.2.0",
-    "react-dom": "19.2.0",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
     "recharts": "3.10.1",
-    "streamdown": "2.7.1"
+    "streamdown": "2.7.1",
+    "zod": "4.3.6"
   },
   "devDependencies": {
     "@tailwindcss/vite": "4.3.3",

@@ -54,3 +54,49 @@ for (const organization of [false, true]) {
   assert.equal(fullReads, 5, 'another account or workspace gets its own initial read');
  });
 }
+
+test('employee link waits for the existing cloud directory read', async () => {
+ let releaseCloud, fullReads = 0;
+ const employee = {key: 'employee:51', record: {name: 'Target employee'}, asset: {id: 51}, open: {employee_id: 51}};
+ const receipt = (items, errors = {}) => ({
+  schema: 'runteams.employee-directory/v1', items, errors, activity: {chats: [], workflows: []},
+ });
+ const context = {
+  S: {booting: true}, _workspaceBusinessGeneration: 1, workspaceAccountCacheToken: () => 'actor',
+  deviceChatRemember() {}, addEventListener() {}, refreshBotList() {},
+  RunTeamsHost: {assets: {remember() {}}, session: {workspace: () => false, actor: () => 'actor', ready: () => true}},
+  api: async url => {
+   if (url.endsWith('?view=local')) return receipt([]);
+   fullReads++;
+   return new Promise(resolve => { releaseCloud = resolve; });
+  },
+ };
+ context.window = context;
+ vm.runInNewContext(source, context);
+ const directory = context.RunTeamsEmployeeDirectory;
+
+ await directory.refresh({localFirst: true});
+ let resolved = false;
+ const route = directory.resolveAsset(51).then(entry => { resolved = true; return entry; });
+ await new Promise(setImmediate);
+ assert.equal(resolved, false);
+ assert.equal(fullReads, 1);
+ releaseCloud(receipt([employee]));
+ assert.equal(await route, employee);
+ assert.equal(await directory.resolveAsset(51), employee);
+ assert.equal(fullReads, 1);
+
+ const unavailable = directory.resolveAsset(52);
+ releaseCloud(receipt([employee], {assets: {error: 'offline'}}));
+ await assert.rejects(unavailable, /offline/);
+ const retry = directory.resolveAsset(52);
+ releaseCloud(receipt([employee]));
+ assert.equal(await retry, null);
+
+ const previousAccount = directory.resolveAsset(52);
+ context._workspaceBusinessGeneration++;
+ directory.reset();
+ releaseCloud(receipt([{...employee, asset: {id: 52}}]));
+ assert.equal(await previousAccount, null);
+ assert.equal(directory.current().length, 0);
+});

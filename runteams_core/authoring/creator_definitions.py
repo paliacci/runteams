@@ -4,6 +4,7 @@ Portable employees/pipelines use the existing product-model validators and
 installer compiler. This stage allocates no machine IDs or runtime authority.
 """
 from runteams_core.assets.skills import skill_packages as _skill_packages
+from runteams_core.assets import workspace_background
 import base64
 import copy
 import hashlib
@@ -27,7 +28,7 @@ def compiler_identity():
     return {'contracts': contract_catalog()['digest'], 'implementation': {
         name: hashlib.sha256((root / name).read_bytes()).hexdigest() for name in
         ('authoring/creator_definitions.py', 'authoring/creator_contracts.py', 'authoring/creator_schema_validation.py', 'authoring/definition_contracts.py', 'authoring/creator_conversation_assets.py',
-         'assets/skills/skill_packages.py', 'assets/skills/skill_provenance.py', 'assets/skills/skill_icons.py', 'agents/capability_runtime.py', 'configuration/configuration_schema.py', 'employees/portable_employee.py', 'assets/skills/skill_metadata.py', 'assets/skills/skill_bundles.py', 'assets/collections/collection_schema.py', 'pipelines/portable_pipeline.py', 'pipelines/pipeline_avatars.py', 'authoring/compilation/creator_mcp_source.py', 'employees/mcp/employee_mcp_package.py', 'employees/employee_avatars.py', 'pipelines/pipeline_dependency_contracts.py', 'pipelines/pipeline_closure_contracts.py', 'foundation/identity/resource_ids.py')}}
+         'assets/skills/skill_packages.py', 'assets/skills/skill_provenance.py', 'assets/skills/skill_icons.py', 'assets/workspace_background.py', 'agents/capability_runtime.py', 'configuration/configuration_schema.py', 'configuration/asset_onboarding.py', 'employees/portable_employee.py', 'assets/skills/skill_metadata.py', 'assets/skills/skill_bundles.py', 'assets/collections/collection_schema.py', 'pipelines/portable_pipeline.py', 'pipelines/pipeline_avatars.py', 'authoring/compilation/creator_mcp_source.py', 'employees/mcp/employee_mcp_package.py', 'employees/employee_avatars.py', 'pipelines/pipeline_dependency_contracts.py', 'pipelines/pipeline_closure_contracts.py', 'foundation/identity/resource_ids.py')}}
 
 
 def author_schema(kind, *, version='3'):
@@ -47,6 +48,7 @@ def author_schema(kind, *, version='3'):
                 'skill_dirs': {'type': 'array', 'items': {'type': 'string', 'minLength': 1, 'maxLength': 240},
                     'maxItems': 64, 'uniqueItems': True},
                 'runtime_requirement': definitions['portable_runtime'],
+                'workspace_background': workspace_background.SOURCE_SCHEMA,
                 'configuration': definitions['employee_configuration']}}
     if kind == 'pipeline':
         from runteams_core.pipelines.pipeline_dependency_contracts import schema as dependency_schema
@@ -58,6 +60,7 @@ def author_schema(kind, *, version='3'):
                 **({'key': {'type':'string','pattern':'^[a-z][a-z0-9-]{0,79}$'},
                     'description': {'type':'string','maxLength':12000},
                     'avatar': definitions['portable_employee']['properties']['avatar'],
+                    'workspace_background': workspace_background.SOURCE_SCHEMA,
                     'configuration': definitions['employee_configuration'],
                     'programs': {'type':'array','maxItems':64,
                         'items':{'$ref':'#/$defs/pipeline_program_source'}}} if version == '3' else {}),
@@ -115,7 +118,7 @@ def compile_definitions(files, compiled, *, require=False):
     sources = compiled['employees']; pipelines = compiled['pipelines']
     if any('dependency' in row for pipeline in pipelines.values() for row in pipeline['employees']):
         raise CreatorContractError('local_employee_dependency_not_publishable',
-            '这条流水线含本机精确员工引用，暂不能发布；不会打包本机授权或转发租用员工。')
+            '这个智能体团队含本机精确员工引用，暂不能发布；不会打包本机授权或转发租用员工。')
     versions = [v['schema'].rsplit('/', 1)[-1] for v in [*sources.values(), *pipelines.values()]]
     if not versions or set(versions) != {'3'}:
         raise CreatorContractError('independent_employee_source_required')
@@ -154,6 +157,7 @@ def compile_definitions(files, compiled, *, require=False):
             picture = attachment(employee['avatar'], files)
             asset = verified_employee_asset({'schema': 'runteams.marketplace-employee/v2',
                 **({'avatar_file':picture} if picture else {}),
+                **workspace_background.source_fields(employee, files),
                 'employee': {k: copy.deepcopy(employee[k]) for k in ('name', 'avatar')} |
                     {'runtime_requirement': copy.deepcopy(employee.get('runtime_requirement', {}))} |
                     {'soul': soul, 'skill_refs': [{'package_key': b['package_key'], 'digest': b['digest']} for b in bundles]} |
@@ -174,6 +178,7 @@ def compile_definitions(files, compiled, *, require=False):
             'pipeline': pipeline['pipeline'], 'employees': [
                 {'ref': row['ref'], 'asset': employees[row['source']]} for row in pipeline['employees']],
             **source_fields(pipeline, files),
+            **workspace_background.source_fields(pipeline, files),
             **({'configuration':copy.deepcopy(pipeline['configuration'])} if 'configuration' in pipeline else {}),
             **({'program_bundles':programs[path]} if path in programs else {})})
     return {'schema': 'runteams.creator-definitions/1', 'source_sha256': compiled['source']['sha256'],

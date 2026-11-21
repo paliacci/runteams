@@ -18,6 +18,8 @@ final class CreatorWebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigat
     private var displayState: [String: Any] = ["mode":"panel", "viewId":NSNull(), "header":NSNull()]
     private var displayPending: (String, (Any?, String?) -> Void)?
     private let displayEventName = "__runteamsEvent_" + UUID().uuidString.replacingOccurrences(of:"-",with:"")
+    // Match the MCP worker frame budget plus the UI reply envelope.
+    static let mcpToolReplyLimit = 4 * 1024 * 1024 + 8192
     static let methods: Set<String> = ["view.open", "context.read", "context.update", "context.select", "draft.set", "draft.discard", "operation.invoke", "mcp.tools.call", "mcp.preview.enable", "mcp.preview.select"]
     let container = NSView()
     private(set) var webView: WKWebView?
@@ -482,7 +484,7 @@ final class CreatorWebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigat
                     guard self.authorized(allowed) else { return }
                     self.workQueue.async {
                         self.service(method, params, capturedEpoch, id.intValue) { [weak self] result in
-                            DispatchQueue.main.async { self?.finish(key, epoch: capturedEpoch, result: result) }
+                            DispatchQueue.main.async { self?.finish(key, epoch: capturedEpoch, method: method, result: result) }
                         }
                     }
                 }
@@ -490,7 +492,7 @@ final class CreatorWebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigat
         }
     }
 
-    private func finish(_ key: UUID, epoch expected: String, result: Result<Any, Error>) {
+    private func finish(_ key: UUID, epoch expected: String, method: String, result: Result<Any, Error>) {
         guard epoch == expected, closedReason == nil, pending[key] != nil else {
             outstanding.remove(key); dispatched.remove(key); advanceSubmission(); return
         }
@@ -508,13 +510,13 @@ final class CreatorWebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigat
                         self.outstanding.remove(key); self.dispatched.remove(key); self.advanceSubmission(); return
                     }
                     guard self.authorized(allowed) else { return }
-                    self.deliver(key, result: result)
+                    self.deliver(key, method: method, result: result)
                 }
             }
         }
     }
 
-    private func deliver(_ key: UUID, result: Result<Any, Error>) {
+    private func deliver(_ key: UUID, method: String, result: Result<Any, Error>) {
         guard let reply = pending.removeValue(forKey: key) else { return }
         finishing.remove(key); outstanding.remove(key); dispatched.remove(key)
         switch result {
@@ -522,8 +524,10 @@ final class CreatorWebHost: NSObject, WKScriptMessageHandlerWithReply, WKNavigat
             documentUnknown = true; reply(nil, "ui_request_unknown") // A lost service reply may follow a committed effect.
         case .success(let value):
             var nodes = 0; var size = 0
-            guard Self.bounded(value, depth: 0, nodes: &nodes, size: &size, limit: 131_072),
-                  let bytes = try? JSONSerialization.data(withJSONObject: value, options: .fragmentsAllowed), bytes.count <= 131_072 else {
+            let limit = method == "mcp.tools.call" ? Self.mcpToolReplyLimit : 131_072
+            guard Self.bounded(value, depth: 0, nodes: &nodes, size: &size, limit: limit),
+                  let bytes = try? JSONSerialization.data(withJSONObject: value, options: [.fragmentsAllowed, .withoutEscapingSlashes]),
+                  bytes.count <= limit else {
                 documentUnknown = true; reply(nil, "ui_response_budget"); advanceSubmission(); return
             }
             reply(value, nil)

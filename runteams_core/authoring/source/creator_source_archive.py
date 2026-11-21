@@ -119,6 +119,9 @@ def display_files(path, source):
                     raise CreatorContractError('archive_integrity')
 
                 class Files:
+                    def __contains__(self, name):
+                        return name in expected
+
                     def get(self, name, default=None):
                         entry = expected.get(name)
                         if entry is None:

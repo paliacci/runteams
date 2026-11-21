@@ -42,7 +42,7 @@ def _validator():
 
 def _finite(value):
     if isinstance(value, float) and not math.isfinite(value):
-        raise ContractError('流水线不能包含非JSON数值')
+        raise ContractError('智能体团队不能包含非JSON数值')
     if isinstance(value, dict):
         for child in value.values(): _finite(child)
     elif isinstance(value, list):
@@ -53,7 +53,7 @@ def _default_is_portable(value):
     if isinstance(value, list):
         for child in value: _default_is_portable(child)
     elif isinstance(value, str) and (value.startswith(('/', '~/', '~\\', 'file:', './', '../')) or re.match(r'^[A-Za-z]:[\\/]', value)):
-        raise ContractError('流水线参数默认值不能引用本机原件路径')
+        raise ContractError('智能体团队参数默认值不能引用本机原件路径')
 
 
 def _unique(rows, key, label):
@@ -84,22 +84,19 @@ def validate_pipeline_bindings(pipeline, skills):
     """
     _finite(pipeline)
     positions, states = pipeline['positions'], pipeline.get('states', [])
-    _unique(positions+states, 'key', '流水线列键')
-    _unique(pipeline.get('parameters', []), 'key', '流水线参数')
+    _unique(positions+states, 'key', '智能体团队列键')
+    _unique(pipeline.get('parameters', []), 'key', '智能体团队参数')
     position_keys = {position['key'] for position in positions}
-    used = set()
     maps = {ref: {key: key for key in keys} for ref, keys in skills.items()}
     for position in positions:
         if position['kind'] == 'approval': continue
         ref = position['employee_ref']
         if ref not in maps or position['skill_key'] not in maps[ref]:
-            raise ContractError('流水线岗位必须引用指定员工的固定工作')
-        used.add(ref)
-    if used != set(maps): raise ContractError('流水线不能包含未引用员工')
+            raise ContractError('智能体团队岗位必须引用指定员工的固定工作')
     for parameter in pipeline.get('parameters', []):
         for field in ('writers','visible_to','producers'):
             if set(parameter.get(field, []))-position_keys:
-                raise ContractError('流水线参数引用了无效岗位')
+                raise ContractError('智能体团队参数引用了无效岗位')
         if 'default' in parameter: _default_is_portable(parameter['default'])
     ids = {ref:index+1 for index,ref in enumerate(maps)}
     _local_definition(pipeline, ids, maps)
@@ -114,20 +111,22 @@ def verified_pipeline_asset(value):
             if isinstance(row, dict) and 'asset' in row else row
             for row in value['employees']]}
     if next(_validator().iter_errors(candidate), None) is not None:
-        raise ContractError('市场流水线不符合完整v2合同')
+        raise ContractError('市场智能体团队不符合完整v2合同')
     from runteams_core.pipelines.pipeline_avatars import image_src
     image_src(value)
+    from runteams_core.assets import workspace_background
+    workspace_background.image_src(value)
     if 'configuration' in value:
         from runteams_core.configuration.configuration_schema import validate_declaration
         validate_declaration(value['configuration'])
     from runteams_core.authoring.compilation.creator_mcp_source import verify_pipeline_programs
     if 'program_bundles' in value:
         try:verify_pipeline_programs(value['program_bundles'])
-        except ValueError as error:raise ContractError('流水线程序附件校验失败：'+str(error)) from error
+        except ValueError as error:raise ContractError('智能体团队程序附件校验失败：'+str(error)) from error
     from runteams_core.employees.portable_employee import verify as verified_employee_asset
     by_ref = {}
     for row in value['employees']:
-        if row['ref'] in by_ref: raise ContractError('流水线员工引用重复')
+        if row['ref'] in by_ref: raise ContractError('智能体团队员工引用重复')
         by_ref[row['ref']] = verified_employee_asset(row['asset'])
     pipeline = value['pipeline']
     validate_pipeline_bindings(pipeline, {
@@ -142,23 +141,23 @@ def localize_pipeline(asset, employee_ids, skill_maps):
     asset = verified_pipeline_asset(asset)
     refs = {row['ref'] for row in asset['employees']}
     if set(employee_ids) != refs or set(skill_maps) != refs or len(set(employee_ids.values())) != len(refs) or any(type(value) is not int or value<=0 for value in employee_ids.values()):
-        raise ContractError('安装流水线缺少本机员工身份')
+        raise ContractError('安装智能体团队缺少本机员工身份')
     try:
         return _local_definition(asset['pipeline'],employee_ids,skill_maps)
     except KeyError:
-        raise ContractError('安装流水线缺少本机技能映射') from None
+        raise ContractError('安装智能体团队缺少本机技能映射') from None
 
 
 def portable_definition(pipeline, employee_refs):
     """Map a trusted frozen local definition; assets are attached by the exporter."""
-    if set(pipeline)-{'schema','name','origin','positions','edges','states','parameters','team_standard','routing_policy'}:
-        raise ContractError('流水线包含未知导出字段')
+    if set(pipeline)-{'schema','name','origin','positions','edges','states','parameters','team_standard','routing_policy','delivery'}:
+        raise ContractError('智能体团队包含未知导出字段')
     result = copy.deepcopy(pipeline)
     result.pop('schema',None);result.pop('origin',None)
     for position in result['positions']:
         if position.get('kind') == 'approval': continue
         employee_id = position.pop('employee_id')
-        if employee_id not in employee_refs: raise ContractError('缺少流水线冻结员工')
+        if employee_id not in employee_refs: raise ContractError('缺少智能体团队冻结员工')
         position['employee_ref'] = employee_refs[employee_id]
         position.pop('employee_release_id',None)
     for parameter in result.get('parameters', []):

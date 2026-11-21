@@ -154,7 +154,7 @@ class LocalHandler(BaseHTTPRequestHandler):
         if self.command == 'GET' and (
                 parsed.path in ('/documents', '/trash')
                 or re.fullmatch(r'/(?:chats|documents)/local-[a-f0-9]{32}', parsed.path)
-                or re.fullmatch(r'/pipelines/local/[a-f0-9]{64}/[A-Za-z0-9_-]{1,1280}', parsed.path)):
+                or re.fullmatch(r'/(?:employees|pipelines)/[a-f0-9]{32}(?:/chats/local-[a-f0-9]{32})?', parsed.path)):
             return self._static('/')
         if self.command == 'GET' and parsed.path in ASSETS and (not parsed.query or
                 ASSETS[parsed.path][0] == 'web/index.html' or set(parse_qs(parsed.query)) <= {'v'}):
@@ -184,6 +184,16 @@ class LocalHandler(BaseHTTPRequestHandler):
                 source_conflicts=(SourceConflict,)
                 source_contracts=(CreatorContractError,)
 
+            if self.command == 'POST' and parsed.path == '/api/creator-source/drafts/import':
+                from runteams_core.authoring.source import knowledge_packages
+                from runteams_core.authoring.source.creator_local_source import current_store
+                from runteams_core.authoring.source.creator_source_import import inspect_source
+                app = self.server.application
+                with app.request(request_scope), app.runtime.scope():
+                    store = current_store(app.binding.scope['cache_scope'])
+                    if parsed.query:
+                        raise ValueError('导入参数无效。')
+                    return self._json(200, knowledge_packages.receive_http(self, store, inspect_source))
             if self.command == 'POST' and parsed.path == '/api/backups/import':
                 from runteams_core.storage.backups.backup_files import MAX_ARCHIVE
                 from runteams_core.storage.backups.local_backups import operation_id
@@ -241,17 +251,9 @@ class LocalHandler(BaseHTTPRequestHandler):
             if source_request:
                 from runteams_core.authoring.source.creator_source_operations import SourceDownload
                 if isinstance(result, SourceDownload):
-                    with self.server.application.request(request_scope):
+                    with self.server.application.request(request_scope), self.server.application.runtime.scope():
                         self.server.application.check()
-                        self.send_response(200)
-                        self.send_header('Content-Type','application/zip')
-                        self.send_header('Content-Length',str(len(result.raw)))
-                        self.send_header('Content-Disposition','attachment; filename="runteams-source-'+result.identity[:12]+'.zip"')
-                        self.send_header('X-RunTeams-Source-Revision',result.revision)
-                        self.send_header('Cache-Control','no-store')
-                        self.send_header('X-Content-Type-Options','nosniff')
-                        self.send_header('Content-Security-Policy',"sandbox; default-src 'none'")
-                        self.end_headers();self.wfile.write(result.raw)
+                        result.send(self)
                     return
             from runteams_core.application.http.local_backup_http import BackupDownload
             if isinstance(result,BackupDownload):return self._backup_download(result,request_scope)

@@ -18,13 +18,13 @@ def checked_reference(value, scope=None):
         if scope.get('storage_kind')=='local':raise PermissionError('本机资料库不提供租用资产授权。')
         return rented_references.checked(value,scope)
     from runteams_core.foundation.identity.work_identity import checked_source_scope
-    if not isinstance(value,dict):raise ContractError('流水线源码引用无效。')
+    if not isinstance(value,dict):raise ContractError('智能体团队源码引用无效。')
     try:owner_fields=checked_source_scope(value,scope)
-    except PermissionError:raise PermissionError('流水线不属于当前资料库、账户或部署。') from None
+    except PermissionError:raise PermissionError('智能体团队不属于当前资料库、账户或部署。') from None
     if not isinstance(value, dict) or set(value) != FIELDS | owner_fields or value.get('schema') != REFERENCE:
-        raise ContractError('流水线源码引用无效。')
+        raise ContractError('智能体团队源码引用无效。')
     if not isinstance(value['source_id'], str) or not re.fullmatch('[a-f0-9]{64}', value['source_id']):
-        raise ContractError('流水线源码身份无效。')
+        raise ContractError('智能体团队源码身份无效。')
     relative(value['pipeline_source'])
     return copy.deepcopy(value)
 

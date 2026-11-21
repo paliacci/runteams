@@ -123,14 +123,15 @@ def for_work_settings(chat_id):
     context=(session or {}).get('context') or {}
     if (not session or session.get('kind')!='general' or session.get('subject_type')!='employee'
             or context.get('pipeline_work') or context.get('source_pipeline_workspace')):
-        raise PermissionError('请在原员工工作或流水线岗位设置中配置。')
+        raise PermissionError('请在原员工工作或智能体团队岗位设置中配置。')
     return for_chat(chat_id)
 
 
-def acquired_admission(session):
-    """The original pinned acquired context owns its configuration snapshot."""
+def acquired_admission(session, config=None):
+    """Freeze the verified acquired asset's configuration for this turn."""
     context = (session or {}).get('context') or {}
-    config = for_chat(session['id'])
+    if config is None:
+        config = for_chat(session['id'])
     if not _configuration_schema.data_fields(config.definition):
         return None
     fixed = context.get('employee_configuration_snapshot')
@@ -145,9 +146,13 @@ def admission(session):
     context = (session or {}).get('context') or {}
     package = context.get('local_employee_package')
     if package is None:
-        if not context.get('creator_work_binding'):
+        if context.get('creator_work_binding'):
+            return acquired_admission(session)
+        if not session or session.get('kind') != 'general' or session.get('subject_type') != 'employee':
             return None
-        return acquired_admission(session)
+        from runteams_core.employees.employee_context import current
+        config = current().unpinned_work_configuration(session)
+        return acquired_admission(session, config) if config is not None else None
     from runteams_core.employees.source_employee_runtime import for_chat, package_asset
     employee = for_chat(session['id'])
     definition = package_asset(employee['local_package'])['employee'].get('configuration')
@@ -491,7 +496,7 @@ class ConfigurationStore:
                 raise PermissionError('保存回执不属于这名员工。')
         return {'state': 'confirmed', 'result': result}
 
-    def save(self, *, operation_id, expected_revision, definition_sha256, values, bindings=None):
+    def save(self, *, operation_id, expected_revision, definition_sha256, values, bindings=None, onboarding=False):
         self._check()
         if (not isinstance(operation_id, str) or not re.fullmatch('[0-9a-f-]{36}', operation_id)
                 or str(uuid.UUID(operation_id)) != operation_id or type(expected_revision) is not int or expected_revision < 0):
@@ -500,6 +505,8 @@ class ConfigurationStore:
                    'definition_sha256': definition_sha256, 'values': values}
         if bindings is not None:
             request['bindings'] = bindings
+        if onboarding:
+            request['onboarding'] = True
         fingerprint = digest(request)
         receipt_key = self.receipt_prefix + operation_id
         # CLI catalog reads must not hold the personal SQLite write transaction.
@@ -516,13 +523,27 @@ class ConfigurationStore:
             row = self._load(connection)
             if row['revision'] != expected_revision:
                 raise ConfigurationConflict('配置已被修改，请保留输入并重新核对。')
-            checked = validate_values(self.definition, values)
+            if onboarding:
+                from runteams_core.configuration.asset_onboarding import remaining_steps
+                _, _, states, _ = self._project({**row, 'bindings': {}}, runtime_states)
+                fields = {question['field'] for step in remaining_steps(self.definition, states)
+                          for question in step['questions']}
+                if bindings is not None or not isinstance(values, dict) or not values or values.keys() - fields:
+                    raise ConfigurationInvalid({'_form': '引导内容已更新，请重新打开。'})
+                checked = validate_values(self.definition, values, complete=False)
+                index = {f['key']: f for f in _configuration_schema.fields(self.definition)}
+                previous = {key: value for key, value in row['values'].items()
+                            if key in index and row['types'].get(key) == index[key]['type']
+                            and not _configuration_schema._value_error(index[key], value)}
+                checked = {**previous, **checked}
+            else:
+                checked = validate_values(self.definition, values)
             selected = row.get('bindings', {}) if bindings is None else bindings
             if not isinstance(selected, dict) or len(selected) > 128:
                 raise ConfigurationInvalid({'_form': '资料配置格式无效。'})
             index = {f['key']: f for f in _configuration_schema.fields(self.definition)}
-            resolved = {}
-            for key, selection in selected.items():
+            resolved = copy.deepcopy(selected) if onboarding else {}
+            for key, selection in (() if onboarding else selected.items()):
                 if key not in index:
                     if bindings is None:
                         continue

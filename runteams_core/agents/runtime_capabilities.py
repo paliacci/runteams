@@ -1022,7 +1022,7 @@ def _diagnostics(data):
     return result
 
 
-def inventory(channel, refresh=False, workspace_root="", status_only=False):
+def inventory(channel, refresh=False, workspace_root="", status_only=False, *, menu_only=False):
     """返回脱敏、可序列化的 Channel 能力清单。"""
     base = {"schema_version": SCHEMA_VERSION, "provider": channel.get("provider"),
             "checked_at": int(time.time()), "status": "missing", "runtime": {},
@@ -1043,13 +1043,17 @@ def inventory(channel, refresh=False, workspace_root="", status_only=False):
     workspace_root = (os.path.realpath(os.path.expanduser(workspace_root))
                       if str(workspace_root or "").strip() else "")
     workspace_root = workspace_root if os.path.isdir(workspace_root) else ""
-    key = _cache_key(channel, executable, workspace_root) + (status_only,)
+    profile = _cache_key(channel, executable, workspace_root)
+    key = profile + ("menu" if menu_only else status_only,)
     with _CACHE_LOCK:
         cached = _CACHE.get(key)
+        if menu_only:
+            cached = max((entry for entry in (cached, _CACHE.get(profile + (False,))) if entry),
+                         default=None, key=lambda entry: entry[0])
         if cached and not refresh and time.monotonic() - cached[0] < _CACHE_TTL:
             return json.loads(json.dumps(cached[1]))
 
-    probe = model_channels.probe(channel)
+    probe = model_channels.probe(channel, account_summary=False) if menu_only else model_channels.probe(channel)
     base["status"] = probe.get("status") or "error"
     base["runtime"] = {
         "installed": bool(probe.get("installed")), "authenticated": bool(probe.get("authenticated")),
@@ -1079,15 +1083,19 @@ def inventory(channel, refresh=False, workspace_root="", status_only=False):
         return data if valid else None
     codex = channel.get("provider") == "codex"
     plugin_args = [executable, "plugin", "list"] + (["--available", "--json"] if codex else ["--json", "--available"])
-    with ThreadPoolExecutor(max_workers=3) as pool:
-        plugin_read = pool.submit(valid_json, plugin_args, 15, "plugins")
-        mcp_read = (pool.submit(valid_json, [executable, "mcp", "list", "--json"], 12, "mcp_servers")
-                    if codex else pool.submit(_read_claude_mcp, executable, env, workspace_root or None))
-        # Optional CLI diagnostics must not hold the extension list for 15s.
-        doctor_read = pool.submit(_run_json, [executable, "doctor", "--json"], env, 3) if codex else None
-        plugin_data = plugin_read.result()
-        mcp_data = mcp_read.result()
-        doctor_data = doctor_read.result()[0] if doctor_read else None
+    mcp_data = doctor_data = None
+    if menu_only:
+        plugin_data = valid_json(plugin_args, 15, "plugins")
+    else:
+        with ThreadPoolExecutor(max_workers=3) as pool:
+            plugin_read = pool.submit(valid_json, plugin_args, 15, "plugins")
+            mcp_read = (pool.submit(valid_json, [executable, "mcp", "list", "--json"], 12, "mcp_servers")
+                        if codex else pool.submit(_read_claude_mcp, executable, env, workspace_root or None))
+            # Optional CLI diagnostics must not hold the extension list for 15s.
+            doctor_read = pool.submit(_run_json, [executable, "doctor", "--json"], env, 3) if codex else None
+            plugin_data = plugin_read.result()
+            mcp_data = mcp_read.result()
+            doctor_data = doctor_read.result()[0] if doctor_read else None
     base["plugins"], base["available_plugins"] = (_plugins(plugin_data) if codex else _plugins_with_official_catalog(channel, plugin_data))
     try:
         base["skills"] = _skills(channel, plugin_data, workspace_root)
@@ -1097,7 +1105,12 @@ def inventory(channel, refresh=False, workspace_root="", status_only=False):
     if mcp_data is not None:
         base["mcp_servers"] = _mcp_records(mcp_data)
         base["read_states"]["mcp_servers"] = "ready"
-    if codex:
+    if menu_only:
+        # Keep only fields used to find, render or select a menu item.
+        fields = ("id", "name", "display_name", "description", "icon_url", "enabled")
+        for section in ("plugins", "available_plugins"):
+            base[section] = [{field: row[field] for field in fields} for row in base[section]]
+    if codex and not menu_only:
         base["diagnostics"] = _diagnostics(doctor_data)
     with _CACHE_LOCK:
         _CACHE[key] = (time.monotonic(), json.loads(json.dumps(base)))
@@ -1212,13 +1225,14 @@ def _status_rank(value):
     return {"blocked": 3, "warning": 2, "ready": 1}.get(value, 0)
 
 
-def environment_summary(channels, refresh=False, workspace_root="", status_only=False):
+def environment_summary(channels, refresh=False, workspace_root="", status_only=False, *, menu_only=False):
     """Aggregate channel-owned assets without reading employee-domain records."""
     channels = list(channels or [])
     found = {}
     if channels:
         with ThreadPoolExecutor(max_workers=min(4, len(channels))) as pool:
-            jobs = {pool.submit(inventory, channel, refresh, workspace_root, **({"status_only": True} if status_only else {})): channel for channel in channels}
+            options = {"menu_only": True} if menu_only else ({"status_only": True} if status_only else {})
+            jobs = {pool.submit(inventory, channel, refresh, workspace_root, **options): channel for channel in channels}
             for job in as_completed(jobs):
                 channel = jobs[job]
                 try:
@@ -1333,7 +1347,7 @@ def capability_page(channel, *, after="", query="", limit=40, workspace_root="",
         raise ValueError("分页大小无效")
     if not isinstance(query, str) or len(query) > 240 or not isinstance(after, str) or len(after) > 300:
         raise ValueError("技能查询无效")
-    environment = environment_summary([channel], **({"workspace_root": workspace_root} if workspace_root else {}))
+    environment = environment_summary([channel], workspace_root=workspace_root, menu_only=True)
     status = environment["channels"][0]
     if not status["ready"]:
         return {"error": "模型渠道尚未连接", "code": "channel_unavailable"}
@@ -1347,7 +1361,7 @@ def capability_page(channel, *, after="", query="", limit=40, workspace_root="",
         for item in environment[key]:
             identity = str(item.get("id") or item.get("name") or "")
             if identity and identity not in rows and (not installed_only or item.get("enabled")):
-                rows[identity] = {**item, "_installed": installed}
+                rows[identity] = {**item, "id": identity, "_installed": installed}
     if include_skills:
         for item in environment["skills"]:
             if not item.get("enabled") or item.get("read_state") != "ready":continue
@@ -1358,17 +1372,35 @@ def capability_page(channel, *, after="", query="", limit=40, workspace_root="",
             if identity:
                 rows["skill:" + identity] = {**item, "id": "skill:" + identity, "kind": "skill", "_installed": True,
                     "display_name": item.get("name") or identity, "trigger_name": identity}
-    ordered = sorted(rows.values(), key=lambda row: (
-        str(row.get("display_name") or row.get("name") or row["id"]).casefold(), str(row.get("id") or row.get("name"))))
     needle = query.strip().casefold()
-    def search_text(row):
-        # Official app IDs contain random hex digits, not a user-facing skill name.
-        # Searching them makes short queries such as "101" match unrelated apps.
-        names = [str(row.get(key) or "") for key in ("display_name", "name", "id")]
-        readable = [name for name in names if not re.fullmatch(r"app-[0-9a-f]{32}(?:@\S+)?", name, re.I)]
-        return " ".join([*readable, str(row.get("description") or "")]).casefold()
+    def rank(row):
+        label = str(row.get("display_name") or row.get("name") or row["id"]).casefold()
+        availability = 0 if row["_installed"] and row.get("enabled") else 1 if row["_installed"] else 2
+        match = 0
+        if needle:
+            names = []
+            for field in ("display_name", "name", "id"):
+                name = str(row.get(field) or "").casefold()
+                if name and not re.fullmatch(r"app-[0-9a-f]{32}(?:@\S+)?", name):
+                    names.append(name)
+            if needle in names:
+                match = 0
+            elif any(name.startswith(needle) for name in names):
+                match = 1
+            elif any(needle in name for name in names):
+                match = 2
+            elif needle in str(row.get("description") or "").casefold():
+                match = 3
+            else:
+                return None
+        return match, availability, not label[:1].isalpha(), label, row["id"]
 
-    filtered = [row for row in ordered if not needle or needle in search_text(row)]
+    ranked = [(key, row) for row in rows.values() if (key := rank(row)) is not None]
+    ranked.sort(key=lambda pair: pair[0])
+    # A full-inventory hit and a menu-only hit must yield identical pages and cursors.
+    fields = ("id", "name", "display_name", "description", "icon_url", "channel_id",
+              "_installed", "enabled", "kind", "trigger_name", "plugin_id")
+    filtered = [{key: row[key] for key in fields if key in row} for _, row in ranked]
     snapshot = hashlib.sha256(json.dumps([channel.get("id"), scope, workspace_root, query, limit, filtered], ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()).hexdigest()[:24]
     offset = 0
     if after:

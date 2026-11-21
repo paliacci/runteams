@@ -168,18 +168,19 @@
   return value;
  }
  function create(state,request,getScope){
-  const flights=new Map();let usageCache=null;
+  const flights=new Map();let usageCache=null,firstCapabilityPage=null,lastWarmContext=null;
   const stamp=value=>{if(value&&typeof value==='object')snapshots.set(value,{state,identity:signature(state,getScope()),context:contextSignature(state,getScope()),scope:getScope});return value;};
   // Native observations can finish independently. A sibling probe must not
   // invalidate this channel's receipt; a newer rejection of the same channel
   // must still retire an older success. Aggregate reads retry against new facts.
   function facts(kind){
    if(kind==='channels')return '';
+   if(kind==='usage')return JSON.stringify((state.channels||[]).map(row=>[row.id,denied(row.probe)]));
    const rows=kind.startsWith('probe:')?(state.channels||[]).filter(row=>same(row.id,kind.slice(6))):state.channels||[];
    return JSON.stringify(rows.map(row=>[row.id,row.probe?.status,row.probe?.code,row.probe?.installed,row.probe?.authenticated,row.probe?.compatible,row.probe?.connection_verified,row.probe?.account]));
   }
   function read(kind,path,options={}){
-   const context=contextSignature(state,getScope()),identity=signature(state,getScope()),selection=['extensions','resources','resource','capabilities'].includes(kind)?connectedIds(state).join(','):null,
+   const context=contextSignature(state,getScope()),identity=kind==='usage'?context:signature(state,getScope()),selection=['extensions','resources','resource','capabilities'].includes(kind)?connectedIds(state).join(','):null,
     key=JSON.stringify([kind,path,identity,selection]);
    if(flights.has(key))return flights.get(key);
    let statuses=readStatuses.get(state);if(!statuses){statuses=new Map();readStatuses.set(state,statuses);}
@@ -249,6 +250,7 @@
    return {channels:state.channels,providers:state.providerCatalog,catalog:models};
   }
   async function extensions(force){
+   if(force)firstCapabilityPage=null;
    const context=contextSignature(state,getScope());
    for(let attempt=0;attempt<2;attempt++){
     if((state.channels||[]).some(channel=>channel.enabled&&!connection(state,channel).known)){
@@ -265,6 +267,23 @@
    }
    return null;
   }
+  async function capabilityPage(id,{after='',query:search='',limit=40,chatId=null}={}){
+    const context=contextSignature(state,getScope());
+    const channel=(state.channels||[]).find(row=>same(row.id,id));
+    if(!channel)throw Error('请先选择模型渠道。');
+    if(!connection(state,channel).known){const status=await read('status','/api/environment');if(!status||context!==contextSignature(state,getScope()))return null;if(status.error)return status;syncEnvironment(state,status);}
+    if(!connectedIds(state).includes(String(id)))throw Error('模型渠道尚未连接。');
+    const params=new URLSearchParams({channel_id:String(id),limit:String(limit),q:search});if(after)params.set('after',after);if(state.localLibrary&&chatId&&chatId!=='new')params.set('chat_id',String(chatId));
+    // The local host resolves a conversation's current folder on every request.
+    const cacheable=!state.localLibrary&&!after&&!search;
+    const key=JSON.stringify([signature(state,getScope()),id,limit,facts('capabilities')]);
+    if(cacheable&&firstCapabilityPage?.key===key&&Date.now()<firstCapabilityPage.expires)return firstCapabilityPage.value;
+    const value=await read('capabilities',query('/api/environment/capabilities',params));
+    if(value?.error)firstCapabilityPage=null;
+    if(value&&!value.error&&!same(value.channel_id,id))throw Error('技能分页渠道不一致。');
+    if(cacheable&&value&&!value.error)firstCapabilityPage={key,value,expires:Date.now()+30000};
+    return value;
+  }
   return Object.freeze({
    invalidate:()=>{state.channelMutationVersion=(state.channelMutationVersion||0)+1;},
    identity:kind=>JSON.stringify([signature(state,getScope()),kind==='extensions'?connectedIds(state):null]),
@@ -272,19 +291,23 @@
    configuration,
    status:force=>read('status',force?'/api/environment?refresh=1':'/api/environment'),
    models:(force,options={})=>read('models','/api/model-catalog'+(force?'?refresh=1':options.wait?'?wait=1':'')),
-   usage:force=>{const identity=signature(state,getScope());if(!force&&usageCache?.identity===identity&&Date.now()-usageCache.at<60000)return Promise.resolve(usageCache.value);return read('usage','/api/channel-usage').then(value=>{if(value&&!value.error&&currentObservation(state,value,false))usageCache={identity:snapshots.get(value).identity,at:Date.now(),value};return value;});},
+   usage:force=>{
+    const identity=()=>JSON.stringify([contextSignature(state,getScope()),facts('usage')]);
+    if(!force&&usageCache?.identity===identity()&&Date.now()-usageCache.at<60000)return Promise.resolve(usageCache.value);
+    return read('usage','/api/channel-usage').then(value=>{
+     if(value&&!value.error&&currentObservation(state,value,false))usageCache={identity:identity(),at:Date.now(),value};
+     return value;
+    });
+   },
    resources:(id,plugin)=>connectedIds(state).includes(String(id))?read('resources','/api/environment/plugin-resources?channel_id='+Number(id)+'&plugin_id='+encodeURIComponent(plugin)):Promise.reject(Error('模型渠道尚未连接。')),
    resourceFile:(token,path)=>read('resource','/api/environment/plugin-resource/'+encodeURIComponent(token)+'?path='+encodeURIComponent(path)),
-   capabilityPage:async(id,{after='',query:search='',limit=40,chatId=null}={})=>{
-    const context=contextSignature(state,getScope());
-    const channel=(state.channels||[]).find(row=>same(row.id,id));
-    if(!channel)throw Error('请先选择模型渠道。');
-    if(!connection(state,channel).known){const status=await read('status','/api/environment');if(!status||context!==contextSignature(state,getScope()))return null;if(status.error)return status;syncEnvironment(state,status);}
-    if(!connectedIds(state).includes(String(id)))throw Error('模型渠道尚未连接。');
-    const params=new URLSearchParams({channel_id:String(id),limit:String(limit),q:search});if(after)params.set('after',after);if(state.localLibrary&&chatId&&chatId!=='new')params.set('chat_id',String(chatId));
-    const value=await read('capabilities',query('/api/environment/capabilities',params));
-    if(value&&!value.error&&!same(value.channel_id,id))throw Error('技能分页渠道不一致。');
-    return value;
+   capabilityPage,
+   warmCapabilityPage(id,owner){
+    if(state.localLibrary||!connected(state,rowFor(state.channels,id,'id')))return;
+    const context=JSON.stringify([signature(state,getScope()),id,owner]);
+    if(context===lastWarmContext)return;
+    lastWarmContext=context;
+    void capabilityPage(id).catch(()=>{});
    },
    extensions,
    probe:id=>read('probe:'+id,'/api/channel/'+Number(id)+'/probe',{method:'POST'}),

@@ -80,6 +80,10 @@
 .configuration-surface .credential-field .credential-clear{display:grid;place-items:center;width:28px}
 
 
+.configuration-surface .configuration-location{display:flex;align-items:center;gap:8px;padding-block:3px;padding-inline-end:4px;border-color:var(--field-border-rest)}
+.configuration-location>input{flex:1;min-width:0;padding:0;border:0;background:transparent;color:inherit;font:inherit;text-overflow:ellipsis}
+.configuration-surface .configuration-location>button{flex:none;min-height:28px;padding:3px 8px;border:0;background:var(--surface-subtle);font-size:12px;white-space:nowrap}
+
 /* Configuration groups have the same rhythm in employee and pipeline settings. */
 .configuration-surface.settings-section-stack>.group{margin-top:0}
 .configuration-surface :is(.settings-section-content,.configuration-field-list)>.field:last-child{margin-bottom:0}

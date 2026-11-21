@@ -1,0 +1,597 @@
+/* Window-level surfaces. The default app palette and SDK component tokens
+   continue to resolve from the device color scheme. */
+#rgBody[data-workspace-theme] {
+  background: var(--workspace-backdrop, none) center / cover no-repeat var(--surface);
+  --workspace-backdrop: linear-gradient(light-dark(transparent, rgb(12 17 20 / .77)), light-dark(transparent, rgb(12 17 20 / .77))), var(--workspace-theme-photo, none);
+  --workspace-rail: var(--workspace-palette-tint, light-dark(rgb(248 249 250 / .42), rgb(14 18 21 / .46)));
+  --workspace-header: light-dark(rgb(248 249 250 / .22), rgb(14 18 21 / .35));
+  --workspace-inactive-tab: light-dark(rgb(89 109 118 / .15), rgb(187 206 209 / .14));
+  --workspace-tab-hover: light-dark(rgb(89 109 118 / .24), rgb(187 206 209 / .23));
+  --workspace-reading-scrim: light-dark(rgb(255 255 255 / .40), rgb(15 19 22 / .46));
+  --workspace-conversation-scrim: none;
+  --workspace-composer: light-dark(rgb(231 237 227 / .94), rgb(30 42 43 / .96));
+  --workspace-composer-border: light-dark(rgb(92 121 105 / .52), rgb(136 167 155 / .49));
+  --workspace-panel-blur: blur(10px);
+  --workspace-column-opacity: 56%;
+  --workspace-drawer-reading: light-dark(rgb(248 250 249 / .56), rgb(17 24 26 / .56));
+  --workspace-row-highlight: light-dark(rgb(248 250 249 / .44), rgb(214 229 232 / .16));
+  --workspace-skeleton-base: light-dark(rgb(70 92 103 / .20), rgb(182 209 218 / .16));
+  --workspace-skeleton-shine: light-dark(rgb(246 250 250 / .46), rgb(182 209 218 / .27));
+}
+
+#rgBody[data-workspace-theme]:not([data-workspace-palette]) {
+  --workspace-conversation-scrim: linear-gradient(90deg, transparent, var(--workspace-reading-scrim) 20% 80%, transparent);
+}
+
+#rgBody[data-workspace-theme] > #rgRail {
+  background: var(--workspace-rail);
+  backdrop-filter: var(--workspace-panel-blur);
+}
+
+#rgBody[data-workspace-theme] > #rgDrawer {
+  background: transparent;
+}
+
+#rgBody[data-workspace-theme] > #rgDrawer > .right-detail-drawer {
+  --detail-section-surface: color-mix(in srgb, var(--surface-subtle) 38%, transparent);
+  --text-secondary: color-mix(in srgb, var(--text-primary) 75%, var(--text-muted));
+  --ink2: var(--text-secondary);
+  --sub: var(--text-secondary);
+  --list-row-hover-bg: var(--workspace-row-highlight);
+  background: var(--workspace-drawer, transparent);
+}
+
+@media (forced-colors: none) {
+  #rgBody[data-workspace-palette] {
+    /* An opaque divider keeps its color over both the rail tint and wallpaper. */
+    --workspace-divider: color-mix(in srgb, var(--workspace-palette-seed) 34%, light-dark(white, black));
+  }
+
+  #rgBody[data-workspace-palette] > #rgRail {
+    border-right-color: var(--workspace-divider);
+  }
+
+  #rgBody[data-workspace-palette] > #rgRail .rail-account-card {
+    border-top-color: var(--workspace-divider);
+  }
+
+  #rgBody[data-workspace-palette] > #rgDrawer > .right-detail-drawer {
+    border-left-color: var(--workspace-divider) !important;
+  }
+
+  #rgBody[data-workspace-palette][data-detail-open="true"] > #rgPipelineHead .conversation-panel-header {
+    border-bottom-color: var(--workspace-divider) !important;
+  }
+
+  #rgBody[data-workspace-palette] > :is(#rgRail, #rgWorkspaceTabs),
+  #rgBody[data-workspace-palette] > #rgDrawer > .right-detail-drawer,
+  #rgBody[data-workspace-palette] .conversation-panel-header,
+  #rgBody[data-workspace-palette] .source-pipeline-workspace .core-pipeline-board,
+  #rgBody[data-workspace-palette] .conversation-main :is(.conversation-composer, .conversation-messages, .conversation-jump-latest, .agent-question-docked),
+  #rgBody[data-workspace-palette] .source-pipeline-view-toggle,
+  [data-workspace-overlay-palette] {
+    --text-primary: color-mix(in srgb, var(--workspace-palette-seed) 12%, var(--workspace-palette-ink));
+    --text-secondary: color-mix(in srgb, var(--workspace-palette-seed) 24%, var(--workspace-palette-ink));
+    --text-muted: color-mix(in srgb, var(--workspace-palette-seed) 36%, var(--workspace-palette-ink));
+    --text-faint: var(--text-muted);
+    --surface: var(--workspace-palette-paper);
+    --surface-hover: color-mix(in srgb, var(--workspace-palette-seed) 20%, var(--surface));
+    --surface-selected: color-mix(in srgb, var(--workspace-palette-seed) 36%, var(--surface));
+    /* Rebind inherited legacy tokens within each surface. */
+    --ink: var(--text-primary);
+    --card-hover: var(--surface-hover);
+  }
+
+  #rgBody[data-workspace-palette] > #rgRail,
+  #rgBody[data-workspace-palette] > #rgDrawer > .right-detail-drawer,
+  #rgBody[data-workspace-palette] .conversation-panel-header,
+  #rgBody[data-workspace-palette] .source-pipeline-workspace .core-pipeline-board,
+  #rgBody[data-workspace-palette] .conversation-main :is(.conversation-composer, .conversation-messages, .conversation-jump-latest, .agent-question-docked),
+  #rgBody[data-workspace-palette] .source-pipeline-view-toggle,
+  [data-workspace-overlay-palette] {
+    --surface-subtle: var(--surface-hover);
+    --border-default: color-mix(in srgb, var(--text-secondary) 23%, transparent);
+    --border-strong: color-mix(in srgb, var(--text-secondary) 34%, transparent);
+    --border-control: color-mix(in srgb, var(--text-secondary) 55%, transparent);
+    --control-focus: var(--text-primary);
+    --control-bg: var(--surface);
+    --control-bg-hover: var(--surface-hover);
+    --control-bg-active: var(--surface-selected);
+    --control-border: var(--border-control);
+    --control-border-hover: var(--border-strong);
+    --ink2: var(--text-secondary);
+    --sub: var(--text-muted);
+    --faint: var(--text-faint);
+    --hover: var(--surface-hover);
+    --card-sel: var(--surface-selected);
+    --panel: var(--surface);
+    --rail: var(--surface);
+    --line: var(--border-default);
+    --line2: var(--border-strong);
+  }
+
+  /* Bind SVG paints on the artwork itself so each illustration uses its region's ink and paper. */
+  :is(#rgBody[data-workspace-palette], [data-workspace-overlay-palette]) :is(.rt-empty-state-art, .rt-failure-art) {
+    --surface: color-mix(in srgb, var(--workspace-palette-seed) 18%, var(--workspace-palette-paper));
+    --avatar-blue: color-mix(in srgb, var(--workspace-palette-seed) 20%, var(--workspace-palette-ink));
+    --text-primary: var(--avatar-blue);
+    --surface-subtle: color-mix(in srgb, var(--avatar-blue) 10%, var(--surface));
+    --accent-subtle: color-mix(in srgb, var(--avatar-blue) 22%, var(--surface));
+    --editor-palette-bg-blue: color-mix(in srgb, var(--avatar-blue) 38%, var(--surface));
+    --border-default: color-mix(in srgb, var(--avatar-blue) 48%, var(--surface));
+    --border-control: color-mix(in srgb, var(--avatar-blue) 70%, var(--surface));
+  }
+
+  #rgBody[data-workspace-palette] > #rgRail {
+    --rail-active: var(--surface-hover);
+    --library-row: var(--surface-selected);
+    --workspace-skeleton-base: color-mix(in srgb, var(--text-primary) 10%, transparent);
+    --workspace-skeleton-shine: color-mix(in srgb, var(--text-primary) 18%, transparent);
+    background-image: linear-gradient(var(--workspace-palette-scrim), var(--workspace-palette-scrim));
+  }
+
+  #rgBody[data-workspace-palette] #rgRail .rail-mode-switch button.on {
+    background: var(--surface-selected);
+  }
+
+  #rgBody[data-workspace-palette] > #rgDrawer > .right-detail-drawer,
+  #rgBody[data-workspace-palette] .conversation-panel-header,
+  #rgBody[data-workspace-palette] .source-pipeline-workspace .core-pipeline-board,
+  #rgBody[data-workspace-palette] .conversation-main :is(.conversation-composer, .conversation-messages, .conversation-jump-latest, .agent-question-docked),
+  #rgBody[data-workspace-palette] .source-pipeline-view-toggle,
+  [data-workspace-overlay-palette] {
+    --workspace-palette-ink: var(--workspace-local-ink, light-dark(black, white));
+    --workspace-palette-paper: color-mix(in srgb, var(--workspace-palette-seed) 12%, var(--workspace-local-base, light-dark(white, black)));
+  }
+
+  #rgBody[data-workspace-palette] :is(
+    .conversation-panel-header[data-workspace-contrast],
+    .right-detail-drawer[data-workspace-contrast],
+    .conversation-scroll-shell[data-workspace-contrast] .conversation-messages
+  ) {
+    --text-primary: color-mix(in srgb, var(--workspace-local-ink) 96%, var(--workspace-palette-seed));
+    --text-secondary: color-mix(in srgb, var(--workspace-local-ink) 90%, var(--workspace-palette-seed));
+    --text-muted: color-mix(in srgb, var(--workspace-local-ink) 86%, var(--workspace-palette-seed));
+    --link: var(--text-primary);
+    --link-hover: var(--text-primary);
+  }
+
+  #rgBody[data-workspace-palette] :is(#rgPipelineHead, .conversation-main) .conversation-panel-header[data-workspace-contrast] {
+    color: var(--text-primary);
+  }
+
+  #rgBody[data-workspace-palette] .conversation-panel-header[data-workspace-contrast] .source-pipeline-creation-mode[aria-checked="true"] .source-pipeline-creation-track {
+    color: white;
+  }
+
+  #rgBody[data-workspace-palette] > #rgDrawer > .right-detail-drawer[data-workspace-contrast] {
+    --workspace-drawer: var(--workspace-local-wash);
+  }
+
+  #rgBody[data-workspace-palette] .source-pipeline-view-toggle {
+    --surface: color-mix(in srgb, var(--workspace-palette-paper) 94%, transparent);
+  }
+
+  [data-workspace-overlay-palette] {
+    --floating-bg: var(--surface);
+    --canvas: var(--surface);
+    --field-border-rest: var(--border-default);
+    color: var(--text-primary);
+  }
+
+  [data-workspace-overlay-palette],
+  #rgBody[data-workspace-palette] :is(.conversation-main .agent-question-docked, #rgDrawer .source-work-response, #rgDrawer .overview-footer) {
+    --action-primary: color-mix(in srgb, var(--workspace-palette-seed) 38%, var(--workspace-palette-ink));
+    --action-on-primary: var(--workspace-local-base, light-dark(white, black));
+  }
+
+  :is(#modalHost, #childModalHost)[data-workspace-overlay-palette] {
+    --dialog-bg: var(--surface);
+    --field-border-rest: var(--border-control);
+    --accent: var(--action-primary);
+  }
+
+  [data-workspace-overlay-palette].menu:not(.conversation-session-menu, .node-multi-menu) a.selected,
+  [data-workspace-overlay-palette].runtime-popover .runtime-model-option.selected {
+    background-color: var(--surface-selected);
+  }
+
+  #rgBody[data-workspace-palette] > #rgDrawer > .right-detail-drawer {
+    --workspace-row-highlight: light-dark(
+      color-mix(in srgb, var(--surface-hover) 68%, transparent),
+      color-mix(in srgb, var(--text-muted) 20%, transparent)
+    );
+    --workspace-drawer-reading: color-mix(in srgb, var(--surface) 72%, transparent);
+    color: var(--text-primary);
+  }
+
+  #rgBody[data-workspace-palette] #rgDrawer .overview-footer {
+    background-color: var(--detail-section-surface);
+  }
+
+  #rgBody[data-workspace-palette] #rgDrawer .right-detail-drawer :is(
+    .creator-asset-tree,
+    .drawer-footer,
+    .run-view-tabs,
+    .result-delivery,
+    .result-detail-delivery,
+    .result-detail-more,
+    .result-detail-scope,
+    .result-detail-evidence,
+    .result-detail-record,
+    .result-detail-run,
+    .doc-reader-prose :is(hr, th, td)
+  ) {
+    border-color: var(--workspace-divider);
+  }
+
+  #rgBody[data-workspace-palette] .conversation-panel-header .shared-header-action {
+    --sub: var(--text-secondary);
+    --hover: var(--surface-hover);
+    --rail-active: var(--surface-selected);
+  }
+
+  #rgBody[data-workspace-palette] .conversation-panel-header .shared-header-action.on {
+    color: var(--text-primary);
+  }
+
+  #rgBody[data-workspace-palette] .conversation-panel-header .source-pipeline-runtime-action {
+    min-height: 30px;
+    padding: 0 8px;
+    border-radius: 7px;
+    background: transparent;
+  }
+
+  #rgBody[data-workspace-palette] .conversation-panel-header
+    :is(.source-pipeline-runtime-action, .source-pipeline-creation-mode):not(:disabled, [aria-disabled="true"]):is(:hover, :focus-visible) {
+    background: var(--surface-hover);
+    color: var(--text-primary);
+  }
+
+  #rgBody[data-workspace-palette] .conversation-panel-header .source-pipeline-creation-mode {
+    --surface-subtle: var(--surface);
+    --border-strong: color-mix(in srgb, var(--workspace-palette-seed) 34%, transparent);
+  }
+
+  #rgBody[data-workspace-palette] .conversation-panel-header :is(.pipeline-avatar, .header-status-slide .header-status-indicator) {
+    color: var(--text-secondary);
+  }
+
+  #rgBody[data-workspace-palette] .conversation-panel-header .header-status-slide:is(:hover, :focus-visible) .header-status-indicator {
+    color: var(--text-primary);
+  }
+
+  #rgBody[data-workspace-palette] .conversation-panel-header button.pipeline-avatar:is(:hover, :focus-visible, [aria-expanded="true"]) {
+    color: var(--text-primary);
+    box-shadow: 0 0 0 3px var(--surface-hover);
+    outline-color: var(--text-secondary);
+  }
+}
+
+#rgBody[data-workspace-theme] #rgRail :is(.rail-fixed, .rail-actions, .rail-bottom, .railfoot-wrap, .rail-account-card:not(:hover, :focus-visible), .railfoot:not(:hover, :focus-visible)) {
+  background: transparent;
+}
+
+#rgBody[data-workspace-theme] > :is(#rgWorkspaceTabs, #rgPipelineHead) {
+  background: var(--workspace-header);
+}
+
+#rgBody[data-workspace-theme].conversation-drawer-under-header > #rgPipelineHead,
+#rgBody[data-workspace-theme].source-pipeline-layout > #rgPipelineHead,
+#rgBody[data-workspace-theme] :is(.workspace-tabs, #rgPipelineHead > .conversation-panel-header) {
+  background: transparent;
+}
+
+#rgBody[data-workspace-theme] .workspace-tab:not(.on) {
+  background: var(--workspace-inactive-tab);
+  border-radius: 8px;
+}
+
+#rgBody[data-workspace-theme] .workspace-tab:not(.on):is(:hover, :focus-within) {
+  background: var(--workspace-tab-hover);
+}
+
+#rgBody[data-workspace-theme] .workspace-tab.on {
+  background: transparent;
+}
+
+@media (forced-colors: none) {
+  #rgBody[data-workspace-palette] > #rgWorkspaceTabs {
+    --workspace-inactive-tab: var(--surface-selected);
+    --workspace-tab-hover: var(--surface-hover);
+    /* Fade the shared backing below the labels into the continuing wallpaper. */
+    background:
+      linear-gradient(var(--workspace-palette-scrim) calc(100% - 6px), transparent),
+      linear-gradient(var(--workspace-palette-tint) calc(100% - 6px), transparent);
+  }
+
+  #rgBody[data-workspace-palette] #rgWorkspaceTabs .workspace-tab:not(.on):is(:hover, :focus-within) {
+    color: var(--text-secondary);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--workspace-palette-seed) 34%, transparent);
+  }
+}
+
+#rgBody[data-workspace-theme] .workspace-tab::before,
+#rgBody[data-workspace-theme] .workspace-tab.on::after,
+#rgBody[data-workspace-theme] .workspace-tab-bridge,
+#rgBody[data-workspace-theme] .workspace-new::before {
+  display: none;
+}
+
+#rgBody[data-workspace-theme] > #rgMid,
+#rgBody[data-workspace-theme] #rgWorkspaceContent,
+#rgBody[data-workspace-theme] #rgWorkspaceContent > .conversation-workspace-main,
+#rgBody[data-workspace-theme] #rgWorkspaceContent > .source-pipeline-layers,
+#rgBody[data-workspace-theme] :is(.source-pipeline-board-layer, .source-pipeline-conversation-layer),
+#rgBody[data-workspace-theme] .source-pipeline-layers .source-pipeline-workspace,
+#rgBody[data-workspace-theme] .conversation-main,
+#rgBody[data-workspace-theme] .source-pipeline-workspace > .core-pipeline-board,
+#rgBody[data-workspace-theme] .conversation-main :is(.rail-assistant-input, .conversation-panel-header) {
+  background: transparent;
+}
+
+#rgBody[data-workspace-theme] :is(#rgWorkspaceContent, .source-pipeline-conversation-layer) > .conversation-workspace-main {
+  background: var(--workspace-conversation-scrim);
+}
+
+#rgBody[data-workspace-theme].conversation-drawer-under-header #rgWorkspaceContent > .conversation-workspace-main,
+#rgBody[data-workspace-theme] :is(#rgWorkspaceContent, .source-pipeline-conversation-layer) > .conversation-workspace-main:has(.conversation-scroll-shell[data-workspace-contrast]) {
+  position: relative;
+  isolation: isolate;
+  background: transparent;
+}
+
+#rgBody[data-workspace-theme].conversation-drawer-under-header #rgWorkspaceContent > .conversation-workspace-main::before,
+#rgBody[data-workspace-theme] :is(.source-pipeline-conversation-layer, #rgWorkspaceContent > .conversation-workspace-main):has(.conversation-scroll-shell[data-workspace-contrast])::before {
+  content: "";
+  position: absolute;
+  inset: var(--workspace-reading-top, 0px) 0 0;
+  z-index: -1;
+  pointer-events: none;
+  background: var(--workspace-conversation-scrim);
+  mask-image: linear-gradient(transparent, black 28px);
+}
+
+#rgBody[data-workspace-theme]:not(.source-pipeline-preparing-conversation) .source-pipeline-board-layer[inert] {
+  visibility: hidden;
+}
+
+#rgBody[data-workspace-theme] :is(.source-pipeline-transition-header, .source-pipeline-transition-tab-clip) {
+  --pipeline-transition-color: transparent;
+}
+
+/* The wipe must sample the window backdrop at the same coordinates as the shell. */
+#rgBody[data-workspace-theme] .source-pipeline-transition-main {
+  background: var(--workspace-backdrop, none) center / cover no-repeat var(--surface);
+  background-attachment: fixed;
+}
+
+#rgBody[data-workspace-theme] .source-pipeline-workspace .col-surface {
+  background-color: color-mix(in srgb, var(--column-surface-bg) var(--workspace-column-opacity, 56%), transparent);
+}
+
+@media (forced-colors: none) {
+  #rgBody[data-workspace-palette] .source-pipeline-workspace .core-pipeline-board {
+    --workspace-column-opacity: 66%;
+    --col-bg: color-mix(in srgb, var(--surface) var(--workspace-column-opacity), transparent);
+    --faint: var(--text-secondary);
+    --line2: color-mix(in srgb, var(--workspace-palette-seed) 34%, transparent);
+    color: var(--text-primary);
+  }
+
+  #rgBody[data-workspace-palette] .source-pipeline-workspace .core-pipeline-column {
+    --column-bg: var(--surface);
+    --column-hover-bg: color-mix(in srgb, var(--surface-selected) 66%, var(--column-bg));
+    --column-hover-border: color-mix(in srgb, var(--workspace-divider), var(--text-secondary) 22%);
+  }
+
+  #rgBody[data-workspace-palette] .source-pipeline-workspace .core-pipeline-column:not(.column-color-default) {
+    --column-bg: color-mix(in srgb, var(--column-accent) 8%, var(--surface));
+  }
+
+  #rgBody[data-workspace-palette] .source-pipeline-workspace .core-pipeline-column:not(.sel, .drop-target) > .col-surface:hover {
+    --column-surface-bg: color-mix(in srgb, var(--surface-hover) 42%, var(--column-bg));
+  }
+
+  #rgBody[data-workspace-palette] .source-pipeline-workspace .core-workflow-card {
+    --panel: color-mix(in srgb, var(--surface) 88%, transparent);
+    --line: var(--workspace-divider);
+  }
+
+  #rgBody[data-workspace-palette] .source-pipeline-workspace .core-add-task {
+    --line2: var(--workspace-divider);
+  }
+
+  #rgBody[data-workspace-palette] .source-pipeline-workspace-feedback {
+    border-bottom-color: var(--workspace-divider);
+  }
+
+  #rgBody[data-workspace-palette] .source-pipeline-workspace .core-workflow-card:focus-visible {
+    background-color: var(--column-hover-bg);
+    border-color: var(--column-hover-border);
+  }
+}
+
+#rgBody[data-workspace-theme] .conversation-main .conversation-scroll-shell {
+  background: transparent;
+}
+
+#rgBody[data-workspace-theme] .conversation-main .conversation-scroll-shell:has(>#conversation_scroll)::before,
+#rgBody[data-workspace-theme] .conversation-main .conversation-scroll-shell:has(>#conversation_scroll)::after {
+  background: none;
+}
+
+@media (forced-colors: none) {
+  #rgBody[data-workspace-palette] :is(.source-pipeline-conversation-layer, #rgWorkspaceContent > .conversation-workspace-main):has(.conversation-scroll-shell[data-workspace-contrast]) {
+    --workspace-conversation-scrim: linear-gradient(90deg,
+      transparent max(0px, var(--workspace-reading-start) - 32px),
+      var(--workspace-reading-wash) var(--workspace-reading-start) var(--workspace-reading-end),
+      transparent calc(var(--workspace-reading-end) + 32px));
+  }
+
+  #rgBody[data-workspace-palette] .conversation-scroll-shell[data-workspace-contrast] .cmsg.bot :is(.cmessage-markdown, .agent-work-text) a {
+    color: var(--text-primary);
+    text-decoration: underline;
+  }
+}
+
+#rgBody[data-workspace-theme] .conversation-main .conversation-composer {
+  background: var(--workspace-composer) !important;
+  border-color: var(--workspace-composer-border) !important;
+}
+
+@media (forced-colors: none) {
+  #rgBody[data-workspace-palette] .conversation-main .conversation-composer {
+    --workspace-composer: color-mix(in srgb, color-mix(in srgb, var(--workspace-palette-seed) 8%, var(--surface)) 96%, transparent);
+    --workspace-composer-border: var(--workspace-palette-tint);
+    --field-border-rest: var(--workspace-composer-border);
+    --action-primary: color-mix(in srgb, var(--workspace-palette-seed) 38%, var(--workspace-palette-ink));
+    --action-on-primary: light-dark(white, black);
+    color: var(--text-primary);
+  }
+
+  #rgBody[data-workspace-palette] .conversation-main .conversation-composer:focus-within {
+    --workspace-composer-border: color-mix(in srgb, var(--workspace-palette-seed) 70%, var(--text-secondary));
+  }
+
+  #rgBody[data-workspace-palette] .conversation-main .conversation-composer .cattach-btn {
+    color: var(--text-secondary);
+  }
+
+  #rgBody[data-workspace-palette] .conversation-main .conversation-composer :is(.cattach-btn, .csel):enabled:is(:hover, :focus-visible, [aria-expanded="true"]) {
+    background: var(--surface-hover) !important;
+    color: var(--text-primary);
+  }
+
+  #rgBody[data-workspace-palette] .conversation-main .conversation-composer .runtime-effort {
+    opacity: 1;
+  }
+
+  #rgBody[data-workspace-palette] .conversation-main .conversation-composer :is(.sendbtn, .conversation-composer-stop):enabled:hover {
+    background: color-mix(in srgb, var(--workspace-palette-seed) 44%, var(--workspace-palette-ink));
+    opacity: 1;
+  }
+
+  #rgBody[data-workspace-palette] .conversation-main .conversation-messages {
+    --conversation-body-ink: var(--text-primary);
+    --conversation-meta-ink: var(--text-muted);
+    --conversation-process-ink: var(--text-muted);
+    --conversation-process-line: var(--border-default);
+    --control-bg-soft: var(--surface);
+  }
+
+  #rgBody[data-workspace-palette] .conversation-main .agent-question-docked {
+    --conversation-meta-ink: var(--text-secondary);
+    background: var(--surface);
+    color: var(--text-primary);
+  }
+
+  #rgBody[data-workspace-palette] .conversation-main .agent-question-docked .agent-question-option.selected {
+    background: var(--surface-selected);
+  }
+
+  #rgBody[data-workspace-palette] #rgDrawer .source-work-response .core-human-option {
+    border-color: var(--workspace-divider);
+  }
+
+  #rgBody[data-workspace-palette] #rgDrawer .source-work-response .core-human-option:is(:hover, :has(input:focus-visible)) {
+    background: var(--surface-hover);
+    border-color: var(--border-strong);
+  }
+
+  #rgBody[data-workspace-palette] #rgDrawer .source-work-response .core-human-option:has(input:checked) {
+    background: var(--surface-selected);
+    border-color: var(--border-control);
+  }
+
+  #rgBody[data-workspace-palette] #rgDrawer .source-work-response .core-human-option input {
+    accent-color: var(--action-primary);
+  }
+
+  #rgBody[data-workspace-palette] #rgDrawer .source-work-response .core-human-option-copy small {
+    background: var(--surface-hover);
+    color: var(--action-primary);
+  }
+
+  #rgBody[data-workspace-palette] .conversation-main .agent-question-docked .agent-question-submit {
+    color: var(--action-on-primary);
+  }
+
+  #rgBody[data-workspace-palette] .conversation-main .agent-question-docked .agent-question-error {
+    color: var(--status-danger);
+  }
+}
+
+#rgBody[data-workspace-theme] > #rgDrawer > .right-detail-drawer :is(
+  .employee-drawer-header-host,
+  .employee-drawer-header,
+  .detail-drawer-header-stack,
+  .detail-drawer-tools,
+  .detail-employee-summary,
+  .detail-drawer-summary,
+  .creator-work-viewport,
+  .creator-asset-tree,
+  .context-results-body,
+  .run-detail-fixed-head
+) {
+  background: transparent;
+}
+
+#rgBody[data-workspace-theme] > #rgDrawer > .right-detail-drawer :is(
+  .settings-section-bar,
+  .settings-section-label,
+  .settings-section-heading > .settings-section-toggle:not(.settings-section-bar *)
+) {
+  background: var(--detail-section-surface);
+}
+
+#rgBody[data-workspace-theme] #rgDrawer .work-record-report:not(.source-work-response, [data-pipeline-activity]) {
+  padding: 8px 10px;
+  border-radius: var(--detail-section-radius);
+  background: var(--workspace-drawer-reading);
+  color: var(--text-primary);
+}
+
+#rgBody[data-workspace-theme] #rgDrawer .employee-automation-row:focus-within:not(:hover) {
+  background: var(--workspace-row-highlight);
+}
+
+#rgBody[data-workspace-theme] #rgDrawer .employee-automation-open:focus-visible {
+  outline: 2px solid var(--control-focus);
+  outline-offset: -2px;
+}
+
+#rgBody[data-workspace-theme] .skeleton-block {
+  --sk-base: var(--workspace-skeleton-base);
+  --sk-shine: var(--workspace-skeleton-shine);
+}
+
+@media (max-width: 719px) {
+  #rgBody[data-workspace-theme]:not([data-workspace-palette]) {
+    --workspace-conversation-scrim: var(--workspace-reading-scrim);
+  }
+}
+
+@media (forced-colors: active) {
+  #rgBody[data-workspace-theme] {
+    --workspace-backdrop: none;
+    --workspace-rail: Canvas;
+    --workspace-header: Canvas;
+    --workspace-inactive-tab: ButtonFace;
+    --workspace-tab-hover: ButtonFace;
+    --workspace-reading-scrim: Canvas;
+    --workspace-conversation-scrim: Canvas;
+    --workspace-composer: Canvas;
+    --workspace-composer-border: ButtonText;
+    --workspace-drawer: Canvas;
+    --workspace-panel-blur: none;
+    --workspace-column-opacity: 100%;
+    --workspace-drawer-reading: Canvas;
+    --workspace-row-highlight: ButtonFace;
+    --workspace-skeleton-base: ButtonFace;
+    --workspace-skeleton-shine: ButtonFace;
+  }
+  #rgBody[data-workspace-theme] .workspace-tab.on {
+    outline: 1px solid Highlight;
+  }
+}

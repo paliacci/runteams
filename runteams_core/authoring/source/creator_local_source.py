@@ -119,7 +119,7 @@ class LocalSources:
         self.check_scope()
         return {'items': items, 'next_cursor': keys[49] if len(keys) > 50 else None}
 
-    def save(self, raw, expected, checker):
+    def save(self, raw, expected, checker, *, knowledge_stage=None):
         self.check_scope()
         _hash(expected)
         report = checker(raw)
@@ -129,14 +129,22 @@ class LocalSources:
                 report.get('scope') != 'local-preflight' or report.get('imported') is not False or
                 report.get('source', {}).get('sha256') != expected):
             raise CreatorContractError('source_changed_since_inspection')
-        return self._persist(raw, expected, report)
+        return self._persist(raw, expected, report, knowledge_stage=knowledge_stage)
 
 
-    def _persist(self, raw, expected, report):
+    def _persist(self, raw, expected, report, *, knowledge_stage=None):
         self.check_scope()
         destination = self._directory(expected)
+        from runteams_core.authoring.source.knowledge_packages import install_tree, location, require
+        if knowledge_stage is None:
+            if any(f['path'] == 'asset-materials.json' for f in report['source']['files']):
+                require(destination, inspect(raw))
         if destination.exists():
-            return self.describe(expected)
+            result = self.describe(expected)
+            if knowledge_stage:
+                stage, mapping = knowledge_stage
+                install_tree(stage, location(destination, mapping))
+            return result
         value = {k: report[k] for k in ('project', 'source', 'employees', 'pipelines', 'dependencies')}
         value.update(schema=SCHEMA, id=expected, scope='device-source-draft',
                      published=False, cloud_verified=False,
@@ -148,6 +156,9 @@ class LocalSources:
                 fd = os.open(staging / name, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
                 with os.fdopen(fd, 'wb') as stream:
                     stream.write(body); stream.flush(); os.fsync(stream.fileno())
+            if knowledge_stage:
+                stage, mapping = knowledge_stage
+                install_tree(stage, location(staging, mapping))
             _sync(staging)
             self.check_scope()
             try:

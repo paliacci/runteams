@@ -5,6 +5,10 @@ description: Develop and verify current RunTeams MCP employee sources with the b
 
 # 本机 MCP Apps 开发
 
+先确定任务的业务对象与完成条件，再列出团队成员、触发方式和真正需要交付给下游的成果。employees 包含全体成员，positions 只包含任务卡需要流经的岗位。只有需要另一个岗位接手具体成果才连线。同一员工的内部步骤可写进技能。states 使用业务结果命名，数量由业务决定。等待资料、登录和暂时失败在原岗位处理，放弃要有明确业务决定。按时抽查、更新数据和复盘可由独立员工计划处理既有卡片，卡片保持原业务状态。验收时同时核对主流程终点、独立触发、回写对象与重复执行。
+
+本地同工程源码员工的定时技能可声明字符串参数 `followup_pipeline`（同工程智能体团队入口路径）与 `followup_state`（已应用图中的状态键）。计划执行时通过 runteams_work_report 的 followup_list 分页、followup_read 读取原卡和固定报告版本，使用 followup_append 提交观察时间、来源、指标、说明和 base_revision。每次计划对每张卡最多追加一份观察。仅在对应计划执行期间授予访问。
+
 当前开发格式为 `runteams.creator-project/2`、`runteams.dependencies/2` 与 `runteams.release/2`。
 完整员工仍使用原员工／技能随包格式，原源码 ZIP、修订、权限及正式发布回执继续复用。
 

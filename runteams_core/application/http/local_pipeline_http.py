@@ -6,7 +6,7 @@ def handles(path):
     return path.startswith(PREFIX)
 
 def dispatch(runtime,method,path,data):
-    if method!='POST' or not isinstance(data,dict):raise ValueError('流水线请求无效。')
+    if method!='POST' or not isinstance(data,dict):raise ValueError('智能体团队请求无效。')
     action=path.removeprefix(PREFIX)
     if action=='market':raise PermissionError('本机资料库不提供官方市场接口。')
     from runteams_core.pipelines.source_pipeline_operations import dispatch as operation

@@ -18,12 +18,23 @@ def verify(directory, scope):
         for entry in root.iterdir():
             if not HASH.fullmatch(entry.name) or entry.is_symlink():
                 raise ValueError('备份本机源码身份无效。')
-            if any(p.name not in {'draft.json','source.zip','head.json','revisions','authoring','builds','.edit-lock'} for p in entry.iterdir()):
+            if any(p.name not in {'draft.json','source.zip','head.json','revisions','authoring','builds','.edit-lock','knowledge'} for p in entry.iterdir()):
                 raise ValueError('备份包含未接通的源码资料。')
             revisions=Revisions(store,entry.name)
             if tree(store.files(entry.name))!=revisions.original['source']:
                 raise ValueError('备份原始源码身份不匹配。')
-            revisions._files(revisions._head());revisions._history()
+            from runteams_core.authoring.source.knowledge_packages import backup_knowledge, require
+            from runteams_core.authoring.creator_contracts import digest
+            expected = set()
+            for rev in [entry.name, *(m['revision'] for m in revisions._history())]:
+                files = revisions.files_at(rev)
+                mapping = require(entry, files)
+                if mapping and digest(mapping) not in expected:
+                    backup_knowledge(entry, None, files)
+                    expected.add(digest(mapping))
+            folder = entry / 'knowledge'
+            if folder.exists() and (folder.is_symlink() or {p.name for p in folder.iterdir()} != expected):
+                raise ValueError('备份含有未声明的资产素材。')
             parent=entry/'authoring'
             if parent.exists():
                 for work in parent.iterdir():

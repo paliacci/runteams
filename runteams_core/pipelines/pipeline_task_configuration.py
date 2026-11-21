@@ -261,7 +261,7 @@ def request(core, data, active_ids=()):
         row = flow._row(connection, data['workflow_id'])
         frozen = json.loads(row['snapshot_json'])
         if (frozen.get('pipeline_work') or {}).get('reference') != ref:
-            raise PermissionError('工作不属于这条流水线。')
+            raise PermissionError('工作不属于这个智能体团队。')
         declarations = configuration_fields(frozen)
         if action == 'read':return {'configuration': project(row, frozen, active_ids, declarations)}
         if action in ('credential', 'reveal-credential'):

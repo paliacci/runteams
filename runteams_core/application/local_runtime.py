@@ -120,6 +120,9 @@ class LocalRuntime:
                 def employee_owner(chat,workspace):
                     with self.employee_operation_scope():
                         if workspace:return None
+                        from runteams_core.employees.mcp.device_employee_mcp import is_workbench_id
+                        if is_workbench_id(chat):
+                            return self.employee_mcp_work().native_owner()
                         session=self.chat(chat,include_live=False)
                         if self.pipeline_chat(session):return self.pipeline_mcp_work().native_owner()
                         return self.employee_mcp_work().native_owner() if self.employee_chat(session) else None
@@ -355,14 +358,12 @@ class LocalRuntime:
             from runteams_core.authoring.creator_contracts import strict_json
             try:
                 files = source(value).files()
-                project = strict_json(files['project.json'])
-                paths = project['entrypoints']['employees']
-                path = value['context'].get('creator_employee_source') or (paths[0] if len(paths)==1 else None)
+                path = value['context']['creator_employee_source']
                 employee = strict_json(files[path])
                 if not isinstance(employee.get('name'),str) or not isinstance(employee.get('avatar'),str):
                     raise ValueError('员工源码身份无效。')
                 from runteams_core.employees.employee_avatars import identity
-                value = {**value,'identity':identity(employee, files=files)}
+                value = {**value,'identity':{**(value.get('identity') or {}), **identity(employee, files=files)}}
             except (KeyError,ValueError,OSError) as error:
                 value = {**value,'employee_error':str(error)}
         return {**value, 'messages': [{**message, 'attachments': chat_attachments.public(message.get('attachments'))}
@@ -418,7 +419,7 @@ class LocalRuntime:
         authoring = bool(session and self.source_chat(session))
         pipeline = bool(session and self.pipeline_chat(session))
         if pipeline:
-            if data.get('context') not in (None,session['context']):raise ValueError('流水线绑定不能由运行设置修改。')
+            if data.get('context') not in (None,session['context']):raise ValueError('智能体团队绑定不能由运行设置修改。')
             data={**data,'context':{}}
         employee = bool(session and self.employee_chat(session))
         if employee:
@@ -430,7 +431,7 @@ class LocalRuntime:
                 raise ValueError('源码绑定不能由运行设置修改。')
             data = {**data, 'kind':'general', 'context':{}}
         if data.get('kind', 'general') != 'general' or data.get('subject_type', 'workspace') != 'workspace' or data.get('scope_type', 'global') != 'global' or any(data.get(key) for key in ('scope_pipeline_id', 'scope_run_id', 'employee_id', 'employee_release_id')):
-            raise ValueError('请从原员工或流水线入口打开工作会话。')
+            raise ValueError('请从原员工或智能体团队入口打开工作会话。')
         context = data.get('context') or {}
         if not isinstance(context, dict) or context.get('domain', 'general') != 'general' or {'pipeline_id','employee_id','local_employee_package','source_pipeline_workspace','pipeline_work','employee_work','pipeline_generation','creator_work','creator_local_source_id','creator_local_scope','creator_authoring','creator_employee_source'} & context.keys():
             raise ValueError('此入口只接受普通本机对话。')
@@ -555,7 +556,7 @@ class LocalRuntime:
                 rows = [{**row,'context':json.loads(row.get('context_json') or '{}')} for row in rows]
                 rows = [row for row in rows if (row['subject_type'] == 'workspace' or work_session_record(row)) and row['scope_type'] == 'global' and not row['context'].get('source_pipeline_workspace')]
                 rows = [row for row in rows if row.get('kind') == 'general' or self.source_chat(row)]
-                return {'chats': [public_session(dict(row, public_id=device_data.public_id(row['id']))) for row in rows]}
+                return {'chats': [public_session(dict(row, public_id=device_data.public_id(row['id'])), include_background=False) for row in rows]}
             if method == 'POST' and path == '/api/conversations':
                 channel, model, effort, context = self.config(data)
                 cid = self.store.create_chat(channel['id'], model, effort, context=context)
@@ -610,7 +611,7 @@ class LocalRuntime:
             chat = self.chat(chat_id, include_live=False)
             if chat.get('context',{}).get('pipeline_work'):
                 if work_id is None or work_id!=chat['context'].get('employee_work',{}).get('workflow_id'):
-                    raise PermissionError('岗位执行只沿原流水线工作账本受理。')
+                    raise PermissionError('岗位执行只沿原智能体团队工作账本受理。')
                 from runteams_core.pipelines.source_pipeline_control import check_chat_operation
                 check_chat_operation(chat_id)
             operation = data.get('operation_id')
@@ -676,6 +677,7 @@ class LocalRuntime:
                     if item.get('mention_token'):title = title.replace(item['mention_token'], item['label'])
                 self.store.rename_chat(chat_id, title.strip()[:60] or '附件对话')
             turn = {'cancel': threading.Event(), 'events': [], 'done': threading.Event(), 'operation': operation}
+            turn['cancel'].background_employee_work = work_id is not None
             turn['cancel'].language_policy = policy
             if configuration is not None:
                 turn['cancel'].employee_data_lease=(configuration['reference'],{'chat_id':chat_id,'message_id':mid})
@@ -718,7 +720,7 @@ class LocalRuntime:
                         with (source_workspace(chat) if authoring else nullcontext(workspace)) as working:
                             text, incomplete, system_notice = run(channel, chat, message, attachments, working, activity,
                                                    turn['cancel'], self.store, self.app.binding.library_id, capabilities,
-                                                   employee_host=self.employee_mcp_work() if employee else None,
+                                                   employee_host=self.employee_mcp_work() if employee or authoring else None,
                                                    configuration=configuration,
                                                    signing_assistance=signing_assistance,
                                                    wake_pipeline_work=lambda identifier: self.schedule_employee_work([{'workflow_id': identifier}]))

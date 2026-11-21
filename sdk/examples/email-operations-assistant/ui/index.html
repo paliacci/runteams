@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="zh-CN" data-rt-ui>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>待跟进邮件</title>
+<style>/* PLATFORM_THEME */
+/* AUTHOR_STYLE */
+</style>
+<body data-rt-ui>
+<main class="queue">
+  <header>
+    <h1>待跟进 <span id="count"></span></h1>
+    <button id="refresh" class="rt-button" type="button" disabled>刷新列表</button>
+  </header>
+  <p id="notice" role="status" aria-live="polite"></p>
+  <div id="mail-loading" role="status" aria-label="正在加载待跟进邮件"></div>
+  <template id="mail-placeholder">
+    <div class="mail-row mail-placeholder" aria-hidden="true">
+      <div class="row-heading"><span class="rt-skeleton placeholder-sender"></span><span class="rt-skeleton placeholder-time"></span></div>
+      <span class="rt-skeleton placeholder-subject"></span>
+    </div>
+  </template>
+  <div id="rows" aria-busy="true"></div>
+  <section id="editor" hidden>
+    <h2 id="subject"></h2>
+    <p id="sender"></p>
+    <p id="snippet"></p>
+    <label for="draft">回复草稿</label>
+    <textarea id="draft" class="rt-input" rows="7" maxlength="12000" placeholder="写下这封邮件的回复…"></textarea>
+    <footer>
+      <span id="draft-status" role="status" aria-live="polite"></span>
+      <button id="save" class="rt-button rt-primary-button" type="button" disabled>保存草稿</button>
+    </footer>
+    <button id="reload" class="rt-button" type="button" hidden>载入已保存草稿</button>
+  </section>
+</main>
+<script>/* MCP_LIBRARY */</script>
+<script>/* AUTHOR_APPLICATION */</script>
+</body>
+</html>

@@ -10,7 +10,7 @@
 
 ## 作品与冻结发布
 
-根文件固定为 `project.json`，schema=`runteams.creator-project/1`，SDK 精确为 `1.0.0`。字段见 project.schema.json。员工与流水线入口是可移植来源描述；soul 只持有身份、通用表达和边界，工作方法仍在技能中。正式 work、冻结编译与派工语义复用现行 product-model/v2，不从魂文件猜工作，也不把整个业务程序重复写进员工字段。新增源包装进入现行编译器的适配尚未接线。
+根文件固定为 `project.json`，schema=`runteams.creator-project/1`，SDK 精确为 `1.0.0`。字段见 project.schema.json。员工与智能体团队入口是可移植来源描述；soul 只持有身份、通用表达和边界，工作方法仍在技能中。正式 work、冻结编译与派工语义复用现行 product-model/v2，不从魂文件猜工作，也不把整个业务程序重复写进员工字段。新增源包装进入现行编译器的适配尚未接线。
 
 入口、数据 schema、迁移、连接、操作输入输出和 handler 都引用作品内真实资产。无生成物自引用。所有文件，包括普通隐藏文件和二进制，都进入完整树清单；不能仅打包入口可达文件。500 文件、总 32 MiB；路径最大240字符，UTF-8 NFC规范相对路径，禁止绝对路径、URL、反斜线、控制字符、百分号、点段、空段、大小写碰撞、链接、设备或其他特殊文件。目录结构不授予宿主文件访问。
 
@@ -24,7 +24,7 @@
 
 `client.js` 为可嵌入 JS/Javy 的无环境 I/O 同步客户端；`client.d.ts` 给出类型。宿主提供专用 transport，UI适配器可把相同信封封装为 Promise；本轮没有实现最终浏览器适配器。
 
-请求严格为 `{abi:"runteams.sdk/1",id,method,params}`。id 从1单调增加，安全整数；响应严格为 `{abi,id,ok:true,result}` 或 `{abi,id,ok:false,error:{code,retry}}`。拒绝重复JSON键、非有限数、超出安全整数的整数、循环、非JSON类型、深度超过32及单帧超过16384 UTF-8字节。不得把调用者填入的身份、安装、固定发布、租用资格或本机路径提升为权限。外层原生辅助进程私有会话/序号/截止时间由可信适配器绑定，不让guest控制宿主控制通道。
+请求严格为 `{abi:"runteams.sdk/1",id,method,params}`。id 从1单调增加，安全整数；响应严格为 `{abi,id,ok:true,result}` 或 `{abi,id,ok:false,error:{code,retry}}`。拒绝重复JSON键、非有限数、超出安全整数的整数、循环、非JSON类型和深度超过32的值。默认帧上限为16384 UTF-8字节，`data.mutate` 请求上限为128 KiB。本机员工运行时客户端接受不超过512 KiB的托管数据响应和不超过4 MiB的应用调用响应。不得把调用者填入的身份、安装、固定发布、租用资格或本机路径提升为权限。外层原生辅助进程私有会话/序号/截止时间由可信适配器绑定，不让guest控制宿主控制通道。
 
 先调用 `system.negotiate` 精确协商 SDK 和 required 能力。声明一个方法不等于宿主已实现或已授权；缺必需能力明确 unsupported_capability，不能静默降级。1.0.0 用精确锁；未来补丁只修复不改变语义，新增能力需明确协商；破坏字段、回执、权限或效果语义必须新主版本。不得把 0.1-draft 自动当成1。
 
@@ -33,13 +33,14 @@
 | 创作来源 | source.list/read/write | 每次检查源权限；CAS冲突不覆盖；写使验证失效；write必须有原操作键 |
 | 大文件 | source.beginUpload/uploadChunk/finishUpload | 临时上传属于当前身份/作品；偏移和重复块一致，完成核实总大小及SHA256；blob_ref不是公共URL、没有源访问权；写入草稿仍需source.write CAS。inline/base64块最大8192字符 |
 | 托管数据 | data.query/mutate | workspace+installation隔离；limit1–100、游标和查询索引有界；系统字段禁止修改；mutation批次原子、有原操作键；不暴露SQL或数据库凭据 |
+| 已授权应用 | application.status/call | 以当前员工选中的连接为准；状态只返回不透明标识；工具须来自对应应用；调用有原操作键 |
 | 连接 | connection.status/request/http | status不含凭据；request只创建可信授权请求；http只选已授权端点，不接受URL、header、凭据、身份；见下节 |
 | 业务操作 | operation.invoke/receipt | 输入输出schema、actor与effect校验；写入原键必需；固定发布与租用授权由服务端注入 |
 | 工作 | work.dispatch/status | 现行employee/skill/work合同、实际主机和租用资格；创建回执不等于工作成功 |
 | 事件 | events.poll | 有界游标读取，允许重复乱序；事件ID去重，当前权限检查；触发、派工和外部效果分别去重 |
 | 宿主交互 | host.openResult/requestDecision | 引用真实授权对象；请求人工处理不自动同意、不伪造业务成功 |
 
-接口参数以 methods.json/request.schema.json 为准，返回类型以 client.d.ts、业务输出schema及本节语义为准。作者提供的业务JSON Schema只允许有限本地引用，禁止远端引用、$id重定位、动态引用和递归模式；验证器固定草案并限制复杂度，不能让schema解析触发宿主网络请求。各宿主必须校验输入和输出；客户端信封校验不是业务正确性或授权依据。只有通过对应服务验收的能力才能在 negotiate 中返回。本轮通用外部代理实际提供 connection.http/status；其余客户端接口已冻结并做编码/类型测试，产品服务适配未实现，不能称全SDK后端完成。
+接口参数以 methods.json/request.schema.json 为准，返回类型以客户端类型、业务输出schema及本节语义为准。作者提供的业务JSON Schema只允许有限本地引用，禁止远端引用、$id重定位、动态引用和递归模式；验证器固定草案并限制复杂度，不能让schema解析触发宿主网络请求。各宿主必须校验输入和输出；客户端信封校验不是业务正确性或授权依据。只有通过对应服务验收的能力才能在 negotiate 中返回。员工 MCP 宿主提供 `application.status/call` 与员工托管集合的 `data.query/mutate`。连接能力与其他接口仍由各自的宿主协商。
 
 ## 连接与供应商专用代码
 

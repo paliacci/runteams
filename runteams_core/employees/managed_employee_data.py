@@ -27,9 +27,20 @@ def verify(reference, field, selected):
     return Collections().select(field,selected)
 
 
+def _collection_marker(reference, field):
+    return 'employee-managed-data:'+digest(reference)+':'+field['key']+':'+digest(field['binding']['record_schema'])
+
+
+def existing(reference, field):
+    with device_data.connect(readonly=True) as connection:
+        row = connection.execute('SELECT value FROM device_settings WHERE key=?',
+                                 (_collection_marker(reference, field),)).fetchone()
+    return verify(reference, field, json.loads(row[0])['selection']) if row else None
+
+
 def provision(config, field):
     store=Collections();operation=creation(config.reference,field)
-    marker='employee-managed-data:'+digest(config.reference)+':'+field['key']+':'+digest(field['binding']['record_schema'])
+    marker=_collection_marker(config.reference,field)
     with device_data.connect() as c:
         selected=store.create(field,field['label'],operation)
         saved=c.execute('SELECT value FROM device_settings WHERE key=?',(marker,)).fetchone()

@@ -1,10 +1,7 @@
 /* Employee settings and author-source styles; semantic tokens only. */
-.employee-sdk-section{margin-top:28px}
 .employee-sdk-setup{width:min(520px,calc(100vw - 32px));max-height:calc(100dvh - 40px)}
 .employee-sdk-setup .mb{min-height:0;overflow-y:auto;overscroll-behavior:contain}
-.employee-sdk-space{display:flex;flex-direction:column;align-items:flex-start;gap:12px}
-.employee-sdk-space .inp{width:100%;box-sizing:border-box}
-.employee-sdk-space>label,.employee-sdk-setup .field>label{font-size:13px;font-weight:500;color:var(--text-primary)}
+.employee-sdk-setup .field>label{font-size:13px;font-weight:500;color:var(--text-primary)}
 .employee-sdk-note{margin:0;font-size:12px;line-height:1.7;color:var(--text-secondary);overflow-wrap:anywhere}
 .employee-sdk-connection{margin-top:24px;padding-top:20px;border-top:1px solid var(--border-default);display:flex;flex-direction:column;align-items:stretch;gap:12px}
 .employee-sdk-connection-heading{display:flex;align-items:baseline;justify-content:space-between;gap:12px;min-width:0}

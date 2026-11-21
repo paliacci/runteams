@@ -1,41 +1,57 @@
 """Work reports are versioned documents, never a second store of report bodies.
 
-The host owns employee/chat/work identity. Model input supplies only the title,
-Markdown and expected revision; a report cannot mutate workflow state.
+The host owns employee/chat/work identity. Model input supplies report content
+and the expected revision; a report cannot mutate workflow state.
 """
+import base64
 import copy
 import hashlib
+from io import BytesIO
 import json
+from pathlib import Path, PurePosixPath
 import re
 from contextlib import nullcontext
 
 from runteams_core.foundation.contracts import ContractError
+from runteams_core.documents import reply_visualizations
 
 SCHEMA = 'runteams.work-report/v1'
 TOOL = 'runteams_work_report'
+ATTACHMENTS = {'attach_image': ('image', 'image'), 'attach_audio': ('file', 'audio'), 'attach_video': ('video', 'video')}
 INPUT_SCHEMA = {'type':'object','properties':{
-    'operation':{'type':'string','enum':['read','write']},
+    'operation':{'type':'string','enum':['read','write',*ATTACHMENTS,'followup_list','followup_read','followup_append']},
     'report_id':{'type':'integer','minimum':1},
     'title':{'type':'string','minLength':1,'maxLength':200},
     'content':{'type':'string','minLength':1},
     'document':{'type':'object','description':'可选的 runteams.rich-document/1 内容，包含 blocks 与随文档保存的 sources 快照；不是实时查询。'},
+    'workflow_id':{'type':'integer','minimum':1}, 'revision':{'type':'integer','minimum':1},
+    'cursor':{'type':'integer','minimum':0}, 'observed_at':{'type':'string'}, 'source_url':{'type':'string'},
+    'metrics':{'type':'object'}, 'visualization':reply_visualizations.INPUT,
+    'path':{'type':'string','description':'For attachments, use their relative path under the current work folder’s output/ directory.'},
     'base_revision':{'type':'integer','minimum':0}},
     'required':['operation'],'additionalProperties':False}
 
 
 def _arguments(value):
-    if not isinstance(value,dict) or set(value)-set(INPUT_SCHEMA['properties']):
+    if not isinstance(value,dict) or set(value)-{'operation','report_id','title','content','document','visualization','path','base_revision'}:
         raise ContractError('汇报参数无效。')
-    if value.get('operation') not in ('read','write'):
+    if value.get('operation') not in ('read','write',*ATTACHMENTS):
         raise ContractError('请选择读取或保存汇报。')
     for key,minimum in [('report_id',1),('base_revision',0)]:
         if key in value and (type(value[key]) is not int or value[key]<minimum):
             raise ContractError('汇报标识或版本无效。')
+    if value['operation'] in ATTACHMENTS:
+        if set(value)!={'operation','report_id','base_revision','path'} or not isinstance(value['path'],str):
+            raise ContractError('添加附件需要汇报编号、当前修订号和 output 下的文件路径。')
+    elif 'path' in value:
+        raise ContractError('请使用对应的添加附件操作。')
     if value['operation']=='write':
         if 'base_revision' not in value:raise ContractError('保存汇报需要刚读取的版本；首次创建使用0。')
         if not isinstance(value.get('content'),str) or not value['content'].strip():
             raise ContractError('汇报正文不能为空。')
         if len(value['content'].encode())>2*1024*1024:raise ContractError('汇报正文超过2 MB。')
+    elif 'visualization' in value:
+        raise ContractError('请通过保存汇报提交可视化。')
     if 'title' in value and (not isinstance(value['title'],str) or not value['title'].strip() or len(value['title'])>200):
         raise ContractError('汇报名称无效。')
     if 'document' in value:
@@ -110,7 +126,55 @@ def _key(binding,title):
     return 'work-report-chat-'+str(binding['chat_id'])+'-'+str(binding['message_id'])+'-'+token
 
 
-def _operate(core, arguments, binding, *, owner=nullcontext()):
+def _work_attachment(directory, relative, kind):
+    from runteams_core.documents.rich_document_assets import MAX_FILE
+
+    path = PurePosixPath(relative)
+    if (len(relative)>240 or '\\' in relative or '\x00' in relative
+            or len(path.parts)<2 or path.parts[0]!='output' or '..' in path.parts):
+        raise ContractError('请选择当前工作 output 文件夹中的文件。')
+    current = directory
+    for part in path.parts:
+        current /= part
+        if current.is_symlink():
+            raise ContractError('附件不能是链接。')
+    try:
+        if not current.is_file():
+            raise ContractError('附件不存在。')
+        with current.open('rb') as stream:
+            raw = stream.read(MAX_FILE + 1)
+        if not raw or len(raw)>MAX_FILE:
+            raise ContractError('请选择不超过 20 MB 的非空文件。')
+    except OSError as error:
+        raise ContractError('附件打不开。') from error
+    evidence = {'sha256':hashlib.sha256(raw).hexdigest(), 'size':len(raw)}
+    if kind == 'audio':
+        # The producer checks full decoding and timing before it attaches the MP3.
+        if path.suffix.lower() != '.mp3' or len(raw)<128 or not (
+                raw.startswith(b'ID3') or raw[0]==0xff and raw[1]&0xe0==0xe0):
+            raise ContractError('配音附件必须是 MP3。')
+        mime = 'audio/mpeg'
+    elif kind == 'video':
+        if path.suffix.lower() != '.mp4' or len(raw)<128 or raw[4:8]!=b'ftyp':
+            raise ContractError('视频附件必须是 MP4。')
+        mime = 'video/mp4'
+    else:
+        from PIL import Image
+        try:
+            with Image.open(BytesIO(raw)) as image:
+                mime = {'PNG':'image/png','JPEG':'image/jpeg','WEBP':'image/webp'}.get(image.format)
+                if not mime:
+                    raise ContractError('成品图片须为 PNG、JPEG 或 WebP。')
+                width, height = image.size
+                image.verify()
+        except (OSError, Image.DecompressionBombError) as error:
+            raise ContractError('成品图片打不开。') from error
+        evidence = {'width':width,'height':height,'sha256':evidence['sha256']}
+    file = {'name':path.name,'type':mime,'data':'data:'+mime+';base64,'+base64.b64encode(raw).decode('ascii')}
+    return file, evidence
+
+
+def _operate(core, arguments, binding, *, owner=nullcontext(), output_directory=None):
     args=_arguments(arguments)
     # This lock/transaction is the same serialization boundary as document edits.
     # It also makes a first-save retry resolve the same document key.
@@ -137,13 +201,42 @@ def _operate(core, arguments, binding, *, owner=nullcontext()):
         from runteams_core.documents import rich_documents
         if current and current.get('content_model')!=rich_documents.MODEL:
             raise ContractError('请为本次工作新建汇报，原测试格式不再支持更新。')
-        value = args.get('document') or rich_documents.from_markdown(args['content'])
-        # Stable block identity makes a retried Markdown save byte-identical.
-        if 'document' not in args:value['blocks'][0]['id']='report-body'
-        if current and 'document' not in args:
-            old=rich_documents.validate(current['content'])
-            value['sources']=old['sources']
-            value['blocks'] += [block for block in old['blocks'] if block['type'] in {'dataTable','barChart','jsonData','metric'}]
+        attachment_result = {}
+        if args['operation'] in ATTACHMENTS:
+            block_type, kind = ATTACHMENTS[args['operation']]
+            if output_directory is None or current is None:
+                raise ContractError('请在当前智能体团队工作中先保存工作汇报，再添加附件。')
+            if args['base_revision'] not in (revision, revision-1):
+                return {'ok':False,'conflict':True,'current_revision':revision,
+                    'message':'汇报已变化，请重新读取后再添加附件。'}
+            from runteams_core.documents import rich_document_assets
+            file,evidence=_work_attachment(output_directory,args['path'],kind)
+            value=rich_documents.validate(current['content'])
+            # Calculate the same content identifier for a retry, before uploading new bytes.
+            attachment=rich_document_assets.attachment_id(selected['id'], file)
+            attachment_result={kind:{'asset_id':attachment,**evidence}}
+            if any(b['type']==block_type and b['props'].get('assetId')==attachment for b in value['blocks']):
+                return {'ok':True,'report_id':selected['id'],'document':_agent_document(current),
+                        'internal_link':'runteams://document/'+str(selected['id']),
+                        **attachment_result}
+            if args['base_revision']!=revision:
+                return {'ok':False,'conflict':True,'current_revision':revision,
+                        'message':'汇报已变化，请重新读取后再添加附件。'}
+            rich_document_assets.upload(core,selected['id'],file)
+            value['blocks'].append({'id':'work-'+kind+'-'+attachment, 'type':block_type,
+                                    'props':{'assetId':attachment,'name':file['name'],'mime':file['type']}})
+        else:
+            value = args.get('document') or rich_documents.from_markdown(args['content'])
+            # Stable block identity makes a retried Markdown save byte-identical.
+            if 'document' not in args:value['blocks'][0]['id']='report-body'
+            if current and 'document' not in args:
+                old=rich_documents.validate(current['content'])
+                value['sources']=old['sources']
+                value['blocks'] += [block for block in old['blocks']
+                                    if block['type'] in {'dataTable','barChart','jsonData','metric','image','video','file'}
+                                    or reply_visualizations.is_generated(block)]
+        if 'visualization' in args:
+            value=reply_visualizations.apply(value,args['visualization'])
         body=rich_documents.encode(value)
         identical=current and current.get('content')==body and current['name']==title
         if args['base_revision']!=revision and not identical:
@@ -168,7 +261,8 @@ def _operate(core, arguments, binding, *, owner=nullcontext()):
         if binding.get('workflow_id'):meta['workflow_id']=binding['workflow_id']
         c.execute('UPDATE artifacts SET meta_json=? WHERE id=?',(json.dumps(meta),doc['id']))
         return {'ok':True,'report_id':root,'document':_agent_document(doc),
-                'internal_link':'runteams://document/'+str(root)}
+                'internal_link':'runteams://document/'+str(root),
+                **attachment_result}
 
 
 def employee_call(arguments, context):
@@ -189,6 +283,15 @@ def employee_call(arguments, context):
     if not message:raise ContractError('原工作请求不存在。')
     binding={'schema':SCHEMA,'employee_reference':employee['reference'],'chat_id':session['id'],'message_id':message['id']}
     work=device_work_service(channel_resolver=product_store.get_channel)
+    from runteams_core.pipelines import scheduled_followup
+    if arguments.get('operation') in scheduled_followup.OPERATIONS:
+        with work.repository.audit_context(actor_id=principal(expected), source='agent_tool'):
+            work._actor()
+            scope = scheduled_followup.scope_for_chat(session['id'], employee['reference'])
+            result = scheduled_followup.operate(work, employee['reference'], scope, arguments)
+            device_data.check(expected)
+            return result
+    output_directory=None
     workflow_id=(session.get('context') or {}).get('employee_work',{}).get('workflow_id')
     if workflow_id:
         with work.repository.connect() as c:
@@ -200,13 +303,25 @@ def employee_call(arguments, context):
         if frozen.get('pipeline_work'):
             from runteams_core.pipelines.source_pipeline_control import check_chat_operation
             check_chat_operation(session['id'])
-            if arguments.get('operation')=='write' and frozen.get('pipeline_submission'):
+            if arguments.get('operation') in ('write',*ATTACHMENTS) and frozen.get('pipeline_submission'):
                 raise ContractError('岗位结果已经提交，汇报版本已固定；请先完成本次交接。')
+            if arguments.get('operation') in ATTACHMENTS:
+                from runteams_core.conversations.conversation_folders import runtime
+                from runteams_core.employees.employee_workspaces import workspace
+                output_directory=Path(runtime(session['id'],workspace(session['id'])))
             binding['employee_run_id']=frozen['employee_run_id']
             binding['kind']='pipeline_stage'
     with work.repository.audit_context(actor_id=principal(expected),source='agent_tool'):
         work._actor()
-        result=_operate(work,arguments,binding,owner=employee_host.document_owner(session))
+        result=_operate(work,arguments,binding,owner=employee_host.document_owner(session),
+                        output_directory=output_directory)
+        if binding.get('kind') == 'pipeline_stage':
+            from runteams_core.pipelines.pipeline_task_report import _root
+            with work.repository.connect() as connection:
+                task = connection.execute('SELECT task_id FROM workflow_runs WHERE id=?', (workflow_id,)).fetchone()
+                document = _root(connection, task['task_id']) if task else None
+            if document and not document['trashed_at']:
+                result['task_document_link'] = 'runteams://document/' + str(document['id'])
         device_data.check(expected)
         return result
 

@@ -30,7 +30,9 @@
         "work.status",
         "events.poll",
         "host.openResult",
-        "host.requestDecision"
+        "host.requestDecision",
+        "application.status",
+        "application.call"
       ]
     },
     "params": {
@@ -377,7 +379,7 @@
                     "id": {
                       "type": "string",
                       "minLength": 1,
-                      "maxLength": 128
+                      "maxLength": 240
                     },
                     "base_revision": {
                       "type": [
@@ -746,6 +748,74 @@
             },
             "required": [
               "decision_ref"
+            ],
+            "additionalProperties": false
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "method": {
+            "const": "application.status"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "params": {
+            "type": "object",
+            "properties": {
+              "application": {
+                "type": "string",
+                "pattern": "^(composio|mcp):[A-Za-z0-9_-]{1,160}$"
+              }
+            },
+            "required": [
+              "application"
+            ],
+            "additionalProperties": false
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "method": {
+            "const": "application.call"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "params": {
+            "type": "object",
+            "properties": {
+              "application": {
+                "type": "string",
+                "pattern": "^(composio|mcp):[A-Za-z0-9_-]{1,160}$"
+              },
+              "tool": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              },
+              "arguments": {
+                "type": "object"
+              },
+              "operation_key": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              }
+            },
+            "required": [
+              "application",
+              "tool",
+              "arguments",
+              "operation_key"
             ],
             "additionalProperties": false
           }

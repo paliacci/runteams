@@ -15,7 +15,8 @@ from runteams_core.storage.local_library import scope_for
 SCHEMA='runteams.library-backup/1'
 DATABASES=('personal.sqlite3','library-assets.sqlite3','interaction-settings.sqlite3')
 SCHEDULES=('employee-schedules','pipeline-schedules')
-TREES=('attachments','conversation-folders','workspaces','employee-workspaces','pipeline-workspaces')
+# Preserve release files already present in backups and existing libraries.
+TREES=('attachments','conversation-folders','workspaces','employee-workspaces','pipeline-workspaces','work-app-releases')
 IGNORED={'employee-mcp-packages','conversation-runtime.sqlite3','conversation-runtime.sqlite3-wal','conversation-runtime.sqlite3-shm'}
 PORTABLE_WORKSPACE='library://workspaces/assistant'
 
@@ -33,7 +34,7 @@ def verify_work(directory, scope):
     if not path.exists():return
     with closing(disk.readonly_database(path)) as connection:
         version=connection.execute('PRAGMA user_version').fetchone()[0]
-        if version not in (work.PREVIOUS_VERSION,work.VERSION):raise ValueError('本机文档版本不受支持。')
+        if version not in work.SUPPORTED_VERSIONS:raise ValueError('本机文档版本不受支持。')
         work.verify_structure(connection,version)
         row=connection.execute('SELECT binding_json,data_epoch FROM device_work_scope WHERE singleton=1').fetchone()
         if not row or json.loads(row[0])!={k:scope[k] for k in ('storage_kind','library_id','storage_namespace')} or str(uuid.UUID(row[1]))!=row[1]:

@@ -9,6 +9,8 @@ from runteams_core.assets.skills import skill_bundles
 
 def verify(value):
     asset = validate_definition("marketplace_employee_asset", value)
+    from runteams_core.assets.workspace_background import image_src
+    image_src(asset)
     if 'configuration' in asset['employee']:
         from runteams_core.configuration.configuration_schema import validate_declaration
         try:

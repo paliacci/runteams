@@ -25,6 +25,7 @@ _CREDENTIAL_KEY = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,119}$")
 _RUN_STATES = ("completed", "blocked", "needs_human", "failed")
 PIPELINE_STATUS_FIRST = "status-first"
 PIPELINE_WAIT_FOR_INPUT = "wait-for-input"
+PIPELINE_COMPLETE_HERE = "complete-here"
 PIPELINE_OUTCOME_PREFIX = "outcome:"
 PIPELINE_APPROVAL_DECISIONS = ("approved", "rejected")
 _PIPELINE_COLUMN_COLORS = {
@@ -263,12 +264,12 @@ def json_schema_violations(value, schema, path="$", limit=50):
 
 
 def normalize_pipeline_definition(value):
-    value = _object(value, "流水线定义")
+    value = _object(value, "智能体团队定义")
     if "standards" in value:
         raise ContractError("团队规范请使用单个 team_standard 文本字段")
     status_first = "routing_policy" in value
     if status_first and value["routing_policy"] != PIPELINE_STATUS_FIRST:
-        raise ContractError("流水线流转规则版本无效")
+        raise ContractError("智能体团队流转规则版本无效")
     positions, position_keys = [], set()
     for raw in value.get("positions") or []:
         item = _object(raw, "岗位")
@@ -294,7 +295,7 @@ def normalize_pipeline_definition(value):
             if skill_key:
                 position["skill_key"] = normalize_package_key(skill_key)
             if "skill_id" in item:
-                raise ContractError("流水线岗位已改用skill_key")
+                raise ContractError("智能体团队岗位已改用skill_key")
 
         else:
             position["kind"] = "approval"
@@ -308,13 +309,13 @@ def normalize_pipeline_definition(value):
             position["color"] = color
         positions.append(position)
     if not positions:
-        raise ContractError("流水线至少需要一个岗位")
+        raise ContractError("智能体团队至少需要一个岗位")
     states, state_keys = [], set()
     for raw in value.get("states") or []:
         item = _object(raw, "状态列")
         key = _key(item.get("key"), "状态列 key")
         if key in position_keys or key in state_keys:
-            raise ContractError("流水线列 key 重复：{}".format(key))
+            raise ContractError("智能体团队列 key 重复：{}".format(key))
         kind = _text(item.get("kind") or "pool", "状态列类型", limit=40)
         if kind not in ("pool", "done", "dropped"):
             raise ContractError("状态列类型无效：{}".format(kind))
@@ -333,8 +334,8 @@ def normalize_pipeline_definition(value):
             state["records_only"] = item["records_only"]
         states.append(state)
     route_keys = position_keys | state_keys
-    if status_first and PIPELINE_WAIT_FOR_INPUT in route_keys:
-        raise ContractError("待人工处理是岗位内状态，不能作为列名标识")
+    if status_first and route_keys & {PIPELINE_WAIT_FOR_INPUT, PIPELINE_COMPLETE_HERE}:
+        raise ContractError("待人工处理和原岗完成是岗位内状态，不能作为列名标识")
     position_kinds = {position["key"]: position["kind"] for position in positions}
     parameters = normalize_pipeline_parameters(value.get("parameters"), position_keys)
     configuration = {field["key"]: field for field in parameters if field["source"] == "user"
@@ -344,7 +345,8 @@ def normalize_pipeline_definition(value):
         item = _object(raw, "交接关系")
         source, target = _key(item.get("from"), "上游岗位"), _key(item.get("to"), "下游环节")
         wait_here = status_first and target == PIPELINE_WAIT_FOR_INPUT and position_kinds.get(source) == "employee"
-        if source not in position_keys or (target not in route_keys and not wait_here) or source == target:
+        complete_here = status_first and target == PIPELINE_COMPLETE_HERE
+        if source not in position_keys or (target not in route_keys and not wait_here and not complete_here) or source == target:
             raise ContractError("交接关系引用了无效环节")
         limit = 120 + len(PIPELINE_OUTCOME_PREFIX) if status_first else 120
         when = _text(item.get("when"), "交接条件", required=False, limit=limit)
@@ -357,6 +359,11 @@ def normalize_pipeline_definition(value):
                 outcome = condition.removeprefix(PIPELINE_OUTCOME_PREFIX)
                 if outcome == condition or not outcome or outcome != outcome.strip():
                     raise ContractError("技能结果条件须使用 outcome: 前缀")
+            if complete_here:
+                successful = (condition == "approved" if position_kinds[source] == "approval" else
+                              condition in ("completed", "always") or condition.startswith(PIPELINE_OUTCOME_PREFIX))
+                if not successful:
+                    raise ContractError("留在原岗并完成仅适用于完成结果或审批通过")
         marker = (source, when or "completed")
         if marker in edge_keys:
             raise ContractError("同一岗位的交接条件不能重复")
@@ -379,7 +386,7 @@ def normalize_pipeline_definition(value):
     if not starts:
         starts = [positions[0]["key"]]
     if len(starts) != 1:
-        raise ContractError("流水线必须有且只有一个起点")
+        raise ContractError("智能体团队必须有且只有一个起点")
     reachable, pending = set(), [starts[0]]
     while pending:
         current = pending.pop()
@@ -389,7 +396,7 @@ def normalize_pipeline_definition(value):
         pending.extend(edge["to"] for edge in edges
                        if edge["from"] == current and edge["to"] in position_keys)
     if reachable != position_keys:
-        raise ContractError("流水线存在无法到达的岗位")
+        raise ContractError("智能体团队存在无法到达的岗位")
     result = {"schema": "runteams.pipeline/v1", "positions": positions, "edges": edges}
     if status_first:
         result["routing_policy"] = PIPELINE_STATUS_FIRST
@@ -397,6 +404,9 @@ def normalize_pipeline_definition(value):
         result["states"] = states
     if parameters:
         result["parameters"] = parameters
+    if "delivery" in value:
+        from runteams_core.pipelines.pipeline_task_delivery import validate
+        result["delivery"] = validate(value["delivery"], parameters)
     if "team_standard" in value:
         standard = value["team_standard"]
         if not isinstance(standard, str) or not standard.strip() or len(standard) > 12000:
@@ -424,7 +434,7 @@ def repair_pipeline_definition(value, drop_keys=None):
         if str(item.get("key") or "").strip()
     }
     if value.get("routing_policy") == PIPELINE_STATUS_FIRST:
-        route_live.add(PIPELINE_WAIT_FOR_INPUT)
+        route_live.update((PIPELINE_WAIT_FOR_INPUT, PIPELINE_COMPLETE_HERE))
     edges, seen = [], set()
     for raw in value.get("edges") or []:
         if not isinstance(raw, dict):

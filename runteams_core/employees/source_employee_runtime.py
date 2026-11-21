@@ -107,22 +107,30 @@ def source(ref):
     return store, revisions
 
 
-def describe(ref, *, revision=None):
+def describe(ref, *, revision=None, project_key=None, catalog_cache=None):
     _, revisions = source(ref)
     with revisions.locked():
         revision = revision or revisions._head()
-    files = revisions.files_at(revision)
-    project=strict_json(files['project.json'])
-    if ref['employee_source'] not in project['entrypoints']['employees']:
-        raise ContractError('员工源码入口已不存在，请在原工程中核对。')
-    from runteams_core.authoring.source.creator_source_import import validate_source
-    from runteams_core.authoring.creator_conversation_assets import compile_catalog
-    compiled = validate_source(files)
-    definitions = compile_catalog(files, compiled)
+    cache_key = (ref['source_id'], revision)
+    cached = catalog_cache.get(cache_key) if catalog_cache is not None else None
+    if cached is None:
+        files = revisions.files_at(revision)
+        project = strict_json(files['project.json'])
+        if project_key is not None and project.get('key') != project_key:
+            return None
+        from runteams_core.authoring.source.creator_source_import import validate_source
+        from runteams_core.authoring.creator_conversation_assets import compile_catalog
+        definitions = compile_catalog(files, validate_source(files))
+        if catalog_cache is not None:
+            catalog_cache[cache_key] = (project, definitions)
+    else:
+        project, definitions = cached
+        if project_key is not None and project.get('key') != project_key:
+            return None
     if ref['employee_source'] not in definitions['employees']:
         raise ContractError('员工源码入口已不存在，请在原工程中核对。')
     asset = definitions['employees'][ref['employee_source']]
-    return {'reference': ref, 'revision': revision, 'asset': asset, 'project_name': compiled['project']['name'],
+    return {'reference': ref, 'revision': revision, 'asset': asset, 'project_name': project['name'],
             'skills': units(asset)}
 
 
@@ -193,6 +201,11 @@ def validate(package):
     if isinstance(package, dict) and package.get('schema') == employee_work_contracts.ACQUIRED_PACKAGE:
         return _external('acquired','validate',package)
     if isinstance(package,dict) and package.get('schema')==employee_work_contracts.RENTED_PACKAGE:return _external('rented','validate',package)
+    _validated_source_asset(package)
+    return package
+
+
+def _validated_source_asset(package):
     if not isinstance(package, dict) or set(package) != {'schema','reference','revision','build_operation_key','result_sha256','runtime'} or package.get('schema') != employee_work_contracts.SOURCE_PACKAGE:
         raise ContractError('原员工运行包引用无效。')
     expected_scope=device_data.identity()
@@ -215,7 +228,7 @@ def validate(package):
     if not runtime_matches_requirement(runtime, asset['employee']['runtime_requirement']):
         raise ContractError('员工运行设置不符合源码要求。')
     device_data.check(expected_scope)
-    return package
+    return asset
 
 
 def package_asset(package):
@@ -227,13 +240,20 @@ def package_asset(package):
     return verified_employee_asset(strict_json(artifacts[CATALOG_PATH])['employees'][package['reference']['employee_source']])
 
 
-def employee(package):
-    package = validate(package)
-    asset = package_asset(package);ref = package['reference']
+def employee(package, *, include_background=False):
+    if isinstance(package,dict) and package.get('schema') in (
+            employee_work_contracts.ACQUIRED_PACKAGE,employee_work_contracts.RENTED_PACKAGE):
+        package = validate(package)
+        asset = package_asset(package)
+    else:
+        asset = _validated_source_asset(package)
+    ref = package['reference']
     from runteams_core.assets.source_links import source_key
+    from runteams_core.assets.workspace_background import display_fields
     from runteams_core.employees.employee_avatars import identity
     return {'id': source_key(ref['source_id'], ref['employee_source']),
             **identity(asset['employee'], avatar_file=asset.get('avatar_file')),
+            **(display_fields(asset) if include_background else {}),
             'local_package': package,
             'active_release': {'id':None, 'digest':digest(package), 'snapshot_json':{
                 'schema':employee_work_contracts.SOURCE_PACKAGE,
@@ -241,7 +261,7 @@ def employee(package):
                 'skill_bundles':asset['skill_bundles']}}}
 
 
-def for_chat(chat_id):
+def for_chat(chat_id, *, include_background=False):
     from runteams_core.storage import product_store
     session = product_store.get_chat(chat_id,include_messages=False)
     package = (session or {}).get('context',{}).get('local_employee_package')
@@ -249,7 +269,7 @@ def for_chat(chat_id):
         return None
     if not device_data.contains(chat_id) or session['subject_type'] != 'employee' or session['kind'] != 'general':
         raise PermissionError('原员工工作对话引用无效。')
-    return employee(package)
+    return employee(package, include_background=include_background)
 
 
 def work_config_context(session, incoming, *, scope_pipeline_id=None):

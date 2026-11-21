@@ -32,7 +32,7 @@ def reference(kind):
         root=resource_root()
         paths=['sdk/runtime/LICENSE', 'sdk/runtime/README.md', 'sdk/runtime/contract-provenance.json', 'sdk/runtime/index.d.ts', 'sdk/runtime/index.js', 'sdk/runtime/internal/guards.js', 'sdk/runtime/internal/requests.d.ts', 'sdk/runtime/internal/requests.js', 'sdk/runtime/package.json', 'sdk/shared/guards.js']
         value['native_runtime']={'host_expression':'globalThis.runteamsRuntimeHost','factory':'createRuntime',
-            'capabilities':['connection.http'],'requires':['native library source owner','declared sdk_connection','explicit service consent','original program enablement','active admitted original MCP tool call'],
+            'capabilities':['connection.http','application.status','application.call','data.query','data.mutate'],'requires':['native library source owner','declared sdk_connection','explicit service consent','original program enablement','active admitted original MCP tool call'],
             'client_files':[file_payload('vendor/'+name,(root/name).read_bytes()) for name in paths]}
     return value
 

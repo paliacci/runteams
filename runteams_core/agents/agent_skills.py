@@ -1,8 +1,8 @@
 from runteams_core.foundation.resources import root as resource_root
 """Standard Agent Skills for platform workflows, loaded through native file tools.
 
-Only names, descriptions and locations enter the initial model context. Full
-instructions and resources remain ordinary portable SKILL.md directories.
+The initial model context includes the catalog and any shared reply defaults.
+Full instructions and resources remain ordinary portable SKILL.md directories.
 Native CLI skills keep their own discovery, configuration and permissions.
 """
 import hashlib
@@ -20,6 +20,17 @@ CHAT_SKILLS = ('runteams-employee-authoring', 'runteams-pipeline-design',
 EMPLOYEE_SKILLS = ('runteams-work-execution', 'runteams-task-dispatch',
                    'runteams-document-work', 'runteams-work-report', 'runteams-automation-management',
                    'runteams-work-item-triage', 'runteams-reply-content')
+
+REPLY_GUIDANCE = (
+    '当用户要在对话里扫读、比较、排序、筛选或决定哪些记录要跟进，'
+    '并且你已取得多条带共同字段的记录时，首轮最终答复默认包含原生交互视图。'
+    '自行判断，无需用户点名组件：逐项比较和跟进用 Table，阅读内容和对话顺序用 Messages，'
+    '比较可核对的同口径数值用 Chart。正文先给结论，逐条依据交给视图。'
+    '单条事实、空结果、失败结果或用户指定纯文本时，用简短文字。'
+    '使用视图前读取 runteams-reply-content 及其 references/protocol.md，'
+    '在最终答复中输出有效的 runteams-view v2 围栏。'
+    '逐项核对字段和值，保留缺失值，推断和建议要能与来源事实区分。'
+)
 
 
 def catalog(names, *, root=None):
@@ -42,6 +53,8 @@ def revision(names=CHAT_SKILLS, *, root=None):
     digest = hashlib.sha256()
     from runteams_core.agents.agent_guidance import BASE_AGENT_INSTRUCTION
     digest.update(BASE_AGENT_INSTRUCTION.encode('utf-8'))
+    if 'runteams-reply-content' in names:
+        digest.update(REPLY_GUIDANCE.encode('utf-8'))
     skill_root = ROOT if root is None else Path(root)
     for item in catalog(names, root=skill_root):
         directory = Path(item['location']).parent
@@ -62,4 +75,6 @@ def instructions(names=CHAT_SKILLS, *, required=None, root=None):
             '用户明确要求优先于技能中的一般建议；技能说明不授予账户、外部操作或平台数据权限。'
             '当前官方 CLI 已启用的公开 Skills、插件、MCP 与原生工具照常可用，按任务采用。\n'
             + (('本轮使用技能：' + required + '。\n') if required else '')
-            + json.dumps(skills, ensure_ascii=False))
+            + json.dumps(skills, ensure_ascii=False)
+            + ('\n\n# 对话交付\n' + REPLY_GUIDANCE
+               if any(item['name'] == 'runteams-reply-content' for item in skills) else ''))

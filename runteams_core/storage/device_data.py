@@ -19,7 +19,7 @@ from runteams_core.conversations.workspace_context import selected
 
 _active = ContextVar('device_data_connection', default=None)
 _schema_lock = threading.RLock()
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 7
 LOCAL_CHAT_ID_MIN = 2**48
 
 
@@ -62,7 +62,7 @@ def check(expected):
         raise PermissionError('账户或工作区已变化，请重新打开。')
 
 
-def schema():
+def schema(version=SCHEMA_VERSION):
     directory = resource_root() / 'contracts'
     business = (directory / 'cloud-business-transaction.sql').read_text()
     statements = [(directory / 'device-user-data.sql').read_text()]
@@ -73,6 +73,9 @@ def schema():
     statements.extend((directory / name).read_text() for name in (
         'device-creator-work.sql', 'device-runtime-links.sql'))
     statements.append((directory / 'device-collections.sql').read_text())
+    if version >= 6:
+        knowledge = (directory / 'device-asset-knowledge.sql').read_text()
+        statements.append(knowledge if version >= 7 else knowledge.replace('pages >= 0', 'pages > 0'))
     return '\n'.join(statements)
 
 
@@ -83,8 +86,8 @@ def _initialize(c):
         if version == SCHEMA_VERSION:
             verify(c, schema())
             return
-        if version != 0 or c.execute(
-                "SELECT 1 FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' LIMIT 1").fetchone():
+        if version not in (0, 5, 6) or (version == 0 and c.execute(
+                "SELECT 1 FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' LIMIT 1").fetchone()):
             raise ValueError('本机数据版本不受支持，原资料保持不变。')
         c.execute('PRAGMA journal_mode=WAL')
         c.execute('BEGIN IMMEDIATE')
@@ -92,6 +95,23 @@ def _initialize(c):
             # A competing initializer may have completed while this one waited.
             version = c.execute('PRAGMA user_version').fetchone()[0]
             if version == SCHEMA_VERSION:
+                verify(c, schema())
+            elif version == 6:
+                verify(c, schema(6))
+                c.execute('ALTER TABLE asset_source_pages RENAME TO old_source_pages')
+                c.execute('ALTER TABLE asset_sources RENAME TO old_sources')
+                knowledge = (resource_root() / 'contracts/device-asset-knowledge.sql').read_text()
+                execute(c, knowledge[knowledge.index('CREATE TABLE asset_sources'):])
+                c.execute('INSERT INTO asset_sources SELECT * FROM old_sources')
+                c.execute('INSERT INTO asset_source_pages SELECT * FROM old_source_pages')
+                c.execute('DROP TABLE old_source_pages')
+                c.execute('DROP TABLE old_sources')
+                c.execute('PRAGMA user_version=' + str(SCHEMA_VERSION))
+                verify(c, schema())
+            elif version == 5:
+                verify(c, schema(5))
+                execute(c, (resource_root() / 'contracts/device-asset-knowledge.sql').read_text())
+                c.execute('PRAGMA user_version=' + str(SCHEMA_VERSION))
                 verify(c, schema())
             elif version == 0 and not c.execute(
                     "SELECT 1 FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' LIMIT 1").fetchone():
@@ -169,21 +189,18 @@ def page_ids():
             'EXISTS(SELECT 1 FROM chat_messages m WHERE m.chat_id=i.chat_id) AS has_messages '
             'FROM device_chat_index i JOIN chats c ON c.id=i.chat_id WHERE i.deleted=0'
         ).fetchall()
+    from runteams_core.conversations.page_paths import chat_owner_paths
+    contexts = [json.loads(row['context_json'] or '{}') for row in rows]
     items, layouts = [], {}
-    for row in rows:
+    for row, context, owner in zip(rows, contexts, chat_owner_paths(contexts), strict=True):
         public_id = 'local-'+row['identity'].replace('-','')
-        items.append({'resource':'chats','id':str(row['chat_id']),'public_id':public_id})
+        items.append({'resource':'chats','id':str(row['chat_id']),'public_id':public_id,
+                      'owner_path':owner})
         if row['has_messages']:
             layouts[public_id] = 'history'
         elif row['kind'] == 'employee_design':
             layouts[public_id] = 'employee'
         elif row['kind'] == 'general':
-            try:
-                context = json.loads(row['context_json'] or '{}')
-            except (TypeError, ValueError):
-                continue
-            if not isinstance(context, dict):
-                continue
             layouts[public_id] = ('pipeline' if context.get('source_pipeline_workspace') else
                                   'employee' if context.get('context_type') == 'worker' else
                                   'create-employee' if context.get('purpose') == 'create-employee' else 'general')

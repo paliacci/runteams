@@ -42,7 +42,7 @@ def source(ref):
     from runteams_core.authoring.source.creator_source_revisions import Revisions
     ref = pipeline_references.checked_reference(ref)
     if not device_data.personal():
-        raise PermissionError('请在个人本机工作区运行流水线。')
+        raise PermissionError('请在个人本机工作区运行智能体团队。')
     store = current_store(device_data.identity()['cache_scope'])
     return Revisions(store, ref['source_id'])
 
@@ -54,7 +54,7 @@ def _entry(asset, start_column_key=None):
     key = start_column_key or workflow_policy.start_position(definition)
     entry = next((p for p in [*definition['positions'], *definition.get('states', [])] if p['key'] == key), None)
     if entry is None:
-        raise ContractError('新工作必须选择流水线中实际存在的岗位。')
+        raise ContractError('新工作必须选择智能体团队中实际存在的岗位。')
     return entry
 
 
@@ -72,7 +72,7 @@ def _position(asset, key):
         raise ContractError('原工作岗位不存在或已改为人工决定，不能自动丢弃或改派。')
     member = next((row for row in asset['employees'] if row['ref'] == position['employee_ref']), None)
     if member is None:
-        raise ContractError('流水线岗位的员工引用不完整。')
+        raise ContractError('智能体团队岗位的员工引用不完整。')
     return position, member
 
 
@@ -85,7 +85,7 @@ def describe(ref, start_column_key=None):
     with revisions.locked():
         revision = revisions._head(); files = revisions._files(revision)
     asset = validate_source(files)['pipelines'].get(ref['pipeline_source'])
-    if asset is None: raise ContractError('流水线源码入口已不存在。')
+    if asset is None: raise ContractError('智能体团队源码入口已不存在。')
     position, member = _selection(asset, start_column_key)
     description = pipeline_context().describe_member(ref, member, revision)
     employee = description['asset']
@@ -116,43 +116,43 @@ def _context(ref, package, position_key=None, source_revision=None):
     _, artifacts = BuildArtifacts(store, ref['source_id']).artifacts(package['build_operation_key'])
     asset = strict_json(artifacts[CATALOG_PATH])['pipelines'].get(ref['pipeline_source'])
     if not asset or asset['schema'] != 'runteams.conversation-pipeline/v1':
-        raise ContractError('原构建缺少流水线运行定义。')
+        raise ContractError('原构建缺少智能体团队运行定义。')
     position, member = _selection(asset) if position_key is None else _position(asset, position_key)
     from runteams_core.foundation.identity.work_identity import source_owner
     if (member['source'] != package['reference']['employee_source'] or ref['source_id']!=package['reference']['source_id']
             or source_owner(ref)!=source_owner(package['reference'])):
-        raise ContractError('流水线与员工运行包不一致。')
+        raise ContractError('智能体团队与员工运行包不一致。')
     return {'schema': CONTEXT, 'reference': ref, 'asset': copy.deepcopy(asset), 'position_key': position['key']}
 
 
 def verify_context(value, package, scope=None, *, read_build=False):
     if not isinstance(value, dict) or set(value) not in ({'schema', 'reference', 'asset', 'position_key'}, {'schema', 'reference', 'asset', 'position_key', 'source_revision'}) or value.get('schema') != CONTEXT:
-        raise ContractError('流水线岗位工作绑定无效。')
+        raise ContractError('智能体团队岗位工作绑定无效。')
     ref = pipeline_references.checked_reference(value['reference'], scope)
     from runteams_core.authoring.creator_definitions import validate_author
     asset = value['asset']
     if not isinstance(asset, dict) or asset.get('schema') != 'runteams.conversation-pipeline/v1':
-        raise ContractError('流水线工作定义无效。')
+        raise ContractError('智能体团队工作定义无效。')
     validate_author('pipeline', {**asset, 'schema': 'runteams.pipeline-source/3'})
     position, member = _position(asset, value['position_key'])
     if (len({row['ref'] for row in asset['employees']}) != len(asset['employees']) or
             value['position_key'] != position['key']):
-        raise ContractError('流水线岗位与原员工工作不一致。')
+        raise ContractError('智能体团队岗位与原员工工作不一致。')
     from runteams_core.pipelines.pipeline_dependency_bindings import verify_binding
     has_dependencies = any('dependency' in row for row in asset['employees'])
     if has_dependencies != ('source_revision' in value):
-        raise ContractError('流水线自身修订引用不完整。')
+        raise ContractError('智能体团队自身修订引用不完整。')
     if has_dependencies:
         from runteams_core.authoring.source.creator_source_revisions import REV
         revision = value['source_revision']
         if revision != ref['source_id'] and (not isinstance(revision, str) or not REV.fullmatch(revision)):
-            raise ContractError('流水线自身修订无效。')
+            raise ContractError('智能体团队自身修订无效。')
     verify_binding(ref, member, package, value.get('source_revision'))
     from runteams_core.pipelines.portable_pipeline import validate_pipeline_bindings
     validate_pipeline_bindings(asset['pipeline'], {row['ref']: [p['skill_key'] for p in asset['pipeline']['positions']
         if p['kind'] == 'employee' and p['employee_ref'] == row['ref']] for row in asset['employees']})
     if read_build and value != _context(ref, package, position['key'], value.get('source_revision')):
-        raise ContractError('流水线岗位与原构建内容不一致。')
+        raise ContractError('智能体团队岗位与原构建内容不一致。')
     return value
 
 
@@ -171,7 +171,7 @@ def prepare_member(ref, employee_source, operation_id, revision, *, runtime_sele
     revisions = source(ref)
     asset = validate_source(revisions.files_at(revision))['pipelines'][ref['pipeline_source']]
     member = next((row for row in asset['employees'] if selector(row) == employee_source), None)
-    if member is None: raise ContractError('员工不属于所选流水线版本。')
+    if member is None: raise ContractError('员工不属于所选智能体团队版本。')
     deadline = time.monotonic() + 200
     while True:
         options = {'runtime_selection': runtime_selection} if runtime_selection is not None else {}
@@ -184,7 +184,7 @@ def prepare_member(ref, employee_source, operation_id, revision, *, runtime_sele
 def _request(data):
     fields={'operation_id','reference','title','payload'}
     if not isinstance(data, dict) or set(data) not in (fields,fields|{'start_column_key'}):
-        raise ContractError('请提供原操作编号、流水线引用、工作名称和输入。')
+        raise ContractError('请提供原操作编号、智能体团队引用、工作名称和输入。')
     try:
         operation = str(uuid.UUID(data['operation_id']))
     except (ValueError, TypeError, AttributeError):
@@ -243,13 +243,13 @@ def _project_execution_names(attempts, employee_context):
 
 def _authorized_work(connection, ref, identifier):
     row = connection.execute(
-        'SELECT w.snapshot_json, w.state, w.cursor_key, t.trashed_at FROM workflow_runs w '
+        'SELECT w.snapshot_json, w.state, w.cursor_key, w.task_id, t.trashed_at FROM workflow_runs w '
         'JOIN tasks t ON t.id=w.task_id WHERE w.id=?',
         (identifier,)).fetchone()
     frozen = json.loads(row['snapshot_json']) if row else {}
     context = frozen.get('pipeline_work') or {}
     if context.get('reference') != ref:
-        raise PermissionError('工作不属于这条流水线。')
+        raise PermissionError('工作不属于这个智能体团队。')
     verify_context(context, frozen['package'])
     return row, frozen
 
@@ -333,7 +333,7 @@ def retry_before_send(core, identifier):
     core._actor()
     with core.repository.connect() as connection:
         original=connection.execute('SELECT snapshot_json FROM workflow_runs WHERE id=?',(identifier,)).fetchone()
-    if original is None:raise ContractError('原流水线工作不存在。')
+    if original is None:raise ContractError('原智能体团队工作不存在。')
     expected=json.loads(original[0])
     verify_context(expected.get('pipeline_work'),expected['package'],read_build=True)
     from runteams_core.employees.employee_context import current as employee_context
@@ -345,7 +345,7 @@ def retry_before_send(core, identifier):
         connection.execute('BEGIN IMMEDIATE')
         row = connection.execute('SELECT state,task_id,snapshot_json FROM workflow_runs WHERE id=?', (identifier,)).fetchone()
         if row is None:
-            raise ContractError('原流水线工作不存在。')
+            raise ContractError('原智能体团队工作不存在。')
         frozen = json.loads(row['snapshot_json']) if row else {}
         if digest(frozen)!=digest(expected):raise ContractError('工作状态已变化，请核对原工作。')
         from runteams_core.pipelines.source_pipeline_control import bundle_for_work, read
@@ -375,7 +375,7 @@ def stage_payload(package, context, payload, *, updating=False):
     position, _ = _position(context['asset'], context['position_key'])
     payload = copy.deepcopy(payload)
     if not updating and payload.get('skill_key') not in (None, '', position['skill_key']):
-        raise ContractError('工作技能必须使用流水线岗位绑定。')
+        raise ContractError('工作技能必须使用智能体团队岗位绑定。')
     payload['skill_key'] = position['skill_key']
     from runteams_core.employees.employee_context import current as employee_context
     from runteams_core.authoring.creator_conversation_assets import extension
@@ -424,7 +424,7 @@ def create(core, data):
     revisions = source(ref)
     active = control.read(core, ref)
     if active['status'] != 'running':
-        raise ContractError('流水线已暂停，不能开始新工作。')
+        raise ContractError('智能体团队已暂停，不能开始新工作。')
     with revisions.locked():
         revision = revisions._head()
     candidate = active['bundle']
@@ -448,7 +448,7 @@ def create(core, data):
             identifier = previous
         else:
             if revisions._head() != candidate['revision']:
-                raise ContractError('流水线源码已有更新，请重新核对本次工作。')
+                raise ContractError('智能体团队源码已有更新，请重新核对本次工作。')
             selected, generation = control.admit(connection, core, request['reference'], candidate,request.get('start_column_key'))
             package, context = selected['package'], selected['context']
             from runteams_core.pipelines import source_pipeline_flow as flow

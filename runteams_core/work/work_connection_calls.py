@@ -12,7 +12,7 @@ from runteams_core.authoring.creator_connection import PinnedHTTPS, prepared_req
 from runteams_core.authoring.creator_sdk import sdk_frame
 from runteams_core.configuration.connections.connection_exchange import exchange
 from runteams_core.configuration.credentials.credential_redaction import redact_value
-from runteams_core.foundation.identity.connection_call_identity import valid_binding, for_authority, matches_scope
+from runteams_core.foundation.identity.local_connection_identity import valid_binding, for_authority
 from runteams_core.work.work_connections import for_host
 from runteams_core.foundation.identity.work_identity import principal
 from runteams_core.storage.storage_contracts import BusinessCloudUnknown
@@ -51,7 +51,7 @@ def records(rows,scope):
         if kind==REQUEST:
             if set(value)!={'schema','operation_key','parent_call','binding','descriptor','params','semantic_sha256'} or key in values:raise ValueError('连接受理记录无效。')
             binding=value['binding']
-            if (not matches_scope(binding,scope)
+            if (not valid_binding(binding) or binding['library_id']!=scope.get('library_id')
                     or stream!=PREFIX+digest(for_authority(binding)) or digest(value['descriptor'])!=binding['descriptor_sha256']
                     or not isinstance(value['parent_call'],str) or not re.fullmatch('[a-f0-9]{64}',value['parent_call'])):raise ValueError('连接回执归属无效。')
             checked_content(value,lambda:prepared_request(value['descriptor'],value['params']))
@@ -97,12 +97,8 @@ def verify(connection,scope,directory=None):
                     or parent.get('state') not in ('pending','unknown','completed')):raise ValueError('连接回执缺少原工具受理记录。')
             frozen=_read(base/'.runteams/mcp-work.json')
             source=(frozen.get('employee',{}).get('local_package') or {}) if binding['owner_kind']=='employee' else frozen
-            if binding['schema']=='runteams.official-mcp-connection-binding/1':
-                from runteams_core.employees.employee_context import current as employee_context
-                employee_context().verify_connection_archive(directory,scope,binding,request,frozen)
-            else:
-                reference=source.get('reference')
-                if digest(reference)!=binding['owner_sha256'] or source.get('revision')!=binding['source_revision']:raise ValueError('连接回执与原冻结源码不符。')
+            reference=source.get('reference')
+            if digest(reference)!=binding['owner_sha256'] or source.get('revision')!=binding['source_revision']:raise ValueError('连接回执与原冻结源码不符。')
 
 
 class ConnectionCalls:
@@ -115,7 +111,8 @@ class ConnectionCalls:
         with self.host.lock:
             self.host.check_operation(self.chat)
             _,packages,work,binding=self.host._identity(self.chat)
-            parent=self.host.connection_calls.get((self.chat,self.package,binding))
+            parent,read_only=self.host.connection_calls.get((self.chat,self.package,binding),(None,False))
+            if read_only:raise PermissionError('只读工具不能调用外部服务。')
             if (binding!=self.bound or self.package not in packages or not self.host.enabled(binding,self.package)
                     or self.host.suspended(work) or not isinstance(parent,str)):raise PermissionError('连接必须来自当前已受理的工具调用。')
             from runteams_core.storage.device_files import _read
@@ -189,28 +186,78 @@ class ConnectionCalls:
 
 @contextmanager
 def environment(host,chat,package,binding):
-    if not host.scope.get('library_id'):yield {};return
-    provider=for_host(host,chat)
-    if provider is None:yield {};return
-    owner,_,_,actual=host._identity(chat)
-    ref=owner.get('reference') or (owner.get('local_package') or {}).get('reference',{})
-    if not provider._owner(chat,package)[3]:yield {};return
+    owner,_,_,_=host._identity(chat)
+    employee_sdk = host.sdk_configuration(chat,binding,owner) is not None
+    provider = for_host(host,chat) if host.scope.get('library_id') else None
+    http = bool(provider and provider._owner(chat,package)[3])
+    capabilities = ['connection.http'] if http else []
+    if employee_sdk:
+        capabilities.extend(('data.query','data.mutate','application.status','application.call'))
+    if not capabilities:
+        yield {}
+        return
     from runteams_core.foundation.transport.loopback_rpc import serve_rpc
+
     def handle(message):
-        if not isinstance(message,dict) or set(message)!={'jsonrpc','id','method','params'} or message['jsonrpc']!='2.0':raise ValueError('SDK请求无效。')
-        _,packages,_,current=host._identity(chat)
-        if current!=binding or package not in packages or not host.enabled(binding,package):raise PermissionError('原程序已关闭。')
-        frame={'abi':'runteams.sdk/1','id':message['id'],'method':message['method'],'params':message['params']};sdk_frame(frame)
-        if frame['method']=='system.negotiate':
-            required=frame['params']['required']
-            value={'sdk':'1.0.0','capabilities':['connection.http']} if not set(required)-{'connection.http'} else None
-            result={'abi':'runteams.sdk/1','id':frame['id'],'ok':True,'result':value} if value is not None else {'abi':'runteams.sdk/1','id':frame['id'],'ok':False,'error':{'code':'unsupported_capability','retry':'never'}}
-        else:
-            try:
-                if (chat,package,binding) not in host.connection_calls:raise PermissionError('原工具调用尚未受理。')
-                result=ConnectionCalls(host,chat,package,binding).exchange(frame)
-            except BusinessCloudUnknown:result=reply(frame,'unknown')
-            except (PermissionError,CreatorContractError):result={'abi':'runteams.sdk/1','id':frame['id'],'ok':False,'error':{'code':'connection_failed','retry':'read'}}
+        if not isinstance(message,dict) or set(message)!={'jsonrpc','id','method','params'} or message['jsonrpc']!='2.0':
+            raise ValueError('SDK 请求无效。')
+        method, params = message['method'],message['params']
+        frame={'abi':'runteams.sdk/1','id':message['id'],'method':method,'params':params}
+        sdk_frame(frame)
+        base={'abi':'runteams.sdk/1','id':message['id']}
+        def error(code,retry='never'):
+            return {**base,'ok':False,'error':{'code':code,'retry':retry}}
+        def verify_owner():
+            host.check_operation(chat)
+            employee,packages,work,current = host._identity(chat)
+            if current!=binding or package not in packages or not host.enabled(binding,package) or host.suspended(work):
+                raise PermissionError('原程序已关闭。')
+            return employee,work
+        def guard():
+            verify_owner()
+            if host.connection_calls.get(call_key) != invocation or invocation is None:
+                raise PermissionError('原工具调用已结束。')
+            if cancel is not None and cancel.is_set():
+                raise PermissionError('原工具调用已停止。')
+
+        call_key=(chat,package,binding)
+        invocation=host.connection_calls.get(call_key)
+        cancel=host.turns.get(chat)
+        try:
+            employee,work=verify_owner()
+            if method=='system.negotiate':
+                result=({**base,'ok':True,'result':{'sdk':'1.0.0','capabilities':capabilities}}
+                        if set(params['required'])<=set(capabilities) else error('unsupported_capability'))
+            elif method not in capabilities:
+                result=error('unsupported_capability')
+            else:
+                guard()
+                parent,read_only=invocation
+                from runteams_core.storage.device_files import _read
+                journal=_read(work/'.runteams/mcp-calls'/(parent+'.json'))
+                if journal.get('state')!='pending' or journal.get('binding')!=binding.__dict__ or journal.get('request',{}).get('package')!=package:
+                    raise PermissionError('原工具调用已结束。')
+                if read_only and method not in ('data.query','application.status'):
+                    raise PermissionError('只读工具不能写入或调用外部服务。')
+                if method=='connection.http':
+                    result=ConnectionCalls(host,chat,package,binding).exchange(frame)
+                else:
+                    from runteams_core.work import employee_sdk_operations as operations
+                    from runteams_core.employees.mcp.employee_applications import AccountRequired
+                    config=host.sdk_configuration(chat,binding,employee)
+                    if config is None:raise PermissionError('员工 SDK 当前不可用。')
+                    try:
+                        value=(operations.collections(config,method,params,binding.release_digest,guard)
+                               if method.startswith('data.') else operations.applications(config,method,params,guard,cancel))
+                        result={**base,'ok':True,'result':value}
+                    except AccountRequired:
+                        result=error('application_needs_connection','reauthorize')
+        except BusinessCloudUnknown:
+            result=error('sdk_outcome_unknown','reconcile')
+        except PermissionError:
+            result=error('sdk_permission_denied')
+        except ValueError as exc:
+            result=error('sdk_outcome_unknown','reconcile') if getattr(exc,'code',None)=='outcome_unknown' else error('sdk_invalid_operation')
         return {'jsonrpc':'2.0','id':message['id'],'result':result}
     def dispatch(message):
         with host.operation_scope():return handle(message)

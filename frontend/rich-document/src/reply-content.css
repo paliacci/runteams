@@ -19,7 +19,7 @@
 .reply-content td{padding:9px 12px;border-top:1px solid var(--border-default);min-width:75px;max-width:230px;overflow-wrap:anywhere}
 .reply-content .numeric{font-variant-numeric:tabular-nums}
 .reply-content tr:hover td{background:var(--surface-subtle)}
-.reply-content .reply-record-link{border:0;padding:0;background:transparent;text-align:left;color:var(--accent-default);white-space:nowrap}
+.reply-content .reply-record-link{border:0;padding:0;background:transparent;text-align:left;color:var(--accent-default);max-width:100%;white-space:normal;overflow-wrap:anywhere}
 .reply-pagination{display:flex;justify-content:flex-end;align-items:center;gap:8px;margin-top:10px;font-size:12px}
 .reply-pagination>span{margin-right:auto;color:var(--text-secondary)}
 .reply-record{margin-top:12px;padding:12px;background:var(--surface-subtle);border-radius:8px}
@@ -37,3 +37,4 @@
 .reply-empty{padding:20px 12px;text-align:center;color:var(--text-secondary)}
 .reply-content-loading{padding:12px 0;color:var(--text-secondary);font:400 13px/1.6 var(--ui)}
 @media(max-width:480px){.reply-content td,.reply-content th button{padding:8px 10px}.reply-content-slot{margin:16px 0 22px}.reply-range{gap:8px}.reply-range>span{min-width:105px}}
+.reply-view-stack{display:flex;flex-direction:column;gap:24px;min-width:0}.reply-message-list article{padding:16px 0;border-bottom:1px solid var(--border-default);overflow-wrap:anywhere}.reply-message-list article:first-child{padding-top:8px}.reply-message-list strong{font-size:14px;font-weight:600}.reply-message-meta{font-size:12px;color:var(--text-secondary);margin:5px 0}.reply-message-list p{white-space:pre-wrap;font-size:13px;line-height:1.7;margin:8px 0}.reply-message-list details{margin-top:8px;font-size:12px;color:var(--text-secondary)}.reply-message-list summary{cursor:pointer;width:fit-content}.reply-message-list pre,.reply-json-data{max-height:360px;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;background:var(--surface-subtle);padding:12px;border-radius:6px;font:12px/1.6 ui-monospace,monospace}.reply-content input:focus-visible,.reply-content button:focus-visible,.reply-content summary:focus-visible{outline:2px solid var(--control-focus);outline-offset:2px}

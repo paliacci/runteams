@@ -34,7 +34,7 @@ def bound(chat_id, actor_id=None):
     scope=device_data.identity()
     from runteams_core.foundation.identity.work_identity import principal
     if actor_id is not None and actor_id!=principal(scope):
-        raise PermissionError('账户已变化，请重新打开流水线。')
+        raise PermissionError('账户已变化，请重新打开智能体团队。')
     return pipeline_context().binding(chat_id)
 
 
@@ -42,7 +42,7 @@ def _validate(schema, arguments):
     from jsonschema import Draft202012Validator
     if (not isinstance(arguments,dict) or len(canonical(arguments))>96*1024 or
             next(Draft202012Validator(schema).iter_errors(arguments),None)):
-        raise ContractError('流水线工作请求无效。')
+        raise ContractError('智能体团队工作请求无效。')
 
 
 def _asset(core, ref):
@@ -59,7 +59,7 @@ def _row(connection, ref, identifier):
     if not row or row['trashed_at']:raise PermissionError('这项工作不存在或已移入垃圾箱。')
     frozen=json.loads(row['snapshot_json'])
     if (frozen.get('pipeline_work') or {}).get('reference')!=ref:
-        raise PermissionError('这项工作不属于当前流水线。')
+        raise PermissionError('这项工作不属于当前智能体团队。')
     work.verify_context(frozen['pipeline_work'],frozen['package'])
     return row,frozen
 
@@ -171,7 +171,7 @@ def read(core, chat_id, arguments, *, actor_id=None):
                         'result':copy.deepcopy((frozen.get('pipeline_submission') or {}).get('result'))}
                 else:
                     selected=next((r for r in reports if r['id']==arguments['report_id'] and r['revision']==arguments['revision']),None)
-                    if selected is None:raise PermissionError('这份汇报版本不属于当前流水线工作的正式交付。')
+                    if selected is None:raise PermissionError('这份汇报版本不属于当前智能体团队工作的正式交付。')
                     if not selected['available']:raise ContractError('原正式汇报已删除或暂不可用，请核对原工作记录。')
                     from runteams_core.work.work_reports import _agent_document
                     document=core.historical_document_detail(selected['artifact_id'])
@@ -193,7 +193,7 @@ def proposal(core, chat_id, arguments, *, actor_id=None, composer=True):
     ref=bound(chat_id,actor_id);_validate(PROPOSE_SCHEMA,arguments)
     _admission_id(chat_id,arguments['operation_id'])
     saved,asset,revision=_asset(core,ref)
-    if saved['status']!='running':raise ContractError('流水线已暂停，不能交办新工作。')
+    if saved['status']!='running':raise ContractError('智能体团队已暂停，不能交办新工作。')
     payload=copy.deepcopy(arguments['payload'])
     work._request({'operation_id':arguments['operation_id'],'reference':ref,'title':arguments['title'],'payload':payload})
     if payload.get('module_bindings'):
@@ -272,7 +272,7 @@ def apply_action(core, action, source):
     allowed={'op','operation_id','reference','title','payload','source_revision','generation','start_column_key'}
     if (not isinstance(action,dict) or set(action)-allowed or not (allowed-{'start_column_key'})<=set(action)
             or action.get('reference')!=ref):
-        raise PermissionError('交办事项不属于当前流水线。')
+        raise PermissionError('交办事项不属于当前智能体团队。')
     request={key:copy.deepcopy(action[key]) for key in ('operation_id','reference','title','payload','start_column_key') if key in action}
     request['operation_id']=_admission_id(chat_id,action['operation_id'])
     key,normalized=work._request(request)
@@ -286,7 +286,7 @@ def apply_action(core, action, source):
         if previous is None:
             saved,_,revision=_asset(core,ref)
             if action.get('source_revision')!=revision or action.get('generation')!=(saved['bundle'] or {}).get('generation',0):
-                raise ContractError('流水线已更新，请按当前岗位和输入重新核对交办事项。')
+                raise ContractError('智能体团队已更新，请按当前岗位和输入重新核对交办事项。')
             # Revalidate the same submitted fields; this does not supply a
             # professional conclusion, bypass pause, or approve an edge.
             proposal(core,chat_id,{k:action[k] for k in ('operation_id','title','payload','start_column_key') if k in action},

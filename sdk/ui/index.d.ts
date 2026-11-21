@@ -66,3 +66,5 @@ export interface HostControls extends Omit<PresentationClient, 'dispose'> {
   dispose(): Promise<void>;
 }
 export function createHostControls(host: PlatformDisplayHost): HostControls;
+/** Decode explicitly HTML-escaped text once. Render the returned string as text. */
+export function decodeHtmlEntities(text: string): string;

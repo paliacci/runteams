@@ -99,10 +99,10 @@
   post(frame,'header-action',{action});
  }
  function exportCurrent(){editorAction('export');}
- async function exportSaved(id){
+ async function downloadSaved(path){
   const scope=documentsBinding();
   try{
-   const response=await fetch(`/api/device/work/documents/${id}/download`,{headers:RunTeamsHost.session.headers(S),redirect:'error'});
+   const response=await fetch(path,{headers:RunTeamsHost.session.headers(S),redirect:'error'});
    const filename=response.headers.get('Content-Disposition')?.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
    if(!response.ok||!filename)throw Error();
    const blob=await response.blob();
@@ -111,6 +111,8 @@
    if(scope===documentsBinding())toast('无法导出文件。请重试。','err','fileBrowser.exportFailed');
   }
  }
+ function exportSaved(id){return downloadSaved(`/api/device/work/documents/${id}/download`);}
+ function exportSelection(ids){return downloadSaved('/api/device/work/documents/export?'+new URLSearchParams({ids:ids.join(',')}));}
  function retrySave(){editorAction('retry-save');}
  async function resource(frame,target,data){
   const account=workspaceAccountCacheToken(),state=target.state;
@@ -137,35 +139,25 @@
  function loaded(frame){if(readyFrames.has(frame))return;setTimeout(()=>{if(!frame.isConnected||readyFrames.has(frame))return;const label=frame.closest('.rich-frame-shell')?.querySelector('.rich-frame-loading');if(label){label.classList.add('is-error');label.setAttribute('role','alert');label.innerHTML='<span data-app-i18n="documentReader.editorLoadFailed">无法打开编辑器。已保存的内容仍在。</span><button type="button" class="btn" data-app-i18n="employeeHistory.retry" onclick="RunTeamsRichDocuments.retry(this)">重试</button>';}},15000);}
  function retry(button){const shell=button.closest('.rich-frame-shell'),frame=shell?.querySelector('iframe');if(!frame)return;readyFrames.delete(frame);const label=shell.querySelector('.rich-frame-loading');label.classList.remove('is-error');label.removeAttribute('role');label.innerHTML=documentReaderSkeletonMarkup(true,false,frame.classList.contains('rich-report-frame')?'workRecordDetail.reportLoading':undefined);frame.src=frame.src;}
  let creation=null;
- function createButtonCopy(){
-  if(creation?.busy)return ['documentList.creating','正在创建文档…'];
-  if(creation?.payload)return ['documentList.retryCreate','核对并打开文档'];
-  return ['documentList.new','新建文档'];
+ function createMenuItem(folder){
+  const pending=creation?.account===workspaceAccountCacheToken()?creation:null;
+  const [labelKey,label]=pending?.busy?['documentList.creating','正在创建文档…']:
+    pending?.payload?['documentList.retryCreate','核对并打开文档']:['documentList.new','新建文档'];
+  return {labelKey,label,icon:'plus',disabled:!!pending?.busy,fn:()=>create(folder)};
  }
- function createButtonMarkup(){
-  const [key,label]=createButtonCopy();
-  return `<button type="button" class="btn" data-document-create ${creation?.busy?'disabled aria-busy="true"':''} onclick="RunTeamsRichDocuments.create()">${ICON('plus')}<span data-app-i18n="${key}">${label}</span></button>`;
- }
- function syncCreateButton(){
-  const button=document.querySelector('[data-document-create]');
-  if(!button)return;
-  const [key,label]=createButtonCopy(),text=button.querySelector('span[data-app-i18n]');
-  button.disabled=!!creation?.busy;
-  if(creation?.busy)button.setAttribute('aria-busy','true');
-  else button.removeAttribute('aria-busy');
-  text.dataset.appI18n=key;text.textContent=label;RunTeamsLocale.apply(text);
- }
- async function create(){
+ async function create(folder=S.docsFolder){
   if(RunTeamsHost.session.workspace(S)||creation?.busy)return;
-  const account=workspaceAccountCacheToken(),source=S.docReader,surface=S.surface,url=location.href;
+  const account=workspaceAccountCacheToken(),source=S.docReader,surface=S.surface,url=location.href,move=activeDocsMove();
   if(creation?.account!==account)creation={account,payload:null,busy:false};
   const operation=creation,current=()=>creation===operation&&workspaceAccountCacheToken()===account;
-  const samePage=()=>S.docReader===source&&S.surface===surface&&location.href===url;
-  operation.busy=true;syncCreateButton();
+  const samePage=()=>S.docReader===source&&S.surface===surface&&location.href===url&&
+    activeDocsMove()===move&&(!move||move.folder===folder);
+  operation.busy=true;
   try{
    if(!await flushDocument()||!current()||!samePage())return;
    operation.payload||={
     name:RunTeamsLocale.t('documentList.untitled',{},'未命名文档'),content_model:'rich-document',base_revision:0,
+    ...(folder?{folder}:{}),
     document_key:'document-'+crypto.randomUUID(),
     document:{schema:'runteams.rich-document/1',blocks:[{id:crypto.randomUUID(),type:'paragraph',props:{},content:[],children:[]}],sources:{}}
    };
@@ -187,12 +179,13 @@
    if(!current())return;
    operation.payload=null;
    if(!samePage())return;
+   deviceChatRemember(doc);
    try{if(await openDocumentReader({...doc,rich_new_document:true}))return;}catch{}
    if(current()&&samePage())toast('文档已创建，但无法打开。请从文档列表打开。','err','documentList.createdOpenFailed');
   }catch{
    if(current()&&samePage())toast('未能确认当前文档已保存。','err','documentReader.leavingUnconfirmed');
   }finally{
-   if(current()){operation.busy=false;if(!operation.payload)creation=null;syncCreateButton();}
+   if(current()){operation.busy=false;if(!operation.payload)creation=null;}
   }
  }
  function observeReportSize(frame){
@@ -240,5 +233,5 @@
  });
  window.addEventListener('beforeunload',event=>{if(S.docReader?.richDirty){event.preventDefault();event.returnValue='';}});
  window.addEventListener('runteams:business-scope-will-change',()=>{creation=null;syncCreateButton();reports.clear();for(const item of pending.values())item.done(false);pending.clear();});
- window.RunTeamsRichDocuments=Object.freeze({supported,main,reportMarkup,flush,create,createButtonMarkup,loaded,retry,exportCurrent,exportSaved,retrySave,toggleOutline,jumpOutline});
+ window.RunTeamsRichDocuments=Object.freeze({supported,main,reportMarkup,flush,create,createMenuItem,loaded,retry,exportCurrent,exportSaved,exportSelection,retrySave,toggleOutline,jumpOutline});
 })();

@@ -30,7 +30,10 @@ for distribution,name in json.loads(sys.argv[1]):
  info=next(p.parent for p in dist.files if p.name=='METADATA' and p.parent.name.endswith('.dist-info'))
  source=Path(importlib.import_module(name).__file__)
  if source.name=='__init__.py':source=source.parent
- for package,path in [(source.name,source),(info.name,Path(dist.locate_file(info)))]:
+ binary_dirs=sorted({p.parts[0] for p in dist.files if p.parts[0].endswith(('.dylibs','.libs'))})
+ paths=[(source.name,source),(info.name,Path(dist.locate_file(info)))]
+ paths.extend((folder,Path(dist.locate_file(folder))) for folder in binary_dirs)
+ for package,path in paths:
   if package in seen:continue
   seen.add(package);records.append({'distribution':distribution,'version':dist.version,'package':package,'source':str(path)})
 print(json.dumps(records))'''
@@ -158,7 +161,7 @@ def build(output=None, build_python=None, data_directory=None, validate_only=Fal
         if not signer.local:sign_runtime(runtime,signer)
         # Execute the packaged interpreter with packaged modules, never the builder's site directory.
         python=runtime/'bin/python3'
-        probe='import sys;sys.path[:0]=[sys.argv[1],sys.argv[2]];import ssl; import sqlite3; import tomllib; import PIL.Image; import pypdfium2; import yaml; import jsonschema; from runteams_core.agents.environment import agent_environment;assert agent_environment.managed_python()["status"]=="ready"'
+        probe='import sys;sys.path[:0]=[sys.argv[1],sys.argv[2]];import ssl; import sqlite3; import tomllib; import PIL.Image; import pyvips; import pypdfium2; import yaml; import jsonschema; from runteams_core.agents.environment import agent_environment;assert agent_environment.managed_python()["status"]=="ready"'
         env={k:v for k,v in __import__('os').environ.items() if k not in ('PYTHONHOME','PYTHONPATH') and not k.startswith(('RUNTEAMS_','DYLD_','_PYI'))}
         subprocess.run([str(python),'-I','-S','-B','-c',probe,str(core),str(packages)],env=env,check=True,capture_output=True,timeout=30)
         subprocess.run([str(python),'-E','-s','-B','-m','runteams_core.agents.environment.agent_python','--help'],env=env,check=True,capture_output=True,timeout=30)

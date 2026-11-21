@@ -2,7 +2,7 @@
 import json,re
 
 def handles(path):
-    return path in {'/api/employee-directory','/api/employee-directory/open','/api/employee-configuration/resources','/api/employee-configuration/resources/import','/api/local-references/pick','/api/local-references/confirm','/api/device/work/results','/api/device/work/files'} or bool(re.fullmatch(r'/api/chat/[1-9][0-9]*/(?:employee-configuration|employee-mcp|pipeline-mcp|pipeline-work|work)',path) or re.fullmatch(r'/api/device/work/chats/[1-9][0-9]*',path) or re.fullmatch(r'/api/(?:core|device/work)/workflows/[1-9][0-9]*(?:/(?:cancel|retry))?',path))
+    return path in {'/api/employee-configuration/pick-location','/api/employee-directory','/api/employee-directory/open','/api/employee-workbench/prepare','/api/employee-configuration/resources','/api/employee-configuration/resources/import','/api/local-references/pick','/api/local-references/confirm','/api/device/work/results','/api/device/work/files'} or bool(re.fullmatch(r'/api/chat/[1-9][0-9]*/(?:employee-configuration|employee-mcp|pipeline-mcp|pipeline-work|work)',path) or re.fullmatch(r'/api/device/work/chats/[1-9][0-9]*',path) or re.fullmatch(r'/api/(?:core|device/work)/workflows/[1-9][0-9]*(?:/(?:cancel|retry))?',path))
 
 def dispatch(runtime,method,path,data):
     from runteams_core.employees.employee_directory import read, open_entry, with_activity
@@ -14,6 +14,8 @@ def dispatch(runtime,method,path,data):
         return with_activity(directory, {cid:bool(turn['cancel'].questions.pending(turn['cancel'].questions.owner))
                                          for cid,turn in active.items() if not turn['cancel'].is_set()})
     if path=='/api/employee-directory/open' and method=='POST':return open_entry(data)
+    if path=='/api/employee-workbench/prepare' and method=='POST':
+        return runtime.employee_mcp_work().prepare_workbench(data)
     work=re.fullmatch(r'/api/(?:chat/([1-9][0-9]*)/work|device/work/chats/([1-9][0-9]*))',path)
     if work and method=='GET' and not data:
         cid=int(work[1] or work[2]);session=runtime.chat(cid,include_live=False)
@@ -23,7 +25,16 @@ def dispatch(runtime,method,path,data):
         return {**result,'work_report_signature':signature(core,session,result['work']),'storage_scope':'device','device_page_ids':core.page_ids()}
     match=re.fullmatch(r'/api/chat/([1-9][0-9]*)/(employee-configuration|employee-mcp|pipeline-mcp|pipeline-work)',path)
     if match:
-        cid=int(match[1]);session=runtime.chat(cid,include_live=False)
+        from runteams_core.employees.mcp.device_employee_mcp import is_workbench_id
+        cid=int(match[1])
+        if match[2]=='employee-mcp' and is_workbench_id(cid):
+            from runteams_core.work.mcp_work_operations import dispatch
+            if method=='GET' and (not data or data=={'observe':'1'}):
+                return dispatch(runtime.employee_mcp_work(),cid,method,observing=bool(data))
+            if method=='POST':
+                return dispatch(runtime.employee_mcp_work(),cid,method,data)
+            raise ValueError('员工工作请求无效。')
+        session=runtime.chat(cid,include_live=False)
         if match[2]=='employee-configuration':
             from runteams_core.configuration.employee_configuration import for_work_settings
             config=for_work_settings(cid)
@@ -56,6 +67,11 @@ def dispatch(runtime,method,path,data):
             if method=='GET' and (not data or observing):return dispatch(host,cid,method,observing=observing)
             if method=='POST':return dispatch(host,cid,method,data)
         raise ValueError('员工工作请求无效。')
+    if path == '/api/employee-configuration/pick-location':
+        if method != 'POST':
+            raise ValueError('位置选择请求无效。')
+        from runteams_core.conversations.chat_attachments import pick_configuration_location
+        return pick_configuration_location(data)
     if path.startswith('/api/employee-configuration/resources'):
         if 'employee_id' in data:raise PermissionError('请选择本机源码资产。')
         from runteams_core.employees.employee_collection_operations import dispatch

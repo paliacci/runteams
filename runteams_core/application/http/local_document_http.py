@@ -14,13 +14,22 @@ class DocumentResponse:
 
 
 def handles(path):
-    return path == '/api/device/work/trash' or bool(re.fullmatch(
+    return path in ('/api/device/work/trash', '/api/device/work/document-folders', '/api/device/work/documents/export') or bool(re.fullmatch(
         r'/api/(?:core|device/work)/(?:documents(?:/[1-9][0-9]*(?:/(?:download|assets(?:/[a-f0-9]{64})?|templates(?:/[a-f0-9]{64})?))?)?|artifacts/[1-9][0-9]*/(?:revisions|content|revert|trash|restore|delete))', path))
 
 
 def dispatch(core, method, path, data):
     from runteams_core.documents import rich_documents, rich_document_assets as assets
     core._actor()
+    if path == '/api/device/work/documents/export':
+        if method != 'GET' or set(data) != {'ids'}:raise ContractError('文档导出范围无效。')
+        from runteams_core.documents.document_export import export_documents
+        raw, name, mime = export_documents(core, data['ids'])
+        return DocumentResponse(raw, 200, name, mime)
+    if path == '/api/device/work/document-folders':
+        from runteams_core.documents import document_folders
+        if method != 'POST':raise ContractError('不支持的文件夹操作。')
+        return DocumentResponse(document_folders.mutate(core, data))
     if path == '/api/device/work/trash':
         if method != 'GET':raise ContractError('不支持的垃圾箱操作。')
         core.purge_expired_documents()
@@ -52,14 +61,24 @@ def dispatch(core, method, path, data):
                 item=core.historical_document_detail(identifier) if data.get('historical')=='1' else core.document_detail(identifier)
                 return DocumentResponse({**item,'storage_scope':'device','device_page_ids':core.page_ids()} if item else {'error':'文档不存在'},200 if item else 404)
             if data.get('paged')=='1':
-                result=core.document_page(limit=int(data.get('limit',40)),query=data.get('q',''),cursor=data.get('cursor'),
+                options=dict(limit=int(data.get('limit',40)),query=data.get('q',''),cursor=data.get('cursor'),
                     sort=data.get('sort','created_at'),descending=data.get('direction','desc')=='desc')
+                if path == '/api/device/work/documents' and 'folder' in data:
+                    from runteams_core.documents import document_folders
+                    result=document_folders.page(core,data['folder'],**options)
+                else:
+                    result=core.document_page(**options)
             else:result={'documents':core.document_catalog(int(data.get('limit',500)),data.get('q',''))}
         elif method == 'POST':
             if data.get('content_model') != rich_documents.MODEL or data.get('data_view'):
                 raise ContractError('请使用当前文档格式保存。')
-            result=rich_documents.write(core,name=data.get('name'),document=data.get('document'),
-                document_id=identifier,document_key=data.get('document_key'),base_revision=data.get('base_revision',0))
+            options=dict(name=data.get('name'),document=data.get('document'),document_id=identifier,
+                         document_key=data.get('document_key'),base_revision=data.get('base_revision',0))
+            if path == '/api/device/work/documents' and 'folder' in data:
+                from runteams_core.documents import document_folders
+                result=document_folders.create_document(core,data['folder'],**options)
+            else:
+                result=rich_documents.write(core,**options)
             if result.get('conflict'):return DocumentResponse(result,409)
         else:raise ContractError('不支持的文档操作。')
     elif method=='GET' and action=='revisions':result={'revisions':core.document_revisions(identifier)}

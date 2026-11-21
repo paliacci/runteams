@@ -18,7 +18,7 @@
   let backButton;
   view.setExtras=(extras={})=>{
    const back=extras.back;
-   setExtras(back?{...extras,text:''}:extras);
+   setExtras(extras);
    if(back){
     if(!backButton){
      backButton=document.createElement('button');
@@ -41,7 +41,7 @@
    }
    const nodes=view.element.querySelector('.rt-drawer-actions').children;
    (extras.actions||[]).forEach((action,index)=>{
-    const node=nodes[index],primary=kind!=='settings'&&action.primary===true;node.classList.toggle('is-primary',primary);node.classList.toggle('rt-primary-button',primary);node.classList.toggle('employee-automation-add',kind==='automation'&&action.id==='new');
+    const node=nodes[index],primary=kind!=='settings'&&action.primary===true;node.classList.toggle('is-primary',primary);node.classList.toggle('rt-primary-button',primary);
     node.toggleAttribute('data-read-pending',action.readPending===true);
     for(const marker of ['data-app-i18n','data-app-i18n-title']){
      if(action.labelKey)node.setAttribute(marker,action.labelKey);else node.removeAttribute(marker);
@@ -62,7 +62,7 @@
   const node=document.querySelector(`#rgDrawer [data-employee-header-host="${kind}"]`);
   if(!node||!owner||!window.RunTeamsUIComponents)return;
   let entry=mounts.get(kind);
-  if(!entry||entry.owner!==owner){entry?.view.dispose();entry={owner,view:create({...options,kind})};mounts.set(kind,entry);}
+  if(!entry||entry.owner!==owner){entry?.view.dispose();entry={owner,view:create({kind,...options})};mounts.set(kind,entry);}
   if(node.firstChild!==entry.view.element)node.replaceChildren(entry.view.element);
   collapseCopy(entry.view.collapseButton,options.collapseLabel,options.collapseLabelKey);
   entry.view.setExtras(options.extras);
@@ -93,7 +93,7 @@
  function decorate(){
   decorateScrollFade();
   for(const [kind,entry] of mounts)if(!document.querySelector(`#rgDrawer [data-employee-header-host="${kind}"]`)){entry.view.dispose();mounts.delete(kind);}
-  window.RunTeamsCreatorAuthor?.decorateHeader();window.RunTeamsEmployeeAutomation?.decorateHeader();
+  window.RunTeamsCreatorAuthor?.decorateHeader();
   window.RunTeamsEmployeeConfiguration?.decorateHeader();
  }
  const sectionAnimations=new WeakMap();
@@ -121,13 +121,13 @@
    animation.cancel();
   };
  }
- function section({id,title,body,footer='',collapsedSections,stateKey=id,action,heading='h3',className=''}){
+ function section({id,title,body,footer='',headerActions='',collapsedSections,stateKey=id,action,heading='h3',className=''}){
   const collapsed=collapsedSections?.has(stateKey);
   const button=`<button type="button" class="settings-section-toggle" aria-expanded="${!collapsed}" aria-controls="${esc(id)}" data-settings-section-key="${esc(stateKey)}" onclick="${action}(this)">
    <span class="settings-section-title">${title}</span>${ICON('chev')}
   </button>`;
   return `<section class="drawer-settings-section ${className}">
-   <${heading} class="settings-section-heading">${button}</${heading}>
+   ${headerActions?'<div class="settings-section-bar">':''}<${heading} class="settings-section-heading">${button}</${heading}>${headerActions?headerActions+'</div>':''}
    <div class="settings-section-body" id="${esc(id)}"${collapsed?' hidden':''}><div class="settings-section-content">${body}${footer}</div></div>
   </section>`;
  }

@@ -159,6 +159,8 @@ def describe(cwd):
 def execution_env(base_env, cwd, snapshot=None):
     """Child-process additions; native login shell may still reorder PATH."""
     env = dict(base_env)
+    # Asset memory credentials stay in the host-side tool handler.
+    env.pop('RUNTEAMS_HINDSIGHT_KEY_FILE', None)
     if getattr(sys, 'frozen', False):
         # Frozen-app library search paths belong to the backend, not external
         # CLIs or their standalone Python children. Preserve original user paths.

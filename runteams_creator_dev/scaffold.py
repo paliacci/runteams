@@ -45,8 +45,23 @@ def open_archive(kit,archive,target):
     """Continue exact platform-exported source in a new independent workspace."""
     from .archive import inspect_file
     from .cli import check
-    files=inspect_file(archive)
-    return _create(kit,target,files,check(files),imported=True)
+    from tempfile import TemporaryDirectory
+    from .knowledge import inspect_package, media
+    with TemporaryDirectory() as directory:
+        blobs = Path(directory)
+        files = inspect_package(archive, blobs)
+        result = _create(kit, target, files, check(files), imported=True)
+        try:
+            for owner, records in media.index(files).items():
+                folder = Path(target) / 'knowledge' / Path(owner).with_suffix('')
+                for item in records:
+                    output = folder / item['path']
+                    output.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copyfile(blobs / item['sha256'], output)
+        except BaseException:
+            shutil.rmtree(target)
+            raise
+        return result
 
 
 def _create(kit,target,files,compiled,*,imported):

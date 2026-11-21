@@ -38,11 +38,11 @@
     const body=root?.querySelector('.product-shell');
     if (!body || reduced.matches) return null;
     const workspace=body.querySelector('.workspace-tab.on')?.dataset.workspaceKey || '';
-    const result={body,workspace,panels:{},regions:{}};
+    const result={body,workspace,staticRight:targets.staticRight,panels:{},regions:{}};
     for (const [key,selector] of Object.entries(panels)) {
       const node=body.querySelector(selector), shown=visible(node);
       result.panels[key]={shown,rect:shown?bounds(node):null,
-        copy:shown&&targets[key]===false?snapshot(node):null};
+        copy:shown&&targets[key]===false&&!(key==='right'&&targets.staticRight)?snapshot(node):null};
     }
     for (const [key,selector] of Object.entries(regions)) result.regions[key]=bounds(body.querySelector(selector));
     return result;
@@ -88,7 +88,7 @@
     for (const [key,selector] of Object.entries(panels)) {
       const node=body.querySelector(selector), shown=visible(node);
       current[key]={node,shown,rect:shown?bounds(node):null};
-      if(shown!==previous.panels[key].shown)changed.push(key);
+      if(shown!==previous.panels[key].shown&&!(key==='right'&&previous.staticRight))changed.push(key);
     }
     if (!changed.length) return;
     // Capture a running exit before cancellation so a rapid reopen reverses smoothly.

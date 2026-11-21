@@ -11,7 +11,7 @@ def verify_binding(pipeline, member, package, revision=None):
     ref = package['reference']
     from runteams_core.foundation.identity.work_identity import source_owner
     if source_owner(pipeline) != source_owner(ref):
-        raise PermissionError('员工与流水线不属于同一资料库、账户或部署。')
+        raise PermissionError('员工与智能体团队不属于同一资料库、账户或部署。')
     if 'dependency' in member:
         pin = checked(member['dependency'])
         if pin['kind'] == 'source':

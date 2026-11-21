@@ -30,7 +30,7 @@ def _row(connection, ref, identifier):
                              'JOIN tasks t ON t.id=w.task_id WHERE w.id=?', (identifier,)).fetchone()
     frozen = json.loads(row['snapshot_json']) if row else {}
     if (frozen.get('pipeline_work') or {}).get('reference') != ref:
-        raise PermissionError('这项任务不属于当前流水线。')
+        raise PermissionError('这项任务不属于当前智能体团队。')
     work.verify_context(frozen['pipeline_work'], frozen['package'])
     return row, frozen
 
@@ -106,7 +106,7 @@ def command(core, data, active_ids=(), *, read_only=False):
                 _save(core, connection, row, frozen, 'paused')
             elif action == 'resume':
                 if not caps['resume'] or control.read(core, ref, connection)['status'] != 'running':
-                    raise ContractError('请先启动流水线，并等待原任务停止收尾后再开始。')
+                    raise ContractError('请先启动智能体团队，并等待原任务停止收尾后再开始。')
                 if row['state'] == 'canceled':
                     paused = frozen.pop('pipeline_card_stop', {})
                     state = _restart_state(frozen, paused)

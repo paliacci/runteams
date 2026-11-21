@@ -23,9 +23,12 @@ from runteams_core.foundation.contracts import ContractError
 DIRECTORY = 'work'
 DATABASE = 'runteams.db'
 FILE_PREFIX = 'device-work-file://'
-VERSION = 5
+VERSION = 6
 PREVIOUS_VERSION = 4
+SUPPORTED_VERSIONS = (PREVIOUS_VERSION, 5, VERSION)
 TASK_REPORT_STRUCTURE = (('index', 'device_work_task_report'), ('trigger', 'device_work_delete_task_report'))
+DOCUMENT_FOLDER_STRUCTURE = (('table', 'document_folders'), ('index', 'document_folder_siblings'),
+                             ('table', 'document_folder_entries'), ('index', 'document_folder_contents'))
 ID_MIN = 2**48
 ID_MAX = 2**53 - 1
 RESOURCES = ('tasks', 'workflow_runs', 'employee_runs', 'artifacts')
@@ -42,8 +45,10 @@ def schema():
 def verify_structure(connection, version=VERSION):
     from runteams_core.storage.device_schema import expected, structure
     actual, required = structure(connection), expected(schema()).copy()
-    if version == PREVIOUS_VERSION:
-        for key in TASK_REPORT_STRUCTURE:
+    for introduced, keys in ((5, TASK_REPORT_STRUCTURE), (6, DOCUMENT_FOLDER_STRUCTURE)):
+        if version >= introduced:
+            continue
+        for key in keys:
             required.pop(key)
     if any(actual.get(key)!=value for key,value in required.items()) or set(actual)-set(required):
         raise ContractError('本机工作数据结构不受支持，原资料保持不变。')
@@ -198,15 +203,17 @@ class DeviceWorkStorage:
             Path(self.path).chmod(0o600)
             try:
                 version = connection.execute('PRAGMA user_version').fetchone()[0]
-                if version in (3, PREVIOUS_VERSION):
+                if version in (3, 4, 5):
                     self._verify_scope(connection)
                     connection.execute('BEGIN IMMEDIATE')
                     if version == 3:
                         connection.execute('DROP TABLE IF EXISTS document_native_links')
-                    verify_structure(connection, PREVIOUS_VERSION)
+                    verify_structure(connection, max(version, 4))
                     from runteams_core.storage.device_schema import expected
-                    for key in TASK_REPORT_STRUCTURE:
-                        connection.execute(expected(schema())[key])
+                    statements = expected(schema())
+                    additions = TASK_REPORT_STRUCTURE if version < 5 else ()
+                    for key in (*additions, *DOCUMENT_FOLDER_STRUCTURE):
+                        connection.execute(statements[key])
                     verify_structure(connection)
                     connection.execute('PRAGMA user_version=' + str(VERSION))
                     self.check_scope()
@@ -433,7 +440,7 @@ def verify(directory, scope):
         raise ContractError('本机工作备份路径无效。')
     with sqlite3.connect(path.resolve().as_uri() + '?mode=ro&immutable=1', uri=True) as connection:
         version = connection.execute('PRAGMA user_version').fetchone()[0]
-        if (version not in (PREVIOUS_VERSION, VERSION)
+        if (version not in SUPPORTED_VERSIONS
                 or connection.execute('PRAGMA integrity_check').fetchone()[0] != 'ok'
                 or connection.execute('PRAGMA foreign_key_check').fetchone()):
             raise ContractError('本机工作备份数据库无效。')
@@ -502,7 +509,7 @@ def verify(directory, scope):
                 if (order.get('pipeline_work') != version.get('pipeline_work') or
                         version.get('pipeline_work') and (run[3] != version['pipeline_work']['position_key'] or
                         order.get('pipeline_generation')!=version.get('pipeline_generation') or order.get('pipeline_visit')!=version.get('pipeline_visit'))):
-                    raise ContractError('流水线岗位执行归属不一致。')
+                    raise ContractError('智能体团队岗位执行归属不一致。')
             if value.get('pipeline_work'):
                 for run_id in value.get('pipeline_lineage',[]):
                     owner=connection.execute('SELECT workflow_run_id FROM employee_runs WHERE id=?',(run_id,)).fetchone()
@@ -518,7 +525,7 @@ def verify(directory, scope):
                     if role['package']['schema'] == employee_work_contracts.ACQUIRED_PACKAGE:
                         employee_context().verify_package_archive(directory, scope, role['package'])
                 expected_stream='source-pipeline-runtime:'+runtime_state['reference']['source_id']+':'+runtime_state['reference']['pipeline_source']
-                if event['stream']!=expected_stream:raise ContractError('流水线运行回执归属不一致。')
+                if event['stream']!=expected_stream:raise ContractError('智能体团队运行回执归属不一致。')
             calculated = Repository._event_hash(**{key: event[key] for key in
                 ('stream', 'data_json', 'created_at', 'actor_id', 'correlation_id', 'source', 'schema_version')},
                 event_id=event['id'], event_type=event['type'], prev_hash=previous)

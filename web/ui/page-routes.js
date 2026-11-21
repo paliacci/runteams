@@ -65,13 +65,19 @@ function normalizeInternal(target){
  }
  return target;
 }
+function invalidChatQuery(found,target){
+ const chat=target.searchParams.get('chat');
+ return chat&&chat!=='new'&&['chat-new','bot','employee-work','source-pipeline'].includes(found.route.kind);
+}
 function toInternal(value){
  const target=url(unmount(value));if(target.origin!==global.location.origin)throw failure();
- const found=match(target.pathname,'public');if(!found)throw failure();
+ const found=match(target.pathname,'public');if(!found||invalidChatQuery(found,target))throw failure();
  const params={...found.params};
  for(const [name,resource] of Object.entries(found.route.refs||{})){
   if(!params[name])continue;
-  const item=row(resource,params[name],'public');params[name]=item.id;
+  const item=row(resource,params[name],'public');
+  if(resource==='chats'&&found.route.kind==='chat'&&item.owner_path!==undefined&&chatOwner(params)!==item.owner_path)throw failure();
+  params[name]=item.id;
  }
  target.pathname=fill(found.route.internal,params);queryRefs(target,'public');
  if(found.route.kind==='docs-detail'){
@@ -86,6 +92,7 @@ function toPublic(value){
   // A caller may already hold a public URL (workspace tabs/back navigation).
   toInternal(target.href);return mount(target.pathname+target.search+target.hash);
  }
+ if(invalidChatQuery(found,target))throw failure();
  // Static/shared path shapes also accept an already canonical query.
  const original=target.pathname+target.search+target.hash;
  try{toInternal(original);return mount(original);}catch(error){if(!['page_route_unavailable','page_ids_missing'].includes(error.code))throw error;}
@@ -93,17 +100,25 @@ function toPublic(value){
  for(const [name,resource] of Object.entries(found.route.refs||{})){
   if(!params[name])continue;
   const item=row(resource,params[name],'internal');
+  if(resource==='chats'&&chatOwner(params)&&chatOwner(params)!==item.owner_path)throw failure();
   params[name]=item.public_id;
  }
- target.pathname=fill(found.route.public,params);queryRefs(target,'internal');
+ const owner=found.route.kind==='chat'&&!chatOwner(params)?row('chats',found.params.chat,'internal').owner_path:'';
+ target.pathname=(owner||'')+fill(found.route.public,params);queryRefs(target,'internal');
  return mount(target.pathname+target.search+target.hash);
 }
+function chatOwner(params){
+ if(params.employeePage)return '/employees/'+params.employeePage;
+ if(params.pipeline)return '/pipelines/'+params.pipeline;
+ return '';
+}
 function preview(value){
- const target=url(unmount(value)),found=match(target.pathname,'public');if(!found)return {kind:'invalid'};
+ const target=url(unmount(value)),found=match(target.pathname,'public');if(!found||invalidChatQuery(found,target))return {kind:'invalid'};
  const kind=found.route.kind,q=target.searchParams;
  const contributed=global.RunTeamsHost.routes.preview(found,target);if(contributed!==null)return contributed;
- if(kind==='source-pipeline')return {kind,sourceId:found.params.source,entry:found.params.entry};
- if(kind==='chat-new'&&q.get('chat')&&q.get('chat')!=='new')return {kind:'chat',pending:true};
+ if(kind==='chat')return {kind,ownerPath:chatOwner(found.params),pending:true};
+ if(kind==='employee-work')return {kind,pageId:found.params.employeePage};
+ if(kind==='source-pipeline')return {kind,pageId:found.params.pipeline};
  if(kind==='chat-new')return {kind,...(q.get('purpose')==='create-employee'?{purpose:'create-employee'}:{})};
  if(kind.startsWith('bot'))return {kind:'bot',settings:kind==='bot-settings',chatId:q.has('chat')&&q.get('chat')!=='new'?1:'new',pending:true};
  if(kind==='docs-detail')return {kind:'docs',documentId:1,pending:true};
@@ -114,12 +129,12 @@ function resolve(value){
  const target=normalizeInternal(toInternal(value)),found=match(target.pathname,'internal');
  if(!found)throw failure();
  const kind=found.route.kind,p=found.params,q=target.searchParams;
- const employeeId=Number(q.get('employee'))||0,chatId=q.get('chat')&&q.get('chat')!=='new'?Number(q.get('chat')):'new';
+ const chatId=q.get('chat')&&q.get('chat')!=='new'?Number(q.get('chat')):'new';
  if(kind==='bot'||kind==='bot-settings')return {kind:'bot',employeeId:Number(p.employee),settings:kind==='bot-settings',chatId};
- if(kind==='chat')return {kind,id:Number(p.chat)};
- if(kind==='chat-new'&&chatId!=='new')return {kind:'chat',id:chatId,canonical:toPublic('/chat/'+chatId)};
+ if(kind==='chat')return {kind,id:Number(p.chat),ownerPath:chatOwner(p)};
  if(kind==='chat-new')return {kind,...(q.get('purpose')==='create-employee'?{purpose:'create-employee'}:{})};
- if(kind==='source-pipeline')return {kind,sourceId:p.source,entry:p.entry};
+ if(kind==='employee-work')return {kind,pageId:p.employeePage};
+ if(kind==='source-pipeline')return {kind,pageId:p.pipeline};
  if(kind==='docs'||kind==='docs-detail')return {kind:'docs',documentId:Number(p.document)||0,anchor:decodeURIComponent(target.hash.slice(1))};
  const contributed=global.RunTeamsHost.routes.resolve(found,target);if(contributed!==null)return contributed;
  if(kind==='design-system')return {kind,theme:['light','dark','system'].includes(q.get('theme'))?q.get('theme'):'system'};
@@ -148,7 +163,9 @@ function installDevice(items,nextScope){
  const ids=new Map(),publics=new Map();
  for(const item of items){
   if(!['chats','workflows','artifacts','documents'].includes(item?.resource)||!/^[1-9][0-9]*$/.test(item.id)||!/^local-[a-f0-9]{32}$/.test(item.public_id)||ids.has(key(item.resource,item.id))||publics.has(key(item.resource,item.public_id)))throw failure();
-  ids.set(key(item.resource,item.id),item);publics.set(key(item.resource,item.public_id),item);
+  const id=key(item.resource,item.id),previous=deviceIds.get(id);
+  const registered=previous?.public_id===item.public_id?{...previous,...item}:item;
+  ids.set(id,registered);publics.set(key(item.resource,item.public_id),registered);
  }
  ids.forEach((v,k)=>deviceIds.set(k,v));publics.forEach((v,k)=>devicePublic.set(k,v));loaded=true;
 }
@@ -156,7 +173,7 @@ function isDeviceRoute(value){
  const target=url(unmount(value)),found=match(target.pathname,'public');
  if(found?.route.kind==='docs-detail')return devicePublic.has(key('documents',found.params.document))&&[...target.searchParams].every(([name,id])=>name==='chat'&&devicePublic.has(key('chats',id)));
  if(found?.route.kind==='chat')return devicePublic.has(key('chats',found.params.chat));
- return found?.route.kind==='chat-new'&&[...target.searchParams].every(([name])=>name==='chat'||name==='settings')&&devicePublic.has(key('chats',target.searchParams.get('chat')));
+ return false;
 }
 function clear(){byId.clear();byPublic.clear();deviceIds.clear();devicePublic.clear();scope='';deviceScope='';loaded=false;}
 global.addEventListener?.('runteams:business-scope-changed',clear);

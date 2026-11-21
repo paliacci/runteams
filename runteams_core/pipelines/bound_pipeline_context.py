@@ -9,7 +9,7 @@ class BoundPipelineContext:
 
     def _check(self):
         if current_provider() is not self.provider:
-            raise PermissionError('流水线工作提供者已变化，请重新打开。')
+            raise PermissionError('智能体团队工作提供者已变化，请重新打开。')
 
 
     def binding(self, chat_id):

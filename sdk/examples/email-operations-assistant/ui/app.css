@@ -1,0 +1,56 @@
+[hidden] { display: none !important; }
+body {
+  margin: 0;
+  background: var(--rt-surface);
+  color: var(--rt-text-primary);
+  font: var(--rt-font-size-body, 14px)/1.5 var(--rt-font, system-ui, sans-serif);
+}
+.queue { padding: 12px 20px 24px; }
+header, footer, .row-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+header { margin-bottom: 4px; }
+h1, h2, p { margin: 0; }
+h1 { font-size: 20px; font-weight: 650; }
+#count, #notice, #sender, .row-time, #draft-status { color: var(--rt-text-muted); font-size: 12px; }
+#count { margin-left: 4px; font-weight: 400; }
+#notice:empty, #draft-status:empty { display: none; }
+#notice { padding: 8px 0; }
+#rows, #mail-loading { margin-top: 8px; }
+.mail-row {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 10px 8px;
+  border: 0;
+  border-bottom: 1px solid var(--rt-border-default);
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+}
+button.mail-row:hover, .mail-row[aria-expanded=true] { background: var(--rt-surface-hover, #8192ab14); }
+.mail-placeholder { box-sizing: border-box; cursor: default; }
+.mail-placeholder .row-heading { height: 18px; }
+.mail-placeholder .rt-skeleton { flex: none; }
+.placeholder-sender { width: min(36%, 112px); }
+.placeholder-time { width: min(18%, 54px); height: 8px; }
+.placeholder-subject { width: 72%; margin-block: 5px 6px; }
+.mail-placeholder:nth-child(even) .placeholder-subject { width: 56%; }
+.mail-placeholder:nth-child(3) .placeholder-sender { width: min(48%, 140px); }
+.row-heading { font-size: 12px; min-width: 0; margin-bottom: 3px; }
+.row-name, .row-subject { display: block; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row-time { flex-shrink: 0; }
+.row-subject { font-weight: 550; }
+#editor { padding: 16px 8px; border-bottom: 1px solid var(--rt-border-default); }
+#subject { font-size: 15px; overflow-wrap: anywhere; }
+#sender { overflow-wrap: anywhere; margin-top: 4px; }
+#snippet { white-space: pre-wrap; overflow-wrap: anywhere; margin: 12px 0 16px; max-height: 10em; overflow: auto; }
+#editor label { font-weight: 550; display: block; margin-bottom: 6px; }
+#draft { width: 100%; box-sizing: border-box; min-height: 132px; resize: vertical; font: inherit; }
+footer { justify-content: flex-end; margin-top: 10px; }
+#draft-status { margin-right: auto; }
+#reload { margin-top: 8px; }
+@media (max-width: 350px) {
+  .queue { padding-inline: 12px; }
+  footer { flex-wrap: wrap; }
+}

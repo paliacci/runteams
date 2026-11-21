@@ -38,12 +38,46 @@ def source(session):
     return Revisions(store, context['creator_local_source_id'])
 
 
+def _initial_runtime(runtime, product, device_data):
+    from runteams_core.agents.models import model_channels
+
+    channel = product.get_channel(runtime.get('channel_id'))
+    model = str(runtime.get('model') or '').strip()
+    effort = str(runtime.get('reasoning_effort') or '')
+    if channel and model:
+        return channel['id'], model, effort
+
+    settings = device_data.settings()
+    default_id, _, default_model = str(settings.get('default_model') or '').partition('::')
+    channels = {row['provider']: row for row in product.list_channels() if row.get('enabled')}
+    ordered = [channels[row['id']] for row in model_channels.public_providers() if row['id'] in channels]
+    configured = next((row for row in ordered if str(row['id']) == default_id), None)
+    candidates = [(row, model) for row in ordered]
+    if channel and channel.get('enabled'):
+        candidates.insert(0, (channel, model))
+    elif configured and default_model and not model:
+        candidates.insert(0, (configured, default_model))
+    for candidate, requested in candidates:
+        try:
+            selected, strength = model_channels.normalize_selection(
+                candidate, requested, effort or settings.get('default_effort'),
+            )
+            return candidate['id'], selected, strength
+        except ValueError:
+            continue
+    return None, '', ''
+
+
 def session_for(store, identity, scope, runtime, *, employee_source=None, title=None, operation_id=None):
     import json
     from runteams_core.storage import product_store as product
     from runteams_core.storage import device_data
 
     original = store.describe(identity)
+    if employee_source is None:
+        entries = strict_json(Revisions(store, identity).files()['project.json'])['entrypoints'].get('employees', [])
+        if len(entries) == 1:
+            employee_source = entries[0]
     receipt_key = None
     target = {'source': identity, 'employee_source': employee_source}
     current_key = 'employee-conversation-current:' + digest(target) if employee_source else None
@@ -52,6 +86,8 @@ def session_for(store, identity, scope, runtime, *, employee_source=None, title=
                 or str(uuid.UUID(operation_id)) != operation_id):
             raise ValueError('新对话操作编号无效。')
         receipt_key = 'employee-conversation-open:' + operation_id
+    # Run native metadata reads before taking the device write lock.
+    channel_id, model, effort = _initial_runtime(runtime, product, device_data)
     # The receipt and the chat share the same transaction. Reopening a
     # particular employee never depends on the latest SDK build or package.
     with device_data.connect() as connection:
@@ -80,31 +116,20 @@ def session_for(store, identity, scope, runtime, *, employee_source=None, title=
                         return session
             rows = connection.execute("SELECT id,context_json FROM chats WHERE kind='employee_design' "
                                       "ORDER BY updated_at DESC,id DESC").fetchall()
-            unassigned = None
             for row in rows:
                 context = json.loads(row['context_json'])
                 if (context.get('creator_local_source_id') != identity
                         or context.get('creator_local_scope') != scope):
                     continue
-                if employee_source is None or context.get('creator_employee_source') == employee_source:
+                if context.get('creator_employee_source') == employee_source:
                     return product.get_chat(row['id'])
-                if context.get('creator_employee_source') is None and unassigned is None:
-                    unassigned = (row['id'], context)
-            if unassigned:
-                project = strict_json(Revisions(store, identity).files()['project.json'])
-                if project['entrypoints']['employees'] == [employee_source]:
-                    chat_id, context = unassigned
-                    connection.execute('UPDATE chats SET context_json=? WHERE id=?',
-                                       (json.dumps({**context, 'creator_employee_source': employee_source}), chat_id))
-                    return product.get_chat(chat_id)
-        channel = product.get_channel(runtime.get('channel_id')) or product.get_default_channel() or {'id': None}
         context = {'context_type': 'worker', 'intent': 'create', 'phase': 'design',
                    'label': title or original['project']['name'], 'creator_local_source_id': identity,
                    'creator_local_scope': scope, 'creator_authoring': True}
         if employee_source is not None:
             context['creator_employee_source'] = employee_source
         chat_id = product.create_agent_session('employee_design', title or '创作：'+original['project']['name'],
-            channel['id'], str(runtime.get('model') or ''), str(runtime.get('reasoning_effort') or ''), None, context)
+            channel_id, model, effort, None, context)
         if receipt_key:
             connection.execute('INSERT INTO device_settings(key,value) VALUES(?,?)',
                                (receipt_key, json.dumps({'target': target, 'chat_id': chat_id})))
@@ -234,6 +259,7 @@ def recovery_available(session):
 
 
 def instructions(session):
+    from runteams_core.agents.agent_guidance import EMPLOYEE_EXAMPLE_ICON_INSTRUCTION
     revisions=source(session)
     return ('# 当前本机作品\n员工源码目录：' + str(session.get('_creator_workspace') or _work_root(revisions,session['id'])/'source') + '\n'
         '这是文件编辑器绑定作品的源码工作区，可能与终端当前工作目录不同；读取与修改员工必须使用上述源码目录。'
@@ -241,8 +267,12 @@ def instructions(session):
         '构建缓存和临时输出放在源码目录之外，不能作为可复用资产保存。若目录保留中断修改，先检查已有文件再继续，不能覆盖为导入原版。'
         '用户要求改员工名字或头像时，直接编辑 project.json 员工入口所指 JSON 的 name 和 avatar；多员工工程以当前 creator_employee_source 为目标，不明确时先问。'
         '头像使用工程根目录相对路径（如 assets/avatar.webp），图片必须随工程保存；支持512 KB以内的PNG、JPEG、WebP或无外链无脚本的静态SVG。上传图片从当前对话附件读取；没有可用图片或生图能力时不得谎称已换图。'
+        '用户要求把图片设为对话背景时，用当前员工入口 JSON 顶层的 workspace_background。将用户指定的图片复制到本工程 assets/ 下，填写工程根目录相对路径。'
+        '背景图支持 5 MB 以内、最长边 4096 像素以内的静态 PNG、JPEG、WebP。优先使用本次图片附件的原件路径。图片不明确时先问；恢复默认背景时删除该字段。'
+        '如需为符合限制而缩小图片，只写工程内的副本。图片与配置一起保存；回复说明本次设置的目标和结果。'
         '图片和员工JSON须在同一轮一起完成，不直接写数据库，不用员工名字推断头像，不改key、身份引用、历史工作或正在使用的冻结版本。'
-        '回复结束时平台将实际文件原子保存为这份作品的新修订；原导入版保留。'
+        + EMPLOYEE_EXAMPLE_ICON_INSTRUCTION
+        + '回复结束时平台将实际文件原子保存为这份作品的新修订；原导入版保留。'
         '不要访问或修改原云作品，不调用云作品创建、编译、安装或发布。'
         '所有员工须遵守 SDK。纯技能员工不需要程序或界面；不得为了通过检查添加空壳程序、UI 或虚构工作。若实际工作需要程序，project/2 使用技能 mcp/ 下 Node JavaScript、MCPB manifest 与可选 Apps 页面；依赖完整随包并精确锁定。'
         '平台构建做静态解析与确定性打包，不要改回强制 Wasm、添加安装脚本或调用裸模型 API。自测和预览实际执行作者程序，须有本次明确授权。'

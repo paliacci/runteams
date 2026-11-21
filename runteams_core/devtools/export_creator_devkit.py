@@ -65,6 +65,9 @@ def export_mcp(output,runtime_root,libraries,esbuild):
     for name,body in files.items():
         for base in (output/'source',kit/'templates/mcp/source'):
             target=base/name;target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(body)
+    for path in (ROOT/'sdk/examples/email-operations-assistant').rglob('*'):
+        if path.is_file() and path.suffix in ('.py','.md','.json','.cjs','.css','.js','.html'):
+            copy(path,kit/path.relative_to(ROOT))
     for path in (output/'dev/tests.json',kit/'templates/mcp/tests.json'):
         path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(canonical(mcp_cases()))
     guide=(ROOT/'runteams_creator_dev/MCP_AUTHORING.md').read_text()

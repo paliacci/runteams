@@ -19,6 +19,7 @@ const fieldErrors=new Map([
  ["此项必须通过平台的资料选择、连接或凭据入口配置。",message("fieldError.privateSetting","请使用此项的资料、连接或凭据选项。")],
  ["请填写文本。",message("fieldError.textRequired","请输入文字。")],
  ["文本长度不符合要求。",message("fieldError.textLength","请检查文字长度。")],
+ ["请选择有效的本机位置。",message("fieldError.invalidLocation","请选择有效的本机位置。")],
  ["请选择有效日期。",message("fieldError.invalidDate","请选择有效日期。")],
  ["选项已变化，请重新选择。",message("fieldError.optionsChanged","可用选项已变更。请重新选择。")],
  ["请填写有效数字。",message("fieldError.invalidNumber","请输入有效数字。")],
@@ -53,7 +54,7 @@ window.RunTeamsConfigurationFields = {errorMarkup:fieldErrorMarkup,create({icon:
   const credential=f.localCredential;
   const helpCopy=f.localService?label("localService","保存服务选择后，在下方授权连接。"):
    f.type==="secret"&&!f.note?label("secretHidden","已保存的密钥不会显示。"):"";
-  const requiredHint=f.required_when?esc(f.required_when):f.required?label("required","必填"):"";
+  const requiredHint=f.required_when?esc(f.required_when):f.required&&f.showRequiredHint!==false?label("required","必填"):"";
   const limitHints=[f.min_length!=null?text("minLength","最少 {count} 个字符").replace('{count}',f.min_length):'',f.max_length!=null?text("maxLength","最多 {count} 个字符").replace('{count}',f.max_length):'',f.min!=null?text("minimum","最小值 {count}").replace('{count}',f.min):'',f.max!=null?text("maximum","最大值 {count}").replace('{count}',f.max):'',f.step!=null?text("step","步长 {count}").replace('{count}',f.step):''].filter(Boolean).map(esc).join('；');
   const hint=[requiredHint,esc(f.note),limitHints,helpCopy].filter(Boolean).join(" ");
   const requiredMark=f.required||f.required_when?'<span class="required-mark" aria-hidden="true">*</span><span class="sr-only">'+(f.required?label("required","必填"):label("conditionalRequired","按使用场景必填"))+'</span>':'';
@@ -92,14 +93,20 @@ window.RunTeamsConfigurationFields = {errorMarkup:fieldErrorMarkup,create({icon:
    return '<div class="field credential-field'+(file?' credential-file-field':'')+'" data-field="'+esc(f.key)+'"><div class="credential-heading"><label for="'+id+'">'+esc(f.label)+requiredMark+'</label>'+info+'</div>'+control+
     (error?'<p class="error" role="alert" id="'+err+'">'+renderError(error)+'</p>':'')+'</div>';
   }
+  const placeholder=f.placeholder?' placeholder="'+esc(f.placeholder)+'"':'';
   let control="";
   if(f.readonly) control='<div class="readonly">'+displayValue(f,v)+'<small>'+label("readOnly","只读")+'</small></div>';
   else if(f.type==='secret'&&f.file_input)control=fileFrame(fileInput()+fieldAction('data-credential-file="'+esc(f.key)+'"','chooseFile','选择文件'));
   else if(f.type==='secret')control='<div class="input-unit">'+secretInput()+reveal()+'</div>';
-  else if(["text","number","date"].includes(f.type)) control='<div class="input-unit"><input class="inp" '+attrs+' type="'+f.type+'" value="'+esc(v)+'" '+(f.min!=null?'min="'+f.min+'"':'')+' '+(f.max!=null?'max="'+f.max+'"':'')+' '+(f.step!=null?'step="'+f.step+'"':'')+'>'+(f.unit?'<span>'+esc(f.unit)+'</span>':'')+'</div>';
-  else if(f.type==="textarea")control='<textarea class="ta" '+attrs+' rows="3">'+esc(v)+'</textarea>';
+  else if(f.type==='file_path'||f.type==='directory_path'){
+   const folder=f.type==='directory_path';
+   const choose=fieldAction('class="btn sm" data-location-pick="'+(folder?'folder':'file')+'"',folder?'chooseFolder':'chooseFile',folder?'选择文件夹':'选择文件',folder?label('choose','选择'):undefined);
+   control='<div class="inp configuration-location"'+(error?' aria-invalid="true"':'')+'><input '+attrs+' readonly value="'+esc(v)+'" title="'+esc(v)+'" placeholder="'+esc(text('noSelection','尚未选择'))+'" data-app-i18n-placeholder="configurationField.noSelection">'+choose+'</div>';
+  }
+  else if(["text","number","date"].includes(f.type)) control='<div class="input-unit"><input class="inp" '+attrs+' type="'+f.type+'" value="'+esc(v)+'"'+(f.type==="text"?placeholder:'')+' '+(f.min!=null?'min="'+f.min+'"':'')+' '+(f.max!=null?'max="'+f.max+'"':'')+' '+(f.step!=null?'step="'+f.step+'"':'')+'>'+(f.unit?'<span>'+esc(f.unit)+'</span>':'')+'</div>';
+  else if(f.type==="textarea")control='<textarea class="ta" '+attrs+placeholder+' rows="3">'+esc(v)+'</textarea>';
   else if(f.type==="select"){
-   control=csel(id,(f.options||[]).map(o=>({value:o[0],label:o[1]})),v,()=>document.getElementById(id)?.dispatchEvent(new Event("change",{bubbles:true})),{disabled:!!f.disabled,menuVariant:"compactSelect"});
+   control=csel(id,(f.options||[]).map(o=>({value:o[0],label:o[1]})),v,()=>document.getElementById(id)?.dispatchEvent(new Event("change",{bubbles:true})),{disabled:!!f.disabled,menuVariant:"compactSelect",required:!!f.required,accessibleAttrs:'aria-labelledby="'+id+'-label"'+descriptionAttr+(error?' aria-invalid="true"':'')});
    control=control.replace('data-menu-trigger="field"','data-menu-trigger="field" data-key="'+esc(f.key)+'" aria-labelledby="'+id+'-label"'+descriptionAttr+' '+(error?'aria-invalid="true"':""));
   }
   else if(["multiselect","checklist"].includes(f.type))control='<div class="choices '+(f.type==="checklist"?"vertical":"")+'" role="group" aria-labelledby="'+id+'-label">'+(f.options||[]).map(o=>'<label><input type="checkbox" data-key="'+esc(f.key)+'" value="'+esc(o[0])+'" '+((v||[]).includes(o[0])?"checked":"")+' '+disabled+descriptionAttr+' '+(error?'aria-invalid="true"':"")+'>'+esc(o[1])+'</label>').join("")+'</div>';
@@ -110,7 +117,7 @@ window.RunTeamsConfigurationFields = {errorMarkup:fieldErrorMarkup,create({icon:
    const summary=(valueLabel(f,v)?esc(valueLabel(f,v)):label("noSelection","尚未选择"))+(f.note?' · '+esc(f.note):access?' · '+access:'');
    const title='<label id="'+id+'-label">'+esc(f.label)+(f.required?'<span class="required-mark" aria-hidden="true">*</span><span class="sr-only">'+label("required","必填")+'</span>':'')+'</label>';
    const action='<button type="button" '+(expired?'data-reconnect="'+esc(f.key)+'"':'data-expand="'+esc(f.key)+'"')+' '+disabled+' aria-describedby="'+help+(error?' '+err:'')+'" '+(error?'aria-invalid="true"':'')+' aria-expanded="'+Boolean(f.pickerOpen)+'">'+(expired?label("reconnect","重新连接"):v?label("change","更换"):label("choose","选择"))+'</button>';
-   const picker='<div class="picker" data-picker="'+esc(f.key)+'" '+(f.pickerOpen?'':'hidden')+'><p>'+(f.pipelinePicker?label("pipelinePicker","选择流水线可使用的资料"):f.pickerTitle?esc(f.pickerTitle):label("employeePicker","选择员工可使用的资料"))+'</p><p>'+label("access","使用权限：")+access+'</p>'+(f.options||[]).map(o=>'<label><input type="radio" name="'+id+'" data-key="'+esc(f.key)+'" value="'+esc(o[0])+'" '+(o[0]===v?'checked':'')+' '+disabled+'>'+esc(o[1])+'</label>').join('')+(f.pickerActions||'')+'</div>';
+   const picker='<div class="picker" data-picker="'+esc(f.key)+'" '+(f.pickerOpen?'':'hidden')+'><p>'+(f.pipelinePicker?label("pipelinePicker","选择智能体团队可使用的资料"):f.pickerTitle?esc(f.pickerTitle):label("employeePicker","选择员工可使用的资料"))+'</p><p>'+label("access","使用权限：")+access+'</p>'+(f.options||[]).map(o=>'<label><input type="radio" name="'+id+'" data-key="'+esc(f.key)+'" value="'+esc(o[0])+'" '+(o[0]===v?'checked':'')+' '+disabled+'>'+esc(o[1])+'</label>').join('')+(f.pickerActions||'')+'</div>';
    return '<div class="field resource-field" data-field="'+esc(f.key)+'"><div class="resource-heading">'+title+action+'</div><p class="resource-summary '+(!v?'warning':'')+'" id="'+help+'" title="'+esc(valueLabel(f,v)+(f.note?' · '+f.note:f.access?' · '+f.access:''))+'">'+summary+'</p>'+(expired?'<p class="error">'+label("expiredResource","连接已失效。已有成果仍保留。")+'</p>':'')+picker+(error?'<p class="error" id="'+err+'">'+renderError(error)+'</p>':'')+'</div>';
   }
   else if(f.type==="connection")control='<div class="binding"><div><strong class="'+(v==="expired"?"warning":"")+'">'+(f.localService&&v==="missing"?label("noServiceSelected","尚未选择服务"):f.connectionStatus?esc(f.connectionStatus):statuses[v])+'</strong><small>'+(f.localService?esc(f.account)+' · '+label("access","使用权限：")+(f.serviceScopes.length?esc(f.serviceScopes.join(', ')):label("noExtraAccess","无额外权限")):esc(v==='connected'||v==='expired'?f.account+' · '+f.access:f.access))+'</small></div><button type="button" data-connect="'+esc(f.key)+'" '+disabled+'>'+(f.localService?(v==="selected"?label("deselectService","取消选择"):label("selectService","选择服务")):f.connectionAction||(v==="connected"?label("manage","管理"):v==="expired"?label("reconnect","重新连接"):label("connect","连接")))+'</button></div>';

@@ -38,15 +38,6 @@
       }
     },
     {
-      "internal": "/pipelines/local/{source}/{entry}",
-      "public": "/pipelines/local/{source}/{entry}",
-      "kind": "source-pipeline",
-      "keys": {
-        "source": "[a-f0-9]{64}",
-        "entry": "[A-Za-z0-9_-]{1,1280}"
-      }
-    },
-    {
       "internal": "/pipelines/new",
       "public": "/pipelines/new",
       "kind": "source-pipeline-new"
@@ -73,6 +64,44 @@
       "internal": "/design-system",
       "public": "/design-system",
       "kind": "design-system"
+    },
+    {
+      "internal": "/employees/{employeePage}",
+      "public": "/employees/{employeePage}",
+      "kind": "employee-work",
+      "keys": {
+        "employeePage": "[a-f0-9]{32}"
+      }
+    },
+    {
+      "internal": "/pipelines/{pipeline}",
+      "public": "/pipelines/{pipeline}",
+      "kind": "source-pipeline",
+      "keys": {
+        "pipeline": "[a-f0-9]{32}"
+      }
+    },
+    {
+      "internal": "/employees/{employeePage}/chats/{chat}",
+      "public": "/employees/{employeePage}/chats/{chat}",
+      "kind": "chat",
+      "keys": {
+        "employeePage": "[a-f0-9]{32}"
+      },
+      "refs": {
+        "chat": "chats"
+      }
+    },
+    {
+      "internal": "/pipelines/{pipeline}/chats/{chat}",
+      "public": "/pipelines/{pipeline}/chats/{chat}",
+      "kind": "chat",
+      "keys": {
+        "pipeline": "[a-f0-9]{32}"
+      },
+      "refs": {
+        "chat": "chats"
+      }
     }
   ],
   "query_refs": {

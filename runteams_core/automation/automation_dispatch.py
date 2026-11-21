@@ -10,7 +10,7 @@ import os
 import time
 
 
-def selected_schedule_ids(backend, binding):
+def selected_schedule_ids(backend, binding, *, allow_indefinite=False):
     if os.environ.get('RUNTEAMS_AUTOMATION_DISPATCH', '1') != '0':
         return None
     try:
@@ -24,8 +24,11 @@ def selected_schedule_ids(backend, binding):
             return ()
         ids, expiry = value['schedule_ids'], value['expires_at']
         if (not isinstance(ids, list) or not 1 <= len(ids) <= 20 or
-                any(type(i) is not int or i < 1 for i in ids) or len(set(ids)) != len(ids) or
-                type(expiry) not in (int, float) or not math.isfinite(expiry) or
+                any(type(i) is not int or i < 1 for i in ids) or len(set(ids)) != len(ids)):
+            return ()
+        if expiry is None and allow_indefinite:
+            return tuple(ids)
+        if (type(expiry) not in (int, float) or not math.isfinite(expiry) or
                 not time.time() < expiry <= time.time() + 3600):
             return ()
         return tuple(ids)

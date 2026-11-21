@@ -4,6 +4,7 @@ These snapshots are local runtime inputs. Product publication continues to use
 creator_definitions and its formal work contracts, never this local artifact.
 """
 from runteams_core.assets.skills import skill_packages as _skill_packages
+from runteams_core.assets import workspace_background
 import base64
 import copy
 import hashlib
@@ -68,8 +69,11 @@ def extension(bundle):
 
 
 def validate_asset(asset):
-    if not isinstance(asset,dict) or set(asset) not in ({'schema','employee','skill_bundles'}, {'schema','employee','skill_bundles','avatar_file'}) or asset['schema']!=SCHEMA:
+    required = {'schema', 'employee', 'skill_bundles'}
+    if (not isinstance(asset, dict) or not required <= asset.keys()
+            or asset.keys() - required - {'avatar_file', 'workspace_background'} or asset['schema'] != SCHEMA):
         raise ContractError('员工对话运行包无效。')
+    workspace_background.image_src(asset)
     employee=asset['employee']
     if not isinstance(employee,dict) or set(employee) not in (
             {'name','avatar','soul','runtime_requirement'},
@@ -120,7 +124,8 @@ def compile_catalog(files,compiled):
             except UnicodeError:raise CreatorContractError('invalid_employee_soul') from None
             from runteams_core.employees.employee_avatars import attachment
             picture = attachment(source['avatar'], files)
-            employees[path]=validate_asset({'schema':SCHEMA,**({'avatar_file':picture} if picture else {}),'employee':{
+            employees[path]=validate_asset({'schema':SCHEMA,**({'avatar_file':picture} if picture else {}),
+                **workspace_background.source_fields(source, files),'employee':{
                 **{key:copy.deepcopy(source[key]) for key in ('name','avatar')},'soul':soul,
                 'runtime_requirement':copy.deepcopy(source.get('runtime_requirement', {})),
                 **({'configuration':copy.deepcopy(source['configuration'])} if 'configuration' in source else {})},

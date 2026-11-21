@@ -40,7 +40,7 @@ try{
  const reply=(type,value={})=>window.dispatchEvent(new window.MessageEvent('message',{origin:location.origin,source:window,data:{channel:'runteams-rich-document/1',token:'fixture-token',type,request_id:sent.filter(item=>item.type==='save').at(-1)?.request_id,...value}}));
  await act(async()=>reply('saved',{revision:2}));assert.ok(document.body.textContent.includes('已保存'));
  await act(async()=>editor.updateBlock('intro',{content:'第二次修改'}));await flush();assert.equal(sent.filter(item=>item.type==='save').at(-1).base_revision,2);
- await act(async()=>reply('saved',{error:'文档已被更新，请核对。'}));assert.ok(document.querySelector('[role=alert]'));assert.ok(button('导出本页修改'));assert.ok(document.body.textContent.includes('第二次修改'));checks.push('A conflict preserves unsaved text and exposes an export action.');
+ await act(async()=>reply('saved',{error:'文档已被更新，请核对。'}));assert.ok(document.querySelector('[role=alert]'));assert.ok(button('导出当前内容'));assert.ok(document.body.textContent.includes('第二次修改'));checks.push('A conflict preserves unsaved text and exposes an export action.');
  await act(async()=>root.unmount());root=createRoot(document.getElementById('test-root'));
  await act(async()=>root.render(createElement(DocumentApp,{payload:{doc:{...doc,revision:2,content:JSON.stringify(saved.document)}},onReady:value=>editor=value})));
  assert.ok(document.body.textContent.includes('核对完成'));assert.equal(editor.document.filter(b=>['dataTable','jsonData'].includes(b.type)).length,2);checks.push('Reopening stored structured content restores text, data blocks and source identity.');

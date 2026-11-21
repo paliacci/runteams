@@ -1,7 +1,7 @@
 """Host-only discovery of official Agent CLIs, shared by settings and execution.
 
-Only verified locations are cached in memory. No credentials, login or business
-state are inferred from discovery, and no model requests are sent.
+Verified locations and short-lived missing results are cached in memory.
+Discovery does not inspect credentials or send model requests.
 """
 import ctypes
 import glob
@@ -28,6 +28,7 @@ _CACHE = {}
 _DISPLAY_PATHS = {}
 _LOCKS = {provider: threading.RLock() for provider in _PROVIDERS}
 _CACHE_SECONDS = 30
+_MISSING_SECONDS = 15
 _DISCOVERY_SECONDS = 8
 _COMMAND_SECONDS = 2
 
@@ -265,7 +266,9 @@ def cached_display_executable(provider, explicit=''):
     # A display read must not queue behind native discovery's long-running lock.
     # Retain the last verified immutable record while discovery replaces _CACHE.
     key = _cache_key(provider)
-    cached = _CACHE.get(key) or _DISPLAY_PATHS.get(key)
+    cached = _CACHE.get(key)
+    if not cached or not cached.get('path'):
+        cached = _DISPLAY_PATHS.get(key)
     configured = str(explicit or os.environ.get(_PROVIDERS[provider][1], '')).strip()
     if cached and (not configured or _absolute(configured) == cached['path']):
         env = execution_env(provider, cached['path'], os.environ)
@@ -284,6 +287,11 @@ def resolve(provider, explicit='', refresh=False):
     with _LOCKS[provider]:
         configured = str(explicit or os.environ.get(override, '')).strip()
         cached = _CACHE.get(key)
+        if cached and not cached.get('path'):
+            if not configured and not refresh and time.monotonic() - cached['checked'] < _MISSING_SECONDS:
+                if not any(os.path.isfile(path) for path in cached['searched']):
+                    raise DiscoveryError(cached['message'], status='missing')
+            cached = None
         if cached and not refresh and (not configured or _absolute(configured) == cached['path']):
             env = execution_env(provider, cached['path'], os.environ)
             if (time.monotonic() - cached['checked'] < _CACHE_SECONDS and
@@ -355,4 +363,6 @@ def resolve(provider, explicit='', refresh=False):
             raise next((e for e in failures if e.status == 'incompatible'), failures[0])
         if time.monotonic() >= deadline:
             raise DiscoveryError(f'{label} 自动检测超时，请稍后重新连接。')
-        raise DiscoveryError(f'未检测到可用的 {label} 运行程序。请确认已安装，然后重新连接。', status='missing')
+        message = f'未检测到可用的 {label} 运行程序。请确认已安装，然后重新连接。'
+        _CACHE[key] = {'checked': time.monotonic(), 'searched': {path for path, _ in seen}, 'message': message}
+        raise DiscoveryError(message, status='missing')

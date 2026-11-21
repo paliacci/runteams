@@ -13,5 +13,5 @@ def start_position(definition):
     if not starts and definition.get("positions"):
         starts = [definition["positions"][0]["key"]]
     if len(starts) != 1:
-        raise ContractError("流水线必须有且只有一个起点")
+        raise ContractError("智能体团队必须有且只有一个起点")
     return starts[0]

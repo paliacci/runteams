@@ -4,11 +4,11 @@
 
 /* module-function:refreshChannelUsage */
 async function refreshChannelUsage(force=false){
-  const context=workspaceAccountCacheToken(),mutation=S.channelMutationVersion||0,
-   previousAvailability=JSON.stringify(S.channels.map(c=>[String(c.id),modelChannelAvailable(c)]));
+  const context=workspaceAccountCacheToken(),mutation=S.channelMutationVersion||0;
   S.channelUsageLoading=true;RunTeamsHost.settings.usage();if(document.getElementById("channel_list")||document.getElementById("model_channel_guide_list"))renderChannels(false);
   try{const result=await modelChannelData().usage(force);if(!result||context!==workspaceAccountCacheToken()||mutation!==(S.channelMutationVersion||0))return S.channelUsage;
    if(result.error)throw Error(result.error);if(S.channelUsage===result)return result;
+   const previousAvailability=JSON.stringify(S.channels.map(c=>[String(c.id),modelChannelAvailable(c)]));
    S.channelUsage=result;S.channelUsageUpdatedAt=Date.now();applyChannelUsageAvailability(previousAvailability);return result;
   }catch(error){if(context===workspaceAccountCacheToken()&&mutation===(S.channelMutationVersion||0)){S.channelUsage={channels:[],error:error.message||''};S.channelUsageUpdatedAt=Date.now();}return S.channelUsage;}
   finally{if(context===workspaceAccountCacheToken()){S.channelUsageLoading=false;RunTeamsHost.settings.usage();if(document.getElementById("channel_list")||document.getElementById("model_channel_guide_list"))renderChannels(false);}}
@@ -145,7 +145,7 @@ function openSettingsPage(tab,options={}){
 function switchSettingsTab(tab,options={}){
  RunTeamsHost.settings.capture();const panel=document.getElementById('settingsPanel');S.settingsScroll=S.settingsScroll||{};
  if(panel)S.settingsScroll[S.settingsTab]=panel.scrollTop;
- S.settingsTab=normalizeSettingsTab(tab);closePop();if(document.querySelector('[data-settings-extension-dialog],[data-settings-tools-resource]'))closeChildDialog();
+ S.settingsTab=normalizeSettingsTab(tab);closePop();if(document.querySelector('[data-settings-extension-dialog],[data-settings-tools-resource],[data-mcp-connection-dialog]'))closeChildDialog();
  document.querySelectorAll('[data-settings-tab]').forEach(button=>{const current=button.dataset.settingsTab===S.settingsTab;button.classList.toggle('on',current);button.setAttribute('aria-current',current?'page':'false');});
  if(panel){panel.innerHTML=settingsPanel();globalThis.RunTeamsLocale?.apply(panel);panel.scrollTop=S.settingsScroll[S.settingsTab]||0;RunTeamsHost.settings.restore();}
  if(options.route!==false)accountSettingsSetRoute(S.settingsTab,true);
@@ -173,7 +173,7 @@ function accountSettingsNavigation(){
 }
 function accountSettingsSetRoute(tab,replace){const url=new URL(location.href);url.searchParams.set('settings',tab);RunTeamsHost.settings.updateRoute(url,tab);const target=url.pathname+url.search+url.hash;if(target!==location.pathname+location.search+location.hash){history[replace?'replaceState':'pushState']({...history.state},'',target);if(!replace)RunTeamsShell.recordNavigation(false);}RunTeamsShell.syncHistoryControls();}
 function accountSettingsRestoreRoute(){RunTeamsHost.settings.restoreRoute();const tab=new URLSearchParams(location.search).get('settings');if(tab){const normalized=normalizeSettingsTab(tab);if(normalized!==tab)accountSettingsSetRoute(normalized,true);openSettingsPage(normalized,{route:false});return true;}const root=document.getElementById('settingsWorkspace'),restore=!!root?._hasWorkspace&&root._returnRoute===location.pathname+location.search+location.hash;accountSettingsUnmount();return restore;}
-function accountSettingsUnmount(){if(document.querySelector('[data-settings-extension-dialog],[data-settings-tools-resource]'))closeChildDialog();const root=document.getElementById('settingsWorkspace');if(!root)return;closePop();S.settingsScroll=S.settingsScroll||{};S.settingsScroll[S.settingsTab]=document.getElementById('settingsPanel')?.scrollTop||0;root.remove();document.getElementById('app')?.removeAttribute('inert');S.settingsReturnFocus?.focus?.();S.settingsReturnFocus=null;clearAgentSetupContinuation();}
+function accountSettingsUnmount(){if(document.querySelector('[data-settings-extension-dialog],[data-settings-tools-resource],[data-mcp-connection-dialog]'))closeChildDialog();const root=document.getElementById('settingsWorkspace');if(!root)return;closePop();S.settingsScroll=S.settingsScroll||{};S.settingsScroll[S.settingsTab]=document.getElementById('settingsPanel')?.scrollTop||0;root.remove();document.getElementById('app')?.removeAttribute('inert');S.settingsReturnFocus?.focus?.();S.settingsReturnFocus=null;clearAgentSetupContinuation();}
 function accountSettingsClose(){accountSettingsUnmount();const url=new URL(location.href);url.searchParams.delete('settings');RunTeamsHost.settings.cleanRoute?.(url);history.replaceState(history.state,'',url.pathname+url.search+url.hash);RunTeamsShell.syncHistoryControls();}
 function accountSettingsPaint(){
  const panel=document.getElementById('settingsPanel');if(!panel||!document.getElementById('settingsWorkspace'))return;
@@ -478,8 +478,8 @@ function accountModelDefaults(){
  const choices=[...(value&&!known?[{value,label:'当前默认模型不可用',labelKey:'modelChannel.defaultUnavailable',disabled:true}]:[]),{value:'',label:'旗舰模型（自动）',labelKey:'modelChannel.automatic'},...items];
  const selectable=RunTeamsModelChannels.hasSelectableModels(S),disabled=!accountSettingsEditable()||S.modelCatalogLoading||!S.modelCatalogReady||!!S.modelCatalogError&&!selectable;
  let notice='';
- if(S.modelCatalogError){
-  const message=selectable?modelChannelText('partialModels','暂时无法读取部分渠道的模型列表。'):modelChannelText('modelsFailed','暂时无法读取可用模型。请重新读取后再选择。');
+ if(S.modelCatalogError&&!selectable){
+  const message=modelChannelText('modelsFailed','暂时无法读取可用模型。请重新读取后再选择。');
   notice=`<div class="settings-inline-error" role="alert">${message}<button class="btn" data-app-i18n="modelChannel.reload" onclick="refreshModelCatalog(true).catch(()=>{})">重新读取</button></div>`;
  }else if(S.modelCatalogReady&&channels.length&&!items.length){
   notice='<div class="settings-inline-error" role="status"><span data-app-i18n="modelChannel.modelsEmpty">暂无可用模型。请检查渠道登录状态和模型权限。</span><button class="btn" data-app-i18n="modelChannel.checkAgain" onclick="accountRefreshChannels()">重新检测</button></div>';
@@ -555,11 +555,11 @@ function accountToolsList(){
  return html+(count>view.limit?`<button class="btn settings-tools-more"${toolsAttrs('showMore')} onclick="accountToolsMore()">显示更多</button>`:'')+`<span class="settings-tools-results" role="status">${results}</span>`;
 }
 function accountToolsSettings(){
- const view=accountToolsView();if(view.detail)return accountToolsDetailPage(view.detail);
+ const view=accountToolsView();if(view.mcpTests)return accountMcpTestPage();if(view.detail)return accountToolsDetailPage(view.detail);
  const key=accountToolsKey(),label=accountToolsCategories().find(row=>row[0]===view.tab)?.[1]||'插件',query=view.queries[key]||'';
  const searchKey=key==='available_plugins'?'search_plugins':'search_'+key,search='搜索'+(view.catalog?'插件':label);
  const title=view.catalog?toolsCopy('catalog','插件目录'):`<span data-app-i18n="settingsNav.tools">技能与工具</span>`;
- const browse=view.catalog?`<button class="btn"${toolsAttrs('installedPlugins')} onclick="accountToolsCatalog(false)">返回已安装</button>`:RunTeamsHost.settings.localToolImport?`<button class="btn"${toolsAttrs('browse')} onclick="accountToolsBrowseFolder(this)">浏览文件夹</button>`:'';
+ const browse=view.catalog?`<button class="btn"${toolsAttrs('installedPlugins')} onclick="accountToolsCatalog(false)">返回已安装</button>`:key==='mcp_servers'?`<button class="btn" onclick="accountMcpTestOpen()">${toolsCopy('mcpTests','连接与测试')}</button>`:RunTeamsHost.settings.localToolImport?`<button class="btn"${toolsAttrs('browse')} onclick="accountToolsBrowseFolder(this)">浏览文件夹</button>`:'';
  return `<div class="settings-tools" data-tools-view="${view.catalog?'catalog':view.tab}"><div class="settings-tools-heading">${settingsPageHead(title,view.catalog?toolsCopy('catalogHint','来自已连接 Agent 的可用插件'):'')}<div class="settings-tools-heading-actions">${browse}<button type="button" id="settingsToolsAdd" class="btn pri" data-menu-trigger="primary" aria-haspopup="menu" onclick="accountToolsAddMenu(this)">${toolsCopy('add','添加')} ${ICON('chev')}</button></div></div><div class="settings-tools-toolbar">${view.catalog?`<span class="settings-tools-catalog-label"${toolsAttrs('availablePlugins')}>可用插件</span>`:`<div class="settings-tools-tabs" role="tablist" aria-label="工具分类"${toolsAttrs('categories',null,'-aria-label')}>${accountToolsTabs()}</div>`}<label class="settings-tools-search rt-search-field rt-search-field--compact">${ICON('search')}<input id="settingsToolsSearch" type="search" value="${esc(query)}" placeholder="${search}" aria-label="${search}"${toolsAttrs(searchKey,null,'-placeholder')}${toolsAttrs(searchKey,null,'-aria-label')} oninput="accountToolsSearch(this.value)" onkeydown="if(event.key==='Escape'&&!event.isComposing){event.stopPropagation();accountToolsClearSearch()}"></label></div><div id="settingsToolsNotice">${accountToolsNotice()}</div><div id="settingsToolsList" role="tabpanel" aria-busy="${S.settingsExtensionsState==='loading'}" ${view.catalog?`aria-label="插件目录"${toolsAttrs('catalog',null,'-aria-label')}`:`aria-labelledby="toolsTab_${view.tab}"`}>${accountToolsList()}</div></div>`;
 }
 function accountToolsSelect(key){if(!accountToolsCategories().some(row=>row[0]===key))return;const view=accountToolsView();view.tab=key;view.catalog=false;view.detail=null;view.limit=50;accountSettingsPaint();document.getElementById('settingsPanel').scrollTop=0;document.getElementById('toolsTab_'+key)?.focus({preventScroll:true});}
@@ -569,7 +569,7 @@ function accountToolsSearch(value){const view=accountToolsView();view.queries[ac
 function accountToolsClearSearch(){const input=document.getElementById('settingsToolsSearch');if(input){input.value='';accountToolsSearch('');input.focus();}}
 function accountToolsMore(){const view=accountToolsView(),list=document.getElementById('settingsToolsList');view.limit+=50;if(list)list.innerHTML=accountToolsList();}
 function accountToolsPatch(panel,html){
- const current=panel.querySelector('.settings-tools');if(!current)return false;const next=panel.cloneNode(false);next.innerHTML=html;globalThis.RunTeamsLocale?.apply(next);const tools=next.querySelector('.settings-tools');if(!tools)return false;if(current.dataset.toolsDetail||tools.dataset.toolsDetail)return current.outerHTML===tools.outerHTML;if(tools.dataset.toolsView!==current.dataset.toolsView)return false;
+ const current=panel.querySelector('.settings-tools');if(!current)return false;const next=panel.cloneNode(false);next.innerHTML=html;globalThis.RunTeamsLocale?.apply(next);const tools=next.querySelector('.settings-tools');if(!tools)return false;if(current.dataset.mcpTests&&tools.dataset.mcpTests)return current.dataset.mcpTests===tools.dataset.mcpTests;if(current.dataset.mcpTests||tools.dataset.mcpTests)return false;if(current.dataset.toolsDetail||tools.dataset.toolsDetail)return current.outerHTML===tools.outerHTML;if(tools.dataset.toolsView!==current.dataset.toolsView)return false;
  for(const selector of ['.settings-tools-tabs','#settingsToolsNotice','#settingsToolsList']){const a=current.querySelector(selector),b=tools.querySelector(selector);if(a&&b){if(a.innerHTML!==b.innerHTML)a.innerHTML=b.innerHTML;if(b.hasAttribute('aria-busy'))a.setAttribute('aria-busy',b.getAttribute('aria-busy'));}}return true;
 }
 async function accountToolsBrowseFolder(button){
@@ -621,7 +621,7 @@ async function accountToolsImportFolder(token){
  }
 }
 function accountToolsAddMenu(anchor){
- openMenu(anchor,[{label:'浏览插件目录',labelKey:'settingsTools.browseCatalog',fn:()=>accountToolsCatalog(true)},{label:'添加 MCP',labelKey:'settingsTools.addMcp',fn:()=>accountToolsAddGuide('mcp')},{label:'添加技能',labelKey:'settingsTools.addSkill',fn:()=>accountToolsAddGuide('skills')},{divider:true},{label:'重新读取',labelKey:'settingsTools.reload',fn:()=>accountReadSettingsExtensions(true)}],{variant:'settingsSelect',align:'right'});
+ openMenu(anchor,[{label:'浏览插件目录',labelKey:'settingsTools.browseCatalog',fn:()=>accountToolsCatalog(true)},{label:'添加 MCP',labelKey:'settingsTools.addMcp',fn:()=>accountMcpTestOpen(true)},{label:'添加渠道 MCP',labelKey:'settingsTools.addChannelMcp',fn:()=>accountToolsAddGuide('mcp')},{label:'添加技能',labelKey:'settingsTools.addSkill',fn:()=>accountToolsAddGuide('skills')},{divider:true},{label:'重新读取',labelKey:'settingsTools.reload',fn:()=>accountReadSettingsExtensions(true)}],{variant:'settingsSelect',align:'right'});
  const menu=document.getElementById('popmenu');
  menu?.querySelectorAll('[role="menuitemradio"]').forEach(item=>{item.setAttribute('role','menuitem');item.removeAttribute('aria-checked');});
 }
@@ -914,3 +914,301 @@ function aboutCopy(key,label,vars){
 }
 
 function accountWorkspaceReadOnly(){return RunTeamsHost.session.readOnly(S);}
+
+function accountMcpTestOpen(add=false){
+ const view=accountToolsView();
+ view.tab='mcp_servers';view.catalog=false;view.detail=null;
+ const state={connections:[],loading:true};view.mcpTests=state;
+ accountSettingsPaint();
+ document.getElementById('settingsPanel').scrollTop=0;
+ document.querySelector('[data-mcp-tests] h2')?.focus({preventScroll:true});
+ accountMcpTestLoad(state);
+ if(add)accountMcpTestEdit();
+}
+function accountMcpTestBack(){
+ accountToolsView().mcpTests=null;accountSettingsPaint();
+ document.querySelector('[onclick="accountMcpTestOpen()"]')?.focus();
+}
+function accountMcpTestCurrent(state){
+ return S.settingsTab==='tools'&&accountToolsView().mcpTests===state&&document.getElementById('settingsMcpConnections');
+}
+function accountMcpTestPage(){
+ if(accountToolsView().mcpTests.composio)return accountComposioPage();
+ return `<div class="settings-tools" data-mcp-tests="true"><div class="tools-breadcrumb"><button type="button" class="settings-tools-back" onclick="accountMcpTestBack()">MCP</button>${ICON('chev')}${toolsCopy('mcpTests','连接与测试')}</div><div class="settings-tools-heading">${settingsPageHead(toolsCopy('mcpTests','连接与测试'))}<button type="button" class="btn pri" onclick="accountMcpTestEdit()">${toolsCopy('mcpAddCustom','添加自定义连接')}</button></div><div id="settingsMcpConnections">${accountMcpTestRows(accountToolsView().mcpTests)}</div></div>`;
+}
+function accountMcpTestRows(state){
+ if(state.loading)return `<p role="status" class="settings-footnote">${toolsCopy('loading','正在读取工具清单…')}</p>`;
+ if(state.error)return `<div class="settings-tools-notice" role="alert">${esc(state.error)}<button type="button" class="btn" onclick="accountMcpTestLoad(accountToolsView().mcpTests)">${toolsCopy('reload','重新读取')}</button></div>`;
+ return state.connections.map((row,index)=>{
+  if(row.kind==='composio')return `<section class="settings-mcp-connection"><div class="settings-tool-row"><div class="settings-tool-identity"><span class="settings-tool-icon" aria-hidden="true">${ICON('plug')}</span><div class="settings-tool-copy"><h3 class="settings-tool-name">Composio</h3><span class="settings-tool-description">${toolsCopy('composioDescription','浏览应用、连接账号并测试功能')}</span></div></div><div class="settings-tool-actions"><button type="button" class="btn" onclick="accountComposioOpen()">${toolsCopy('composioBrowse','浏览应用')}</button></div></div></section>`;
+  const label=row.kind==='sample'?toolsCopy('mcpLocalSample','本机示例 · 无需账号'):row.kind==='preset'?toolsCopy('mcpPreset','官方预置'):esc(row.url);
+  const action=row.open?toolsCopy('mcpHideTools','收起'):toolsCopy('mcpViewTools','查看工具');
+  return `<section class="settings-mcp-connection"><div class="settings-tool-row"><div class="settings-tool-identity"><span class="settings-tool-icon" aria-hidden="true">${ICON('plug')}</span><div class="settings-tool-copy"><h3 class="settings-tool-name">${row.kind==='sample'?toolsCopy('mcpSampleName',row.name):esc(row.name)}</h3><span class="settings-tool-description">${label}</span></div></div><div class="settings-tool-actions">${row.kind==='sample'?'':`<button type="button" class="btn" onclick="accountMcpTestEdit(${index})">${row.has_token?toolsCopy('mcpCredentials','凭据'):toolsCopy('mcpSetToken','设置令牌')}</button>`}<button type="button" class="btn" aria-expanded="${!!row.open}" aria-controls="settingsMcpDetails_${index}" onclick="accountMcpTestToggle(${index})">${action}</button></div></div><div id="settingsMcpDetails_${index}"${row.open?'':' hidden'}>${row.open?accountMcpTestDetails(row,index):''}</div></section>`;
+ }).join('');
+}
+function accountMcpTestDetails(row,index){
+ if(row.loading)return `<p class="settings-footnote" role="status">${toolsCopy('mcpReading','正在读取工具…')}</p>`;
+ if(row.error)return `<div class="settings-tools-notice" role="alert">${esc(row.error)}<button type="button" class="btn" onclick="accountMcpTestInspect(${index})">${toolsCopy('reload','重新读取')}</button></div>`;
+ if(!row.tools?.length)return `<p class="settings-footnote">${toolsCopy('mcpNoTools','此连接没有开放工具。')}</p>`;
+ return `<div class="settings-mcp-tools">${row.tools.map((tool,i)=>`<div class="settings-mcp-tool"><div class="settings-mcp-tool-heading"><div><strong>${esc(tool.title||tool.name)}</strong>${tool.description?`<p>${esc(tool.description)}</p>`:''}</div><button type="button" class="btn" aria-expanded="false" aria-controls="settingsMcpArgs_${index}_${i}" onclick="accountMcpTestArguments(this,${index},${i})">${toolsCopy('mcpTest','测试')}</button></div><div class="settings-mcp-arguments" id="settingsMcpArgs_${index}_${i}" hidden></div></div>`).join('')}</div>`;
+}
+async function accountMcpTestRequest(body){
+ const result=await api('/api/mcp-connections',body?'POST':undefined,body);
+ if(result.error)throw Error(result.error);
+ return result;
+}
+function accountMcpTestUpdate(state,index){
+ const host=accountMcpTestCurrent(state);if(!host)return;
+ const row=state.connections[index];
+ if(row){
+  const details=document.getElementById('settingsMcpDetails_'+index);
+  const button=details.previousElementSibling.querySelector('[aria-expanded]');
+  details.hidden=!row.open;button.setAttribute('aria-expanded',String(!!row.open));
+  button.innerHTML=row.open?toolsCopy('mcpHideTools','收起'):toolsCopy('mcpViewTools','查看工具');
+  if(row.open&&(row.loading||row.error||!details.querySelector('.settings-mcp-tools')))details.innerHTML=accountMcpTestDetails(row,index);
+ }else host.innerHTML=accountMcpTestRows(state);
+ globalThis.RunTeamsLocale?.apply(host);
+}
+async function accountMcpTestLoad(state){
+ state.loading=true;state.error='';accountMcpTestUpdate(state);
+ try{const previous=state.connections;
+  state.connections=(await accountMcpTestRequest()).connections;
+  if(!previous.length)state.openSample=true;}
+ catch(error){state.error=error.message;}
+ finally{
+  state.loading=false;accountMcpTestUpdate(state);
+  if(state.openSample&&accountMcpTestCurrent(state)){
+   state.openSample=false;
+   const sample=state.connections.findIndex(row=>row.kind==='sample');
+   if(sample>=0)accountMcpTestToggle(sample);
+  }
+ }
+}
+function accountMcpTestToggle(index){
+ const state=accountToolsView().mcpTests,row=state.connections[index];
+ row.open=!row.open;
+ if(row.open&&!row.tools&&!row.loading)return accountMcpTestInspect(index);
+ accountMcpTestUpdate(state,index);
+}
+async function accountMcpTestInspect(index){
+ const state=accountToolsView().mcpTests,row=state.connections[index];
+ row.loading=true;row.error='';accountMcpTestUpdate(state,index);
+ try{row.tools=(await accountMcpTestRequest({action:'inspect',id:row.id})).result.tools;}
+ catch(error){row.error=error.message;}
+ finally{row.loading=false;if(state.connections[index]===row)accountMcpTestUpdate(state,index);}
+}
+function accountMcpTestArguments(button,index,i){
+ const state=accountToolsView().mcpTests,row=state.connections[index],tool=row.tools[i];
+ const host=button.closest('.settings-mcp-tool').querySelector('.settings-mcp-arguments');
+ host.hidden=!host.hidden;button.setAttribute('aria-expanded',String(!host.hidden));if(host.hidden)return;
+ if(!host.childElementCount){
+  const properties=Object.entries(tool.inputSchema?.properties||{});
+  const example=tool.example||Object.fromEntries(properties.filter(([,field])=>field&&Object.hasOwn(field,'default')).map(([name,field])=>[name,field.default]));
+  host.innerHTML=`<form onsubmit="accountMcpTestRun(event,${index},${i})"><label>${toolsCopy('mcpArguments','测试参数（JSON）')}<textarea name="arguments" rows="3" spellcheck="false">${esc(JSON.stringify(example,null,2))}</textarea></label><details><summary>${toolsCopy('mcpSchema','参数说明')}</summary><pre>${esc(JSON.stringify(tool.inputSchema||{},null,2))}</pre></details><div class="settings-mcp-run">${row.kind==='sample'?'':`<span class="settings-footnote">${toolsCopy('mcpRealCall','执行会实际调用服务，可能修改数据。')}</span>`}<button type="submit" class="btn pri">${toolsCopy('mcpRun','执行测试')}</button></div></form><div class="settings-mcp-result" role="status" aria-live="polite"></div>`;
+  globalThis.RunTeamsLocale?.apply(host);
+ }
+ host.querySelector('textarea').focus();
+}
+async function accountMcpTestRun(event,index,i){
+ event.preventDefault();
+ const form=event.currentTarget,button=form.querySelector('button[type=submit]'),host=form.nextElementSibling;
+ if(button.disabled)return;
+ const state=accountToolsView().mcpTests,row=state.connections[index],tool=row.tools[i];
+ let args;
+ try{args=JSON.parse(form.elements.arguments.value);if(!args||Array.isArray(args)||typeof args!=='object')throw Error();}
+ catch{host.innerHTML=toolsCopy('mcpInvalidJson','请输入有效的 JSON 对象。');globalThis.RunTeamsLocale?.apply(host);return;}
+ button.disabled=true;host.innerHTML=toolsCopy('mcpTesting','正在测试…');globalThis.RunTeamsLocale?.apply(host);
+ const started=performance.now();
+ try{
+  const {result}=await accountMcpTestRequest({action:'test',id:row.id,tool:tool.name,arguments:args});
+  if(!host.isConnected||!accountMcpTestCurrent(state))return;
+  host.innerHTML=`<strong>${result.isError?toolsCopy('mcpTestFailed','工具返回错误'):toolsCopy('mcpTestPassed','测试成功')}</strong> · ${Math.round(performance.now()-started)} ms<pre>${esc(JSON.stringify(result.structuredContent??result.content??result,null,2))}</pre>`;
+ }catch(error){if(host.isConnected&&accountMcpTestCurrent(state))host.textContent=error.message;}
+ finally{button.disabled=false;globalThis.RunTeamsLocale?.apply(host);}
+}
+function accountMcpTestEdit(index){
+ const state=accountToolsView().mcpTests,row=state.connections[index];
+ const host=openChildDialog({title:row?.name||'添加自定义连接',titleKey:row?undefined:'settingsTools.mcpAddCustom',manageFocus:true,attrs:'role="dialog" aria-modal="true" aria-label="MCP" data-mcp-connection-dialog',showClose:false,
+  body:`<form class="settings-mcp-connection-form" id="settingsMcpConnectionForm">${row?`<p class="settings-footnote">${esc(row.url)}</p>`:`<label>${toolsCopy('mcpName','连接名称')}<input required maxlength="80" name="name"></label><label>${toolsCopy('mcpUrl','服务地址')}<input required type="url" name="url" maxlength="2048" placeholder="https://example.com/mcp"></label>`}<label>${toolsCopy('mcpToken','访问令牌（可选）')}<input name="token" type="password" maxlength="8192" autocomplete="off"></label>${row?.id==='slack'?'<p class="settings-footnote">'+toolsCopy('mcpSlackToken','使用已获准调用 Slack MCP 的用户访问令牌。')+'</p>':''}<p id="settingsMcpEditStatus" role="status" class="settings-footnote"></p></form>`,
+  footer:`${row?.kind==='custom'?`<button class="btn" type="button" data-mcp-remove>${toolsCopy('mcpRemove','移除连接')}</button>`:''}<button type="button" class="btn" onclick="closeChildDialog()">${toolsCopy('done','完成')}</button><button type="submit" class="btn pri" form="settingsMcpConnectionForm">${toolsCopy('mcpSave','保存')}</button>`});
+ globalThis.RunTeamsLocale?.apply(host);
+ host.addEventListener('keydown',event=>{if(event.key==='Escape'&&!event.isComposing){event.stopPropagation();closeChildDialog();}});
+ const form=host.querySelector('form'),status=host.querySelector('#settingsMcpEditStatus'),submit=host.querySelector('[type=submit]');
+ form.querySelector('input')?.focus();
+ const save=async body=>{
+  if(submit.disabled||!accountMcpTestCurrent(state))return;
+  submit.disabled=true;
+  try{
+   const result=await accountMcpTestRequest(body);
+   if(!accountMcpTestCurrent(state))return;
+   if(host.isConnected)closeChildDialog();
+   await accountMcpTestLoad(state);
+   if(result.connection){
+    const i=state.connections.findIndex(item=>item.id===result.connection.id);
+    if(i>=0&&accountMcpTestCurrent(state))accountMcpTestToggle(i);
+   }
+  }catch(error){status.textContent=error.message;}
+  finally{submit.disabled=false;}
+ };
+ form.addEventListener('submit',event=>{
+  event.preventDefault();const data=new FormData(form),token=data.get('token');
+  if(row?.has_token&&!token){status.innerHTML=toolsCopy('mcpEnterToken','请输入新令牌，或选择清除令牌。');globalThis.RunTeamsLocale?.apply(status);return;}
+  save(row?{action:'save',id:row.id,token}:{action:'save',name:data.get('name'),url:data.get('url'),token});
+ });
+ if(row?.has_token){
+  const clear=document.createElement('button');clear.type='button';clear.className='btn';clear.innerHTML=toolsCopy('mcpClearToken','清除令牌');submit.before(clear);
+  globalThis.RunTeamsLocale?.apply(clear);clear.addEventListener('click',()=>save({action:'save',id:row.id,token:''}));
+ }
+ host.querySelector('[data-mcp-remove]')?.addEventListener('click',()=>save({action:'remove',id:row.id}));
+}
+
+function toolsText(key,fallback){return globalThis.RunTeamsLocale?.t('settingsTools.'+key,{},fallback)??fallback;}
+
+// Composio uses the same device-scoped connection endpoint as custom MCPs.
+function accountComposioCurrent(state){return accountToolsView().mcpTests?.composio===state&&S.settingsTab==='tools';}
+async function accountComposioRequest(state,action,fields={}){
+ const body={id:'composio',action,...fields};
+ if(!['status','save'].includes(action))body.revision=state.revision;
+ const response=await api('/api/mcp-connections','POST',body);
+ if(response.error)throw Object.assign(Error(response.error),{code:response.code||'request_rejected'});
+ return response;
+}
+function accountComposioOpen(){
+ const state={loading:true,configured:false,items:[],search:'',cursor:'',revision:''};
+ accountToolsView().mcpTests.composio=state;accountSettingsPaint();
+ accountComposioInitialize(state);
+}
+function accountComposioExit(){accountToolsView().mcpTests.composio=null;accountSettingsPaint();}
+function accountComposioBack(){
+ const state=accountToolsView().mcpTests.composio;
+ if(state?.detail){state.detail=null;accountComposioPaint(state);return;}
+ accountToolsView().mcpTests.composio=null;accountSettingsPaint();
+}
+function accountComposioPaint(state){
+ if(!accountComposioCurrent(state))return;
+ const host=document.getElementById('settingsComposio');if(!host)return;
+ host.innerHTML=accountComposioContent(state);globalThis.RunTeamsLocale?.apply(host);
+}
+function accountComposioPage(){
+ return `<div class="settings-tools" data-mcp-tests="composio"><div class="tools-breadcrumb"><button type="button" class="settings-tools-back" onclick="accountComposioExit()">${toolsCopy('mcpTests','连接与测试')}</button>${ICON('chev')}Composio</div><div id="settingsComposio">${accountComposioContent(accountToolsView().mcpTests.composio)}</div></div>`;
+}
+function accountComposioContent(state){
+ if(state.loading)return `<p class="settings-footnote" role="status">${toolsCopy('composioLoading','正在读取 Composio…')}</p>`;
+ if(state.detail)return accountComposioDetail(state);
+ const setup=`<form class="settings-mcp-connection-form" onsubmit="accountComposioSave(event)"><label>Composio API Key<input name="key" type="password" required autocomplete="off" maxlength="8192" placeholder="${state.configured?'••••••••':'API Key'}"></label><p class="settings-footnote">${toolsCopy('composioKeyHint','Key 保存在本机凭据库，应用授权和工具执行由 Composio 云端处理。')}</p><div class="settings-composio-actions"><a class="btn" href="https://dashboard.composio.dev/" target="_blank" rel="noopener noreferrer">${toolsCopy('composioGetKey','获取 API Key')}</a><button class="btn pri" type="submit">${toolsCopy('composioSaveKey','验证并保存')}</button>${state.configured?`<button class="btn" type="button" onclick="accountComposioEdit(false)">${toolsCopy('composioCancel','取消')}</button>`:''}</div><p role="status" data-composio-key-status class="settings-footnote"></p></form>`;
+ return `<div class="settings-tools-heading">${settingsPageHead('Composio')}${state.configured?`<button class="btn" onclick="accountComposioEdit(true)">${toolsCopy('composioChangeKey','更换 API Key')}</button>`:''}</div>
+ ${!state.configured||state.editKey?setup:''}
+ ${state.error?`<p class="settings-tools-notice" role="alert">${esc(state.error)} <button class="btn" onclick="accountComposioInitialize(accountToolsView().mcpTests.composio)">${toolsCopy('reload','重新读取')}</button></p>`:''}
+ ${state.configured&&!state.editKey?`<p class="settings-footnote">${toolsCopy('composioCatalogHint','目录来自 Composio。选择应用后可连接账号，并逐项测试功能。')}</p><form class="settings-composio-search" onsubmit="accountComposioSearch(event)"><input name="search" type="search" aria-label="${esc(toolsText('composioSearchApps','搜索应用'))}" placeholder="Gmail、Slack、Instagram、TikTok…" value="${esc(state.search)}"><button class="btn" type="submit">${toolsCopy('composioSearch','搜索')}</button></form><div class="settings-composio-actions settings-composio-quick">${['gmail','slack','instagram','tiktok'].map(name=>`<button class="btn" onclick="accountComposioQuick('${name}')">${esc(name==='gmail'?'Gmail':name==='slack'?'Slack':name==='instagram'?'Instagram':'TikTok')}</button>`).join('')}</div><div id="settingsComposioCatalog">${accountComposioCatalog(state)}</div><button class="btn settings-composio-disconnect" onclick="accountComposioRemove(this)">${toolsCopy('composioRemoveKey','移除本机 API Key')}</button>`:''}`;
+}
+function accountComposioCatalog(state){
+ const count=state.total==null?'':`<p class="settings-footnote">${toolsCopy('composioCount','已显示 {shown} / {total} 个应用',{shown:state.items.length,total:state.total})}</p>`;
+ return `${count}${state.items.map((item,index)=>`<section class="settings-mcp-connection"><div class="settings-tool-row"><div class="settings-tool-identity"><span class="settings-tool-icon" aria-hidden="true">${esc(item.name.slice(0,1))}</span><div class="settings-tool-copy"><h3 class="settings-tool-name">${esc(item.name)}</h3><p class="settings-tool-description">${esc(item.description)}</p><span class="settings-footnote">${item.tools_count==null?'':toolsCopy('composioToolCount','{count} 个功能',{count:item.tools_count})} · ${item.no_auth?toolsCopy('composioNoAuth','无需应用账号'):item.managed_auth?toolsCopy('composioManaged','支持托管授权'):toolsCopy('composioOwnAuth','需要应用凭据或自有授权配置')}</span></div></div><button class="btn" onclick="accountComposioSelect(${index})">${toolsCopy('composioViewTools','查看功能')}</button></div></section>`).join('')}
+ ${state.busy?`<p class="settings-footnote" role="status">${toolsCopy('composioLoading','正在读取 Composio…')}</p>`:state.listError?`<p role="alert" class="settings-tools-notice">${esc(state.listError)} <button class="btn" onclick="accountComposioCatalogLoad(accountToolsView().mcpTests.composio,${!!state.items.length})">${toolsCopy('reload','重新读取')}</button></p>`:!state.items.length?`<p class="settings-footnote">${toolsCopy('composioEmpty','没有找到应用，请换个关键词。')}</p>`:''}
+ ${state.cursor&&!state.busy?`<button class="btn" onclick="accountComposioCatalogLoad(accountToolsView().mcpTests.composio,true)">${toolsCopy('composioMore','加载更多')}</button>`:''}`;
+}
+async function accountComposioInitialize(state){
+ try{Object.assign(state,await accountComposioRequest(state,'status'));state.error='';}
+ catch(error){state.error=error.message;}
+ state.loading=false;accountComposioPaint(state);
+ if(state.configured)await accountComposioCatalogLoad(state);
+}
+function accountComposioEdit(edit){const state=accountToolsView().mcpTests.composio;state.editKey=edit;accountComposioPaint(state);}
+async function accountComposioSave(event){
+ event.preventDefault();const form=event.currentTarget,button=form.querySelector('[type=submit]'),status=form.querySelector('[data-composio-key-status]');
+ const state=accountToolsView().mcpTests.composio;if(button.disabled)return;
+ button.disabled=true;status.innerHTML=toolsCopy('composioValidating','正在验证 API Key…');globalThis.RunTeamsLocale?.apply(status);
+ try{const result=await accountComposioRequest(state,'save',{token:form.elements.key.value.trim()});
+  form.elements.key.value='';if(!accountComposioCurrent(state))return;
+  Object.assign(state,result,{editKey:false,error:'',items:[],cursor:''});accountComposioPaint(state);await accountComposioCatalogLoad(state);
+ }catch(error){status.textContent=error.message;}finally{button.disabled=false;}
+}
+async function accountComposioRemove(button){
+ const state=accountToolsView().mcpTests.composio;button.disabled=true;
+ try{Object.assign(state,await accountComposioRequest(state,'remove'),{items:[],cursor:'',error:''});accountComposioPaint(state);}
+ catch(error){state.error=error.message;accountComposioPaint(state);}
+}
+async function accountComposioCatalogLoad(state,more=false){
+ const generation=(state.requestGeneration||0)+1;state.requestGeneration=generation;
+ state.busy=true;state.listError='';if(!more){state.items=[];state.cursor='';state.total=null;}
+ const paint=()=>{if(!accountComposioCurrent(state)||state.detail)return;const host=document.getElementById('settingsComposioCatalog');if(host){host.innerHTML=accountComposioCatalog(state);globalThis.RunTeamsLocale?.apply(host);}};paint();
+ try{const value=await accountComposioRequest(state,'catalog',{search:state.search,cursor:more?state.cursor:''});
+  if(state.requestGeneration!==generation)return;
+  state.items=more?[...state.items,...value.items.filter(row=>!state.items.some(old=>old.slug===row.slug))]:value.items;state.cursor=value.next_cursor||'';state.total=value.total_items;
+ }catch(error){if(state.requestGeneration===generation)state.listError=error.message;}
+ finally{if(state.requestGeneration===generation){state.busy=false;paint();}}
+}
+function accountComposioSearch(event){event.preventDefault();const state=accountToolsView().mcpTests.composio;state.search=event.currentTarget.elements.search.value.trim();accountComposioCatalogLoad(state);}
+function accountComposioQuick(name){const state=accountToolsView().mcpTests.composio;state.search=name;accountComposioPaint(state);accountComposioCatalogLoad(state);}
+function accountComposioSelect(index){
+ const state=accountToolsView().mcpTests.composio;
+ state.detail={...state.items[index],tools:[],cursor:'',search:'',accounts:[],accountsLoading:true};
+ accountComposioPaint(state);accountComposioLoadTools(state);accountComposioAccounts(state);
+}
+function accountComposioDetail(state){
+ const item=state.detail;
+ return `<button type="button" class="settings-tools-back" onclick="accountComposioBack()">${toolsCopy('composioAllApps','返回应用列表')}</button><div class="settings-tools-heading">${settingsPageHead(esc(item.name))}</div><p class="settings-footnote">${esc(item.description)}</p><div id="settingsComposioAccounts">${accountComposioAccountRows(item)}</div><form class="settings-composio-search" onsubmit="accountComposioToolSearch(event)"><input type="search" name="search" aria-label="${esc(toolsText('composioSearchTools','搜索功能'))}" placeholder="${esc(toolsText('composioSearchTools','搜索功能'))}" value="${esc(item.search)}"><button class="btn" type="submit">${toolsCopy('composioSearch','搜索')}</button></form><div id="settingsComposioTools">${accountComposioToolRows(item)}</div>`;
+}
+function accountComposioAccountRows(item){
+ return `<div class="settings-composio-accounts"><div class="settings-composio-actions"><button type="button" class="btn" onclick="accountComposioConnect(this)">${toolsCopy('composioConnect','连接账号')}</button><button type="button" class="btn" onclick="accountComposioAccounts(accountToolsView().mcpTests.composio)"${item.accountsLoading?' disabled':''}>${toolsCopy('composioRefresh','刷新授权状态')}</button></div>
+ ${item.accountsLoading?`<p class="settings-footnote" role="status">${toolsCopy('composioAccountsLoading','正在读取账号…')}</p>`:item.accountsError?`<p class="settings-tools-notice" role="alert">${esc(item.accountsError)}</p>`:item.accounts.length?`<label>${toolsCopy('composioAccount','测试账号')}<select onchange="accountToolsView().mcpTests.composio.detail.account=this.value"><option value="">${toolsCopy('composioChooseAccount','请选择账号')}</option>${item.accounts.map(row=>`<option value="${esc(row.id)}"${row.status!=='ACTIVE'||row.disabled?' disabled':''}${row.id===item.account?' selected':''}>${esc(row.name)} · ${esc(row.status)}</option>`).join('')}</select></label>`:`<p class="settings-footnote">${item.no_auth?toolsCopy('composioNoAuth','无需应用账号'):toolsCopy('composioNotConnected','尚未连接账号。无需认证的功能可直接测试。')}</p>`}
+ <div data-composio-connect-result role="status">${item.connectError?esc(item.connectError):item.authUrl?`<a class="btn pri" href="${esc(item.authUrl)}" target="_blank" rel="noopener noreferrer">${toolsCopy('composioAuthorize','前往授权')}</a><p class="settings-footnote">${toolsCopy('composioReturn','完成后回到这里，点击刷新授权状态。')}</p>`:''}</div></div>`;
+}
+function accountComposioToolRows(item){
+ return `${item.tools.map((row,index)=>`<div class="settings-mcp-tool" data-composio-tool="${esc(row.name)}"><div class="settings-mcp-tool-heading"><div><strong>${esc(row.title)}</strong><p>${esc(row.description)}</p><span class="settings-footnote">${row.no_auth?toolsCopy('composioNoAuth','无需应用账号'):toolsCopy('composioNeedsAccount','需要已授权账号')}</span></div><button type="button" class="btn" aria-expanded="false" aria-controls="composioArgs_${index}" onclick="accountComposioArguments(this,${index})">${toolsCopy('mcpTest','测试')}</button></div><div class="settings-mcp-arguments" id="composioArgs_${index}" hidden></div></div>`).join('')}
+ ${item.busy?`<p class="settings-footnote" role="status">${toolsCopy('mcpReading','正在读取工具…')}</p>`:item.toolsError?`<p class="settings-tools-notice" role="alert">${esc(item.toolsError)} <button class="btn" onclick="accountComposioLoadTools(accountToolsView().mcpTests.composio,${!!item.tools.length})">${toolsCopy('reload','重新读取')}</button></p>`:!item.tools.length?`<p class="settings-footnote">${toolsCopy('composioNoTools','没有找到功能，请换个关键词。')}</p>`:''}
+ ${item.cursor&&!item.busy?`<button class="btn" onclick="accountComposioLoadTools(accountToolsView().mcpTests.composio,true)">${toolsCopy('composioMore','加载更多')}</button>`:''}`;
+}
+async function accountComposioAccounts(state){
+ const item=state.detail;if(!item)return;item.accountsLoading=true;
+ const paint=()=>{if(!accountComposioCurrent(state)||state.detail!==item)return;const host=document.getElementById('settingsComposioAccounts');if(host){host.innerHTML=accountComposioAccountRows(item);globalThis.RunTeamsLocale?.apply(host);}};paint();
+ try{item.accounts=(await accountComposioRequest(state,'accounts',{toolkit:item.slug})).accounts;item.accountsError='';
+  if(!item.accounts.some(row=>row.id===item.account&&row.status==='ACTIVE'&&!row.disabled))item.account='';
+  if(item.accounts.filter(row=>row.status==='ACTIVE'&&!row.disabled).length===1)item.account=item.accounts.find(row=>row.status==='ACTIVE'&&!row.disabled).id;
+ }catch(error){item.accountsError=error.message;item.account='';}
+ finally{item.accountsLoading=false;paint();}
+}
+async function accountComposioConnect(button){
+ const state=accountToolsView().mcpTests.composio,item=state.detail;button.disabled=true;item.connectError='';
+ try{const result=await accountComposioRequest(state,'connect',{toolkit:item.slug});item.authUrl=result.redirect_url;}
+ catch(error){item.connectError=error.message;}
+ finally{if(accountComposioCurrent(state)&&state.detail===item){const host=document.getElementById('settingsComposioAccounts');host.innerHTML=accountComposioAccountRows(item);globalThis.RunTeamsLocale?.apply(host);}}
+}
+async function accountComposioLoadTools(state,more=false){
+ const item=state.detail,generation=(item.requestGeneration||0)+1;item.requestGeneration=generation;item.busy=true;item.toolsError='';
+ if(!more){item.tools=[];item.cursor='';}
+ const paint=()=>{if(!accountComposioCurrent(state)||state.detail!==item)return;const host=document.getElementById('settingsComposioTools');const previous=[...host.querySelectorAll('[data-composio-tool]')];host.innerHTML=accountComposioToolRows(item);host.querySelectorAll('[data-composio-tool]').forEach((node,i)=>{if(previous[i]?.dataset.composioTool===node.dataset.composioTool)node.replaceWith(previous[i]);});globalThis.RunTeamsLocale?.apply(host);};paint();
+ try{const value=await accountComposioRequest(state,'tools',{toolkit:item.slug,search:item.search,cursor:more?item.cursor:''});
+  if(item.requestGeneration!==generation)return;
+  item.tools=more?[...item.tools,...value.items.filter(row=>!item.tools.some(old=>old.name===row.name))]:value.items;item.cursor=value.next_cursor||'';
+ }catch(error){if(item.requestGeneration===generation)item.toolsError=error.message;}
+ finally{if(item.requestGeneration===generation){item.busy=false;paint();}}
+}
+function accountComposioToolSearch(event){event.preventDefault();const state=accountToolsView().mcpTests.composio;state.detail.search=event.currentTarget.elements.search.value.trim();accountComposioLoadTools(state);}
+function accountComposioArguments(button,index){
+ const state=accountToolsView().mcpTests.composio,item=state.detail,row=item.tools[index],host=document.getElementById('composioArgs_'+index);
+ host.hidden=!host.hidden;button.setAttribute('aria-expanded',String(!host.hidden));if(host.hidden||host.childElementCount)return;
+ const example=Object.fromEntries(Object.entries(row.inputSchema.properties||{}).filter(([,field])=>Object.hasOwn(field,'default')).map(([name,field])=>[name,field.default]));
+ host.innerHTML=`<form onsubmit="accountComposioRun(event,${index})"><label>${toolsCopy('mcpArguments','测试参数（JSON）')}<textarea name="arguments" rows="5" spellcheck="false">${esc(JSON.stringify(example,null,2))}</textarea></label><details><summary>${toolsCopy('mcpSchema','参数说明')}</summary><pre>${esc(JSON.stringify(row.inputSchema,null,2))}</pre></details><div class="settings-mcp-run"><span class="settings-footnote">${toolsCopy('mcpRealCall','执行会实际调用服务，可能修改数据。')}</span><button type="submit" class="btn pri">${toolsCopy('mcpRun','执行测试')}</button></div></form><div class="settings-mcp-result" role="status" aria-live="polite"></div>`;
+ globalThis.RunTeamsLocale?.apply(host);host.querySelector('textarea').focus();
+}
+async function accountComposioRun(event,index){
+ event.preventDefault();const form=event.currentTarget,button=form.querySelector('[type=submit]'),host=form.nextElementSibling;
+ if(button.disabled)return;
+ const state=accountToolsView().mcpTests.composio,item=state.detail,row=item.tools[index];let args;
+ try{args=JSON.parse(form.elements.arguments.value);if(!args||Array.isArray(args)||typeof args!=='object')throw Error();}
+ catch{host.innerHTML=toolsCopy('mcpInvalidJson','请输入有效的 JSON 对象。');globalThis.RunTeamsLocale?.apply(host);return;}
+ if(!row.no_auth&&!item.account){host.innerHTML=toolsCopy('composioChooseAccount','请选择账号');globalThis.RunTeamsLocale?.apply(host);return;}
+ const fields={toolkit:item.slug,tool:row.name,version:row.version,account:row.no_auth?'':item.account,arguments:args};
+ const fingerprint=JSON.stringify(fields);
+ // A lost browser response reuses the same admission instead of resending a write.
+ if(form.composioUnknown){host.innerHTML=toolsCopy('composioUnknown','结果尚未确认，请先到原应用核对。返回应用列表后重新进入，才会创建新的调用。');globalThis.RunTeamsLocale?.apply(host);return;}
+ if(form.composioFingerprint!==fingerprint||!form.composioOperation){form.composioOperation=crypto.randomUUID();form.composioFingerprint=fingerprint;}
+ button.disabled=true;host.innerHTML=toolsCopy('mcpTesting','正在测试…');globalThis.RunTeamsLocale?.apply(host);
+ try{const {result}=await accountComposioRequest(state,'test',{...fields,operation_id:form.composioOperation});
+  if(!host.isConnected||!accountComposioCurrent(state)||state.detail!==item)return;
+  const label=result.result_type==='completed'?toolsCopy('mcpTestPassed','测试成功'):result.result_type==='input_required'?toolsCopy('composioInputRequired','服务要求额外确认，此次尚未执行'):result.result_type==='blocked'?toolsCopy('composioBlocked','调用被服务策略阻止'):toolsCopy('mcpTestFailed','工具返回错误');
+  host.innerHTML=`<strong>${label}</strong> · ${result.elapsed_ms} ms<pre>${esc(JSON.stringify(result,null,2))}</pre>`;form.composioOperation=null;
+ }catch(error){form.composioUnknown=['outcome_unknown','mutation_outcome_unknown'].includes(error.code)||!error.code;host.textContent=error.message;}
+ finally{button.disabled=false;globalThis.RunTeamsLocale?.apply(host);}
+}

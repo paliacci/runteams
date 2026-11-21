@@ -74,7 +74,7 @@ def submit(core, binding, action, source):
     if action.get('employee_reference') is not None and not same(action['employee_reference'], reference):
         raise PermissionError('当前工作不能更换员工。')
     payload = {key: action.get(key) for key in ('context', 'parameters', 'inputs',
-        'asset_bindings', 'module_bindings', 'local_reference_ids', 'skill_key') if key in action}
+        'module_bindings', 'skill_key') if key in action}
     payload.update(schema='runteams.task-input/v2', objective=objective)
     if isinstance(payload.get('context'),str):payload['context']={'brief':payload['context']}
     if action.get('acceptance'):
@@ -94,9 +94,10 @@ def submit(core, binding, action, source):
     if payload.get('module_bindings') or any(payload['context'].get(field) for field in ('business_event','work_item')):
         raise ContractError('这项共享业务工作尚未接入本机执行。')
     from runteams_core.authoring.definition_contracts import validate_definition
-    # User references are validated by the original composer boundary below;
-    # they are not additional fields of the frozen task payload contract.
-    payload.pop('local_reference_ids', None)
+    # Validate integer grant IDs against the user's selection before serializing them.
+    from runteams_core.employees.employee_context import current
+    bindings, files = current().prepare_task_references(action,source,core=core)
+    payload['asset_bindings'] = {key: str(value) for key, value in bindings.items()}
     payload = validate_definition('task_payload', payload)
     if payload.get('skill_key'):
         from runteams_core.employees.source_employee_runtime import units, package_asset
@@ -105,9 +106,6 @@ def submit(core, binding, action, source):
         from jsonschema import Draft202012Validator
         errors=list(Draft202012Validator(selected['input_schema']).iter_errors(payload['parameters']))
         if errors:raise ContractError('工作输入不符合技能声明：'+errors[0].message)
-    from runteams_core.employees.employee_context import current
-    bindings, files = current().prepare_task_references(action,source,core=core)
-    payload['asset_bindings'].update({key: str(value) for key, value in bindings.items()})
     payload['inputs'].extend({'name': item['name'], 'asset_grant_id': str(item['grant_id'])} for item in files)
     dedupe = str(action.get('dedupe_key') or '').strip()
     with core.repository.connect() as c:
@@ -435,6 +433,9 @@ def delivery(core, job, reports):
     if pipeline:
         # The record and both task entry points resolve the same authorized ledger row.
         result['pipeline_reference']=pipeline['reference']
+        if result['state']=='completed':
+            from runteams_core.pipelines import pipeline_task_report
+            result['delivery_document'] = pipeline_task_report.final_delivery_reference(core, work)
     else:
         result['task_kind']='employee'
     return result

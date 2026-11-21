@@ -275,15 +275,15 @@ Snapshots return message_persisted=false and do not create a product Chat messag
 
 ## 完整作者来源与产品定义编译（2026-10-21）
 
-新创作模板采用 employee-source/2：明确稳定 key、name/avatar、soul_file、skill_dirs 和可移植 runtime_requirement，不保存本机渠道或修订ID。pipeline-source/2 使用现有可移植流水线拓扑，employees 的 ref/source 明确引用同一源树中的员工文件。机器合同由 creator_definitions.author_schema 从现有 product-model/v2 与 marketplace-pipeline/v2 生成；没有第二套 work 字段。标准技能 SKILL.md/runteams.json 及所有引用的实际资源共同编译，同名技能在一个作品中必须有相同字节摘要。无 work 的标准方法可暂存，不能因此编译成可派工工作。
+新创作模板采用 employee-source/2：明确稳定 key、name/avatar、soul_file、skill_dirs 和可移植 runtime_requirement，不保存本机渠道或修订ID。pipeline-source/2 使用现有可移植智能体团队拓扑，employees 的 ref/source 明确引用同一源树中的员工文件。机器合同由 creator_definitions.author_schema 从现有 product-model/v2 与 marketplace-pipeline/v2 生成；没有第二套 work 字段。标准技能 SKILL.md/runteams.json 及所有引用的实际资源共同编译，同名技能在一个作品中必须有相同字节摘要。无 work 的标准方法可暂存，不能因此编译成可派工工作。
 
 固定 v1/FROZEN 字节未改；已有 v1 工程/冻结执行来源仍能读取和构建，不得经新产品编译入口冒称完整定义。
 
-POST /v1/business/creator/projects/{id}/compilations 接受 base_revision/operation_key，复用不可变快照和原离线可信构建器。生成 definitions/creator.json（target=product-model/v2），包含确切来源摘要、现有市场员工和流水线合同的可移植定义、原始技能字节及摘要。产物与 web/Wasm 同属一个签名清单，服务在提交前从冻结源码独立派生并比较，构建期间不持组织锁。构建身份包含来源/定义编译、标准技能与市场实现及机器合同摘要。
+POST /v1/business/creator/projects/{id}/compilations 接受 base_revision/operation_key，复用不可变快照和原离线可信构建器。生成 definitions/creator.json（target=product-model/v2），包含确切来源摘要、现有市场员工和智能体团队合同的可移植定义、原始技能字节及摘要。产物与 web/Wasm 同属一个签名清单，服务在提交前从冻结源码独立派生并比较，构建期间不持组织锁。构建身份包含来源/定义编译、标准技能与市场实现及机器合同摘要。
 
 GET 同一路径加 operation_key 只核对原快照/构建回执，不编译、安装或重放写入。受限完结身份不能读取作者定义/构建回执。完整定义需要版本声明，已冻结版本不能换字节；冲突明确要求更新来源版本。当前来源摘要变化后，项目不再显示旧编译为当前有效。
 
-可信当前创作工具新增 schema、compile、compilationReceipt；用户仍在原 Chat/完整资产编辑器中工作。compile 只冻结可移植定义及签名产物，尚不分配本机员工/流水线ID，不创建正式 runtime release、市场授权、安装或租用。实际安装时继续使用现有 compile_employee_release/MarketplaceInstaller 及同一云事务；这一步的产品接线仍未完成。作者页面的冻结 SDK、六个已有通用桥方法、执行器和消息账本保持。
+可信当前创作工具新增 schema、compile、compilationReceipt；用户仍在原 Chat/完整资产编辑器中工作。compile 只冻结可移植定义及签名产物，尚不分配本机员工/智能体团队ID，不创建正式 runtime release、市场授权、安装或租用。实际安装时继续使用现有 compile_employee_release/MarketplaceInstaller 及同一云事务；这一步的产品接线仍未完成。作者页面的冻结 SDK、六个已有通用桥方法、执行器和消息账本保持。
 
 
 ### Product author installation (candidate, 2026-10-21)

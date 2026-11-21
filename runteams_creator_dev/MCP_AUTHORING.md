@@ -3,6 +3,8 @@
 当前开发格式为 `runteams.creator-project/2`、`runteams.dependencies/2` 与 `runteams.release/2`。
 完整员工仍使用原员工／技能随包格式，原源码 ZIP、修订、权限及正式发布回执继续复用。
 
+员工快捷选项写在技能目录 `runteams.json` 的 `work.examples`。每项填写 `title` 和 `prompt`，并从技能 schema 的图标列表中按工作用途选择 `icon`，例如查找资料用 `search`、撰写周报用 `edit`。没有贴切图标时可省略，此时显示星光（`spark`）。
+
 `source/` 是作者可编辑源码。`skills/<技能>/mcp/manifest.json` 是 MCPB 0.3 清单，
 `server.cjs` 是可直接运行的 Node 程序，`ui/` 是可选的 MCP Apps 页面。
 `vendor/` 提供精确锁定的官方 MCP／Apps 库与原 UI Kit；修改依赖时须更新完整字节与锁，
@@ -50,3 +52,7 @@ python runteams.py open /absolute/employee-source.zip ../continued-employee
 另有 `signing_key_file` 与原 `trusted_keys`。配置和签名私钥须是仅维护者可读的文件；
 这些路径／钥匙属于可信构建服务，不进入作者源码、开发包或客户端。实际密钥、正式资源
 签名、托管 worker、部署与发布仍需单独准备和确认，不用示例密钥开放正式门禁。
+
+### 随员工或智能体团队交付固定素材
+
+在资产资源页选择「添加资产自带资料」，或在 SDK 的 pack 命令中按入口指定文件夹，例如 `pack --knowledge employees/main.json=./brand --output employee.zip`。智能体团队共用资料使用对应的智能体团队入口。导入资产包后，在知识库中查看「资产自带」条目；员工通过知识库引用原文或取用原文件。同一文件在一个包中只保存一次。每期新产生的交付仍通过任务交接。配音等服务凭据由使用者在自己的 RunTeams 中配置。

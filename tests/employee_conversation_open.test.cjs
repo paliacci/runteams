@@ -7,7 +7,7 @@ test('employee click paints the chosen conversation layout before opening it', a
   const reference = {schema:'runteams.business-reference/v1', deployment_id:'device',
     workspace_id:'owner', data_epoch:'employee', resource:'employees', id:7};
   const empty = {id:12, updated_at:'2026-11-13', storage_scope:'device', last_message_id:null};
-  const entry = {key:'employee', record:{name:'Employee'}, reference,
+  const entry = {key:'employee', page_id:'a'.repeat(32), record:{name:'Employee'}, reference,
     work:{id:7}, conversation:empty, open:{employee_id:7}};
   const state = {chats:[], localLibrary:{library_id:'fixture'}};
   const layouts = [];
@@ -17,8 +17,9 @@ test('employee click paints the chosen conversation layout before opening it', a
     RunTeamsHost:{session:{workspace:()=>false}},
     api:async()=>({schema:'runteams.employee-directory/v1', items:[entry], activity:{chats:[],workflows:[]}}),
     deviceChatRemember(){}, addEventListener(){}, render(){},
-    workspaceBeginEmployeeOpen(key, layout){
+    workspaceBeginEmployeeOpen(key, layout, route){
       assert.equal(key, entry.key);
+      assert.equal(route, '/employees/'+entry.page_id);
       layouts.push(layout);
       return state.workspaceSwitchPending = {employeeOpen:{}};
     },
@@ -43,4 +44,32 @@ test('employee click paints the chosen conversation layout before opening it', a
   directory.forgetConversation(empty.id);
   state.chats = [];
   assert.equal(directory.workConversation(entry), null);
+});
+
+test('employee page refresh keeps the welcome layout until its session is ready', () => {
+  const host = {
+    S:{conversationPanel:null},
+    parseAppRoute:()=>({kind:'employee-work'}),
+    conversationDebugDescriptor:()=>null, conversationDebugPanel:panel=>panel,
+    railConversationIsVisible:panel=>!!panel, conversationHeaderMarkup:()=>'',
+    RunTeamsStaticPages:{localConversationRoute:()=>false, conversationWelcome:kind=>kind, composer:()=>''},
+    RunTeamsLoadFailure:{pending:()=>null}, localConversationLayout:()=>'',
+    RunTeamsHost:{pages:{}},
+  };
+  host.window = host;
+  vm.createContext(host);
+  vm.runInContext(fs.readFileSync('web/ui/page-skeletons.js', 'utf8'), host);
+  host.bootSkeletonKind = host.RunTeamsSkeletons.normalize;
+  const html = fs.readFileSync('web/index.html', 'utf8');
+  const render = html.match(/^function railConversation\(options=\{\}\)\{[\s\S]*?^\}/m)[0];
+  vm.runInContext(render, host);
+
+  assert.equal(host.railConversation(), 'employee');
+  host.S.conversationPanel = {id:12, loading:true, loadingLayout:'employee'};
+  assert.equal(host.railConversation(), 'employee');
+  host.S.conversationPanel.loadingLayout = 'history';
+  assert.match(host.railConversation(), /data-skeleton-region="conversation-messages"/);
+  host.localConversationLayout = ()=>'history';
+  host.S.conversationPanel.loadingLayout = 'employee';
+  assert.match(host.railConversation(), /data-skeleton-region="conversation-messages"/);
 });

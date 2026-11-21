@@ -3,23 +3,33 @@
 A successful inspection is preflight only. Saving an explicitly selected local
 source draft is a separate account-bound operation, not a publish/install receipt.
 """
-from runteams_core.authoring.creator_contracts import CreatorContractError, compile_source
-from runteams_core.authoring.creator_definitions import definition_artifacts
+from runteams_core.authoring.creator_contracts import CreatorContractError, compile_source, strict_json
+from runteams_core.authoring.creator_definitions import CATALOG_PATH, definition_artifacts
 from runteams_core.authoring.compilation.creator_dependencies import validate_dependency_sources
 from runteams_core.authoring.source.creator_source_archive import FORMAT, inspect
 
 
-def validate_source(files, *, require_work=False):
+def _validated_artifacts(files, require_work):
     compiled = compile_source(files)
     from runteams_core.authoring.compilation.creator_mcp_source import packages
     packages(files,compiled)
     if require_work:
-        definition_artifacts(files, compiled, require=True)
+        built = definition_artifacts(files, compiled, require=True)
     else:
         from runteams_core.authoring.creator_conversation_assets import artifacts
-        artifacts(files,compiled)
+        built = artifacts(files,compiled)
     validate_dependency_sources(files, compiled)
+    return compiled, built
+
+
+def validate_source(files, *, require_work=False):
+    compiled, _ = _validated_artifacts(files, require_work)
     return compiled
+
+
+def validated_employee_assets(files):
+    _, built = _validated_artifacts(files, False)
+    return strict_json(built[CATALOG_PATH])['employees']
 
 
 def inspect_source(raw):

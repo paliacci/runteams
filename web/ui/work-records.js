@@ -44,7 +44,7 @@
  }
  const text=(key,fallback,vars={})=>window.RunTeamsLocale?.t('workRecords.'+key,vars,fallback)??fallback;
  function stateMarkup(state,returnTo){
-  const labels={human_handled:'已人工处理',human_requested:'曾请求人工处理',returned:'已退回{name}'};
+  const labels={human_handled:'已人工处理',human_requested:'曾请求人工处理',handed_off:'已交接',returned:'已退回{name}'};
   const custom=Object.hasOwn(labels,state);
   const key='state.'+state,vars=state==='returned'?{name:returnTo}:{};
   const copy=custom?{key:'workRecords.'+key,label:text(key,labels[state].replace('{name}',returnTo||''),vars)}:workRecordStateCopy(state);
@@ -78,7 +78,7 @@
    if(focused&&input&&!input.disabled){input.focus({preventScroll:true});if(caret)input.setSelectionRange(...caret);}
   });
   return detailDrawerShell({className:'source-pipeline-drawer node-detail-drawer source-pipeline-work-drawer unified-task-detail-drawer',
-   header:detailDrawerHeader(heading,'node-detail-head',actions,'',back),body,bodyClass:'employee-configuration-body source-pipeline-work-body',
+   header:detailDrawerHeader(heading,'node-detail-head',actions,RunTeamsAssetOverview.backMarkup(selection)||back),body,bodyClass:'employee-configuration-body source-pipeline-work-body',
    attrs:`aria-label="任务详情" data-app-i18n-aria-label="pipelineWork.details" data-source-workflow-id="${Number(selection.workflow?.id||selection.workflowId||selection.id)}"`});
  }
  function rowMarkup({key,title,summary,state,updated_at,created_at,report_document,icon,role,executionRole,returnTo,previousTime},action,attributes=''){
@@ -91,15 +91,30 @@
   const heading=headingRole?`<span class="work-record-row-heading">${titleMarkup}<span class="work-record-state work-record-role" title="${esc(headingRole)}">${esc(headingRole)}</span></span>`:titleMarkup;
   return `<div class="result-delivery" role="listitem"><button class="result-delivery-summary rt-list-row" type="button" data-result-key="${esc(key)}" ${attributes} onclick="${action}"><span class="result-delivery-title">${heading}${timeMarkup(updated_at||created_at,false,previousTime)}${ICON('chev')}</span><span class="result-delivery-line">${icon?ICON(icon):''}${description}${badge}</span></button></div>`;
  }
+ const deliveryKinds={
+  doc:['text','文本'],image:['image','图片'],'file-pdf':['pdf','PDF'],'file-table':['table','表格'],
+  'file-code':['code','代码'],package:['archive','压缩包'],audio:['audio','音频'],video:['video','视频'],file:['binary','文件']
+ };
+ function deliveryRowMarkup(file,{key,action}){
+  const document=file.purpose==='document';
+  const icon=document?'doc':resultEvidenceIcon(file);
+  const [kind,kindLabel]=document?['rich','文档']:deliveryKinds[icon]||deliveryKinds.file;
+  const [verbKey,verb]=document?['documentList.open','打开']:resultEvidencePreviewKind(file)==='unsupported'?
+   ['pipelineSettings.view','查看']:['employeeResource.preview','预览'];
+  const label=(id,fallback)=>`<span data-app-i18n="${id}">${esc(window.RunTeamsLocale?.t(id,{},fallback)??fallback)}</span>`;
+  const name=file.name||file.filename||window.RunTeamsLocale?.t('pipelineWork.deliveryUntitled',{},'未命名交付物')||'未命名交付物';
+  return `<div role="listitem"><button type="button" class="work-deliverable" data-result-key="${esc(key)}" onclick="${action}">
+   <span class="work-deliverable-icon" aria-hidden="true">${ICON(icon)}</span>
+   <b class="work-deliverable-title" title="${esc(name)}">${esc(name)}</b>
+   <span class="sr-only">${label('fileBrowser.kind.'+kind,kindLabel)}</span>
+   <span class="work-deliverable-action">${label(verbKey,verb)}</span></button></div>`;
+ }
  function taskRowMarkup(result){
-  const pipeline=S.sel?.scope?.source_pipeline_reference&&!S.sel.scope.workflow_id;
   const output=result.outputs?.[0],run=result.contributions?.find(item=>Number(item.id)===Number(output?.run_id));
   const ref=output?.kind==='reference'?result.references?.find(item=>item.key===output.key):null;
   const document=output?.kind==='document'?run?.artifacts?.find(item=>Number(item.id)===Number(output.id)):null;
-  const summary=result.executionPreview||result.summary||ref?.summary||document?.name||'';
-  const description=pipeline&&result.state==='paused'&&String(summary).trim()?
-   text('previousProgress',`上次进展：${summary}`,{summary}):summary;
-  return rowMarkup({...result,summary:description},pipeline?'RunTeamsWorkRecords.openPipelineTask(this.dataset.resultKey)':'openResultDelivery(this.dataset.resultKey)');
+  const summary=result.summary||ref?.summary||document?.name||'';
+  return rowMarkup({...result,summary},'openResultDelivery(this.dataset.resultKey)');
  }
  const selectedResult=selection=>(selection?.data?.results||[]).find(row=>row.key===selection.resultKey);
  const workflowId=selection=>Number(selection?.workflow?.id||selectedResult(selection)?.workflow_id)||0;
@@ -166,7 +181,7 @@
  function employeeTaskDrawer(selection){
   selection.employeeTask=true;selection.taskScope??=independentTaskScope();
   const work=selection.workflow,title=work?.task?.title||selection.recordTitle||text('untitled','未命名工作');
-  const back=selection.returnTo?.type==='core-results'?`<button type="button" class="run-back" aria-label="${esc(text('backToList','返回工作记录'))}" onclick="RunTeamsWorkRecords.returnFromOrigin()">${ICON('back')}</button>`:'';
+  const back=selection.returnTo?.overviewReturn?.overviewOrigin?.key?RunTeamsAssetOverview.backMarkup(selection):selection.returnTo?.type==='core-results'?`<button type="button" class="run-back" aria-label="${esc(text('backToList','返回工作记录'))}" onclick="RunTeamsWorkRecords.returnFromOrigin()">${ICON('back')}</button>`:'';
   const failure=selection.error?RunTeamsLoadFailure.markup({variant:'local',title:'无法读取任务',titleKey:'pipelineWork.failed',
    labelKey:'employeeHistory.retry',busyLabelKey:'pipelineWork.loading',error:selection.error,retry:'RunTeamsWorkRecords.refreshEmployeeTask()'}):'';
   if(selection.loading||!work)return taskDetailMarkup({selection,title,back,body:selection.loading?RunTeamsSkeletons.region('task-detail',undefined,'pipelineWork.loading'):failure});
@@ -200,7 +215,7 @@
   if(!Array.isArray(workflows))throw Error(text('tasksUnavailable','任务列表尚未载入，请重试。'));
   return {results:workflows.slice().reverse().map(work=>{
    if(!Number.isSafeInteger(Number(work.id))||work.pipeline_reference&&referenceKey(work.pipeline_reference)!==referenceKey(reference))throw Error(text('executionUnavailable','执行记录归属未能确认。'));
-   return {key:'workflow-'+work.id,workflow_id:Number(work.id),title:work.title,state:work.state,summary:work.summary||'',updated_at:work.updated_at,created_at:work.created_at};
+   return {key:'workflow-'+work.id,workflow_id:Number(work.id),title:work.title,state:work.state,objective:work.objective,summary:work.summary||'',updated_at:work.updated_at,created_at:work.created_at};
   })};
  }
  function pipelineExecutionPreview(work){
@@ -235,26 +250,28 @@
    // Read a few details in parallel without publishing partially filled rows.
    await Promise.all(Array.from({length:Math.min(4,previews.size)},readNext));
   }finally{selection.readingPipelineRecordPreviews=false;}
-  if(current()){updateTaskList(workspace);render();}
+  if(current())render();
  }
- function updateTaskList(workspace){
-  const selection=S.sel;
-  if(selection?.type!=='core-results'||selection.sourceWorkspace!==workspace||selection.scope.workflow_id)return;
-  const data=taskResults(workspace.data.workflows,workspace.reference);
+ function activityPreviews(selection,workspace,rows){
   const previews=selection.pipelineRecordPreviews??=new Map(),eligible=new Set();
-  for(const row of data.results){
-   if(row.state!=='failed'&&!(row.state==='paused'&&!String(row.summary).trim()))continue;
+  for(const row of rows){
+   if(row.state!=='failed'&&!(row.state==='paused'&&!String(row.summary||'').trim()))continue;
    const id=row.workflow_id,previous=previews.get(id);
    eligible.add(id);
-   if(previous?.state===row.state&&previous.updatedAt===row.updated_at)row.executionPreview=previous.summary;
+   if(previous?.state===row.state&&previous.updatedAt===row.updated_at){
+    if(previous.summary)row.summary=previous.summary;
+   }
    else previews.set(id,{state:row.state,updatedAt:row.updated_at});
   }
   for(const id of previews.keys())if(!eligible.has(id))previews.delete(id);
   if([...previews.values()].some(entry=>entry.summary===undefined)){
    void readPipelineRecordPreviews(selection,workspace,previews);
-   return;
   }
-  selection.data=data;selection.status='ready';selection.error='';
+  for(const row of rows){
+   if(row.state==='paused'&&String(row.summary||'').trim()){
+    row.summary=text('previousProgress',`上次进展：${row.summary}`,{summary:row.summary});
+   }
+  }
  }
  function reportReference(report){return {id:Number(report.meta_json.revision_of||report.id),revision:Number(report.meta_json.revision||1),document_key:report.meta_json.document_key||'',name:report.name};}
  const artifactRoot=item=>Number(item.meta_json?.revision_of||item.id);
@@ -343,11 +360,13 @@
   }
   if(run.state==='completed'){
    const positions=run.input_json?.pipeline_work?.asset?.pipeline?.positions||frozen.pipeline_work?.asset?.pipeline?.positions||[];
-   const source=positions.findIndex(position=>position.key===run.position_key);
    const route=events.find(event=>event.type==='workflow.routed'&&Number(event.data_json?.employee_run_id)===id&&
-    event.data_json.from===run.position_key&&event.data_json.when?.startsWith('outcome:'))?.data_json;
-   const destination=positions.findIndex(position=>position.key===route?.to);
-   if(destination>=0&&destination<source)return {state:'returned',returnTo:positions[destination].name};
+    event.data_json.from===run.position_key)?.data_json;
+   const destination=positions.find(position=>position.key===route?.to);
+   if(destination){
+    if(route.when==='outcome:revise'||route.when==='revise')return {state:'returned',returnTo:destination.name};
+    return {state:'handed_off'};
+   }
   }
   return {state:run.state};
  }
@@ -571,17 +590,10 @@
   if(parent.type==='source-pipeline'&&parent.id==='work')void RunTeamsSourcePipelines.refreshOpenWork(s,parent,{force:true});
   else if(parent.employeeTask)void refreshEmployeeTask(parent);
  }
- function openPipelineTask(key){
-  const owner=S.sel,result=(owner?.data?.results||[]).find(row=>row.key===key),reference=owner?.scope?.source_pipeline_reference;
-  if(owner?.type!=='core-results'||!result||!pipelineCurrent(reference))return;
-  position(owner);
-  const back={selection:owner,reference,account:workspaceAccountCacheToken(),url:location.pathname+location.search+location.hash};
-  setAppUrl(RunTeamsSourcePipelines.route(reference),true);
-  return RunTeamsSourcePipelines.openWork(Number(result.workflow_id),{returnToRecords:back});
- }
  function taskBackMarkup(selection){
   const back=selection.returnToRecords;
   if(!back||back.account!==workspaceAccountCacheToken()||!pipelineCurrent(back.reference))return '';
+  if(back.selection?.overviewReturn?.overviewOrigin?.key)return RunTeamsAssetOverview.backMarkup(selection);
   const label=back.employeeRecords?text('backToList','返回工作记录'):text('backToTasks','返回任务列表');
   return `<button type="button" class="run-back" aria-label="${esc(label)}" title="${esc(label)}" onclick="RunTeamsWorkRecords.returnToTasks()">${ICON('back')}</button>`;
  }
@@ -593,7 +605,8 @@
  function openCurrentTask(){
   const owner=S.sel,reference=owner?.scope?.source_pipeline_reference,id=Number(owner?.scope?.workflow_id||selectedResult(owner)?.workflow_id);
   if(owner?.type!=='core-results'||!id||!pipelineCurrent(reference)||owner.attemptContext&&!attemptCurrent(owner))return;
-  if(!RunTeamsSourcePipelines.taskWorkspace()?.embeddedTask)setAppUrl(RunTeamsSourcePipelines.route(reference),true);
+  const path=RunTeamsSourcePipelines.pageRoute(reference);
+  if(path&&!RunTeamsSourcePipelines.taskWorkspace()?.embeddedTask)setAppUrl(path,true);
   return RunTeamsSourcePipelines.openWork(id,{returnToRecords:settingsOwner(owner)?.returnToRecords||owner.returnTo?.returnToRecords});
  }
  function scopeForPanel(panel=S.conversationPanel){
@@ -623,10 +636,30 @@
   saved.delete(t.key);saved.set(t.key,selection);
   while(saved.size>30)saved.delete(saved.keys().next().value);
  }
- function controls(panel){
-  const t=target(panel);if(!t)return '';
-  const on=matches(S.sel,t)||matches(S.sel?.returnToRecords?.selection,t)||S.sel?.employeeTask&&matches(S.sel.returnTo,t);
-  return RunTeamsShell.headerAction({label:'工作记录',labelKey:'workRecords.title',icon:ICON('clipboard-clock'),action:'RunTeamsWorkRecords.toggle()',className:'employee-records-trigger',selected:on});
+ function activeForPanel(panel=S.conversationPanel){
+  const t=target(panel);
+  return matches(S.sel,t)||matches(S.sel?.returnToRecords?.selection,t)||!!S.sel?.employeeTask&&matches(S.sel.returnTo,t);
+ }
+ function workbenchReturn(selection=S.sel){
+  const records=selection?.returnToRecords?.selection||(selection?.employeeTask?selection.returnTo:selection);
+  const t=target();
+  return matches(records,t)&&records.workbenchReturn?.key===t.key?records.workbenchReturn:null;
+ }
+ function openFromWorkbench(){
+  const t=target();
+  if(!t||!RunTeamsCreatorWork.current())return;
+  const position=captureRightWorkspacePosition();
+  return openContextResults(t.scope,{workbenchReturn:{key:t.key,top:position?.top||0,left:position?.left||0}});
+ }
+ function returnToWorkbench(){
+  const position=workbenchReturn();
+  if(!position)return;
+  RunTeamsCreatorWork.reveal();
+  requestAnimationFrame(()=>{
+   if(!RunTeamsCreatorWork.current())return;
+   restoreRightWorkspacePosition({...position,key:rightWorkspacePositionKey()});
+   document.getElementById('employee_work_records')?.focus({preventScroll:true});
+  });
  }
  function refreshForPanel(panel){
   if(S.conversationPanel!==panel||!matches(S.sel,target(panel)))return;
@@ -639,6 +672,7 @@
   if(matches(S.sel,t)){capture();closeContextResults();return;}
   const previous=saved.get(t.key);
   if(previous){
+   delete previous.workbenchReturn;
    selectDetailWorkspace(previous);
    const url=new URL(contextResultsRoute(previous.scope),location.href);
    if(previous.resultKey)url.searchParams.set('delivery',previous.resultKey);
@@ -774,7 +808,7 @@
  },true);
  window.setInterval?.(()=>refreshVisibleTask(),2000);
  window.addEventListener('focus',()=>refreshVisibleTask(true));
- window.RunTeamsWorkRecords=Object.freeze({taskSection,toggleTaskSection,taskDetailMarkup,employeeTaskDrawer,refreshEmployeeTask,continueEmployeeTask,openTaskDelivery,employeeTaskRecord,openEmployeeTask,readResults,listTime,timeMarkup,stateMarkup,prose,rowMarkup,taskRowMarkup,taskResults,updateTaskList,taskDeliveries,attemptsMarkup,executionSummary,currentExecutionOutsideHistory,hasFailureReason,missingFailureReason,executionSectionMarkup,toggleExecutionSection,toggleEarlierExecutions,runtimeMarkup,openAttempt,retryAttempt,refreshOpenAttempt,attemptSection,toggleAttemptSection,returnFromAttempt,openPipelineTask,taskBackMarkup,returnToTasks,openCurrentTask,scopeForPanel,controls,toggle,refreshForPanel,capture,position,restore,loadReport,reportMarkup,reportActionMarkup,openReport,openOrigin,originTaskPending,returnFromOrigin,liveActivityMarkup});
+ window.RunTeamsWorkRecords=Object.freeze({taskSection,toggleTaskSection,taskDetailMarkup,employeeTaskDrawer,refreshEmployeeTask,continueEmployeeTask,openTaskDelivery,employeeTaskRecord,openEmployeeTask,readResults,listTime,timeMarkup,stateMarkup,prose,rowMarkup,deliveryRowMarkup,taskRowMarkup,taskResults,activityPreviews,taskDeliveries,attemptsMarkup,executionSummary,currentExecutionOutsideHistory,hasFailureReason,missingFailureReason,executionSectionMarkup,toggleExecutionSection,toggleEarlierExecutions,runtimeMarkup,openAttempt,retryAttempt,refreshOpenAttempt,attemptSection,toggleAttemptSection,returnFromAttempt,taskBackMarkup,returnToTasks,openCurrentTask,scopeForPanel,activeForPanel,workbenchReturn,openFromWorkbench,returnToWorkbench,toggle,refreshForPanel,capture,position,restore,loadReport,reportMarkup,reportActionMarkup,openReport,openOrigin,originTaskPending,returnFromOrigin,liveActivityMarkup});
  window.addEventListener('runteams:business-scope-will-change',()=>saved.clear());
  window.addEventListener('runteams:languagechange',()=>{
   for(const time of document.querySelectorAll('time[data-work-record-time]')){

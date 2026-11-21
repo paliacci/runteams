@@ -84,6 +84,18 @@
   }
   return local;
  }
+ async function resolveAsset(id){
+  const entry=assetEntry(id);
+  if(entry||S.localLibrary||!RunTeamsHost.session.ready(S))return entry;
+  const expected=token(),own=sequence;
+  const reply=await readDirectory(expected,{},false);
+  if(expected!==token()||own!==sequence)return null;
+  const found=assetEntry(id);
+  if(found)return found;
+  const error=reply?.errors?.assets?.error;
+  if(error)throw Error(error);
+  return null;
+ }
  function accept(entry){
   if(!entry||(!S.localLibrary&&!RunTeamsHost.session.ready(S))||RunTeamsHost.session.workspace(S))return;
   // A confirmed creation carries the backend's exact directory projection.
@@ -118,11 +130,17 @@
  function forgetConversation(id){
   for(const row of current())if(String(row.conversation?.id)===String(id))delete row.conversation;
  }
- async function activate(key,{newSession=false}={}){
+ async function activate(key,{newSession=false,fromPage=false}={}){
   const entry=current().find(row=>row.key===key);if(!entry)throw Error('员工目录已变化，请重新打开');
-  if(!entry.source&&!newSession&&typeof workspaceEmployeeWindowIdentity==='function'){
+  if(!fromPage&&!entry.source&&!newSession&&typeof workspaceEmployeeWindowIdentity==='function'){
    const identities=references(entry).map(referenceKey),existing=(S.workspaceWindows||[]).find(row=>identities.includes(workspaceEmployeeWindowIdentity(row.key)?.key));
-   if(existing){activationSequence++;activateWorkspaceWindow(existing.key);return;}
+   if(existing){
+    activationSequence++;
+    if(entry.page_id)existing.route=pageRoute(entry);
+    activateWorkspaceWindow(existing.key);
+    if(S.activeWorkspaceKey===existing.key&&matches(entry,S.conversationPanel))setAppUrl(existing.route,true);
+    return;
+   }
   }
   const expected=token(),requestKey=expected+':'+key+(newSession?':new-session':':work');
   const existing=openings.get(requestKey);
@@ -131,13 +149,13 @@
   const history=recent?.last_message_id||(!newSession&&entry.source&&(S.chats||[]).some(row=>
    row.storage_scope==='device'&&row.last_message_id&&String(row.id)===String(entry.source.chat_id)));
   const layout=history?'history':'employee';
-  const pending=workspaceBeginEmployeeOpen(key,layout);
+  const pending=workspaceBeginEmployeeOpen(key,layout,pageRoute(entry));
   const sequence=++activationSequence,drawerSequence=_detailOpenSequence;
   const ownsOpen=()=>expected===token()&&sequence===activationSequence&&S.workspaceSwitchPending===pending&&
    S.conversationPanel===pending.employeeOpen.panel&&S.surface===pending.employeeOpen.surface&&
    _routeSequence===pending.employeeOpen.routeSequence&&_detailOpenSequence===drawerSequence;
   const task=(async()=>{
-   if(!entry.source)return openBotConversation(entry.open.employee_id,{forceNew:newSession,workspaceSwitchToken:pending.token,openCurrent:ownsOpen,employeeKey:key});
+   if(!entry.source)return openBotConversation(entry.open.employee_id,{forceNew:newSession,workspaceSwitchToken:pending.token,openCurrent:ownsOpen,employeeKey:key,employeeHome:!newSession});
    const receiptScope=S.localLibrary?workspaceAccountCacheToken():RunTeamsHost.session.deviceScope(S);
    if(newSession&&!receiptScope)throw Error('员工所在工作区未就绪，请重新打开');
    const receiptKey='runteams.employee-session-open:'+receiptScope+':'+key;
@@ -159,7 +177,7 @@
    S.chats=[{...existing,...summary},...(S.chats||[]).filter(row=>String(row.id)!==String(session.id))];
    deviceChatRemember(session);
    RunTeamsStaticPages.rememberLocalSessionLayout(session);
-   accept(session.employee);await openRailConversationSession(session.id,{device:true,employeeKey:key});
+   accept(session.employee);await openRailConversationSession(session.id,{device:true,employeeKey:key,employeeHome:!newSession});
    if(expected!==token()||String(S.conversationPanel?.id)!==String(session.id))return;
    // The chat loader restores this conversation's own drawer. A new session starts closed.
   })();openings.set(requestKey,{sequence,pending,task});
@@ -182,7 +200,7 @@
   if(!panel)return null;
   const ref=panelReference(panel);if(ref)return entryFor(ref);
   const c=panel.context||{};
-  if(c.creator_local_source_id){const rows=current().filter(row=>row.source?.id===c.creator_local_source_id);return rows.find(row=>row.source.path===c.creator_employee_source)||(!c.creator_employee_source&&rows.length===1?rows[0]:null);}
+  if(c.creator_local_source_id)return current().find(row=>row.source?.id===c.creator_local_source_id&&row.source.path===c.creator_employee_source)||null;
   // Numeric IDs are restricted to the acquired-asset adapter, never source identity.
   return panel.kind==='general'&&c.context_type==='worker'?assetEntry(panel.employee_id||c.target_employee_id):null;
  }
@@ -292,20 +310,24 @@
   refreshBotList();
  }
  function rowMenu(event,key){
-  event.preventDefault();event.stopPropagation();const entry=entryFor(key);if(!entry||entry.pipeline_groups?.length)return;
-  const pinned=pinnedKeys().has(key),expected=token();
-  const canManage=()=>{
-   const current=entryFor(key);
-   return expected===token()&&current&&!current.pipeline_groups?.length;
-  };
-  const items=[{label:pinned?'取消置顶':'置顶',labelKey:pinned?'conversationDetail.unpin':'conversationDetail.pin',icon:pinned?'pin-off':'pin',fn:()=>togglePin(key,expected)}];
-  const uninstall=RunTeamsHost.assets.uninstallAction?.('employee',entry);
-  if(uninstall)items.push({...uninstall,fn:()=>{if(canManage())uninstall.fn();}});
-  else if(entry.asset?.editable&&RunTeamsHost.assets.canTrashEmployee?.(entry.asset)){
-   items.push({label:'移到垃圾箱',labelKey:'employeeSettings.trash',icon:'trash',fn:()=>{
-    if(canManage())trashCoreEmployee(entry.asset.id);
-   }});
+  event.preventDefault();event.stopPropagation();const entry=entryFor(key);if(!entry)return;
+  const expected=token(),grouped=!!entry.pipeline_groups?.length,panel=S.conversationPanel;
+  const currentEntry=()=>expected===token()&&entryFor(key);
+  const currentPanel=()=>currentEntry()&&S.conversationPanel===panel&&forPanel(panel)?.key===key&&S.surface!=='source-pipeline';
+  const items=[];
+  if(currentPanel()&&window.RunTeamsCreatorWork?.hasWorkbench(panel)){
+   items.push({label:'工作台',labelKey:'employeeWork.title',icon:'clipboard-check',fn:()=>{if(currentPanel())RunTeamsCreatorWork.showPanel();}});
   }
+  if(!grouped||currentPanel()){
+   items.push({label:'设置',labelKey:'employeeSettings.trigger',icon:'settings',fn:()=>{if(currentEntry())return currentPanel()?RunTeamsEmployeeAutomation.sourceSettings():settings(key);}});
+  }
+  if(!grouped){
+   const pinned=pinnedKeys().has(key);
+   items.push({label:pinned?'取消置顶':'置顶',labelKey:pinned?'conversationDetail.unpin':'conversationDetail.pin',icon:pinned?'pin-off':'pin',fn:()=>togglePin(key,expected)});
+   const uninstall=RunTeamsHost.assets.uninstallAction?.('employee',entry);
+   if(uninstall)items.push({...uninstall,fn:()=>{const row=currentEntry();if(row&&!row.pipeline_groups?.length)uninstall.fn();}});
+  }
+  if(!items.length)return;
   openMenu(event.currentTarget,items,{variant:'workerAction',dismissOnScroll:'#rgRail .bot-list-scroll',...(event.type==='contextmenu'?{at:{x:event.clientX,y:event.clientY}}:{})});
  }
  function sessionTitle(row,panel=S.conversationPanel){
@@ -323,13 +345,23 @@
   const rows=sessions(panel).slice(0,20),items=[{head:true,label:'历史对话',labelKey:'employeeChat.history',...(entry?{action:{label:'新对话',labelKey:'shell.newChat',icon:'message-circle-plus',fn:()=>{if(stillCurrent())void newSession(entry.key).catch(()=>{if(stillCurrent())toast('无法打开新对话。请重试。','err','employeeChat.newConversationFailed');});}}}:{})}];
   for(const row of rows){
    const selected=String(row.id)===String(panel.id),title=sessionTitle(row,panel);
-   items.push({label:title||'未命名对话',labelKey:title?undefined:'globalSearch.untitledChat',selected,fn:()=>{if(stillCurrent()&&!selected&&sessions(panel).some(item=>String(item.id)===String(row.id)))void openRailConversationSession(row.id,{device:true,employeeKey:entry?.key});}});
+   items.push({label:title||'未命名对话',labelKey:title?undefined:'globalSearch.untitledChat',selected,fn:()=>{if(stillCurrent()&&(!selected||parseAppRoute().kind==='employee-work')&&sessions(panel).some(item=>String(item.id)===String(row.id)))void openRailConversationSession(row.id,{device:true,employeeKey:entry?.key});}});
   }
   if(!rows.length)items.push({empty:true,label:'还没有其他对话',labelKey:'employeeChat.noHistory'});
   const keyboardReturn=()=>stillCurrent()?document.querySelector('.conversation-session-switcher'):null;
   openMenu(event.currentTarget,items,{variant:'conversationSessions',align:'left',boundary:'workspace',keyboardReturn});
  }
  const newSession=key=>activate(key,{newSession:true});
+ const pageRoute=entry=>entry?.page_id?'/employees/'+entry.page_id:null;
+ async function openPage(id,isCurrent){
+  const find=()=>current().find(row=>row.page_id===id);
+  if(!find())await refresh({localFirst:true});
+  if(isCurrent()&&!find()&&!S.localLibrary)await refresh();
+  if(!isCurrent())return;
+  const entry=find();
+  if(!entry)throw Error('这名员工不在当前工作区中。');
+  await activate(entry.key,{fromPage:true});
+ }
  const open=key=>activate(key);
  function settings(key){
   const entry=entryFor(key);if(!entry)throw Error('员工目录已变化，请重新打开。');
@@ -345,6 +377,6 @@
   accept(session.employee);
  }
  const sourceFor=value=>(entryFor(value)||assetEntry(value))?.source||null;
- window.RunTeamsEmployeeDirectory=Object.freeze({entryFor,assetEntry,forPanel,panelReference,referenceKey,references,matches,employeePanel,status,statuses,paintStatus,rowMenu,pinnedKeys,sourceFor,refresh,isLoading,accept,current,assets,downloaded,assetIdentity,upsertAsset,open,settings,finishCreation,sessions,sessionMenu,newSession,workConversation,forgetConversation,reset});
+ window.RunTeamsEmployeeDirectory=Object.freeze({entryFor,assetEntry,resolveAsset,forPanel,panelReference,referenceKey,references,matches,employeePanel,status,statuses,paintStatus,rowMenu,pinnedKeys,sourceFor,refresh,isLoading,accept,current,assets,downloaded,assetIdentity,upsertAsset,open,settings,finishCreation,sessions,sessionMenu,newSession,pageRoute,openPage,workConversation,forgetConversation,reset});
  window.addEventListener('runteams:business-scope-changed',reset);
 })();

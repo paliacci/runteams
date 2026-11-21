@@ -16,10 +16,11 @@ metadata:
 ## RunTeams 适配
 
 - 技能是员工完整作品内部的资源。在员工创作对话与设置中的资产编辑器里修改同一作品源树，随员工资产一起检查、保存和发布。目录名与 YAML name 保持一致，中文名称用 metadata.display_name；不写数据库或自行调用保存接口。员工任务交付的技能目录是资源，只有实际完成员工资产保存或发布后才说明对应结果。
+- 技能调用本机 FFmpeg 工具时，在该技能的 `SKILL.md` 页首 YAML 的 `metadata` 中声明实际用到的工具。例如 `runteams-environment: ffmpeg ffprobe` 表示两项都需要。当前支持 `ffmpeg` 和 `ffprobe`，只用一个就只填一个。员工概览读取本员工的声明，智能体团队按岗位绑定的技能汇总检查。
 - 产品派工技能使用 [正式扩展合同](references/product-extension-contract.json) 生成 runteams.package-extension/v3 的稳定 work：按目标定义工作、输入、交付和完成要求，步骤来自具体方法与代表样例。方法仍在 SKILL.md，脚本和参考资料保持独立。标准资源可没有 work，但不能从正文猜为正式工作。删除 capabilities、network_access、default_mount；不写本机账户、原件路径或模型执行凭据。
 - work.input_schema 直接约束业务参数，例如字符统计的输入是 `{"text":"A😀"}`，不是 `{"parameters":{"text":"A😀"}}`。任务信封的 schema、objective、context、parameters、inputs、module_bindings、asset_bindings 不进入业务输入声明。work.output_schema 直接约束 `{"count":2}` 等业务结果，不包装平台 complete.output 或工具回执。
 - 代表样例的输入、实际脚本输入和正式业务参数必须对应；读回实际产物后按 output_schema 核对。正常、缺参和错误类型都要检查声明与方法，不能用“本地全部通过”掩盖真正派工参数不被声明接受。员工选用、发布和真实派工由产品流程另验；不能为自验绕过产品装配员工。
-- 可点击的工作示例属于正式 work.examples（title、prompt）与 show_in_overview，不属于员工草稿。未声明或 examples=[] 就是零示例；不从正文、样例资源或旧 trial_input 猜测恢复。提示示例不构成业务授权、资产授权或路径权限。
+- 可点击的工作示例属于正式 work.examples（title、prompt，可选 icon），由 show_in_overview 控制展示。按用途从合同的图标列表中选择，例如搜索用 search、撰写用 edit；没有贴切图标时可省略，默认显示星光（spark）。未声明或 examples=[] 就是零示例；不从正文、样例资源或旧 trial_input 猜测恢复。提示示例不构成业务授权、资产授权或路径权限。
 - 只有实际使用产品功能接口时记录完整的 module_id、interface_version、operations、optional；文件处理、原生插件、MCP 和联网能力不是产品模块依赖。独立技能保持零依赖，不能猜测依赖或授予账户权限。
 - 采用当前官方 Agent Runtime 的原生执行与可用评估方式。上游 `run_eval.py`、`run_loop.py` 和 `improve_description.py` 专用于 Claude CLI 的触发评估；仅在当前渠道为 Claude、官方 CLI 已可用且该评估确有需要时采用，不能在 Codex 下为评估另起 Claude、安装渠道或使用 raw LLM API。
 - 普通格式验证、打包、评分汇总等不依赖模型的脚本可直接复用，按脚本要求准备任务内依赖。不要让技能声明成为原生能力白名单。

@@ -8,10 +8,14 @@ import copy
 import json
 import uuid
 import hashlib
+from pathlib import Path
+import tempfile
 
 from runteams_core.pipelines import source_pipeline_work as work, source_pipeline_control as control
 from runteams_core.work import workflow_policy
-from runteams_core.foundation.contracts import ContractError, PIPELINE_STATUS_FIRST, PIPELINE_WAIT_FOR_INPUT, normalize_work_result
+from runteams_core.foundation.contracts import (
+    ContractError, PIPELINE_COMPLETE_HERE, PIPELINE_STATUS_FIRST, PIPELINE_WAIT_FOR_INPUT, normalize_work_result,
+)
 from runteams_core.authoring.creator_contracts import canonical, digest
 from runteams_core.storage.repository import utc_now
 
@@ -70,7 +74,7 @@ SUBMITTED_HUMAN_REQUEST_SCHEMA['description'] = (
 )
 
 INPUT_SCHEMA = {'type': 'object', 'properties': {
-    'operation': {'type': 'string', 'enum': ['read', 'submit', 'read_report']},
+    'operation': {'type': 'string', 'enum': ['read', 'submit', 'read_report', 'export_report']},
     'operation_id': {'type': 'string'}, 'report_id': {'type': 'integer', 'minimum': 1},
     'result': {'type': 'object', 'properties': {
         'status': {'type': 'string', 'enum': ['completed','blocked','needs_human','failed']},
@@ -131,7 +135,7 @@ def _row(connection, identifier):
     row = connection.execute('SELECT w.*,t.payload_json,t.trashed_at FROM workflow_runs w '
         'JOIN tasks t ON t.id=w.task_id WHERE w.id=?', (identifier,)).fetchone()
     if row is None or row['trashed_at']:
-        raise ContractError('原流水线工作不存在。')
+        raise ContractError('原智能体团队工作不存在。')
     return row
 
 
@@ -289,13 +293,16 @@ def payload_for(core, connection, frozen, role, extra=None):
     stage.update(stage_assignment(frozen, context))
     stage['feedback_configuration_fields'] = _feedback_configuration_fields(context)
     stage['handoff_owner'] = 'host_after_acceptance'
-    outgoing = [edge for edge in context['asset']['pipeline']['edges'] if edge['from'] == key]
-    stage['downstream_positions'] = [edge['to'] for edge in outgoing if edge['to'] != PIPELINE_WAIT_FOR_INPUT]
     graph = context['asset']['pipeline']
+    outgoing = [edge for edge in graph['edges'] if edge['from'] == key]
+    in_place = {PIPELINE_WAIT_FOR_INPUT, PIPELINE_COMPLETE_HERE}
+    if graph.get('routing_policy') != PIPELINE_STATUS_FIRST:
+        in_place.remove(PIPELINE_COMPLETE_HERE)
+    stage['downstream_positions'] = [edge['to'] for edge in outgoing if edge['to'] not in in_place]
     destinations = {target['key']: target for target in graph['positions'] + graph.get('states', [])}
     stage['result_routes'] = [
         {'when': edge.get('when') or 'completed', 'destination': (
-            {'kind': 'wait-for-input'} if edge['to'] == PIPELINE_WAIT_FOR_INPUT else
+            {'kind': edge['to']} if edge['to'] in in_place else
             {key: destinations[edge['to']][key] for key in ('kind', 'name')})}
         for edge in outgoing
     ]
@@ -351,7 +358,7 @@ def initial(core, connection, role, bundle, payload,start_column_key=None):
     frozen.update(language_policy=snapshot(), pipeline_generation=bundle['generation'], pipeline_visit=1,
         pipeline_input=copy.deepcopy(payload), pipeline_lineage=[])
     if payload.get('skill_key') not in (None,'',work._position(role['context']['asset'],role['context']['position_key'])[0]['skill_key']):
-        raise ContractError('工作技能必须使用流水线岗位绑定。')
+        raise ContractError('工作技能必须使用智能体团队岗位绑定。')
     declarations = bundle['asset']['pipeline'].get('parameters', [])
     if declarations:
         allowed = {p['key'] for p in declarations if p.get('source') == 'user' and p['type'] != 'secret'}
@@ -910,6 +917,19 @@ def _move(core, connection, row, frozen, target, result, run_id=None, *, configu
     _save(core, connection, row, next_frozen, state, target, payload)
 
 
+def _follow_edge(core, connection, row, frozen, edge, result, run_id):
+    definition = frozen['pipeline_work']['asset']['pipeline']
+    target = edge['to']
+    if target == PIPELINE_COMPLETE_HERE and definition.get('routing_policy') == PIPELINE_STATUS_FIRST:
+        _lineage(connection, frozen, target, run_id, result)
+        _save(core, connection, row, frozen, 'completed')
+        core.repository.event('workflow_run:' + str(row['id']), 'workflow.completed',
+            {'position_key': row['cursor_key'], 'employee_run_id': run_id}, connection=connection)
+    else:
+        core._route_workflow(row['id'], edge, run_id)
+        _move(core, connection, row, frozen, target, result, run_id)
+
+
 def launch_failure(connection, row, frozen):
     if row['state'] not in ('needs_human', 'blocked') or any(frozen.get(key) for key in (
             'employee_run_id', 'send_admitted', 'pipeline_waiting', 'pipeline_setup_required',
@@ -1005,10 +1025,9 @@ def finish_turn(core, identifier, status, reason='', *, expected_visit=None):
             core.repository.event('workflow_run:' + str(identifier), 'workflow.needs_human',
                 {'position_key': key, 'employee_run_id': frozen['employee_run_id']}, connection=connection)
         elif edge:
-            core._route_workflow(identifier,edge,frozen['employee_run_id'])
-            _move(core, connection, row, frozen, edge['to'], result, frozen['employee_run_id'])
+            _follow_edge(core, connection, row, frozen, edge, result, frozen['employee_run_id'])
         else:
-            if submitted and state == 'completed':state = 'blocked';reason = '岗位已提交结果，但没有匹配的流转连线；请核对流水线定义。'
+            if submitted and state == 'completed':state = 'blocked';reason = '岗位已提交结果，但没有匹配的流转连线；请核对智能体团队定义。'
             if submitted and state not in control.TERMINAL:
                 frozen['pipeline_waiting']={'kind':'result','position_key':key,'state':state,
                     'source_run_id':frozen.get('employee_run_id'),'result':result}
@@ -1049,6 +1068,38 @@ def recover(core, identifier):
     return True
 
 
+def _export_report(core, chat_id, document):
+    from runteams_core.documents.document_export import export_document
+    from runteams_core.employees.employee_workspaces import workspace
+
+    raw, _, _ = export_document(core, document)
+    managed = Path(workspace(chat_id)) / '.runteams'
+    directory = managed / 'handoff-reports'
+    for path in (managed, directory):
+        if path.is_symlink():
+            raise ContractError('工作汇报副本目录无效。')
+        path.mkdir(mode=0o700, exist_ok=True)
+    checksum = hashlib.sha256(raw).hexdigest()
+    target = directory / (str(document['id']) + '-' + checksum + '.json')
+    if target.is_symlink():
+        raise ContractError('工作汇报副本不能是链接。')
+    if target.exists():
+        with target.open('rb') as stream:
+            if hashlib.file_digest(stream, 'sha256').hexdigest() != checksum:
+                raise ContractError('已有工作汇报副本已变化。')
+    else:
+        with tempfile.NamedTemporaryFile(dir=directory, delete=False) as stream:
+            temporary = Path(stream.name)
+            try:
+                stream.write(raw)
+                stream.flush()
+                temporary.chmod(0o400)
+                temporary.replace(target)
+            finally:
+                temporary.unlink(missing_ok=True)
+    return {'path': str(target), 'sha256': checksum, 'access': 'read-copy'}
+
+
 def employee_call(arguments, context):
     from runteams_core.storage import device_data
     from runteams_core.storage import product_store
@@ -1059,10 +1110,10 @@ def employee_call(arguments, context):
     if context.get('actor_id') != principal(scope) or not device_data.personal():raise PermissionError('原岗位身份未能确认。')
     cid = context.get('chat_id');control.check_chat_operation(cid)
     session = product_store.get_chat(cid, include_messages=False)
-    if not (session or {}).get('context', {}).get('pipeline_work'):raise PermissionError('此工具仅用于流水线当前岗位。')
+    if not (session or {}).get('context', {}).get('pipeline_work'):raise PermissionError('此工具仅用于智能体团队当前岗位。')
     identifier = session['context']['employee_work']['workflow_id'];core = device_work_service()
     operation = arguments.get('operation')
-    transaction = core.repository.read_snapshot if operation in ('read', 'read_report') else core.repository.connect
+    transaction = core.repository.read_snapshot if operation in ('read', 'read_report', 'export_report') else core.repository.connect
     with core.repository.audit_context(actor_id=principal(scope), source='agent_tool'),transaction() as connection:
         row = _row(connection, identifier);frozen = json.loads(row['snapshot_json'])
         if frozen.get('work_chat_id') != cid or row['state'] != 'running' or not (frozen.get('pipeline_execution') or {}).get('active'):
@@ -1072,12 +1123,16 @@ def employee_call(arguments, context):
             return _submission(core, connection, row, frozen, arguments['operation_id'], arguments['result'])
         from runteams_core.work.work_reports import _agent_document
         reports = _reports(core,connection,frozen)
-        if operation == 'read_report' and set(arguments) == {'operation', 'report_id'}:
+        if operation in ('read_report', 'export_report') and set(arguments) == {'operation', 'report_id'}:
             if type(arguments['report_id']) is not int or not any(r['id'] == arguments['report_id'] for r in reports):raise PermissionError('这份汇报不属于当前获准交接的工作。')
             reference=next(r for r in reports if r['id']==arguments['report_id'])
             document=core.historical_document_detail(reference['artifact_id'])
             if not document or document['revision']!=reference['revision'] or hashlib.sha256(document['content'].encode()).hexdigest()!=reference['sha256']:
                 raise ContractError('原交接汇报版本无法确认，请核对原记录。')
+            if operation == 'export_report':
+                if document.get('content_model') != 'rich-document':
+                    raise ContractError('请选择带有原生附件的工作汇报。')
+                return {'reference': reference, 'resource': _export_report(core, cid, document)}
             return {'document': _agent_document(document), 'read_only': True}
         if operation != 'read' or set(arguments) != {'operation'}:raise ContractError('请选择读取交接、读取汇报或提交结果。')
         role = {'context': frozen['pipeline_work'], 'package': frozen['package']}
@@ -1130,13 +1185,13 @@ def _prepared_recovery(core,request,active_ids,read_only):
         row=_row(connection,request['workflow_id']);frozen=json.loads(row['snapshot_json'])
         if not frozen.get('pipeline_setup_required'):return None
         if frozen['pipeline_work']['reference']!=request['reference']:
-            raise PermissionError('工作不属于这条流水线。')
+            raise PermissionError('工作不属于这个智能体团队。')
         if frozen['pipeline_visit']!=request['expected_visit']:
             raise WorkflowVisitChanged('工作已流转，请查看当前进度。')
         if (row['state'] not in ('blocked','needs_human') or request['workflow_id'] in active_ids
                 or (frozen.get('pipeline_execution') or {}).get('active')
                 or control.read(core,request['reference'],connection)['status']!='running'):
-            raise ContractError('原岗位尚未停止或流水线已暂停，请先核对运行状态。')
+            raise ContractError('原岗位尚未停止或智能体团队已暂停，请先核对运行状态。')
         core.repository.storage.assert_executable(request['workflow_id'])
     from runteams_core.employees.employee_work_contracts import verify_frozen, verify_prepared_session
     from runteams_core.employees.employee_context import current as employee_context
@@ -1203,7 +1258,7 @@ def command(core,data,active_ids=(),*,read_only=False):
         if request['action'] in ('retry','resume_setup','decide','suggest_approval') and not read_only:
             connection.execute('BEGIN IMMEDIATE')
         row=_row(connection,identifier);frozen=json.loads(row['snapshot_json'])
-        if (frozen.get('pipeline_work') or {}).get('reference')!=request['reference']:raise PermissionError('工作不属于这条流水线。')
+        if (frozen.get('pipeline_work') or {}).get('reference')!=request['reference']:raise PermissionError('工作不属于这个智能体团队。')
         event=connection.execute("SELECT data_json FROM events WHERE stream=? AND type='pipeline.flow_committed' LIMIT 1",('source-pipeline-flow:'+key,)).fetchone()
         if event:
             value=json.loads(event[0])
@@ -1219,7 +1274,7 @@ def command(core,data,active_ids=(),*,read_only=False):
             if (frozen.get('pipeline_execution') or {}).get('active'):
                 raise ContractError('原执行尚未确认停止，请等待系统核对，不会并发恢复。')
             if request['action']!='recover' and saved['status']!='running':
-                raise ContractError('流水线已暂停或原岗位尚未收尾。')
+                raise ContractError('智能体团队已暂停或原岗位尚未收尾。')
             waiting=frozen.get('pipeline_waiting') or {};action=request['action']
             if action=='recover' and row['state']=='running':raise ContractError('原工作仍在执行，请等待执行器确认停止。')
             if action=='retry':
@@ -1253,13 +1308,13 @@ def command(core,data,active_ids=(),*,read_only=False):
                 if row['state']!='needs_approval' or waiting.get('kind')!='approval':raise ContractError('当前工作没有待处理的人工决定。')
                 decision=request['decision'].strip()
                 result={'status':'completed','summary':request['note'],'output':{'route':decision},'issues':[],'artifacts':[]}
-                edge=core._matching_edge(frozen['pipeline_work']['asset']['pipeline'],row['cursor_key'],{'status':decision,'output':{'route':decision}})
-                if not edge:raise ContractError('该决定没有配置流转连线，请先核对流水线。')
+                definition = frozen['pipeline_work']['asset']['pipeline']
+                edge=core._matching_edge(definition,row['cursor_key'],{'status':decision,'output':{'route':decision}})
+                if not edge:raise ContractError('该决定没有配置流转连线，请先核对智能体团队。')
                 core.repository.event('workflow_run:'+str(identifier),'workflow.approval_decided',
                     {'position_key':row['cursor_key'],'decision':decision,'note':request['note']},connection=connection)
                 frozen.pop('pipeline_waiting',None)
-                core._route_workflow(identifier,edge,waiting.get('source_run_id'))
-                _move(core,connection,row,frozen,edge['to'],result,waiting.get('source_run_id'))
+                _follow_edge(core, connection, row, frozen, edge, result, waiting.get('source_run_id'))
             elif action=='resume_setup':
                 if row['state'] not in ('blocked', 'needs_human') or not signing_setup(frozen):
                     raise ContractError('当前岗位没有待补齐的真机签名配置。')

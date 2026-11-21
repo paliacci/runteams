@@ -45,7 +45,11 @@ const url=s=>s.entry.chat_id?'/api/chat/'+s.entry.chat_id+'/employee-configurati
 function workTarget(panel=S.conversationPanel){
  const binding=panel?.employee_binding,reference=binding?.reference;
  if(panel!==S.conversationPanel||panel?.kind!=='general'||panel.loading||panel.error||panel.employee_error||panel.debug_preview||!Number.isSafeInteger(panel.id)||panel.id<=0||panel.context?.pipeline_work||panel.context?.source_pipeline_workspace)return null;
- if(binding?.schema!=='runteams.bound-employee/v1'||!['runteams.acquired-employee-reference/1','runteams.rented-employee-reference/1'].includes(reference?.schema)||!/^r-[a-f0-9]{64}$/.test(binding.source_revision||''))return null;
+ if(binding?.schema!=='runteams.bound-employee/v1')return null;
+ const revision=binding.source_revision||'';
+ const source=['runteams.acquired-employee-reference/1','runteams.rented-employee-reference/1'].includes(reference?.schema)&&/^r-[a-f0-9]{64}$/.test(revision);
+ const market=reference?.schema==='runteams.business-reference/v1'&&reference.resource==='employees'&&/^[a-f0-9]{64}$/.test(revision);
+ if(!source&&!market)return null;
  const owner=window.RunTeamsEmployeeWindows?.identity(panel,S,null);
  if(!owner)return null;
  return {key:JSON.stringify(['work-settings',panel.id,owner.key,binding.source_revision]),chat_id:panel.id,reference:structuredClone(owner.reference),definition_revision:binding.source_revision,record:{name:binding.name,avatar:binding.avatar}};
@@ -61,6 +65,10 @@ function accept(s,value){
  if(value?.schema!=='runteams.employee-configuration-state/1'||!Number.isInteger(value.revision)||!value.definition||!Array.isArray(value.definition.groups)||!value.values||!value.states||typeof value.definition_sha256!=='string')throw messageError(message("invalidResponse","无法确认配置结果。请重新读取。"));
  if(s.entry.chat_id&&(RunTeamsEmployeeDirectory.referenceKey(s.entry.reference)!==RunTeamsEmployeeDirectory.referenceKey(value.reference)||s.entry.definition_revision!==value.definition_revision))throw messageError(message("workChanged","工作设置已变更。请关闭后重新打开设置。"));
  if(s.data&&JSON.stringify(s.data.reference)!==JSON.stringify(value.reference))throw messageError(message("ownerChanged","员工设置已变更。请关闭后重新打开设置。"));
+ if(!s.data || s.data.definition_sha256!==value.definition_sha256){
+  s.collapsedSections=new Set(value.definition.groups.filter(group=>group.initially_collapsed)
+   .map(group=>groupSectionId(s,group)));
+ }
  s.data=value;s.bindings=structuredClone(value.bindings||{});
 }
 function unavailableMessage(method,receipt){
@@ -101,11 +109,14 @@ async function request(s,method='GET',body=null,receipt=false){
  if(!response.ok||value?.error)throw responseError(value,response.status,method,receipt);
  return value;
 }
-async function read(s=active){if(s?.credentialQueue)await s.credentialQueue;if(!owned(s)||s.loading)return;s.loading=true;s.error='';paint(s);
- try{const value=await request(s);if(!owned(s))return;const draft=s.draft,bindings=s.bindings;
+function applyRead(s,value){
+ const draft=s.draft,bindings=s.bindings;
   if(!Number.isInteger(value?.revision)||s.data&&value.revision<s.data.revision)throw messageError(unavailableMessage('GET',false));
   if(draft&&s.data&&(value.revision!==s.data.revision||value.definition_sha256!==s.data.definition_sha256)){s.conflict=value;s.notice=message('changed','配置已更新。你的修改仍在。');}
-  else{accept(s,value);if(draft){s.draft=draft;s.bindings=bindings;}s.notice='';}}
+  else{accept(s,value);if(draft){s.draft=draft;s.bindings=bindings;}s.notice='';}
+}
+async function read(s=active){if(s?.credentialQueue)await s.credentialQueue;if(!owned(s)||s.loading)return;s.loading=true;s.error='';paint(s);
+ try{const value=await request(s);if(!owned(s))return;applyRead(s,value);}
  catch(error){if(owned(s))s.error=error.uiMessage||error.message;}
  finally{if(owned(s)){s.loading=false;paint(s);}}
 }
@@ -140,25 +151,31 @@ async function activate(entry,inlineSelection){
  if(inlineSelection?.type==='creator-assets')embeddedSessions.set(inlineSelection,s);
  else{active=s;s.inlineSelection=inlineSelection;}
  paint(s);if(!s.pending)await read(s);
+ if(displayed(s)&&hasApplications(s))void loadApplicationBindings(s);
 }
-function mountGroup(entries,selection){
+function mountGroup(entries,selection,snapshot,loading){
+ const waiting=loading&&!snapshot;
  if(!selection||S.sel!==selection)return;
  const previous=inlineGroups.get(selection);
- if(previous&&entries.length===previous.byKey.size&&entries.every(entry=>{
+ if(previous&&previous.snapshot===snapshot&&previous.waiting===waiting&&entries.length===previous.byKey.size&&entries.every(entry=>{
   const session=previous.byKey.get(entry.key);
   return owned(session)&&session.entry.configurationRevision===entry.configurationRevision;
  }))return;
- const byKey=new Map(),byId=new Map(),added=[];
+ const byKey=new Map(),byId=new Map();
  for(const entry of entries){
-  const previousSession=previous?.byKey.get(entry.key),previousEntry=owned(previousSession)?previousSession.entry:null;
   const s=sessionFor(entry);
   s.inlineId||=String(++inlineSequence);
   byKey.set(entry.key,s);byId.set(s.inlineId,s);
-  if(!previousEntry||previousEntry.configurationRevision!==entry.configurationRevision)added.push(s);
  }
- inlineGroups.set(selection,{byKey,byId});
- for(const s of added)if(!s.pending)void read(s);
- if(!added.length||added.every(s=>s.pending||s.loading))render();
+ inlineGroups.set(selection,{byKey,byId,snapshot,waiting});
+ for(const s of byKey.values()){
+  if(waiting||s.pending||s.saving||s.loading||s.credentialQueue)continue;
+  const value=snapshot?.[s.entry.pipeline_own?'':s.entry.source.path];
+  if(!value||value.definition_revision!==s.entry.configurationRevision){void read(s);continue;}
+  if(s.data&&value.revision<s.data.revision)continue;
+  try{applyRead(s,value);s.error='';}catch(error){s.error=error.uiMessage||error.message;}
+ }
+ render();
 }
 const groupSectionId=(s,group)=>formId(s)+'-group-'+encodeURIComponent(group.key);
 function toggleSection(button){
@@ -176,7 +193,8 @@ function pipelineGroupHeading(title,titleKey=''){
 function groupParts(key,owner){
  const s=inlineGroup()?.byKey.get(key);
  const ownerHeading=pipelineGroupHeading(owner.name,owner.labelKey);
- if(!owned(s))return '<section>'+ownerHeading+RunTeamsSkeletons.region('detail',undefined,'employeeSettings.loading')+'</section>';
+ if(!owned(s))return RunTeamsAssetOverview.pipeline()?RunTeamsSkeletons.region('overview-configuration',1,'employeeSettings.loading'):
+  '<section>'+ownerHeading+RunTeamsSkeletons.region('detail',undefined,'employeeSettings.loading')+'</section>';
  const {content,footer}=formParts(s,owner);
  mountInputs(s);
  return '<section class="pipeline-configuration-session" data-config-session="'+s.inlineId+'">'+content+footer+'</section>';
@@ -184,7 +202,7 @@ function groupParts(key,owner){
 function restore(){if(!owned(active))return;selectDetailWorkspace({type:'employee-configuration',id:active.entry.key});paint();}
 async function required(error,chatId){
  const panel=String(S.conversationPanel?.id)===String(chatId)?S.conversationPanel:String(S.chatId)===String(chatId)?{id:S.chatId,context:S.chatCfg?.context,kind:'general'}:null;
- if(panel?.context?.pipeline_work||panel?.context?.source_pipeline_workspace){toast('请在流水线设置中完成配置。','info','employeeSettings.configurePipeline');return true;}
+ if(panel?.context?.pipeline_work||panel?.context?.source_pipeline_workspace){toast('请在智能体团队设置中完成配置。','info','employeeSettings.configurePipeline');return true;}
  const entry=panel&&(workTarget(panel)||RunTeamsEmployeeDirectory.forPanel(panel));if(!entry)return false;
  const token=scope(),device=deviceScope();
  if(panel===S.conversationPanel)await openConversation(entry,RunTeamsEmployeeDirectory.forPanel(panel));else await open(entry);
@@ -269,7 +287,7 @@ function settingsParts(s){
  const titleLeading=!s.entry.pipeline_own&&title?'<span class="node-detail-avatar">'+workerAvatarMarkup(identity)+'</span>':'';
  const heading=!s.data&&!s.error?
   RunTeamsSkeletons.drawerHeading({title,leading:titleLeading,description:true}):
-  detailDrawerHeading(title||copy(s.entry.pipeline_own?'pipeline':'title',s.entry.pipeline_own?'流水线配置':'员工设置'),employee.description||'','','',{titleKey:title?undefined:titleKey,titleLeading,descriptionMarkdown:true});
+  detailDrawerHeading(title||copy(s.entry.pipeline_own?'pipeline':'title',s.entry.pipeline_own?'智能体团队配置':'员工设置'),employee.description||'','','',{titleKey:title?undefined:titleKey,titleLeading,descriptionMarkdown:true});
  const intro='<section class="workspace-detail-head detail-drawer-intro">'+heading+'</section>';
  mountInputs(s);
  return {intro,...formParts(s)};
@@ -277,23 +295,483 @@ function settingsParts(s){
 function drawer(){const s=current();if(!s)return '';
  const {intro,content,footer}=settingsParts(s);
  const heading={toolbar:RunTeamsEmployeeDrawerHeader.markup('configuration'),intro};
- return detailDrawerShell({className:'employee-configuration-drawer',header:heading,introClass:'detail-drawer-summary',body:content+footer,bodyClass:'employee-configuration-body settings-section-stack',attrs:'data-app-i18n-aria-label="employeeSettings.'+(s.entry.pipeline_own?'pipeline':'title')+'" aria-label="'+esc(s.entry.pipeline_own?copy('pipeline','流水线配置'):copy('title','员工设置'))+'"'+(s.loading?' aria-busy="true"':'')});
+ return detailDrawerShell({className:'employee-configuration-drawer',header:heading,introClass:'detail-drawer-summary',body:content+footer,bodyClass:'employee-configuration-body settings-section-stack',attrs:'data-app-i18n-aria-label="employeeSettings.'+(s.entry.pipeline_own?'pipeline':'title')+'" aria-label="'+esc(s.entry.pipeline_own?copy('pipeline','智能体团队配置'):copy('title','员工设置'))+'"'+(s.loading?' aria-busy="true"':'')});
 }
 function embeddedSettings(){
  const s=current();if(!s||S.sel?.type!=='creator-assets')return '';
  const {intro,content,footer}=settingsParts(s);
  return '<section class="creator-asset-settings employee-configuration-drawer" aria-label="员工设置" data-app-i18n-aria-label="employeeSettings.title"'+(s.loading?' aria-busy="true"':'')+'><div class="right-detail-scroll" tabindex="-1"><div class="detail-drawer-summary">'+intro+'</div><div class="employee-configuration-body settings-section-stack">'+content+footer+'</div></div></section>';
 }
+// Device connections are shared. This list stores only the employee's selections.
+const hasApplications=s=>!!employeeApplicationReference(s.entry)&&!!s.entry.key&&!s.entry.chat_id&&!s.entry.pipeline_reference&&!s.entry.pipeline_own&&
+ !RunTeamsHost.session.workspace(S)&&!RunTeamsHost.session.readOnly(S);
+const applicationKey=s=>'runteams.employee.applications.'+s.entry.key;
+const applicationId=row=>row.provider+':'+row.id;
+const employeeApplicationReference=entry=>entry?.source?.reference||entry?.reference||entry?.work?.native_asset?.employee_reference;
+const applicationMigrations=new Map();
+async function migrateEmployeeApplications(entry){
+ const employee=employeeApplicationReference(entry);
+ if(!entry?.key||!employee||RunTeamsHost.session.workspace(S)||RunTeamsHost.session.readOnly(S))return;
+ const storage='runteams.employee.applications.'+entry.key;
+ const previous=RunTeamsBusinessStorage.getItem(storage);
+ if(!previous)return;
+ const key=scope()+'|'+deviceScope()+'|'+entry.key;
+ if(!applicationMigrations.has(key)){
+  const pending=(async()=>{
+   const rows=applications({entry});
+   const result=await accountMcpTestRequest({action:'employee-apps-import',employee,rows});
+   if(key===scope()+'|'+deviceScope()+'|'+entry.key&&RunTeamsBusinessStorage.getItem(storage)===previous)
+    RunTeamsBusinessStorage.removeItem(storage);
+   return result;
+  })();
+  applicationMigrations.set(key,pending);
+  pending.then(()=>applicationMigrations.delete(key),()=>applicationMigrations.delete(key));
+ }
+ return applicationMigrations.get(key);
+}
+async function prepareApplications(panel){
+ const entry=RunTeamsEmployeeDirectory.forPanel(panel);
+ if(entry)await migrateEmployeeApplications(entry);
+}
+async function loadApplicationBindings(s){
+ try{
+  const migrated=await migrateEmployeeApplications(s.entry);
+  const result=migrated||await accountMcpTestRequest({action:'employee-apps-read',employee:employeeApplicationReference(s.entry)});
+  if(!displayed(s))return;
+  s.applications=result.applications;
+  paintApplicationRows(s);
+  await refreshEmployeeApplicationNames(s);
+ }catch(error){if(displayed(s))toast(error.message,'err');}
+}
+function applications(s){
+ if(s.applications)return s.applications;
+ try{
+  const rows=JSON.parse(RunTeamsBusinessStorage.getItem(applicationKey(s))||'[]');
+  return Array.isArray(rows)?rows.filter(row=>row&&['mcp','composio'].includes(row.provider)&&
+   typeof row.id==='string'&&typeof row.name==='string'&&(!row.account||typeof row.account.name==='string')):[];
+ }catch{return [];}
+}
+async function changeApplication(s,row,remove=false){
+ if(!displayed(s)||!hasApplications(s))return;
+ try{
+  await migrateEmployeeApplications(s.entry);
+  if(!displayed(s))return;
+  const result=await accountMcpTestRequest({action:'employee-apps-set',
+   employee:employeeApplicationReference(s.entry),row,remove});
+  s.applications=result.applications;
+ }catch{
+  toast(copy('appsSaveFailed','无法保存应用配置。'),'err','employeeSettings.appsSaveFailed');
+  return false;
+ }
+ if(displayed(s))paintApplicationRows(s);
+ return true;
+}
+function paintApplicationRows(s){
+ const slot=document.getElementById(formId(s)+'-applications');
+ if(slot){
+  slot.innerHTML=applicationRows(s);RunTeamsLocale?.apply(slot);
+  const dialog=document.getElementById('childModalHost');
+  if(dialog?.querySelector('[data-employee-app-dialog]'))dialog._returnFocus=slot.querySelector('[data-employee-app-add]');
+ }
+}
+function applicationMark(row){
+ const logo=row.logo;
+ const trusted=typeof logo==='string'&&/^https:\/\/(?:logos\.composio\.dev\/api\/[A-Za-z0-9_-]+|(?:assets\.composio\.dev\/logos\/|cdn\.jsdelivr\.net\/gh\/ComposioHQ\/open-logos@[A-Za-z0-9_-]+\/)[A-Za-z0-9_.-]+\.(?:png|svg|webp|jpe?g))$/.test(logo);
+ const image=trusted?'<img src="'+esc(logo)+'" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onload="this.classList.add(\'is-loaded\')" onerror="this.remove()">':'';
+ return '<span class="employee-application-mark" aria-hidden="true">'+esc(Array.from(row.name)[0]||'•')+image+'</span>';
+}
+const gmailApplication=row=>row.provider==='composio'&&row.id==='gmail';
+const mailboxName=name=>typeof name==='string'&&/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(name);
+function applicationAccount(s,row){
+ const id=applicationId(row),pending=s.applicationConnections?.get(id);
+ const refreshed=s.applicationNames?.get(id);
+ const accountName=refreshed?.id===row.account?.id?refreshed?.name:row.account?.name;
+ const gmail=gmailApplication(row)&&row.account?.id;
+ const loading=gmail&&!mailboxName(accountName)&&refreshed?.id!==row.account.id;
+ if(pending)return '<span class="employee-application-pending"><span class="env-spinner" aria-hidden="true"></span><span class="sr-only" role="status">'+
+  messageMarkup(pending.label)+'</span>'+
+  (pending.url?' <a href="'+esc(pending.url)+'" target="_blank" rel="noopener noreferrer">'+toolsCopy('composioAuthorize','前往授权')+'</a>':'')+'</span>';
+ if(loading)return '<span class="employee-application-placeholder" role="status"><span class="skeleton-block" aria-hidden="true"></span>'+
+  '<span class="sr-only">'+messageMarkup(message('appsLoading','正在读取…'))+'</span></span>';
+ if(row.account){
+  const name=gmail&&!mailboxName(accountName)?toolsText('connected','已连接'):accountName;
+  return '<span class="employee-application-account" title="'+esc(name)+'">'+esc(name)+'</span>';
+ }
+ return '<button type="button" class="btn" data-employee-app-connect="'+esc(id)+'">'+messageMarkup(message('appsConnect','连接'))+'</button>';
+}
+async function refreshEmployeeApplicationNames(s){
+ const saved=applications(s).filter(row=>row.provider==='composio'&&row.account?.id);
+ if(!saved.length)return;
+ const selection=S.sel;
+ const current=()=>displayed(s)&&S.sel===selection;
+ function apply(row,name){
+  if(!current())return;
+  const id=applicationId(row),rows=applications(s);
+  const latest=rows.find(item=>applicationId(item)===id);
+  if(latest?.account?.id!==row.account.id||s.applicationConnections?.has(id))return;
+  (s.applicationNames||=new Map()).set(id,{id:row.account.id,name});
+
+  const slot=document.getElementById(formId(s)+'-applications');
+  const node=slot?.querySelector('[data-employee-app-menu="'+CSS.escape(id)+'"]')?.previousElementSibling;
+  if(node?.matches('.employee-application-account,.employee-application-placeholder,.employee-application-pending'))node.outerHTML=applicationAccount(s,latest);
+ }
+ let connection;
+ try{connection=await accountComposioRequest({},'status');}catch{}
+ if(!current())return;
+ for(const row of saved){
+  let name=row.account.name;
+  try{
+   if(connection?.configured){
+    const {accounts}=await accountComposioRequest(connection,'accounts',{toolkit:row.id});
+    const account=accounts.find(item=>item.id===row.account.id&&item.status==='ACTIVE'&&!item.disabled);
+    if(account&&(!gmailApplication(row)||mailboxName(account.name)))name=account.name;
+   }
+  }catch{
+   // Keep the last known display name if Composio is temporarily unavailable.
+  }
+  if(!current())return;
+  apply(row,name);
+ }
+}
+function applicationRows(s){
+ const label=(key,fallback)=>messageMarkup(message(key,fallback));
+ return applications(s).map(row=>{
+  const pending=s.applicationConnections?.get(applicationId(row));
+  const id=esc(applicationId(row)),name=esc(row.name),account=applicationAccount(s,row);
+  return '<div class="employee-application-row">'+applicationMark(row)+
+   '<strong class="employee-application-name" title="'+name+'">'+name+'</strong>'+
+   account+'<button type="button" class="btn ghost employee-application-more" data-menu-trigger="quiet" data-employee-app-menu="'+id+'" aria-haspopup="menu" aria-expanded="false"'+(pending?' disabled':'')+' aria-label="'+esc(copy('appsMore','更多操作')+' · '+row.name)+'">'+ICON('more')+'</button></div>';
+ }).join('')+'<div class="employee-application-footer"><button type="button" class="btn" data-employee-app-add>'+label('appsAdd','添加应用')+'</button></div>';
+}
+function applicationSection(s){
+ if(!hasApplications(s))return '';
+ const id=formId(s)+'-applications';
+ return RunTeamsEmployeeDrawerHeader.section({
+  id:id+'-section',title:messageMarkup(message('appsTitle','已添加的应用')),
+  body:'<div id="'+id+'">'+applicationRows(s)+'</div>',
+  collapsedSections:s.collapsedSections,action:'RunTeamsEmployeeConfiguration.toggleSection'
+ });
+}
+function applicationDialog(s,title,body,className,headerHtml){
+ const selection=S.sel;
+ const host=openChildDialog({title,body,className,headerHtml,manageFocus:true,attrs:'role="dialog" aria-modal="true" data-employee-app-dialog aria-label="'+esc(title)+'"'});
+ host.addEventListener('keydown',event=>{if(event.key==='Escape'&&!event.isComposing){event.stopPropagation();closeChildDialog();}});
+ RunTeamsLocale?.apply(host);
+ return {host,current:()=>host.isConnected&&S.sel===selection&&displayed(s)};
+}
+function applicationStatus(node,value,error=false){
+ node.textContent=value;node.setAttribute('role',error?'alert':'status');
+}
+function openApplicationPicker(s,initialTab='apps'){
+ const label=(key,fallback)=>messageMarkup(message(key,fallback));
+ const title=copy('appsAdd','添加应用');
+ const employee=s.entry.record?.name||s.data?.employee?.name;
+ const header='<div class="employee-app-picker-heading"><div class="tt">'+esc(title)+'</div>'+
+  (employee?'<p class="employee-app-picker-target">'+esc(RunTeamsLocale?.t('employeeSettings.appsTarget',{name:employee},'添加到 '+employee)||'添加到 '+employee)+'</p>':'')+'</div>'+
+  '<label class="employee-app-picker-search rt-search-field">'+ICON('search')+'<input type="search" autocomplete="off"></label>'+
+  '<button type="button" class="x modal-x" aria-label="'+esc(copy('closeDialog','关闭弹窗'))+'" onclick="closeChildDialog()">'+ICON('x')+'</button>';
+ const {host,current}=applicationDialog(s,title,
+  '<div class="employee-app-picker-tabs" role="tablist" aria-label="'+esc(title)+'">'+
+  '<button type="button" role="tab" id="employee_app_tab_apps" data-app-tab="apps" aria-controls="employee_app_picker_panel">'+label('appsCatalog','应用目录')+'</button>'+
+  '<button type="button" role="tab" id="employee_app_tab_mcp" data-app-tab="mcp" aria-controls="employee_app_picker_panel">'+label('appsLocalMcp','本机 MCP')+'</button></div>'+
+  '<div role="tabpanel" id="employee_app_picker_panel">'+
+  '<div class="employee-app-picker-scroll" tabindex="0" data-employee-app-catalog><div role="list" data-app-results></div><div data-app-load-state></div>'+
+  '<div class="employee-app-picker-custom" data-app-custom-wrap hidden><button type="button" class="btn" data-employee-app-custom>'+label('appsCustomMcp','添加自定义 MCP')+'</button></div></div></div>',
+  'employee-app-picker',header);
+ const search=host.querySelector('input'),panel=host.querySelector('[role=tabpanel]');
+ const tabs=[...host.querySelectorAll('[data-app-tab]')];
+ const list=host.querySelector('[data-employee-app-catalog]'),results=host.querySelector('[data-app-results]');
+ const status=host.querySelector('[data-app-load-state]'),customWrap=host.querySelector('[data-app-custom-wrap]');
+ let tab='',query='',cursor='',generation=0,timer,busy=false,failed=false;
+ let request=Promise.resolve();
+ const rows=new Map(),seenCursors=new Set();
+ const fallbackDescriptions={
+  gmail:['appsGmail','收发和整理邮件'],slack:['appsSlack','读取消息并发送团队更新'],
+  instagram:['appsInstagram','查看已授权账号的内容表现'],tiktok:['appsTikTok','查看此应用支持的功能']
+ };
+ function rowDescription(row){
+  if(row.provider==='mcp')return {
+   preset:copy('appsPresetMcp','预置 MCP'),sample:copy('appsSampleMcp','本机示例 · 无需账号')
+  }[row.kind]||copy('appsCustomSource','自定义 MCP');
+  const known=fallbackDescriptions[row.id];
+  return known?copy(...known):row.description||'';
+ }
+ function appendRows(items){
+  const existing=new Set(applications(s).map(applicationId));
+  for(const row of items){
+   const id=applicationId(row);
+   if(rows.has(id))continue;
+   rows.set(id,row);
+   const added=existing.has(id),description=esc(rowDescription(row)),name=esc(row.name);
+   results.insertAdjacentHTML('beforeend','<div class="employee-app-picker-row" role="listitem">'+
+    applicationMark(row)+
+    '<span class="employee-application-name"><strong title="'+name+'">'+name+'</strong><small title="'+description+'">'+description+'</small></span>'+
+    '<div class="employee-app-picker-action">'+(added?label('appsAdded','已添加'):
+    '<button type="button" class="btn" data-choice="'+esc(id)+'" aria-label="'+esc(copy('appsAddOne','添加')+' '+row.name)+'">'+label('appsAddOne','添加')+'</button>')+'</div></div>');
+  }
+ }
+ function loadStatus(markup='',isError=false){
+  status.innerHTML=markup;
+  status.setAttribute('role',isError?'alert':'status');
+ }
+ function showLoading(more=false){
+  list.setAttribute('aria-busy','true');
+  const loadingText=more?label('appsLoadingMore','正在加载更多应用…'):label('appsLoading','正在读取…');
+  const row='<div class="employee-app-picker-row" data-skeleton-row>'+
+   '<span class="skeleton-block employee-app-skeleton-icon"></span>'+
+   '<span class="employee-application-name"><span class="skeleton-block employee-app-skeleton-name"></span>'+
+   '<span class="skeleton-block employee-app-skeleton-description"></span></span>'+
+   '<span class="skeleton-block employee-app-skeleton-action"></span></div>';
+  loadStatus('<span class="sr-only">'+loadingText+'</span><div data-skeleton-list aria-hidden="true" inert>'+
+   row.repeat(more?2:tab==='mcp'?3:6)+'</div>');
+ }
+ function maybeLoadMore(){
+  if(current()&&tab==='apps'&&cursor&&!busy&&!failed&&list.scrollHeight-list.clientHeight-list.scrollTop<=40)load(true);
+ }
+ function load(more=false){
+  if(!current()||busy||(more&&!cursor))return;
+  const version=generation,selected=tab,term=query,after=more?cursor:'';
+  const owns=()=>current()&&version===generation;
+  busy=true;failed=false;
+  showLoading(more);
+  request=request.then(async()=>{
+   if(!owns())return;
+   try{
+    if(selected==='mcp'){
+     const local=await accountMcpTestRequest();
+     if(!owns())return;
+     appendRows(local.connections.filter(row=>row.kind!=='composio'&&row.name.toLocaleLowerCase().includes(term.toLocaleLowerCase()))
+      .map(row=>({provider:'mcp',id:row.id,name:row.name,kind:row.kind})));
+    }else{
+     const connection=await accountComposioRequest({},'status');
+     if(!owns())return;
+     if(!connection.configured){
+      loadStatus('<div class="employee-app-picker-notice"><strong>'+label('appsSetupTitle','先配置 Composio')+'</strong><p>'+
+       label('appsSetupHint','配置后可搜索应用目录。已有 MCP 可在「本机 MCP」中添加。')+'</p><button type="button" class="btn" data-composio-setup>'+
+       label('appsSetup','配置 Composio')+'</button></div>');
+      return;
+     }
+     const page=await accountComposioRequest(connection,'catalog',{search:term,cursor:after});
+     if(!owns())return;
+     appendRows(page.items.map(row=>({provider:'composio',id:row.slug,name:row.name,description:row.description,logo:row.logo,noAuth:row.no_auth===true})));
+     cursor=page.next_cursor&&!seenCursors.has(page.next_cursor)?page.next_cursor:'';
+     if(cursor)seenCursors.add(cursor);
+    }
+    if(rows.size)loadStatus();
+    else loadStatus('<div class="employee-app-picker-empty"><strong>'+label(selected==='mcp'?'appsNoMcp':'appsNoResults',selected==='mcp'?'未找到 MCP':'未找到应用')+'</strong>'+
+     (term?'<p>'+label('appsTrySearch','换个名称试试。')+'</p><button type="button" class="btn" data-app-clear>'+label('appsClearSearch','清除搜索')+'</button>':'')+'</div>');
+   }catch(error){
+    if(!owns())return;
+    failed=true;
+    loadStatus('<div class="employee-app-picker-empty"><strong>'+label('appsReadFailed','暂时无法读取列表')+'</strong><p>'+esc(error.message)+'</p>'+
+     '<button type="button" class="btn" data-app-retry>'+label('reload','重新读取')+'</button></div>',true);
+   }finally{
+    if(owns()){
+     busy=false;
+     list.setAttribute('aria-busy','false');
+     requestAnimationFrame(maybeLoadMore);
+    }
+   }
+  });
+ }
+ function reset(delay=0){
+  clearTimeout(timer);
+  generation++;busy=false;failed=false;cursor='';
+  query=search.value.trim();rows.clear();seenCursors.clear();results.replaceChildren();list.scrollTop=0;
+  if(delay){
+   showLoading();
+   timer=setTimeout(()=>load(),delay);
+  }else load();
+ }
+ function select(next){
+  if(next===tab)return;
+  tab=next;search.value='';
+  const local=tab==='mcp';
+  const placeholder=copy(local?'appsSearchMcp':'appsSearchCatalog',local?'搜索本机 MCP':'搜索应用名称');
+  search.placeholder=placeholder;search.setAttribute('aria-label',placeholder);
+  for(const button of tabs){
+   const active=button.dataset.appTab===tab;
+   button.setAttribute('aria-selected',String(active));button.tabIndex=active?0:-1;
+   if(active)panel.setAttribute('aria-labelledby',button.id);
+  }
+  customWrap.hidden=!local;
+  reset();
+ }
+ search.addEventListener('input',()=>reset(250));
+ search.addEventListener('keydown',event=>{
+  if(event.key==='Enter'&&!event.isComposing){event.preventDefault();reset();}
+ });
+ for(const button of tabs)button.onclick=()=>select(button.dataset.appTab);
+ tabs[0].parentElement.addEventListener('keydown',event=>{
+  if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;
+  event.preventDefault();
+  const next=event.key==='Home'?'apps':event.key==='End'?'mcp':tab==='apps'?'mcp':'apps';
+  select(next);tabs.find(button=>button.dataset.appTab===next).focus();
+ });
+ list.addEventListener('scroll',maybeLoadMore,{passive:true});
+ host.addEventListener('click',async event=>{
+  const button=event.target.closest('button');
+  if(!current()||!button)return;
+  if(button.hasAttribute('data-choice')){
+   const row=rows.get(button.dataset.choice);
+   if(!row||button.disabled||applications(s).some(item=>applicationId(item)===applicationId(row)))return;
+   button.disabled=true;
+   const added=await changeApplication(s,{provider:row.provider,id:row.id,name:row.name,...(row.logo?{logo:row.logo}:{}),...(row.noAuth?{noAuth:true}:{})});
+   if(!current()||!button.isConnected)return;
+   if(!added){button.disabled=false;return;}
+   const action=button.parentElement;
+   action.innerHTML=label('appsAdded','已添加');action.setAttribute('role','status');
+   const actions=[...results.querySelectorAll('[data-choice]')];
+   const next=actions.find(item=>action.compareDocumentPosition(item)&Node.DOCUMENT_POSITION_FOLLOWING);
+   (next||actions.at(-1)||list).focus({preventScroll:true});
+  }else if(button.hasAttribute('data-app-retry'))load(Boolean(cursor));
+  else if(button.hasAttribute('data-app-clear')){search.value='';reset();search.focus();}
+  else if(button.hasAttribute('data-composio-setup')){
+   closeChildDialog();openSettingsPage('tools');
+   if(document.getElementById('settingsPanel')){accountMcpTestOpen();accountComposioOpen();}
+  }else if(button.hasAttribute('data-employee-app-custom')){
+   const returnFocus=host._returnFocus;
+   openApplicationMcp(s,undefined,()=>{
+    document.querySelector('#'+formId(s)+'-applications [data-employee-app-add]')?.focus();
+    openApplicationPicker(s,'mcp');
+   },returnFocus);
+  }
+ });
+ select(initialTab);
+ search.focus();
+}
+function openApplicationMcp(s,row,onConnected,returnFocus){
+ const {host,current}=applicationDialog(s,row?.name||toolsText('mcpAddCustom','添加自定义连接'),
+  '<form class="settings-mcp-connection-form">'+(row?'':'<label>'+toolsCopy('mcpName','连接名称')+'<input required name="name" maxlength="80"></label><label>'+toolsCopy('mcpUrl','服务地址')+'<input required name="url" type="url" maxlength="2048" placeholder="https://example.com/mcp"></label>')+
+  (row?.id==='sample'?'':'<label>'+toolsCopy('mcpToken','访问令牌（可选）')+'<input name="token" type="password" autocomplete="off" maxlength="8192"></label>')+
+  '<p data-connection-status role="status"></p><div class="employee-application-footer"><button type="submit" class="btn pri">'+messageMarkup(message('appsConnect','连接'))+'</button></div></form>');
+ if(returnFocus?.isConnected)host._returnFocus=returnFocus;
+ const form=host.querySelector('form'),status=host.querySelector('[data-connection-status]'),button=form.querySelector('button');
+ // Keep a created connection available for retry if the server cannot be reached yet.
+ let connection=row;
+ form.onsubmit=async event=>{
+  event.preventDefault();
+  if(!current()||button.disabled)return;
+  button.disabled=true;
+  applicationStatus(status,toolsText('mcpReading','正在读取工具…'));
+  const token=form.elements.token?.value.trim()||'';
+  try{
+   if(!connection){
+    const result=await accountMcpTestRequest({action:'save',name:form.elements.name.value,url:form.elements.url.value,token});
+    connection={provider:'mcp',id:result.connection.id,name:result.connection.name};
+    if(!current())return;
+    if(!await changeApplication(s,connection))return;
+    form.elements.name.disabled=form.elements.url.disabled=true;
+   }else if(token&&connection.id!=='sample'){
+    await accountMcpTestRequest({action:'save',id:connection.id,token});
+   }
+   if(!current())return;
+   if(form.elements.token)form.elements.token.value='';
+   await accountMcpTestRequest({action:'inspect',id:connection.id});
+   if(current()&&await changeApplication(s,{...connection,account:{name:connection.name}})&&current()){closeChildDialog();onConnected?.();}
+  }catch(error){if(current())applicationStatus(status,error.message,true);}
+  finally{button.disabled=false;}
+ };
+}
+function connectEmployeeComposio(s,row,reconnect,context=null){
+ const available=context?.current||(()=>displayed(s)&&hasApplications(s));
+ if(!available())return;
+
+ const states=s.applicationConnections||=new Map(),id=applicationId(row);
+ if(states.has(id))return;
+ const state={label:message('appsConnecting','正在连接…')};
+ states.set(id,state);
+ const current=()=>available()&&states.get(id)===state&&(context||applications(s).some(item=>applicationId(item)===id));
+ const paintState=()=>{
+  if(context){context.status(state);return;}
+  const slot=document.getElementById(formId(s)+'-applications');
+  if(slot){slot.innerHTML=applicationRows(s);RunTeamsLocale?.apply(slot);}
+ };
+ const finish=async account=>{
+  if(account){
+   (s.applicationNames||=new Map()).set(id,account);
+   if(context)await context.complete(account);
+   else await changeApplication(s,{...row,account});
+  }
+  states.delete(id);
+  if(context)context.status(null);
+  else if(displayed(s))paintState();
+ };
+ async function start(){
+  paintState();
+  try{
+   const connection=await accountComposioRequest({},'status');
+   if(!current())return;
+   if(!connection.configured)throw messageError(message('appsSetupFirst','请先在工具设置中配置 Composio。'));
+   const request=action=>accountComposioRequest(connection,action,{toolkit:row.id});
+   const accounts=async()=>(await request('accounts')).accounts.filter(item=>item.status==='ACTIVE'&&!item.disabled);
+   if(!reconnect){
+    if(row.noAuth)return await finish({name:toolsText('composioNoAuth','无需应用账号')});
+    const [account]=await accounts();
+    if(!current())return;
+    if(account)return await finish({id:account.id,name:account.name});
+   }
+   const link=await request('connect');
+   if(!current())return;
+   const url=new URL(link.redirect_url);
+   if(!['https://connect.composio.dev','https://app.composio.dev'].includes(url.origin)||!url.pathname.startsWith('/link/')||url.username||url.password)
+    throw messageError(message('appsInvalidAuth','无法识别授权地址。'));
+   if(!link.connected_account_id)throw messageError(message('appsAuthUnverified','暂时无法核对授权结果，请重试。'));
+   state.url=url.href;
+   state.label=message('appsWaitingAuth','等待授权');
+   paintState();
+   window.open(url.href,'_blank','noopener,noreferrer');
+   const deadline=Date.now()+120000;
+   while(current()&&Date.now()<deadline){
+    await new Promise(resolve=>setTimeout(resolve,2500));
+    if(!current())return;
+    const active=await accounts();
+    if(!current())return;
+    const account=active.find(item=>item.id===link.connected_account_id);
+    if(account)return await finish({id:account.id,name:account.name});
+   }
+   if(current())throw messageError(message('appsAuthPending','授权尚未完成，请重试。'));
+  }catch(error){
+   if(current()){
+    if(context)context.error(error.uiMessage?copy(error.uiMessage.key,error.uiMessage.fallback):error.message);
+    else toast(error.uiMessage?copy(error.uiMessage.key,error.uiMessage.fallback):error.message,'err',error.uiMessage&&'employeeSettings.'+error.uiMessage.key);
+   }
+  }finally{
+   if(states.get(id)===state){
+    if(current())finish();
+    else states.delete(id);
+   }
+  }
+ }
+ void start();
+}
+function applicationAction(s,button){
+ if(!hasApplications(s))return;
+ if(button.hasAttribute('data-employee-app-add'))return openApplicationPicker(s);
+ const id=button.dataset.employeeAppMenu??button.dataset.employeeAppConnect;
+ const row=applications(s).find(item=>applicationId(item)===id);
+ if(!row)return;
+ const connect=reconnect=>row.provider==='mcp'?openApplicationMcp(s,row):connectEmployeeComposio(s,row,reconnect);
+ if(button.hasAttribute('data-employee-app-connect'))return connect(false);
+ const items=row.account?[{label:copy('appsReconnect','重新连接'),labelKey:'employeeSettings.appsReconnect',icon:'refresh',fn:()=>connect(true)}]:[];
+ items.push({label:copy('appsDelete','删除'),labelKey:'employeeSettings.appsDelete',icon:'trash',danger:true,fn:async()=>{
+  if(await changeApplication(s,row,true)&&displayed(s))document.querySelector('#'+formId(s)+'-applications [data-employee-app-add]')?.focus();
+ }});
+ openMenu(button,items,{variant:'workerAction',align:'right',keyboardReturn:()=>button,dismissOnScroll:'.right-detail-scroll'});
+}
+
 function formParts(s,groupOwner=null){
  const groups=(s.data?.definition.groups||[]).filter(group=>group.fields.length);
- let content=!s.data&&!s.error?RunTeamsSkeletons.region('detail',undefined,'employeeSettings.loading'):'';
+ let content=!s.data&&!s.error?RunTeamsSkeletons.region(groupOwner&&RunTeamsAssetOverview.pipeline()?'overview-configuration':'detail',undefined,'employeeSettings.loading'):'';
  if(s.data){
   if(s.entry.chat_id)content+='<p class="configuration-readiness" data-app-i18n="employeeSettings.workScope">已开始的工作会继续使用原配置。</p>';
-  if(!groups.length&&!s.loading&&!s.error)content+='<p class="configuration-readiness" data-app-i18n="employeeSettings.emptyConfiguration">没有可配置的选项。</p>';
-   const fields=RunTeamsConfigurationForm.groups({groups,idFor:group=>groupSectionId(s,group),
+  if(!groups.length&&!s.loading&&!s.error&&!hasApplications(s))content+='<p class="configuration-readiness" data-app-i18n="employeeSettings.emptyConfiguration">没有可配置的选项。</p>';
+   const labeledGroups=groupOwner?.qualifyGroups?groups.map(group=>({...group,label:groupOwner.name+' · '+group.label})):groups;
+   const fields=RunTeamsConfigurationForm.groups({groups:labeledGroups,idFor:group=>groupSectionId(s,group),
    renderField:field=>fieldMarkup(s,field),collapsedSections:s.collapsedSections,
    action:'RunTeamsEmployeeConfiguration.toggleSection'});
   content+=RunTeamsConfigurationForm.markup({id:formId(s),body:fields+conflictMarkup(s)});
+  content+=applicationSection(s);
  }
  if(s.error){
   const reload=s.pending||s.error.key==='reopenSettings'?'':' <button type="button" class="textbutton" data-config-read data-app-i18n="employeeSettings.reload">重新读取</button>';
@@ -308,7 +786,7 @@ function formParts(s,groupOwner=null){
 }
 function inlineParts(key){
  const s=current();
- if(!s?.inlineSelection||s.entry.key!==key||s.data&&!rows(s).length&&!s.error)return null;
+ if(!s?.inlineSelection||s.entry.key!==key||s.data&&!rows(s).length&&!s.error&&!hasApplications(s))return null;
  const {content,footer}=formParts(s);
  mountInputs(s);
  return {body:content+footer};
@@ -386,6 +864,35 @@ async function resourceRequest(s,field,body=null){
  let response,value;try{response=await fetch(target+(body?'':'?'+new URLSearchParams(params)),{method:body?'POST':'GET',headers:{'X-RunTeams-Device-Scope':s.deviceScope,...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{})});value=await response.json();}
  catch(error){throw messageError(body?message('collectionUnconfirmed','尚未确认数据集合是否创建。你可以核对创建结果。'):message('resourcesUnavailable','无法读取资料。请重试。'));}
  if(!owned(s))throw Error('账户已改变。');if(!response.ok||value.error)throw Error(value.error||'数据集合暂时不可用。');return value;
+}
+async function editLocation(s,button){
+ const input=button.closest('.field')?.querySelector('input[data-key]');
+ if(s.locationPicker||!input||input.disabled||button.disabled||!formFor(s)?.contains(input))return;
+ const key=input.dataset.key,previous=input.value,definition=s.data.definition_sha256;
+ const currentInput=()=>displayed(s)&&s.data?.definition_sha256===definition?document.getElementById(fieldPrefix(s)+key):null;
+ const kind=button.dataset.locationPick;
+ let path;
+ const target='/api/employee-configuration/pick-location',body={kind,language:document.documentElement.lang.startsWith('en')?'en':'zh-CN'};
+ s.locationPicker=true;button.disabled=true;
+ try{
+  let result;
+  if(S.localLibrary)result=await api(target,'POST',body);
+  else{
+   const response=await fetch(target,{method:'POST',headers:{'Content-Type':'application/json','X-RunTeams-Device-Scope':s.deviceScope},body:JSON.stringify(body)});
+   if(!response.ok)throw Error();
+   result=await response.json();
+  }
+  if(result?.path===null)return;
+  if(typeof result?.path!=='string'||!result.path)throw Error();
+  path=result.path;
+ }catch{
+  if(currentInput())toast('无法选择本机位置，请重试。','err','configurationField.pickLocationFailed');
+  return;
+ }finally{s.locationPicker=false;button.disabled=false;}
+ const field=currentInput();
+ if(!field||!formFor(s)?.contains(field)||field.disabled||field.value!==previous||field.value===path)return;
+ field.value=path;
+ field.dispatchEvent(new Event('change',{bubbles:true}));
 }
 function chooseConnection(s,key){
  const field=s&&rows(s).find(f=>f.key===key),selection=s?.data?.connection_fields?.[key];if(!s||!field||!selection||s.saving||s.resourceBusy||s.pending||s.loading)return;
@@ -521,7 +1028,10 @@ document.addEventListener('change',event=>{const s=current(event.target),key=eve
  capture(s);clearNotice(s);queueSave(s);
 });
 document.addEventListener('scroll',event=>{if(event.target?.matches?.('.employee-configuration-drawer > .right-detail-scroll')&&current())current().scroll=event.target.scrollTop;},true);
-document.addEventListener('click',event=>{const s=current(event.target),button=event.target.closest('button');if(!s||!button||!button.closest('.employee-configuration-drawer,[data-signing-configuration]'))return;
+document.addEventListener('click',event=>{const s=current(event.target),button=event.target.closest('button');
+ if(s&&button?.matches('[data-location-pick]')){void editLocation(s,button);return;}
+ if(!s||!button||!button.closest('.employee-configuration-drawer,[data-signing-configuration]'))return;
+ if(button.matches('[data-employee-app-add],[data-employee-app-connect],[data-employee-app-menu]'))return applicationAction(s,button);
  if(button.dataset.expand||button.dataset.reconnect)void pick(s,button.dataset.expand||button.dataset.reconnect);
  if(button.dataset.resourceRetry)void pickResource(s,button.dataset.resourceRetry,true);
  if(button.dataset.collectionCreate)void createCollection(s,button.dataset.collectionCreate);
@@ -543,6 +1053,250 @@ RunTeamsConfigurationFields.bindCredentialEditor(target=>{
  const s=current(target);return !painting&&s&&formFor(s)?.contains(target)?s:null;
 },(s,key,value)=>queueCredential(s,key,value),revealCredential);
 document.addEventListener('submit',event=>{const s=current(event.target);if(s&&event.target.id===formId(s)){event.preventDefault();capture(s);queueSave(s);}});
-window.addEventListener('runteams:business-scope-will-change',()=>{sessions.clear();active=null;});
-window.RunTeamsEmployeeConfiguration={workTarget,open,openConversation,mountInline,mountGroup,groupParts,toggleSection,embeddedSettings,inlineParts,holdInlineInput,restore,required,current,drawer,decorateHeader,capture,leave,close,closeState,read,save,receipt,resources};
+window.addEventListener('runteams:business-scope-will-change',()=>{if(document.querySelector('[data-employee-app-dialog]'))closeChildDialog();sessions.clear();active=null;});
+async function showOnboarding(panel){
+ const entry=workTarget(panel);
+ if(!entry||panel.messages?.length||panel.busy||panel.onboardingChecked)return;
+ panel.onboardingChecked=true;
+ const s=sessionFor(entry),selected=S.sel;
+ const currentPanel=()=>owned(s)&&S.conversationPanel===panel&&S.sel===selected&&!panel.messages?.length&&!panel.busy;
+ const seenKey='runteams.employee.onboarding:'+JSON.stringify([RunTeamsEmployeeDirectory.referenceKey(entry.reference),entry.definition_revision]);
+ const seen=()=>{try{return RunTeamsBusinessStorage.getItem(seenKey)==='1';}catch{return false;}};
+ let model;
+ try{
+  if(seen())return;
+  model=await request(s);
+  if(RunTeamsEmployeeDirectory.referenceKey(model?.reference)!==RunTeamsEmployeeDirectory.referenceKey(entry.reference)||model?.definition_revision!==entry.definition_revision)return;
+ }catch{panel.onboardingChecked=false;return;}
+ if(!currentPanel()||document.getElementById('modalHost')||document.getElementById('childModalHost')||seen()){panel.onboardingChecked=false;return;}
+ const all=model?.definition?.onboarding;
+ if(!Array.isArray(all)||!all.length)return;
+ const index=new Map(model.definition.groups.flatMap(group=>group.fields).map(field=>[field.key,field]));
+ const requirements=new Map((model.definition.application_requirements||[]).map(item=>[item.key,item]));
+ const appEntry=RunTeamsEmployeeDirectory.forPanel(panel);
+ const appSession=appEntry&&sessionFor(appEntry);
+ const connections=new Map(), candidates=new Map();
+ async function readCandidates(requirement){
+  const status=await accountComposioRequest({},'status');
+  if(!status.configured)throw Error(copy('appsSetupFirst','请先在工具设置中配置 Composio。'));
+  const {items}=await accountComposioRequest(status,'compatible-applications',{operations:requirement.operations,toolkit:requirement.toolkit||''});
+  return await Promise.all(items.map(async item=>{
+   const {accounts}=await accountComposioRequest(status,'accounts',{toolkit:item.slug});
+   return {row:{provider:'composio',id:item.slug,name:item.name,logo:item.logo},
+    accounts:accounts.filter(account=>account.status==='ACTIVE'&&!account.disabled)};
+  }));
+ }
+ if(appSession&&all.some(step=>step.application)){
+  try{
+   const migrated=await migrateEmployeeApplications(appEntry);
+   const result=migrated||await accountMcpTestRequest({action:'employee-apps-read',employee:employeeApplicationReference(appEntry)});
+   appSession.applications=result.applications;
+   for(const step of all.filter(item=>item.application)){
+    const requirement=requirements.get(step.application);
+    const bound=applications(appSession).filter(row=>row.provider==='composio'&&row.account?.id&&(!requirement.toolkit||requirement.toolkit===row.id));
+    if(!bound.length)continue;
+    const compatible=await readCandidates(requirement);candidates.set(step.application,compatible);
+    const chosen=bound.find(row=>compatible.some(candidate=>candidate.row.id===row.id&&candidate.accounts.some(account=>account.id===row.account.id)));
+    if(chosen)connections.set(step.application,chosen);
+   }
+  }catch{}
+ }
+ if(!currentPanel()||document.getElementById('modalHost')||document.getElementById('childModalHost')){panel.onboardingChecked=false;return;}
+ const initiallyConnected=new Set(connections.keys());
+ const visible=()=>{
+  const hasSetup=step=>step.questions.length||step.application;
+  const steps=all.map(step=>({...step,application:appSession&&!initiallyConnected.has(step.application)?step.application:null}))
+   .filter((step,i)=>step.application||step.questions.some(question=>['missing','needs_review'].includes(model.states[question.field]))||!hasSetup(all[i]));
+  return all.some(hasSetup)&&!steps.some(hasSetup)?[]:steps;
+ };
+ const empty=value=>value==null||typeof value==='string'&&!value.trim()||Array.isArray(value)&&!value.length;
+ const comparable=value=>empty(value)?null:Array.isArray(value)?JSON.stringify([...value].sort()):value;
+ const initialValues=steps=>Object.fromEntries(steps.flatMap(step=>step.questions)
+  .filter(question=>model.states[question.field]==='configured'&&Object.hasOwn(model.values||{},question.field))
+  .map(question=>[question.field,model.values[question.field]]));
+ let steps=visible(),position=0,base=initialValues(steps),values=structuredClone(base),errors={},busy=false,host=null,pending=null;
+ if(!steps.length)return;
+ const t=(key,text,vars={})=>window.RunTeamsLocale?.t('employeeOnboarding.'+key,vars,text)??text;
+ function finish(){
+  try{RunTeamsBusinessStorage.setItem(seenKey,'1');}catch{}
+  if(host?.isConnected)closeChildDialog();
+ }
+ function fields(){
+  return steps[position].questions.map(question=>({...index.get(question.field),label:question.prompt,
+   placeholder:question.placeholder,helpTooltip:false,showRequiredHint:false}));
+ }
+ const controls=RunTeamsConfigurationFields.create({
+  icon:ICON,idPrefix:'employee_onboarding_',
+  singleSelect:(id,items,selected,_change,{disabled,required,accessibleAttrs})=>'<select class="inp" id="'+esc(id)+'" data-key="'+esc(id.slice('employee_onboarding_'.length))+'" '+accessibleAttrs+
+   (disabled?' disabled':'')+(required?' aria-required="true"':'')+'><option value="">'+esc(t('choose','选一项'))+'</option>'+
+   items.map(({value,label})=>'<option value="'+esc(value)+'"'+(value===selected?' selected':'')+'>'+esc(label)+'</option>').join('')+'</select>'
+ });
+ function capture(){
+  if(!host?.isConnected)return;
+  for(const el of host.querySelectorAll('select[data-key]'))el.dataset.value=el.value;
+  values=controls.collect(fields(),host,values);
+ }
+ async function applicationPicker(requirement){
+  capture();
+  if(!currentPanel()||!host?.isConnected)return;
+  const title=t('chooseApp','选择应用');
+  const guide=host;
+  const options={className:'employee-app-picker employee-guide-app-picker',title,showClose:false,scrimHandler:'void 0',scrimClass:'employee-onboarding-scrim',
+   attrs:'role="dialog" aria-modal="true" aria-label="'+esc(title)+'"',
+   headerHtml:'<div class="employee-app-picker-heading"><div class="tt">'+esc(title)+'</div><p class="employee-app-picker-target">'+esc(requirement.label)+'</p></div>'+
+    '<button type="button" class="x modal-x" data-guide-picker-back aria-label="'+esc(t('back','上一步'))+'">'+ICON('x')+'</button>',
+   body:'<div class="employee-app-picker-scroll" data-guide-app-list></div><p data-guide-app-status role="status"></p>'};
+  replaceChildDialog(options);
+  const list=guide.querySelector('[data-guide-app-list]'),status=guide.querySelector('[data-guide-app-status]');
+  const current=()=>currentPanel()&&guide.isConnected&&list.isConnected;
+  const back=guide.querySelector('[data-guide-picker-back]');
+  back.onclick=paint;back.focus();
+  function showError(error){status.textContent=error;status.setAttribute('role','alert');}
+  async function bind(row,account){
+   if(!current())return;
+   for(const button of list.querySelectorAll('button'))button.disabled=true;
+   const next={...row,account:{id:account.id,name:account.name}};
+   try{
+    const result=await accountMcpTestRequest({action:'employee-apps-set',employee:employeeApplicationReference(appEntry),row:next,remove:false});
+    if(!current())return;
+    appSession.applications=result.applications;
+   }finally{
+    for(const button of list.querySelectorAll('button'))button.disabled=false;
+   }
+   connections.set(requirement.key,next);
+   errors={};
+   paint();
+  }
+  function rowMarkup(row,detail,action){
+   return '<div class="employee-app-picker-row">'+applicationMark(row)+'<span class="employee-application-name"><strong>'+esc(row.name)+'</strong><small>'+
+    esc(detail)+'</small></span><div class="employee-app-picker-action"><button type="button" class="btn">'+esc(action)+'</button></div></div>';
+  }
+  try{
+   status.textContent=t('loadingApps','正在读取可用应用…');
+   const compatible=candidates.get(requirement.key)||await readCandidates(requirement);
+   if(!current())return;
+   status.textContent='';
+   if(!compatible.length){status.textContent=t('noApps','暂时没有符合要求的应用。');return;}
+   const actions=[];
+   const markup=[];
+   for(const {row,accounts} of compatible){
+    for(const account of accounts){
+     markup.push(rowMarkup(row,account.name,t('useApp','使用')));
+     actions.push(()=>bind(row,account).catch(error=>{if(current())showError(error.message);}));
+    }
+    if(accounts.length)continue;
+    markup.push(rowMarkup(row,t('newAccount','连接新账号'),t('connectApp','连接')));
+    actions.push(()=>connectEmployeeComposio(appSession,row,true,{
+     current,complete:account=>bind(row,account),error:showError,
+     status:state=>{
+      if(!current())return;
+      for(const button of list.querySelectorAll('button'))button.disabled=!!state;
+      if(!state)return;
+      status.textContent=copy(state.label.key,state.label.fallback);
+      if(state.url){
+       const link=document.createElement('a');link.href=state.url;link.target='_blank';link.rel='noopener noreferrer';
+       link.textContent=toolsText('composioAuthorize','前往授权');status.append(' ',link);
+      }
+     }
+    }));
+   }
+   list.innerHTML=markup.join('');
+   [...list.querySelectorAll('button')].forEach((button,i)=>button.onclick=actions[i]);
+  }catch(error){if(current())showError(error.message);}
+ }
+ function paint(){
+  if(!currentPanel())return;
+  const step=steps[position],last=position===steps.length-1,application=requirements.get(step.application),connection=connections.get(step.application);
+  const progress=steps.length>1?'<div class="employee-onboarding-progress" aria-label="'+
+   esc(t('step','第 {current} 步，共 {total} 步',{current:position+1,total:steps.length}))+'" role="img">'+
+   steps.map((_,i)=>'<span aria-hidden="true"'+(i<=position?' class="is-reached"':'')+'></span>').join('')+'</div>':'';
+  const buttons=(position?'<button type="button" class="btn ghost" data-guide-back>'+esc(t('back','上一步'))+'</button>':'')+
+   '<div class="grow"></div>'+(step.questions.length||application||steps.length>1?'<button type="button" class="btn ghost" data-guide-skip>'+esc(t('later','稍后再说'))+'</button>':'')+
+   '<button type="button" class="btn pri" data-guide-next>'+esc(busy?t('saving','保存中…'):errors._form?t('retry','重新保存'):!last?t('next','下一步'):steps.some(row=>row.questions.length)?t('start','开始使用'):application?t('finish','完成'):t('done','知道了'))+'</button>';
+  const options={attrs:'role="dialog" aria-modal="true" aria-labelledby="employee-onboarding-title"'+
+   (step.description?' aria-describedby="employee-onboarding-description"':''),showClose:false,
+   scrimHandler:'void 0',closeOnScrim:false,className:'employee-onboarding-dialog',scrimClass:'employee-onboarding-scrim',
+   headerHtml:progress||null,
+   body:'<div class="employee-onboarding-intro"><h2 id="employee-onboarding-title">'+esc(step.title)+'</h2>'+
+    (step.description?'<p id="employee-onboarding-description">'+esc(step.description)+'</p>':'')+'</div>'+
+    fields().map(field=>controls.field({...field,disabled:busy},values[field.key],errors[field.key])).join('')+
+    (application?'<div class="employee-onboarding-connection">'+(connection?'<span>'+esc(connection.account.name)+'</span>':'')+
+     '<button type="button" class="btn" data-guide-application>'+esc(connection?t('changeApp','更换连接'):application.label)+'</button></div>':'')+
+    (errors._form?'<p role="alert" class="error">'+esc(errors._form)+'</p>':''),footer:buttons};
+  if(host?.isConnected)replaceChildDialog(options);
+  else{
+   host=openChildDialog({...options,manageFocus:true});
+   host.addEventListener('keydown',event=>{
+    if(event.isComposing||busy)return;
+    if(event.key==='Escape'){
+     event.preventDefault();event.stopPropagation();
+     const pickerBack=host.querySelector('[data-guide-picker-back]');
+     if(pickerBack)pickerBack.click();else finish();
+    }
+    if(event.key==='Enter'&&event.target.matches('input[type="text"]')){
+     event.preventDefault();host.querySelector('[data-guide-next]')?.click();
+    }
+   });
+  }
+  for(const button of host.querySelectorAll('button'))button.disabled=busy;
+  const onBack=host.querySelector('[data-guide-back]'),onSkip=host.querySelector('[data-guide-skip]');
+  if(onBack)onBack.onclick=()=>{capture();position--;paint();};
+  if(onSkip)onSkip.onclick=finish;
+  const next=host.querySelector('[data-guide-next]');
+  next.onclick=advance;
+  if(application&&!connection)next.disabled=true;
+  const appButton=host.querySelector('[data-guide-application]');
+  if(appButton)appButton.onclick=()=>applicationPicker(application);
+  (host.querySelector('[aria-invalid="true"]')||host.querySelector('input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [data-guide-application], [data-guide-next]:not([disabled])'))?.focus();
+ }
+ async function advance(){
+  if(busy||!currentPanel())return;
+  capture();
+  if(steps[position].application&&!connections.has(steps[position].application))return;
+  errors={};
+  for(const f of fields())if(f.required&&empty(values[f.key]))errors[f.key]=
+   ['select','multiselect','checklist'].includes(f.type)?t('missingChoice','请至少选一项。'):t('missingText','这项还没填。');
+  if(Object.keys(errors).length){paint();return;}
+  if(position<steps.length-1){position++;paint();return;}
+  const supplied=Object.fromEntries(Object.entries(values).filter(([key,value])=>comparable(value)!==comparable(base[key]))
+   .map(([key,value])=>[key,empty(value)?null:value]));
+  if(!Object.keys(supplied).length){finish();return;}
+  const prior=JSON.stringify(supplied);
+  if(!pending||pending.valuesKey!==prior)pending={valuesKey:prior,body:{action:'save-onboarding',operation_id:crypto.randomUUID(),
+   expected_revision:model.revision,definition_sha256:model.definition_sha256,values:supplied}};
+  busy=true;paint();
+  try{
+   const saved=await request(s,'POST',pending.body);
+   if(!s.loading&&!s.saving&&!s.pending&&!s.draft&&!s.resourcePending&&(!s.data||saved.revision>=s.data.revision))accept(s,saved);
+   if(currentPanel())finish();
+  }catch(error){
+   if(!currentPanel())return;
+   errors=error.fields||{_form:error.uiMessage?.fallback||error.message};
+   if(error.status===409){
+    try{
+     const fresh=await request(s);
+     if(!currentPanel())return;
+     if(fresh.definition_sha256!==model.definition_sha256){errors={_form:t('changed','引导内容已更新，请重新打开员工。')};return;}
+     const previousBase=base;
+     model=fresh;
+     steps=visible();base=initialValues(steps);pending=null;
+     const keys=new Set(steps.flatMap(step=>step.questions.map(question=>question.field)));
+     values={...base,...Object.fromEntries(Object.entries(supplied).filter(([key])=>keys.has(key)&&
+      comparable(base[key])===comparable(previousBase[key])))};
+     if(!steps.length){finish();return;}
+     position=Math.min(position,steps.length-1);
+     errors={_form:t('settingsUpdated','员工设置已更新。请核对当前内容后继续。')};
+    }catch{}
+   }
+   const errorStep=steps.findIndex(step=>step.questions.some(question=>errors[question.field]));
+   if(errorStep!==-1)position=errorStep;
+  }finally{
+   busy=false;
+   if(host?.isConnected&&currentPanel())paint();
+  }
+ }
+ paint();
+}
+
+window.RunTeamsEmployeeConfiguration={showOnboarding,prepareApplications,workTarget,open,openConversation,mountInline,mountGroup,groupParts,toggleSection,embeddedSettings,inlineParts,holdInlineInput,restore,required,current,drawer,decorateHeader,capture,leave,close,closeState,read,save,receipt,resources};
 })();

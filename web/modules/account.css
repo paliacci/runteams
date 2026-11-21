@@ -871,3 +871,57 @@ body:has(#settingsToolsAdd[aria-expanded="true"])>#popmenu.settings-select-menu 
 /* Settings finance shares the settings shell, type scale and semantic colors. */
 
 /* Empty finance lists use the shared illustration; unknown lists keep their row skeleton. */
+
+[data-mcp-tests] .settings-tools-heading { margin-bottom: 20px; }
+.settings-mcp-connection { border-top: 1px solid var(--line); }
+.account-settings-page .settings-mcp-connection .settings-tool-row { min-height: 68px; padding-inline: 0; }
+.settings-mcp-connection h3 { margin: 0; }
+.settings-mcp-connection .settings-tool-identity { min-width: 0; }
+.settings-mcp-connection .settings-tool-description { overflow-wrap: anywhere; }
+.settings-mcp-connection .settings-tool-actions { flex-wrap: wrap; justify-content: flex-end; }
+.settings-mcp-connection .settings-footnote { margin-block: 8px 14px; }
+.settings-mcp-tools { margin: 0 0 16px 44px; }
+.settings-mcp-tool { border-top: 1px solid var(--line); padding: 12px 0; }
+.settings-mcp-tool-heading, .settings-mcp-run { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.settings-mcp-tool-heading > div { min-width: 0; overflow-wrap: anywhere; }
+.settings-mcp-tool-heading p { color: var(--text-muted); margin: 3px 0 0; font-size: 12px; }
+.settings-mcp-tool-heading button, .settings-mcp-run button { flex-shrink: 0; }
+.settings-mcp-arguments form, .settings-mcp-connection-form { display: grid; gap: 12px; }
+.settings-mcp-arguments form { margin-top: 12px; }
+.settings-mcp-arguments label, .settings-mcp-connection-form label { display: grid; gap: 6px; font-size: 13px; }
+.settings-mcp-arguments textarea, .settings-mcp-connection-form input {
+ width: 100%; min-width: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px;
+ color: inherit; background: var(--surface-secondary, transparent); font: inherit;
+}
+.settings-mcp-arguments textarea, .settings-mcp-arguments pre { font-family: ui-monospace, monospace; }
+.settings-mcp-arguments textarea { resize: vertical; }
+.settings-mcp-arguments pre { max-height: 220px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; margin: 8px 0; }
+.settings-mcp-arguments summary { cursor: pointer; font-size: 12px; }
+.settings-mcp-run { justify-content: flex-end; }
+.settings-mcp-run .settings-footnote, .settings-mcp-connection-form p { margin: 0; }
+.settings-mcp-result:not(:empty) { margin-top: 12px; font-size: 13px; }
+@media (max-width: 620px) {
+ .account-settings-page .settings-mcp-connection .settings-tool-row { gap: 8px; }
+ .settings-mcp-connection .settings-tool-actions { min-width: min-content; }
+ .settings-mcp-tools { margin-left: 0; }
+ .settings-mcp-run { flex-wrap: wrap; }
+}
+
+.settings-composio-search { display: flex; gap: 8px; margin: 18px 0 12px; }
+.settings-composio-search input { min-width: 0; flex: 1; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--text); padding: 9px 12px; font: inherit; }
+.settings-composio-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.settings-composio-quick { margin-bottom: 16px; }
+.settings-composio-accounts { border-block: 1px solid var(--line); padding: 14px 0; }
+.settings-composio-accounts label { display: grid; gap: 6px; margin-top: 14px; font-size: 13px; }
+.settings-composio-accounts select { min-width: 0; max-width: 100%; background: var(--surface); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 8px; }
+.settings-composio-disconnect { margin-top: 28px; }
+#settingsComposio .settings-tool-row { align-items: flex-start; gap: 12px; }
+#settingsComposio .settings-tool-row > .btn { flex-shrink: 0; }
+#settingsComposio .settings-tool-description { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; margin: 4px 0; }
+#settingsComposio .settings-tools-heading { margin-top: 14px; }
+#settingsComposio .settings-mcp-result pre { max-height: 360px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+@media(max-width:600px) {
+ #settingsComposio .settings-tool-row { flex-wrap: wrap; }
+ #settingsComposio .settings-tool-row > .btn { margin-left: 44px; }
+ #settingsComposio .settings-tools-heading { flex-wrap: wrap; gap: 10px; }
+}

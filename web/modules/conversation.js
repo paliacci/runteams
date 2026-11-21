@@ -25,28 +25,28 @@ function conversationMaterialHint(item,kind){
   return String(item.hint||`选择${kind}，也可以拖入或粘贴。`).trim().replace(/^请(?:先)?选择/u,'选择').replace(/项目根目录/gu,'项目文件夹').replace(/也可(?!以)/gu,'也可以');
 }
 
-/* module-function:conversationExampleMaterialsMarkup */
-function conversationExampleMaterialsMarkup(surface){
-  const panel=S.conversationPanel;if(surface!=='panel'||!panel?.example_materials)return '';
-  const rows=conversationExampleMaterialRows(panel);if(!rows.length)return '';
-  const vars=values=>` data-app-i18n-vars="${esc(JSON.stringify(values))}"`;
-  const copy=(key,label)=>`<span data-app-i18n="employeeMaterial.${key}">${esc(label)}</span>`;
-  const row=item=>{
-    const folder=item.type==='folder',kind=folder?'文件夹':'文件',label=item.label||item.name,selected=item.selected;
-    const choice=!selected&&item.candidates.length?`<select aria-label="为「${esc(label)}」选择已添加的资料" data-app-i18n-aria-label="employeeMaterial.useExistingFor"${vars({name:label})} onchange="assignConversationExampleMaterial(${item.index},this.value)"><option value="" data-app-i18n="employeeMaterial.useExisting">使用已添加的资料</option>${item.candidates.map(ref=>`<option value="${Number(ref.grant_id)}">${esc(ref.name)}</option>`).join('')}</select>`:'';
-    const hint=selected?`<span>${esc(selected.name)}</span>`:String(item.hint||'').trim()?`<span>${esc(conversationMaterialHint(item,kind))}</span>`:copy(folder?'folderHint':'fileHint',conversationMaterialHint(item,kind));
-    const action=selected?copy('replace','更换'):copy(folder?'chooseFolder':'chooseFile',`选择${kind}`);
-    return `<div class="example-material-row${panel.example_materials_error&&item.required&&!selected?' is-missing':''}" data-example-material="${item.index}"><div><b>${esc(label)}${item.required?'':'<small data-app-i18n="employeeMaterial.optional">可选</small>'}</b>${hint}</div>${choice}<button type="button" class="btn ghost sm" ${panel.busy||panel.example_materials_picking?'disabled':''} onclick="pickConversationExampleMaterial(${item.index})">${ICON(selected?'folder':'plus')}${action}</button></div>`;
-  };
-  const error=panel.example_materials_error;
-  const errorKeys=new Map([
-    ['请在这台电脑上的 RunTeams 桌面端选择资料。','desktopOnly'],
-    ['请选择文件夹。','wrongFolder'],['请选择文件。','wrongFile'],['资料未添加，请重试。','pickFailed']
-  ]);
-  const missing=error?.startsWith('请先选择')&&rows.filter(item=>item.required&&!item.selected);
-  const names=missing?missing.map(item=>item.label||item.name).join('、'):'';
-  const errorKey=names?'missing':errorKeys.get(error);
-  return `<section class="example-materials" aria-label="这项工作需要的资料" data-app-i18n-aria-label="employeeMaterial.materials"><div class="example-materials-head">${copy('addFirst','先添加工作资料')}<button type="button" aria-label="取消资料选择" data-app-i18n-aria-label="employeeMaterial.cancel" onclick="clearConversationExampleMaterials()">${ICON('x')}</button></div>${rows.map(row).join('')}${error?`<p class="example-material-error" role="alert"${errorKey?` data-app-i18n="employeeMaterial.${errorKey}"`:""}${names?vars({names}):""}>${esc(error)}</p>`:""}</section>`;
+/* module-function:conversationExampleMaterialMenuItems */
+function conversationExampleMaterialMenuItems(panel){
+  const items=[];
+  for(const row of conversationExampleMaterialRows(panel)){
+    const folder=row.type==='folder',label=row.label||row.name;
+    const optional=globalThis.RunTeamsLocale?.t('employeeMaterial.optional',{},'可选')||'可选';
+    items.push({head:true,label:row.required?label:`${label} · ${optional}`});
+    const choose=folder?'chooseFolder':'chooseFile';
+    items.push({
+      label:row.selected?'更换':folder?'选择文件夹':'选择文件',
+      labelKey:'employeeMaterial.'+(row.selected?'replace':choose),
+      icon:folder?'folder':'paperclip',disabled:panel.busy||panel.example_materials_picking,
+      description:row.selected?.name||(row.hint?conversationMaterialHint(row,folder?'文件夹':'文件'):''),
+      fn:()=>pickConversationExampleMaterial(row.index)
+    });
+    if(!row.selected)for(const ref of row.candidates){
+      items.push({label:ref.name,description:'使用已添加的资料',descriptionKey:'employeeMaterial.useExisting',
+        icon:folder?'folder':'paperclip',disabled:panel.busy,fn:()=>assignConversationExampleMaterial(row.index,ref.grant_id)});
+    }
+  }
+  if(items.length)items.push({label:'取消资料选择',labelKey:'employeeMaterial.cancel',icon:'x',disabled:panel.busy,fn:clearConversationExampleMaterials});
+  return items;
 }
 
 /* module-function:conversationExampleBindings */
@@ -58,8 +58,18 @@ function conversationEmployeeGuidance(panel){
  const entry=RunTeamsEmployeeDirectory.forPanel(panel),employee=panel.employee_binding||entry?.record;
  if(panel.guidanceError||panel.guidanceReading)return {loading:true,error:panel.guidanceError,unconfirmed:true};
  if(!employee)return null;
- const works=(employee.skills||[]).map(skill=>({...skill,package_key:skill.package_key||skill.key})),snapshot=panel.context?.local_employee_package||employee.active_release||panel.employee_binding;
- return {employee,snapshot,works,examples:workExampleItems(works),unconfirmed:false};
+ return {employee,unconfirmed:false};
+}
+
+function conversationEmployeeExamples(panel,guidance=conversationEmployeeGuidance(panel)){
+ const entry=RunTeamsEmployeeDirectory.forPanel(panel);
+ const works=guidance?.employee?.skills??entry?.source?.capabilities??panel.authoringCapabilities??[];
+ return guidance?.loading?[]:workExampleItems(works).slice(0,3);
+}
+
+function conversationExampleIcon(icon){
+  if(typeof icon==='string'&&/^[a-z][a-z0-9-]{0,47}$/.test(icon)&&document.getElementById('i-'+icon)?.localName==='symbol')return icon;
+  return 'spark';
 }
 
 /* module-function:conversationNewAction */
@@ -77,20 +87,23 @@ function conversationNewEmpty({actions='',notice='',noticeKey='',extra='',compos
 }
 
 /* module-function:conversationEmployeeEmpty */
-function conversationEmployeeEmpty(guidance,composer){
-  if(guidance.loading){
+function conversationEmployeeEmpty(panel,guidance,composer){
+  if(guidance?.loading){
     const retry='ensureConversationEmployeeGuidance(true)';
     const feedback=RunTeamsLoadFailure.pending(retry)||(guidance.error?RunTeamsLoadFailure.markup({
       variant:'local',compact:true,title:'无法读取员工信息',titleKey:'employeeChat.guidanceFailed',
       label:'重试',labelKey:'conversationDetail.retry',busyLabelKey:'employeeChat.guidanceLoading',error:guidance.error,retry
     }):'');
     const extra=feedback?`<div class="conversation-new-actions">${feedback}</div>`:RunTeamsStaticPages.conversationWelcomeOptions('employee');
-    return conversationNewEmpty({title:'你想交办什么工作？',titleKey:'employeeChat.emptyTitle',extra,composer});
+    return conversationNewEmpty({title:'想交办什么工作？',titleKey:'employeeChat.emptyTitle',extra,composer});
   }
-  const {snapshot,examples}=guidance;
-  const row=(example,index)=>conversationNewAction(example.title,`conversationPanelWorkExample(decodeURIComponent('${encodeURIComponent(JSON.stringify(example)).replace(/'/g,'%27')}'))`,'doc',workExamplePreview(example.prompt),index);
-  const more=examples.length>2?`<details class="conversation-more-examples"><summary><span class="work-examples-closed" data-app-i18n="employeeChat.moreExamples">更多工作示例</span><span class="work-examples-open" data-app-i18n="employeeChat.hideExamples">收起工作示例</span>${ICON('chev')}</summary><div class="conversation-new-actions">${examples.slice(2).map((example,index)=>row(example,index+2)).join('')}</div></details>`:'';
-  return conversationNewEmpty({title:'你想交办什么工作？',titleKey:'employeeChat.emptyTitle',notice:examples.length?'':'描述你想交办的工作，并补充必要资料。',noticeKey:'employeeChat.noExamples',actions:snapshot?examples.slice(0,2).map(row).join(''):'',extra:snapshot?more:'',composer});
+  if(panel.kind==='employee_design'&&panel.context?.creator_local_source_id&&!panel.authoringCapabilities&&
+     !RunTeamsEmployeeDirectory.forPanel(panel)&&RunTeamsEmployeeDirectory.isLoading()){
+    return conversationNewEmpty({title:'想交办什么工作？',titleKey:'employeeChat.emptyTitle',extra:RunTeamsStaticPages.conversationWelcomeOptions('employee'),composer});
+  }
+  const examples=conversationEmployeeExamples(panel,guidance);
+  const row=(example,index)=>conversationNewAction(example.title,`conversationPanelWorkExample(decodeURIComponent('${encodeURIComponent(JSON.stringify(example)).replace(/'/g,'%27')}'))`,conversationExampleIcon(example.icon),workExamplePreview(example.prompt),index);
+  return conversationNewEmpty({title:'想交办什么工作？',titleKey:'employeeChat.emptyTitle',actions:examples.map(row).join(''),composer});
 }
 
 /* module-function:conversationDisplayMessages */
@@ -185,7 +198,7 @@ function agentWorkActionContext(step){
   const join=values=>{const items=[...new Set(values.filter(Boolean))];return items.length?{items:items.slice(0,2),count:items.length}:'';};
   const result={label:agentWorkStepLabel(step),target:''};
   if(native==='runteams_creator_source'){
-    const schemas={employee:target('employeeSchema','员工规范'),skill:target('skillSchema','技能规范'),pipeline:target('pipelineSchema','流水线规范'),project:target('projectSchema','项目规范')},references={project:target('projectStructure','项目结构'),dependencies:target('dependencies','依赖约定'),authoring:target('authoring','创作指南')};
+    const schemas={employee:target('employeeSchema','员工规范'),skill:target('skillSchema','技能规范'),pipeline:target('pipelineSchema','智能体团队规范'),project:target('projectSchema','项目规范')},references={project:target('projectStructure','项目结构'),dependencies:target('dependencies','依赖约定'),authoring:target('authoring','创作指南')};
     if(args.action==='schema')result.target=Object.hasOwn(schemas,args.kind)?schemas[args.kind]:'';
     else if(args.action==='reference')result.target=Object.hasOwn(references,args.kind)?references[args.kind]:'';
     else if(args.action==='submit'){
@@ -193,7 +206,7 @@ function agentWorkActionContext(step){
     }else if(args.action==='import')result.target=basename(args.path);
     return result;
   }
-  const subjects={runteams_get_context:target('workContext','当前工作上下文'),runteams_get_environment:target('workEnvironment','工作环境'),runteams_get_employee:target('employeeInfo','员工资料'),runteams_get_task:target('taskInfo','任务资料'),runteams_get_pipeline:target('pipelineInfo','流水线资料'),runteams_list_pipelines:target('pipelineList','流水线目录')};
+  const subjects={runteams_get_context:target('workContext','当前工作上下文'),runteams_get_environment:target('workEnvironment','工作环境'),runteams_get_employee:target('employeeInfo','员工资料'),runteams_get_task:target('taskInfo','任务资料'),runteams_get_pipeline:target('pipelineInfo','智能体团队资料'),runteams_list_pipelines:target('pipelineList','智能体团队目录')};
   if(subjects[native]){result.label='查看资料';result.target=subjects[native];return result;}
   const actions=Array.isArray(meta.commandActions)?meta.commandActions:[];
   if(info.category==='read'){
@@ -396,7 +409,7 @@ function agentTraceMarkup(trace,streaming,surface=null,stopping=false,hasReply=f
     const hasRunning=(trace.steps||[]).some(step=>(step.status||'running')==='running');
     return `<div class="agent-work-stream" aria-label="工作过程" data-app-i18n-aria-label="conversationDetail.workStream">${rows}${!waiting&&(!hasRunning||stopping||trace.runtimeStatus?.phase==='compacting')&&(!hasReply||stopping||trace.runtimeStatus?.phase==='compacting')?conversationWaitingMarkup(status,trace.startedAt,statusKey):''}</div>`;
   }
-  const answered=(trace.requests||[]).map(request=>`<div class="agent-question-record">${request.questions.map(q=>`<p><b>${esc(q.question)}</b><span>${esc((request.answers?.[q.id]?.answers||[]).join('、'))}</span></p>`).join('')}</div>`).join('');
+  const answered=(trace.requests||[]).map(request=>`<div class="agent-question-record">${request.questions.map(q=>`<p><b>${esc(conversationQuestionText(q))}</b><span>${esc((request.answers?.[q.id]?.answers||[]).join('、'))}</span></p>`).join('')}</div>`).join('');
   if(!rows&&!answered)return '';
   if(trace.cancelled||trace.failed||trace.complete!==true)return `<div class="agent-work-stream">${rows}${answered}</div>`;
   const duration=seconds===null?'':agentTraceLocalizedDuration(seconds);
@@ -410,6 +423,21 @@ function conversationApplyInteractionEvent(message,event){
   if(event.kind==='runtime_status'){
     if(event.active)trace.runtimeStatus={phase:event.phase,id:event.id};
     else if(trace.runtimeStatus?.id===event.id){trace.runtimeStatus=null;trace.current='';}
+    return true;
+  }
+  if(event.kind==='employee_app_authorization'){
+    try{
+      const url=new URL(event.url);
+      if(['https://connect.composio.dev','https://app.composio.dev'].includes(url.origin)&&
+         url.pathname.startsWith('/link/')&&!url.username&&!url.password&&typeof event.app==='string')
+        trace.employeeAppAuthorization={id:event.id,app:event.app,url:url.href,state:'waiting',opened:event.opened===true};
+    }catch{}
+    return true;
+  }
+  if(event.kind==='employee_app_authorization_closed'){
+    if(['connected','expired','interrupted'].includes(event.state)&&typeof event.app==='string')
+      trace.employeeAppAuthorization={id:event.id,app:event.app,state:event.state};
+    else if(trace.employeeAppAuthorization?.id===event.id)trace.employeeAppAuthorization=null;
     return true;
   }
   if(event.kind==='provider_error'){trace.providerError={code:event.code,willRetry:event.will_retry===true};return true;}
@@ -439,11 +467,35 @@ function conversationQuestionState(message,request){
   return message.questionDraft;
 }
 
+/* module-function:conversationQuestionText */
+function conversationQuestionText(q){
+  if(q.id!=='external-app-action')return q.question;
+  const raw=String(q.question||''),heading=raw.split(/\r?\n/,1)[0];
+  const separator=heading.indexOf(' · ');
+  const app=separator>0?heading.slice(0,separator).trim().slice(0,120):'';
+  const action=separator>0?heading.slice(separator+3).trim():'';
+  const label=(key,vars,fallback)=>globalThis.RunTeamsLocale?.t('conversationQuestion.'+key,vars,fallback)??fallback;
+  if(app&&action==='List repositories for the authenticated user'){
+    let args;
+    try{args=JSON.parse(raw.slice(heading.length).trim());}catch{}
+    const count=args?.per_page;
+    if(Number.isInteger(count)&&count>0&&count<=100&&args.sort==='updated'&&args.direction==='desc'&&args.type==='all')
+      return label('appListRecentRepositories',{app,count},`查看 ${app} 可访问的仓库，按最近更新时间取前 ${count} 个`);
+    return label('appListRepositories',{app},`查看 ${app} 可访问的仓库`);
+  }
+  return app?label('appOperation',{app},`使用 ${app} 执行操作`):label('appOperationGeneric',{},'执行应用操作');
+}
+
+/* module-function:conversationQuestionPrompt */
+function conversationQuestionPrompt(q){
+  return q.id==='external-app-action'?esc(conversationQuestionText(q)):renderMarkdown(q.question);
+}
+
 /* module-function:conversationQuestionCard */
 function conversationQuestionCard(message,index,surface){
   return (message.trace?.requests||[]).map(request=>{
     if(request.status!=='pending'||!message.streaming)return '';
-    return `<div class="agent-question-entry"><div class="agent-question-prompt">${request.questions.map(q=>renderMarkdown(q.question)).join('')}</div><button type="button" class="agent-question-reopen" onclick="conversationQuestionOpen('${surface}',${index},'${esc(request.id)}')">${ICON('question')}<span data-app-i18n="conversationQuestion.answer">回答问题</span></button></div>`;
+    return `<div class="agent-question-entry"><div class="agent-question-prompt">${request.questions.map(conversationQuestionPrompt).join('')}</div><button type="button" class="agent-question-reopen" onclick="conversationQuestionOpen('${surface}',${index},'${esc(request.id)}')">${ICON('question')}<span data-app-i18n="conversationQuestion.answer">回答问题</span></button></div>`;
   }).join('');
 }
 
@@ -466,9 +518,23 @@ function conversationQuestionDock(surface){
 /* module-function:conversationDockCard */
 function conversationDockCard(message,index,surface,request){
   const state=conversationQuestionState(message,request),page=Math.min(state.page,request.questions.length-1),q=request.questions[page],options=q.options||[],selected=state.selected[q.id]||[],locked=state.sending,count=request.questions.length,valid=!!(selected.length||String(state.custom[q.id]||'').trim());
-  const rows=options.map((option,oi)=>`<button type="button" class="agent-question-option${selected.includes(oi)?' selected':''}" role="${q.multiSelect?'checkbox':'radio'}" aria-checked="${selected.includes(oi)}" ${locked?'disabled':''} onclick="conversationQuestionSelect('${surface}',${index},${oi})"><span class="agent-question-number" aria-hidden="true">${oi+1}</span><span class="agent-question-option-copy"><b>${esc(option.label)}</b>${option.description?`<small>${esc(option.description)}</small>`:''}</span><span class="agent-question-check" aria-hidden="true">${selected.includes(oi)?ICON(q.multiSelect?'check':'arrow'):''}</span></button>`).join('');
+  const overview=surface==='panel'&&window.RunTeamsAssetOverview?.employee();
+  const optionRows=(q,page)=>{
+    const options=q.options||[],selected=state.selected[q.id]||[];
+    return options.map((option,oi)=>`<button type="button" class="agent-question-option${selected.includes(oi)?' selected':''}" role="${q.multiSelect?'checkbox':'radio'}" aria-checked="${selected.includes(oi)}" ${locked?'disabled':''} onclick="conversationQuestionSelect('${surface}',${index},${oi},${page})"><span class="agent-question-number" aria-hidden="true">${oi+1}</span><span class="agent-question-option-copy"><b>${esc(option.label)}</b>${option.description?`<small>${esc(option.description)}</small>`:''}</span><span class="agent-question-check" aria-hidden="true">${selected.includes(oi)?ICON(q.multiSelect?'check':'arrow'):''}</span></button>`).join('');
+  };
+  const rows=optionRows(q,page);
   const errorKey=state.error==="请先选择或填写答案"?"required":state.error==="请回答这个问题"?"missing":state.error==="暂时无法确认答案是否已提交，可原样重试。"?"unknown":"";
-  return `<section class="agent-question-card agent-question-docked ${options.length?'has-options':'is-free-input'}" data-question-id="${esc(request.id)}" data-question-page="${page}" aria-label="问题" data-app-i18n-aria-label="conversationQuestion.title" onkeydown="conversationQuestionKeydown(event,'${surface}',${index})"><header class="agent-question-head">${ICON('question')}<span><span data-app-i18n="conversationQuestion.title">问题</span>${count>1?` ${page+1} / ${count}`:''}</span><button type="button" class="agent-question-dismiss" aria-label="收起问题" data-app-i18n-aria-label="conversationQuestion.dismiss" ${locked?'disabled':''} onclick="conversationQuestionCollapse('${surface}',${index})">${ICON('x')}</button></header><div class="agent-question-scroll"><div class="agent-question-title">${renderMarkdown(q.question)}</div>${rows?`<div class="agent-question-options" role="${q.multiSelect?'group':'radiogroup'}" aria-label="${esc(q.question)}">${rows}</div>`:''}${!options.length?`<label class="agent-question-custom">${conversationQuestionInput(q,state.custom[q.id]||'',surface,index,locked)}</label>`:''}</div>${state.error?`<p class="agent-question-error" role="alert"${errorKey?` data-app-i18n="conversationQuestion.${errorKey}"`:""}>${esc(state.error)}</p>`:''}<footer class="agent-question-foot">${options.length?`<label class="agent-question-custom is-inline">${ICON('edit')}${conversationQuestionInput(q,state.custom[q.id]||'',surface,index,locked)}</label>`:'<span></span>'}<div>${page>0?`<button type="button" class="agent-question-back" ${locked?'disabled':''} onclick="conversationQuestionPage('${surface}',${index},${page-1})" data-app-i18n="conversationQuestion.back">上一步</button>`:''}<button type="button" class="agent-question-back" ${locked?'disabled':''} onclick="conversationQuestionCollapse('${surface}',${index})" data-app-i18n="conversationQuestion.skip">跳过</button><button type="button" class="agent-question-submit" ${locked||!valid?'disabled':''} aria-busy="${locked}" onclick="conversationQuestionSubmit('${surface}',${index})">${locked?conversationProgressLabel('发送中',false,'conversationQuestion.sending'):`<span data-app-i18n="conversationQuestion.${page<count-1?'next':'send'}">${page<count-1?'下一步':'发送'}</span>`}</button></div></footer></section>`;
+  if(overview){
+    const groups=request.questions.map((question,i)=>{
+      const options=optionRows(question,i);
+      const field=conversationQuestionInput(question,state.custom[question.id]||'',surface,index,locked,i);
+      return `<div class="overview-question" data-answer-index="${i}"><div class="agent-question-title">${conversationQuestionPrompt(question)}</div>${options?`<div class="agent-question-options" role="${question.multiSelect?'group':'radiogroup'}" aria-label="${esc(conversationQuestionText(question))}">${options}</div>`:''}<label class="agent-question-custom${options?' is-inline':''}">${field}</label></div>`;
+    }).join('');
+    const complete=request.questions.every(item=>state.selected[item.id]?.length||String(state.custom[item.id]||'').trim());
+    return `<section class="agent-question-card agent-question-docked" data-question-id="${esc(request.id)}">${groups}${state.error?`<p class="agent-question-error" role="alert">${esc(state.error)}</p>`:''}<footer class="agent-question-foot"><button type="button" class="agent-question-submit" ${locked||!complete?'disabled':''} aria-busy="${locked}" onclick="conversationQuestionSubmit('${surface}',${index})">${locked?conversationProgressLabel('发送中',false,'conversationQuestion.sending'):'<span data-app-i18n="assetOverview.submit">提交此项</span>'}</button></footer></section>`;
+  }
+  return `<section class="agent-question-card agent-question-docked ${options.length?'has-options':'is-free-input'}" data-question-id="${esc(request.id)}" data-question-page="${page}" aria-label="问题" data-app-i18n-aria-label="conversationQuestion.title" onkeydown="conversationQuestionKeydown(event,'${surface}',${index})"><header class="agent-question-head">${ICON('question')}<span><span data-app-i18n="conversationQuestion.title">问题</span>${count>1?` ${page+1} / ${count}`:''}</span><button type="button" class="agent-question-dismiss" aria-label="收起问题" data-app-i18n-aria-label="conversationQuestion.dismiss" ${locked?'disabled':''} onclick="conversationQuestionCollapse('${surface}',${index})">${ICON('x')}</button></header><div class="agent-question-scroll"><div class="agent-question-title">${conversationQuestionPrompt(q)}</div>${rows?`<div class="agent-question-options" role="${q.multiSelect?'group':'radiogroup'}" aria-label="${esc(conversationQuestionText(q))}">${rows}</div>`:''}${!options.length?`<label class="agent-question-custom">${conversationQuestionInput(q,state.custom[q.id]||'',surface,index,locked)}</label>`:''}</div>${state.error?`<p class="agent-question-error" role="alert"${errorKey?` data-app-i18n="conversationQuestion.${errorKey}"`:""}>${esc(state.error)}</p>`:''}<footer class="agent-question-foot">${options.length?`<label class="agent-question-custom is-inline">${ICON('edit')}${conversationQuestionInput(q,state.custom[q.id]||'',surface,index,locked)}</label>`:'<span></span>'}<div>${page>0?`<button type="button" class="agent-question-back" ${locked?'disabled':''} onclick="conversationQuestionPage('${surface}',${index},${page-1})" data-app-i18n="conversationQuestion.back">上一步</button>`:''}<button type="button" class="agent-question-back" ${locked?'disabled':''} onclick="conversationQuestionCollapse('${surface}',${index})" data-app-i18n="conversationQuestion.skip">跳过</button><button type="button" class="agent-question-submit" ${locked||!valid?'disabled':''} aria-busy="${locked}" onclick="conversationQuestionSubmit('${surface}',${index})">${locked?conversationProgressLabel('发送中',false,'conversationQuestion.sending'):`<span data-app-i18n="conversationQuestion.${page<count-1?'next':'send'}">${page<count-1?'下一步':'发送'}</span>`}</button></div></footer></section>`;
 }
 
 /* module-function:conversationQuestionOpen */
@@ -489,7 +555,7 @@ function conversationPatchQuestionFocus(root,html){
  if(!root?.contains(field)||!dock||!['INPUT','TEXTAREA'].includes(field.tagName))return false;
  const template=document.createElement('template');template.innerHTML=html;const next=template.content.firstElementChild;
  const nextDock=next?.matches('.agent-question-dock')?next:[...next?.querySelectorAll('.agent-question-dock')||[]].find(node=>node.dataset.questionSurface===dock.dataset.questionSurface);
- const nextCard=nextDock?.querySelector('.agent-question-card'),replacement=nextCard?.querySelector('textarea,input');
+ const nextCard=nextDock?.querySelector('.agent-question-card'),replacement=nextCard?.querySelectorAll('textarea,input')[[...card.querySelectorAll('textarea,input')].indexOf(field)];
  if(!replacement||dock.dataset.questionSurface!==nextDock.dataset.questionSurface||card.dataset.questionId!==nextCard.dataset.questionId||card.dataset.questionPage!==nextCard.dataset.questionPage||field.tagName!==replacement.tagName||field.type!==replacement.type)return false;
  const path=(node,end)=>{const nodes=[];for(;node;node=node.parentElement){nodes.unshift(node);if(node===end)return nodes;}return [];},before=path(field,root),after=path(replacement,next);
  if(!before.length||before.length!==after.length||before.some((node,i)=>node.tagName!==after[i].tagName||node.id!==after[i].id))return false;
@@ -527,8 +593,8 @@ function conversationQuestionAnswerMessage(surface,saved,panel=null,prefix=null)
 }
 
 /* module-function:conversationQuestionInput */
-function conversationQuestionInput(question,value,surface,index,locked){
-  const options=question.options||[],attrs=`${locked?'disabled':''} aria-label="${options.length?'其他答案':'你的回答'}" data-app-i18n-aria-label="conversationQuestion.${options.length?'other':'your'}" placeholder="${options.length?'或输入自己的答案':'输入答案…'}" data-app-i18n-placeholder="conversationQuestion.${options.length?'otherPrompt':'prompt'}" maxlength="8000" onfocus="conversationQuestionBindComposition(this)" oncompositionstart="this.dataset.composing='true'" oncompositionend="this.dataset.composing='false'" oninput="conversationQuestionResize(this);conversationQuestionCustom('${surface}',${index},this.value)"`;
+function conversationQuestionInput(question,value,surface,index,locked,page){
+  const options=question.options||[],attrs=`${locked?'disabled':''} aria-label="${options.length?'其他答案':'你的回答'}" data-app-i18n-aria-label="conversationQuestion.${options.length?'other':'your'}" placeholder="${options.length?'或输入自己的答案':'输入答案…'}" data-app-i18n-placeholder="conversationQuestion.${options.length?'otherPrompt':'prompt'}" maxlength="8000" onfocus="conversationQuestionBindComposition(this)" oncompositionstart="this.dataset.composing='true'" oncompositionend="this.dataset.composing='false'" oninput="conversationQuestionResize(this);conversationQuestionCustom('${surface}',${index},this.value${page===undefined?'':','+page})"`;
   return question.isSecret?`<input type="password" autocomplete="off" ${attrs} value="${esc(value)}">`:`<textarea ${attrs} rows="1">${esc(value)}</textarea>`;
 }
 
@@ -545,15 +611,15 @@ function conversationQuestionResize(field){if(field?.tagName!=='TEXTAREA')return
 function conversationQuestionRequest(message,index){return (message.trace?.requests||[]).find(item=>item.status==='pending'&&item.id===message.questionDraft?.id)||(message.trace?.requests||[]).find(item=>item.status==='pending');}
 
 /* module-function:conversationQuestionSelect */
-function conversationQuestionSelect(surface,index,option){
+function conversationQuestionSelect(surface,index,option,page){
   const message=_conversationMsg(surface,index),request=message&&conversationQuestionRequest(message,index);if(!request)return;
-  const state=conversationQuestionState(message,request),q=request.questions[state.page];if(state.sending||message.stopping)return;
+  const state=conversationQuestionState(message,request),q=request.questions[page??state.page];if(!q||state.sending||message.stopping)return;
   const previous=state.selected[q.id]||[];state.selected[q.id]=q.multiSelect?(previous.includes(option)?previous.filter(value=>value!==option):[...previous,option]):[option];if(!q.multiSelect)state.custom[q.id]='';state.error='';
   conversationQuestionRefresh(message,surface);
 }
 
 /* module-function:conversationQuestionCustom */
-function conversationQuestionCustom(surface,index,value){const message=_conversationMsg(surface,index),request=message&&conversationQuestionRequest(message,index);if(!request)return;const state=conversationQuestionState(message,request);if(state.sending||message.stopping)return;const q=request.questions[state.page];state.custom[q.id]=value;if(value.trim()&&!q.multiSelect)state.selected[q.id]=[];state.error='';const dock=document.querySelector?.(`[data-question-surface="${surface}"]`);if(dock)dock.__questionMarkup=conversationQuestionDock(surface);const mounted=document.querySelector?.(`[data-question-id="${request.id}"]`);const send=mounted?.querySelector('.agent-question-submit');if(send)send.disabled=!((state.selected[q.id]||[]).length||value.trim());mounted?.querySelector('.agent-question-error')?.remove();if(q.multiSelect)return;const card=document.querySelector(`[data-question-id="${request.id}"]`);card?.querySelectorAll('.agent-question-option').forEach(option=>{option.classList.remove('selected');option.setAttribute('aria-checked','false');option.querySelector('.agent-question-check').innerHTML='';});}
+function conversationQuestionCustom(surface,index,value,page){const message=_conversationMsg(surface,index),request=message&&conversationQuestionRequest(message,index);if(!request)return;const state=conversationQuestionState(message,request);if(state.sending||message.stopping)return;const q=request.questions[page??state.page];if(!q)return;state.custom[q.id]=value;if(value.trim()&&!q.multiSelect)state.selected[q.id]=[];state.error='';const dock=document.querySelector?.(`[data-question-surface="${surface}"]`);if(dock)dock.__questionMarkup=conversationQuestionDock(surface);const mounted=document.querySelector?.(`[data-question-id="${request.id}"]`);const send=mounted?.querySelector('.agent-question-submit');if(send)send.disabled=!(page===undefined?((state.selected[q.id]||[]).length||value.trim()):request.questions.every(item=>state.selected[item.id]?.length||String(state.custom[item.id]||'').trim()));mounted?.querySelector('.agent-question-error')?.remove();if(q.multiSelect)return;const card=document.querySelector(`[data-question-id="${request.id}"]`);(page===undefined?card:card?.querySelector(`[data-answer-index="${page}"]`))?.querySelectorAll('.agent-question-option').forEach(option=>{option.classList.remove('selected');option.setAttribute('aria-checked','false');option.querySelector('.agent-question-check').innerHTML='';});}
 
 /* module-function:conversationQuestionRefresh */
 function conversationQuestionRefresh(message,surface,panel=null){if(surface==='panel'&&panel&&S.conversationPanel!==panel)return;if(message.streaming)refreshLiveAgentMessage(message,surface,surface==='panel'?(panel||S.conversationPanel):null);else render();}
@@ -567,7 +633,7 @@ async function conversationQuestionSubmit(surface,index){
   const state=conversationQuestionState(message,request);if(state.sending||message.stopping)return;
   const values=q=>{const custom=String(state.custom[q.id]||'').trim(),selected=(state.selected[q.id]||[]).map(oi=>q.options[oi]?.label).filter(Boolean);return custom?(q.multiSelect?[...selected,custom]:[custom]):selected;};
   if(!values(request.questions[state.page]).length){state.error='请先选择或填写答案';conversationQuestionRefresh(message,surface);return;}
-  if(state.page<request.questions.length-1){conversationQuestionPage(surface,index,state.page+1);return;}
+  if(!(surface==='panel'&&window.RunTeamsAssetOverview?.employee())&&state.page<request.questions.length-1){conversationQuestionPage(surface,index,state.page+1);return;}
   const missing=request.questions.findIndex(q=>!values(q).length);if(missing>=0){state.page=missing;state.error='请回答这个问题';conversationQuestionRefresh(message,surface);return;}
   const chatId=surface==='panel'?panel?.id:S.chatId,answers=Object.fromEntries(request.questions.map(q=>[q.id,{answers:values(q)}]));state.sending=true;state.error='';conversationQuestionRefresh(message,surface);
   try{let result=await api(`/api/chat/${chatId}/interaction`,'POST',{request_id:request.id,answers});for(let attempt=0;result.pending&&attempt<12;attempt++){if(request.status==='answered'){state.sending=false;return;}await new Promise(resolve=>setTimeout(resolve,500));result=await api(`/api/chat/${chatId}/interaction`,'POST',{request_id:request.id,answers});}if(result.error)throw Error(result.error);if(!result.accepted)throw Error('暂时无法确认答案是否已提交，可原样重试。');request.status='answered';request.answers=Object.fromEntries(request.questions.map(q=>[q.id,{answers:q.isSecret?['已填写']:values(q)}]));state.sending=false;message.trace.current='正在继续处理';if(surface==='panel'||S.chatId===chatId)conversationQuestionAnswerMessage(surface,result.message,panel,result.prefix_message);if(surface==='panel'||S.chatId===chatId)conversationQuestionRefresh(message,surface,panel);}
@@ -632,19 +698,53 @@ function conversationMessageFailure(message,index,surface,chatId=null){
   return text?`<div class="conversation-system-error" role="status" aria-label="系统提示" data-app-i18n-aria-label="conversationDetail.systemNotice">${ICON('info')}<span${key?` data-app-i18n="${esc(key)}"`:""}>${esc(text)}</span></div>`:'';
 }
 
+function conversationAppAuthorization(message,surface){
+  const auth=message.trace?.employeeAppAuthorization;
+  if(!auth||auth.state==='interrupted'||message.stopping||message.stopped||auth.state==='waiting'&&!message.streaming)return '';
+  const {state,app,opened,url}=auth;
+  const [label,detail]=state==='connected'?['已连接','']:
+    state==='expired'?['授权超时','可重新发起授权，再继续刚才的任务。']:
+    opened?['等待授权','已打开授权页，请在浏览器中确认。']:
+    ['等待授权','请打开授权页，在浏览器中确认。'];
+  const detailKey=state==='expired'?'expiredHint':opened?'openedHint':'waitingHint';
+  const action=state==='waiting'?
+    `<a class="agent-question-reopen" href="${esc(url)}" target="_blank" rel="noopener noreferrer">${ICON('link')}<span data-app-i18n="conversationApp.${opened?'reopen':'open'}">${opened?'重新打开':'打开授权页'}</span></a>`:
+    state==='expired'&&surface!=='mock'?
+    `<button type="button" class="agent-question-reopen" data-authorization-app="${esc(app)}" onclick="conversationRetryAppAuthorization('${surface}',this)" data-app-i18n="conversationApp.retry">重新授权</button>`:'';
+  return `<section class="agent-question-entry conversation-app-auth">
+    <div class="conversation-app-auth-copy" role="status"><div class="conversation-app-auth-heading">${ICON(state==='connected'?'check':'link')}<strong>${esc(app)}</strong><span data-app-i18n="conversationApp.${state}">${label}</span></div>
+    ${detail?`<p data-app-i18n="conversationApp.${detailKey}">${detail}</p>`:''}</div>${action}</section>`;
+}
+
+function conversationRetryAppAuthorization(surface,button){
+  const app=button.dataset.authorizationApp;
+  const input=conversationInputElement(surface);
+  if(!app||!input)return;
+  if(surface==='panel'?S.conversationPanel?.busy:S.chatBusy)
+    return toast('请等员工完成当前工作后再试。','info','conversationDetail.retryBusy');
+  if(conversationInputValue(input).trim()){
+    input.focus();
+    return toast('请先发送或清空当前草稿。','info','conversationApp.draft');
+  }
+  const fallback=`请重新连接 ${app}，授权后继续刚才的任务。`;
+  _sendConversationText(surface,globalThis.RunTeamsLocale?.t('conversationApp.retryRequest',{app},fallback)||fallback);
+}
+
 /* module-function:botConversationBody */
 function botConversationBody(m,index,surface,chatId=null){
-  const trace=agentTraceMarkup(m.trace,!!m.streaming,surface,!!m.stopping,!!m.text,m.id||m.localId||`${surface}:${index}`);
+  const appCard=conversationAppAuthorization(m,surface);
+  const waitingForAuthorization=appCard&&m.trace.employeeAppAuthorization.state==='waiting';
+  const trace=waitingForAuthorization?'':agentTraceMarkup(m.trace,!!m.streaming,surface,!!m.stopping,!!m.text,m.id||m.localId||`${surface}:${index}`);
   const answer=m.text?(typeof RunTeamsReplyContent!=='undefined'?RunTeamsReplyContent.markup(m.text,{key:[typeof workspaceAccountCacheToken==='function'?workspaceAccountCacheToken():'preview',chatId||conversationChatId(surface)||surface,m.id||m.localId||index].join(':'),streaming:!!m.streaming},conversationMarkdown):`<div class="cmessage-markdown">${conversationMarkdown(m.text)}</div>`):'';
   const work=Number(m.workReference)||0,link=work?`<p class="cmessage-markdown"><a href="#" onclick="event.preventDefault();workItemOpenTask(${work})">${esc(m.workTitle||'查看工作')}</a></p>`:'';
-  return `${conversationMessageFailure(m,index,surface,chatId)}${trace}${answer}${link}${conversationQuestionCard(m,index,surface)}`;
+  return `${conversationMessageFailure(m,index,surface,chatId)}${trace}${answer}${link}${appCard}${conversationQuestionCard(m,index,surface)}`;
 }
 
 /* module-function:copyConversationMessage */
 async function copyConversationMessage(surface,index,button){const message=_conversationMsg(surface,index),text=String(message?.text||'');if(!text)return;try{await navigator.clipboard.writeText(message.role==='bot'&&typeof RunTeamsReplyContent!=='undefined'?RunTeamsReplyContent.plainText(text):text);conversationCopied(button);}catch(error){toast('无法复制。请手动选择要复制的文字。','err','conversationDetail.copyFailed');}}
 
 /* module-function:editConversationMessage */
-function editConversationMessage(surface,index){const message=_conversationMsg(surface,index);if(!message)return;const panel=surface==="panel"?S.conversationPanel:null;if(surface==="chat"?S.chatBusy:panel?.busy)return toast("请等助手完成当前工作后再编辑。","info","conversationDetail.editBusy");if(!message.id)return toast("这条消息尚未保存，暂时无法从这里重新开始。","info","conversationDetail.editUnsaved");confirmModal("从这条消息重新开始？","重新发送时，这条消息及后续对话会被替换。已执行的任务和流水线，以及文件改动都会保留。",()=>{const capabilities=(message.capabilities||[]).map(item=>({...item})),draft=conversationDraftFromMessage(message.text||"",capabilities),attachments=(message.attachments||[]).map(item=>({...item,localId:`rewind-${surface}-${item.id}`,reuseId:item.id}));clearConversationAttachments(surface);setConversationAttachments(surface,attachments);setConversationCapabilities(surface,capabilities);setConversationDraftValue(surface,draft);if(surface==="panel"){panel.messages=panel.messages.slice(0,index);panel.editRewind={messageId:message.id};}else{S.chatMsgs=S.chatMsgs.slice(0,index);S.chatRewind={messageId:message.id};}render();toast("修改消息，然后重新发送。","info","conversationDetail.editReady");requestAnimationFrame(()=>{const box=conversationInputElement(surface);if(box){setConversationInputValue(box,draft,capabilities);box.focus();restoreConversationSelection(surface,draft.length);}});},false,{
+function editConversationMessage(surface,index){const message=_conversationMsg(surface,index);if(!message)return;const panel=surface==="panel"?S.conversationPanel:null;if(surface==="chat"?S.chatBusy:panel?.busy)return toast("请等助手完成当前工作后再编辑。","info","conversationDetail.editBusy");if(!message.id)return toast("这条消息尚未保存，暂时无法从这里重新开始。","info","conversationDetail.editUnsaved");confirmModal("从这条消息重新开始？","重新发送时，这条消息及后续对话会被替换。已执行的任务和智能体团队，以及文件改动都会保留。",()=>{const capabilities=(message.capabilities||[]).map(item=>({...item})),draft=conversationDraftFromMessage(message.text||"",capabilities),attachments=(message.attachments||[]).map(item=>({...item,localId:`rewind-${surface}-${item.id}`,reuseId:item.id}));clearConversationAttachments(surface);setConversationAttachments(surface,attachments);setConversationCapabilities(surface,capabilities);setConversationDraftValue(surface,draft);if(surface==="panel"){panel.messages=panel.messages.slice(0,index);panel.editRewind={messageId:message.id};}else{S.chatMsgs=S.chatMsgs.slice(0,index);S.chatRewind={messageId:message.id};}render();toast("修改消息，然后重新发送。","info","conversationDetail.editReady");requestAnimationFrame(()=>{const box=conversationInputElement(surface);if(box){setConversationInputValue(box,draft,capabilities);box.focus();restoreConversationSelection(surface,draft.length);}});},false,{
   titleKey:"conversationDetail.rewindTitle",messageKey:"conversationDetail.rewindMessage",
   action:"编辑消息",actionKey:"conversationDetail.editMessage",cancelKey:"trash.cancel",closeKey:"conversationDetail.close"
 });}
@@ -760,7 +860,7 @@ function conversationMessages(messages,options={}){
   let previous=null,hasUser=false;
   return (messages||[]).map((m,displayIndex)=>{
     const index=m.originalIndex??displayIndex,failure=m.role==='user'?'':conversationMessageFailure(m,index,surface,chatId);
-    if(m.role==='bot'&&!m.text&&!m.streaming&&!m.ephemeral&&!m.workReference&&!failure&&!agentTraceHasDetails(m.trace)&&!(m.trace?.requests||[]).length&&!m.stopped&&!m.trace?.cancelled)return '';
+    if(m.role==='bot'&&!m.text&&!m.streaming&&!m.ephemeral&&!m.workReference&&!failure&&!agentTraceHasDetails(m.trace)&&!m.trace?.employeeAppAuthorization&&!(m.trace?.requests||[]).length&&!m.stopped&&!m.trace?.cancelled)return '';
     const date=conversationMessageDate(m,hasUser?previous:null);if(m.role==="user")hasUser=true;if(!m.transientQuestionSegment&&!['debug','debug-draft'].includes(m.role))previous=m;
     if(m.role==="debug")return `<div class="conversation-debug-state-label" role="separator"><span>${esc(m.text)}</span></div>`;
     if(m.role==="user")return `${date}<div class="cmsg user ${esc(m.state||'')}" role="article" aria-label="你的消息" data-app-i18n-aria-label="conversationDetail.userMessage" ${m.localId?`data-local-message="${esc(m.localId)}"`:""}><div class="cmessage-stack"><div class="cbubble ${(m.attachments||[]).length||(m.capabilities||[]).some(item=>!item.mention_token&&!item.mention_id)?"has-context":"text-only"}">${m.metadata?.question_summary?`<div class="cmessage-question-summary" title="${esc(m.metadata.question_summary)}">${esc(m.metadata.question_summary)}</div>`:""}${m.text?`<div class="cmessage-text">${chatMessageText(m.text,m.capabilities||[])}</div>`:""}${chatMessageContext(m.attachments||[],m.capabilities||[],chatId)}</div>${showActions?conversationMessageActions(m,index,surface,{user:true}):""}</div></div>`;
@@ -780,7 +880,7 @@ function conversationThinking(label="",startedAt=Date.now()){
 }
 
 /* module-function:liveAgentMessageRenderKey */
-function liveAgentMessageRenderKey(message){const trace=message.trace||{};return JSON.stringify([message.text||"",message.systemNotice||null,!!message.streaming,!!message.stopped,!!message.stopping,trace.current||"",trace.runtimeStatus||null,trace.providerError||null,trace.rateLimits||[],!!trace.complete,!!trace.cancelled,trace.reasoning||"",trace.plan||"",trace.steps||[],trace.activity||[],trace.requests||[],message.questionDraft||null,message.applied||[]]);}
+function liveAgentMessageRenderKey(message){const trace=message.trace||{};return JSON.stringify([message.text||"",message.systemNotice||null,!!message.streaming,!!message.stopped,!!message.stopping,trace.current||"",trace.runtimeStatus||null,trace.providerError||null,trace.rateLimits||[],!!trace.complete,!!trace.cancelled,trace.reasoning||"",trace.plan||"",trace.steps||[],trace.activity||[],trace.requests||[],trace.employeeAppAuthorization||null,message.questionDraft||null,message.applied||[]]);}
 
 /* module-function:refreshLiveAgentMessage */
 function refreshLiveAgentMessage(message,surface,panel=null){
@@ -956,7 +1056,7 @@ function conversationDraftAttachment(surface,item){
 function conversationDraftItemsHtml(surface){return conversationAttachments(surface).map(item=>conversationDraftAttachment(surface,item)).join("");}
 
 /* One shared runtime entry reads live state while retaining the originating draft. */
-function conversationRuntimeControl(surface,disabled=false){
+function conversationRuntimeControl(surface,disabled=false,pendingMarkup){
   const startup=S.workspaceStartup,origin=S.conversationPanel;
   if(origin?.runtimeUnconfirmed)return `<button type="button" class="conversation-runtime-retry" id="conversation_runtime_recheck" data-app-i18n="runtimeSelector.checkSaved" aria-describedby="conversation_runtime_unconfirmed" onclick="checkSavedConversationRuntime()">核对已保存设置</button><span id="conversation_runtime_unconfirmed" class="sr-only" data-app-i18n="runtimeSelector.unconfirmed">暂时无法确认设置是否已保存。核对后即可继续。</span>`;
   if(origin&&!origin.model&&!origin.busy&&!origin.loading&&S.modelCatalogReady&&S.settingsPreferencesState==='ready'&&!startup?.channelsPending)normalizeConversationModelConfig(origin);
@@ -966,10 +1066,10 @@ function conversationRuntimeControl(surface,disabled=false){
     return {models:chatModelItems(cfg),value:chatRouteValue(cfg),modelLabel:view.label,modelLabelKey:!view.label&&S.settingsPreferencesState==='error'?'runtimeSelector.modelSettingsFailed':'',preview:view.selected,loading:!view.selected&&view.loading,saving:!!cfg.runtimeSaving,effort,efforts,effortLabel:EFFORT_LABELS[effort]||'模型默认',defaultEffort:defaultEffort(channel,cfg.model),disabled:disabled||!origin||current!==origin||!!(cfg.busy||cfg.loading||cfg.saving)||view.displayOnly&&!RunTeamsModelChannels.hasSelectableModels(S),failed:view.failed||!!startup?.channelsError,status:view.status};
   };
   const view=state();
-  if(startup?.channelsPending&&!view.preview)return RunTeamsStaticPages.runtimePending();
+  if(startup?.channelsPending&&!view.preview)return pendingMarkup??RunTeamsStaticPages.runtimePending();
   if(startup?.channelsError&&!view.preview)return RunTeamsLoadFailure.button({variant:'local',compact:true,label:'无法读取模型渠道，输入已保留。重试',labelKey:'runtimeSelector.channelRetry',busyLabelKey:'composer.runtimeLoading',retry:'conversationRefreshRuntime()',buttonClassName:'csel runtime-csel'});
-  const control=runtimeCsel('conversation_runtime',{
-    getState:state,disabled:view.disabled,
+  const control=runtimeCsel(surface==='overview'?'overview_runtime':'conversation_runtime',{
+    getState:state,disabled:view.disabled,pendingMarkup,
     onModel:value=>{if(state().disabled)return;return conversationPanelRouteChanged(value);},
     onEffort:value=>{if(state().disabled||state().status!=='ready')return;return conversationPanelEffortChanged(value);}
   });
@@ -1011,14 +1111,17 @@ function conversationSendLabel(surface,busy){
 function conversationComposer(options){
   const connecting=!!S.workspaceStartup?.pending;
   const surface=options.surface,draftItems=conversationDraftItemsHtml(surface),docked=(surface==="panel"),value=conversationDraftValue(surface);
+  if(!options.busy&&!connecting&&conversationChannelId(surface)){
+    modelChannelData().warmCapabilityPage(conversationChannelId(surface),conversationChatId(surface));
+  }
   const keydown=(docked?"conversationPanelKeydown":"chatKeydown"),stopAction=docked?"stopConversationPanel":"stopChat",stopping=!!options.stopping,action=options.sendAction;
   const [sendKey,title]=conversationSendLabel(surface,!!options.busy);
   const placeholder=options.placeholder||"说说你想做什么…";
   const promptKey=options.placeholderCopy?.key||(placeholder==="说说你想做什么…"?"composer.prompt":placeholder==="描述员工要负责的工作…"?"employeeCreate.prompt":"");
   const promptMarkers=promptKey?` data-app-i18n-aria-label="${promptKey}" data-app-i18n-data-placeholder="${promptKey}"${options.placeholderCopy?.vars?` data-app-i18n-vars="${esc(JSON.stringify(options.placeholderCopy.vars))}"`:""}`:"";
   const runtimeControls=options.runtimeControl!=null?`<div class="copt runtime" ${options.busy?'inert aria-disabled="true"':''}>${options.runtimeControl}</div>`:`<div class="copt route" ${options.busy?'inert aria-disabled="true"':''}>${options.modelControl}</div><div class="copt effort" ${options.busy?'inert aria-disabled="true"':''}><span class="copt-label" data-app-i18n="composer.thinking">思考</span>${options.effortControl}</div>`;
-  const content=`${options.scopeControl||""}${options.contextControl||""}${conversationExampleMaterialsMarkup(surface)}<div class="ccomposer-editor" id="${options.inputId}" role="textbox" aria-multiline="true" aria-label="${esc(placeholder)}" data-placeholder="${esc(placeholder)}" ${promptMarkers} data-empty="${String(!String(value).trim())}" contenteditable="true" oninput="conversationInputChanged(this,'${surface}')" onbeforeinput="conversationBeforeInput(event)" onpaste="conversationPaste(event,'${surface}')" onkeydown="${keydown}(event)" onkeyup="conversationComposerSelectionChanged('${surface}')" onmouseup="conversationComposerSelectionChanged('${surface}')" onfocus="conversationComposerFocused(this,'${surface}')">${conversationEditorHtml(value,conversationCapabilities(surface))}</div><div class="cfoot"><div class="cfoot-left"><input id="${options.fileInputId}" class="cfile-input" type="file" multiple accept="${CHAT_FILE_ACCEPT}" onchange="conversationFilesPicked('${surface}',this.files);this.value=''"><button class="cattach-btn" type="button" data-menu-trigger="quiet" aria-haspopup="menu" aria-expanded="false" title="添加内容" aria-label="添加内容" data-app-i18n-title="composer.add" data-app-i18n-aria-label="composer.add" onpointerdown="event.preventDefault();captureConversationSelection('${surface}')" onclick="conversationAddMenu(event,'${surface}')" ${options.busy||connecting?"disabled":""}>${ICON("plus")}</button>${typeof RunTeamsWorkFolders!=="undefined"?RunTeamsWorkFolders.markup(surface,!!options.busy):""}${draftItems?`<div class="cattachments" aria-label="已添加资料" data-app-i18n-aria-label="composer.attachments">${draftItems}</div>`:""}${runtimeControls}</div><div class="cfoot-right">${options.busy?`<button type="button" class="conversation-composer-stop" aria-label="${stopping?'正在停止…':'停止回复'}" data-app-i18n-aria-label="composer.${stopping?'stopping':'stop'}" ${stopping?'disabled':''} onclick="${stopAction}()">${ICON('stop')}</button>`:''}<button class="sendbtn" title="${esc(title)}" aria-label="${esc(title)}" data-app-i18n-title="${sendKey}" data-app-i18n-aria-label="${sendKey}" ${connecting&&S.workspaceStartup?.profilePending?'aria-busy="true"':""} onclick="conversationSubmit('${surface}',()=>${action}())" ${conversationSendDisabled(surface,!!options.busy,value)?"disabled":""}>${ICON("arrow")}</button></div></div>${connecting?workspaceStartupNotice():""}`;
-  return `${conversationProviderBanner(surface)}<div data-conversation-queue="${surface}">${conversationQueueMarkup(surface)}</div>${conversationQuestionDock(surface)}${RunTeamsStaticPages.composer(content,{surface,busy:options.busy,attributes:`data-local-references="${conversationSupportsLocalReferences(surface)}" ondragover="conversationDragOver(event)" ondragleave="this.classList.remove('dragging')" ondrop="conversationDrop(event,'${surface}')"`})}`;
+  const content=`${options.scopeControl||""}${options.contextControl||""}<div class="ccomposer-editor" id="${options.inputId}" role="textbox" aria-multiline="true" aria-label="${esc(placeholder)}" data-placeholder="${esc(placeholder)}" ${promptMarkers} data-empty="${String(!String(value).trim())}" contenteditable="true" oninput="conversationInputChanged(this,'${surface}')" onbeforeinput="conversationBeforeInput(event)" onpaste="conversationPaste(event,'${surface}')" onkeydown="${keydown}(event)" onkeyup="conversationComposerSelectionChanged('${surface}')" onmouseup="conversationComposerSelectionChanged('${surface}')" onfocus="conversationComposerFocused(this,'${surface}')">${conversationEditorHtml(value,conversationCapabilities(surface))}</div><div class="cfoot"><div class="cfoot-left"><input id="${options.fileInputId}" class="cfile-input" type="file" multiple accept="${CHAT_FILE_ACCEPT}" onchange="conversationFilesPicked('${surface}',this.files);this.value=''"><button class="cattach-btn" type="button" data-menu-trigger="quiet" aria-haspopup="menu" aria-expanded="false" title="添加内容" aria-label="添加内容" data-app-i18n-title="composer.add" data-app-i18n-aria-label="composer.add" onpointerdown="event.preventDefault();captureConversationSelection('${surface}')" onclick="conversationAddMenu(event,'${surface}')" ${options.busy||connecting?"disabled":""}>${ICON("plus")}</button>${typeof RunTeamsWorkFolders!=="undefined"?RunTeamsWorkFolders.markup(surface,!!options.busy):""}${draftItems?`<div class="cattachments" aria-label="已添加资料" data-app-i18n-aria-label="composer.attachments">${draftItems}</div>`:""}${runtimeControls}</div><div class="cfoot-right">${options.busy?`<button type="button" class="conversation-composer-stop" aria-label="${stopping?'正在停止…':'停止回复'}" data-app-i18n-aria-label="composer.${stopping?'stopping':'stop'}" ${stopping?'disabled':''} onclick="${stopAction}()">${ICON('stop')}</button>`:''}<button class="sendbtn" title="${esc(title)}" aria-label="${esc(title)}" data-app-i18n-title="${sendKey}" data-app-i18n-aria-label="${sendKey}" ${connecting&&S.workspaceStartup?.profilePending?'aria-busy="true"':""} onclick="conversationSubmit('${surface}',()=>${action}())" ${conversationSendDisabled(surface,!!options.busy,value)?"disabled":""}>${ICON("arrow")}</button></div></div>${connecting?workspaceStartupNotice():""}`;
+  return `${conversationProviderBanner(surface)}<div data-conversation-queue="${surface}">${conversationQueueMarkup(surface)}</div>${surface==='panel'&&window.RunTeamsAssetOverview?.employee()?'':conversationQuestionDock(surface)}${RunTeamsStaticPages.composer(content,{surface,busy:options.busy,attributes:`data-local-references="${conversationSupportsLocalReferences(surface)}" ondragover="conversationDragOver(event)" ondragleave="this.classList.remove('dragging')" ondrop="conversationDrop(event,'${surface}')"`})}`;
 }
 
 /* module-function:conversationComposerKeydown */
@@ -1142,7 +1245,14 @@ async function persistChatConfig(){if(S.chatId==="new"||S.chatId==null)return;co
 async function ensureChatEnvironment(){if(RunTeamsModelChannels.extensionsReady(S,S.environment))return true;try{const result=await modelChannelData().extensions(false);if(!result)return false;if(result.error)throw new Error(result.error);S.environment=result;saveEnvironmentSnapshot(result);return true;}catch(e){toast("模型能力没有载入。请确认 Agent CLI 已连接","err");return false;}}
 
 /* module-function:conversationCapabilityMenuItems */
-function conversationCapabilityMenuItems(surface,staticOnly=false){const items=staticOnly?[{head:true,label:"添加",labelKey:"composer.addHeading"},{label:"文件和文件夹",labelKey:"composer.files",icon:"paperclip",fn:()=>openConversationAttachmentPicker(surface)},{head:true,label:"技能",labelKey:"composer.skills"}]:capabilityMenuItemsFor(conversationChannelId(surface),()=>openConversationAttachmentPicker(surface),item=>addConversationCapability(surface,item),(plugin,row,add)=>installConversationCapability(surface,plugin,row,add));if(conversationSupportsLocalReferences(surface)){items.splice(1,1,{label:"本地文件和文件夹",labelKey:"composer.localFiles",icon:"folder",fn:()=>openConversationLocalReferencePicker(surface)});items.splice(2,0,{label:"上传附件",labelKey:"composer.upload",icon:"paperclip",fn:()=>openConversationAttachmentPicker(surface)});}if(surface==="panel"&&S.conversationPanel&&!conversationFixedContext(S.conversationPanel)&&conversationContext(S.conversationPanel).ambient_disabled&&currentPageContext()?.surface!=="chat")items.splice(2,0,{label:"参考当前页面",labelKey:"composer.referencePage",description:currentPageContext().label||"将当前页面添加为参考",descriptionKey:currentPageContext().label?undefined:"composer.pageHint",icon:"panel-right-open",fn:restoreConversationAmbientContext});return items;}
+function conversationCapabilityMenuItems(surface,staticOnly=false){const items=staticOnly?[{head:true,label:"添加",labelKey:"composer.addHeading"},{label:"文件和文件夹",labelKey:"composer.files",icon:"paperclip",fn:()=>openConversationAttachmentPicker(surface)},{head:true,label:"技能",labelKey:"composer.skills"}]:capabilityMenuItemsFor(conversationChannelId(surface),()=>openConversationAttachmentPicker(surface),item=>addConversationCapability(surface,item),(plugin,row,add)=>installConversationCapability(surface,plugin,row,add));if(conversationSupportsLocalReferences(surface)){items.splice(1,1,{label:"本地文件和文件夹",labelKey:"composer.localFiles",icon:"folder",fn:()=>openConversationLocalReferencePicker(surface)});items.splice(2,0,{label:"上传附件",labelKey:"composer.upload",icon:"paperclip",fn:()=>openConversationAttachmentPicker(surface)});}if(surface==="panel"&&S.conversationPanel&&!conversationFixedContext(S.conversationPanel)&&conversationContext(S.conversationPanel).ambient_disabled&&currentPageContext()?.surface!=="chat")items.splice(2,0,{label:"参考当前页面",labelKey:"composer.referencePage",description:currentPageContext().label||"将当前页面添加为参考",descriptionKey:currentPageContext().label?undefined:"composer.pageHint",icon:"panel-right-open",fn:restoreConversationAmbientContext});const panel=surface==="panel"?S.conversationPanel:null;
+  if(panel?.example_materials)items.unshift(...conversationExampleMaterialMenuItems(panel));
+  if(panel?.storage_scope==="device"&&panel.kind==="general"&&(panel.context?.source_pipeline_workspace||
+    (panel.subject_type==="employee"&&conversationIntent(panel)==="chat"&&!panel.context?.pipeline_work&&!panel.context?.employee_work))){
+    const upload=items.find(item=>item.labelKey==="composer.upload"||item.labelKey==="composer.files");
+    if(upload){upload.description="新会话可引用文本 PDF、MD、TXT";upload.descriptionKey="composer.assetSourcesHint";}
+  }
+  return items;}
 
 /* module-function:conversationInputElement */
 function conversationInputElement(surface){return document.getElementById((surface==="panel"?"conversation_box":"cbox"));}
@@ -1164,9 +1274,11 @@ async function installConversationCapability(surface,plugin,row,addCapability){
 
 /* module-function:showConversationCapabilityMenu */
 function showConversationCapabilityMenu(anchor,surface,session=null){
- openMenu(anchor,conversationCapabilityMenuItems(surface,true),{variant:"chatAdd",positionAnchor:anchor.closest(".ccomposer")||anchor,placement:"above"});
+ openMenu(anchor,conversationCapabilityMenuItems(surface,true),{variant:"chatAdd",positionAnchor:anchor.closest(".ccomposer")||anchor,placement:"above",
+  onClose:()=>window.removeEventListener('resize',alignConversationCapabilityMenu)});
  if(_popAnchor!==anchor)return;
  const menu=document.getElementById("popmenu");if(!menu)return;
+ window.addEventListener('resize',alignConversationCapabilityMenu);
  const state={anchor,surface,menu,channel:conversationChannelId(surface),scope:workspaceAccountCacheToken(),owner:surface==="panel"?S.conversationPanel:S.chatId,query:"",version:0,items:[],seen:new Set(),next:null,pending:false,error:"",closed:false};
  state.configuration=conversationCapabilityConfiguration(state.channel);menu._capabilityPage=state;menu.dataset.capabilityPaged="true";
  const list=document.createElement('div'),footer=document.createElement('div');list.className='chat-capability-list';footer.className='chat-capability-footer';menu.append(list,footer);state.list=list;state.footer=footer;
@@ -1189,7 +1301,10 @@ function paintConversationCapabilityFooter(state){
 function appendConversationCapabilityRows(state,items){
  for(const plugin of items){const key=String(plugin.channel_id)+':'+String(plugin.id||plugin.name);if(state.seen.has(key))continue;state.seen.add(key);state.items.push(plugin);
   const capability=capabilityFromPlugin(plugin),entry={label:capability.label,description:capability.description,iconUrl:capability.icon_url,icon:'package',capability:true};
-  const holder=document.createElement('div');holder.innerHTML=menuItemsMarkup([entry]);const row=holder.firstElementChild;row.dataset.capabilityKey=key;row.querySelectorAll('b,small').forEach(label=>label.lang=/[\u3400-\u9fff]/.test(label.textContent)?'zh':'en');
+  const holder=document.createElement('div');holder.innerHTML=menuItemsMarkup([entry]);const row=holder.firstElementChild;row.dataset.capabilityKey=key;
+  const image=row.querySelector('img.menu-icon');
+  if(image)image.addEventListener('error',()=>{image.outerHTML=ICON('package');},{once:true});
+  row.querySelectorAll('b,small').forEach(label=>label.lang=/[\u3400-\u9fff]/.test(label.textContent)?'zh':'en');
   row.onmousedown=event=>event.preventDefault();row.onmouseenter=()=>{state.menu.querySelectorAll('.active').forEach(node=>node.classList.remove('active'));row.classList.add('active');};
   row.onclick=event=>{event.stopPropagation();if(!conversationCapabilityPageCurrent(state))return;if(!RunTeamsModelChannels.connected(S,(S.channels||[]).find(channel=>String(channel.id)===String(state.channel)))){state.error='模型渠道尚未连接';state.items=[];state.next=null;state.list.replaceChildren();paintConversationCapabilityFooter(state);return;}if(plugin._installed){closePop();addConversationCapability(state.surface,capability);}else installConversationCapability(state.surface,plugin,row,item=>addConversationCapability(state.surface,item));};state.list.append(row);
  }
@@ -1234,7 +1349,7 @@ async function sendChat(options={}){
   if((!hasUserText&&!S.chatAttachments.length)||S.chatBusy){rerenderChatKeepingDraft();return;}
   if(!conversationRuntimeReady("chat")){conversationSyncSendState("chat");return;}
   const folderAtSend=typeof RunTeamsWorkFolders==="undefined"?null:await RunTeamsWorkFolders.prepare("chat");if(folderAtSend===false)return;
-  const pending=queued?[]:S.chatAttachments.slice(),pendingCapabilities=queued?[]:conversationCapabilitiesForSend("chat",rawDraft),annotatedMessage=conversationMessageFromDraft(rawDraft,pendingCapabilities),firstPipelineRequest=S.chatMode==="pipeline-create"&&S.chatId==="new"&&hasUserText,msg=firstPipelineRequest&&!/^\s*(?:请)?(?:帮我)?创(?:建|造)(?:一条|一个)?流水线/.test(annotatedMessage)?`创建流水线：${annotatedMessage}`:annotatedMessage,attachmentTokens=pending.filter(x=>x.pickToken).map(x=>x.pickToken),startedAsNew=S.chatId==="new",activityContextAtSend=typeof RunTeamsChatActivity==='undefined'?'':RunTeamsChatActivity.context(S);let uploads,accepted=false,out=null,createdSession=false,attempted=false,completed=false,configurationRequired=false;
+  const pending=queued?[]:S.chatAttachments.slice(),pendingCapabilities=queued?[]:conversationCapabilitiesForSend("chat",rawDraft),annotatedMessage=conversationMessageFromDraft(rawDraft,pendingCapabilities),firstPipelineRequest=S.chatMode==="pipeline-create"&&S.chatId==="new"&&hasUserText,msg=firstPipelineRequest&&!/^\s*(?:请)?(?:帮我)?创(?:建|造)(?:一个|一支)?智能体团队/.test(annotatedMessage)?`创建智能体团队：${annotatedMessage}`:annotatedMessage,attachmentTokens=pending.filter(x=>x.pickToken).map(x=>x.pickToken),startedAsNew=S.chatId==="new",activityContextAtSend=typeof RunTeamsChatActivity==='undefined'?'':RunTeamsChatActivity.context(S);let uploads,accepted=false,out=null,createdSession=false,attempted=false,completed=false,configurationRequired=false;
   try{uploads=(typeof RunTeamsCreatorWork==='undefined'?null:RunTeamsCreatorWork.pendingInput(S.chatId)?.attachments)||await Promise.all(pending.filter(x=>x.file).map(readChatFile));}catch(e){toast(e.message||"无法读取附件。请重新添加。","err",e.messageKey||(!e.message?"composer.attachmentRead":undefined),e.messageVars);return;}
   if(!conversationRuntimeReady("chat")){conversationSyncSendState("chat");return;}
   const sent={role:"user",ts:new Date().toISOString(),text:annotatedMessage,state:"sending",localId:"m"+Date.now()+Math.random().toString(16).slice(2),capabilities:pendingCapabilities,attachments:pending.map(x=>({id:x.localId,name:x.name,size:x.size,mime_type:x.mime_type,kind:x.kind,local_kind:x.local_kind,grant_id:x.grant_id,preview:x.preview}))},live=newLiveAgentMessage("chat-live-");
@@ -1294,7 +1409,7 @@ function conversationMessageGallery(){
   const label=text=>({role:"debug",text}),now=Date.now();
   return [
     label("用户消息 普通文本"),
-    {id:"mock-user",role:"user",text:"帮我检查这条流水线为什么停在验收岗位，并给出可以直接执行的修复建议。"},
+    {id:"mock-user",role:"user",text:"帮我检查这个智能体团队为什么停在验收岗位，并给出可以直接执行的修复建议。"},
     label("用户消息 附件与技能"),
     {id:"mock-user-context",role:"user",text:"结合附件里的需求说明检查实现。",attachments:[{id:"mock-file",name:"产品需求说明.md",size:18432,mime_type:"text/markdown",kind:"file"},{id:"mock-folder",name:"design-assets",size:2468000,kind:"folder",file_count:18}],capabilities:[{kind:"plugin",id:"github",label:"GitHub"}]},
     label("用户消息 正在发送"),
@@ -1302,17 +1417,17 @@ function conversationMessageGallery(){
     label("助手 等待响应"),
     {role:"bot",streaming:true,localId:`mock-thinking-${now}`,text:"",trace:{structured:false,steps:[],reasoning:"",plan:"",current:"正在思考",startedAt:now-21000,complete:false},applied:[]},
     label("助手 正在执行"),
-    {role:"bot",streaming:true,localId:`mock-running-${now}`,text:"",trace:{structured:true,steps:[{id:"mock-step-1",stepKind:"tool",label:"读取流水线配置",status:"completed",detail:"已检查 8 个岗位",output:""},{id:"mock-step-2",stepKind:"tool",label:"检查失败的验收条件",status:"running",detail:"正在比对任务材料和岗位要求",output:"checking card #1083\nloading validation rules..."}],activity:[{type:"text",id:"mock-work-1",text:"我先确认失败发生在哪一层，再决定是否需要修改任务或岗位。"},{type:"step",id:"mock-step-1"},{type:"text",id:"mock-work-2",text:"流水线配置没有异常，接下来比对任务材料与验收要求。"},{type:"step",id:"mock-step-2"}],reasoning:"",plan:"",current:"检查失败的验收条件",complete:false},applied:[]},
+    {role:"bot",streaming:true,localId:`mock-running-${now}`,text:"",trace:{structured:true,steps:[{id:"mock-step-1",stepKind:"tool",label:"读取智能体团队配置",status:"completed",detail:"已检查 8 个岗位",output:""},{id:"mock-step-2",stepKind:"tool",label:"检查失败的验收条件",status:"running",detail:"正在比对任务材料和岗位要求",output:"checking card #1083\nloading validation rules..."}],activity:[{type:"text",id:"mock-work-1",text:"我先确认失败发生在哪一层，再决定是否需要修改任务或岗位。"},{type:"step",id:"mock-step-1"},{type:"text",id:"mock-work-2",text:"智能体团队配置没有异常，接下来比对任务材料与验收要求。"},{type:"step",id:"mock-step-2"}],reasoning:"",plan:"",current:"检查失败的验收条件",complete:false},applied:[]},
     label("助手 流式回复"),
     {role:"bot",streaming:true,localId:`mock-stream-${now}`,text:"问题已经定位到验收字段缺失。我正在整理不会破坏现有流程的修复步骤",trace:{structured:false,steps:[],reasoning:"",plan:"",current:"正在生成回复",complete:false},applied:[]},
     label("助手 完成回复（点击耗时展开过程）"),
-    {id:"mock-answer",role:"bot",text:"问题来自 `bundleId` 没有随任务交接到验收岗位。现有工作区可以保留，只需补齐任务字段映射，然后从当前岗位重新运行。",trace:{structured:true,complete:true,durationSec:151,steps:[{id:"mock-done-1",stepKind:"tool",label:"读取流水线配置",status:"completed",detail:"已检查 8 个岗位",output:""},{id:"mock-done-2",stepKind:"tool",label:"检查任务字段",status:"completed",detail:"发现 1 个缺失字段",output:"bundleId: missing"},{id:"mock-done-3",stepKind:"file",label:"生成修复建议",status:"completed",detail:"未修改现有配置",output:""}],activity:[{type:"text",id:"mock-done-work-1",text:"我先确认失败发生在哪一层，再决定是否需要修改任务或岗位。"},{type:"step",id:"mock-done-1"},{type:"text",id:"mock-done-work-2",text:"流水线配置没有异常，接下来比对任务材料与验收要求。"},{type:"step",id:"mock-done-2"},{type:"text",id:"mock-done-work-3",text:"已经定位到字段交接缺失，正在整理最小修复。"},{type:"step",id:"mock-done-3"}],reasoning:"",plan:"",current:"已完成"},applied:[]},
+    {id:"mock-answer",role:"bot",text:"问题来自 `bundleId` 没有随任务交接到验收岗位。现有工作区可以保留，只需补齐任务字段映射，然后从当前岗位重新运行。",trace:{structured:true,complete:true,durationSec:151,steps:[{id:"mock-done-1",stepKind:"tool",label:"读取智能体团队配置",status:"completed",detail:"已检查 8 个岗位",output:""},{id:"mock-done-2",stepKind:"tool",label:"检查任务字段",status:"completed",detail:"发现 1 个缺失字段",output:"bundleId: missing"},{id:"mock-done-3",stepKind:"file",label:"生成修复建议",status:"completed",detail:"未修改现有配置",output:""}],activity:[{type:"text",id:"mock-done-work-1",text:"我先确认失败发生在哪一层，再决定是否需要修改任务或岗位。"},{type:"step",id:"mock-done-1"},{type:"text",id:"mock-done-work-2",text:"智能体团队配置没有异常，接下来比对任务材料与验收要求。"},{type:"step",id:"mock-done-2"},{type:"text",id:"mock-done-work-3",text:"已经定位到字段交接缺失，正在整理最小修复。"},{type:"step",id:"mock-done-3"}],reasoning:"",plan:"",current:"已完成"},applied:[]},
     label("助手 已停止"),
     {id:"mock-stopped",role:"bot",text:"已保留当前工作区和已经完成的检查结果。",stopped:true,trace:{structured:true,complete:true,cancelled:true,steps:[{id:"mock-stop-1",label:"读取任务材料",status:"completed",detail:"已完成",output:""},{id:"mock-stop-2",label:"重新运行验收",status:"cancelled",detail:"由你停止",output:""}],reasoning:"",plan:"",current:"已停止"},applied:[]},
     label("助手 执行失败"),
     {role:"bot",ephemeral:true,text:"本地服务没有返回结果，请确认服务仍在运行。"},
     label("助手 需要选择"),
-    {id:"mock-options",role:"bot",text:"你希望怎样处理这个阻塞？",options:[{label:"只补齐当前任务",description:"不修改流水线配置"},{label:"修复字段映射",description:"之后的新任务也会自动带上该字段"},{label:"先查看差异",description:"暂不应用任何修改"}]},
+    {id:"mock-options",role:"bot",text:"你希望怎样处理这个阻塞？",options:[{label:"只补齐当前任务",description:"不修改智能体团队配置"},{label:"修复字段映射",description:"之后的新任务也会自动带上该字段"},{label:"先查看差异",description:"暂不应用任何修改"}]},
   ];
 }
 
@@ -1362,12 +1477,13 @@ function conversationPanelFromSession(session,options={}){
   const channel=S.channels.find(c=>String(c.id)===String(session.channel_id)),model=session.model||session.context?.local_employee_package?.runtime?.model||"";
   const internalDraftMessages=new Set(["确认应用这份成员草稿","确认应用这份任务草稿","确认创建","确认修改","确认保存","取消当前草稿，不要继续修改。只回复已取消，不要返回草稿。"]),messages=(session.messages||[]).filter(m=>(session.kind||"general")==="general"||m.role!=="user"||!internalDraftMessages.has(String(m.text||"").trim())).map(storedConversationMessage);
   const context=normalizedConversationContext(session);
-  const panel={id:session.id||null,subject_type:session.subject_type||'workspace',employee_binding:session.employee_binding||null,work_storage_scope:session.work_storage_scope||"",work_employee:session.work_employee||null,storage_scope:session.storage_scope||"cloud",kind:session.kind||"general",title:session.title||"新对话",status:session.status||"active",context,identity:session.identity||null,channel_id:session.channel_id,model,reasoning_effort:!catalogModel(channel,model)?session.reasoning_effort||"":normalizedEffort(channel,model,session.reasoning_effort||""),input:options.input||"",messages,historyPage:session.messages_page||null,historyLoading:false,historyError:'',attachments:[],capabilities:[],editRewind:null,busy:false,newDraftKey:options.newDraftKey||"default",rail_hosted:!!options.railHosted};
+  const panel={id:session.id||null,owner_path:session.owner_path,subject_type:session.subject_type||'workspace',employee_binding:session.employee_binding||null,work_storage_scope:session.work_storage_scope||"",work_employee:session.work_employee||null,storage_scope:session.storage_scope||"cloud",kind:session.kind||"general",title:session.title||"新对话",status:session.status||"active",context,identity:session.identity||null,channel_id:session.channel_id,model,reasoning_effort:!catalogModel(channel,model)?session.reasoning_effort||"":normalizedEffort(channel,model,session.reasoning_effort||""),input:options.input||"",messages,historyPage:session.messages_page||null,historyLoading:false,historyError:'',attachments:[],capabilities:[],editRewind:null,busy:false,newDraftKey:options.newDraftKey||"default",rail_hosted:!!options.railHosted};
   if(panel.kind==='employee_design'&&panel.storage_scope==='device'){
     const source=session.employee?.source;
     if(source?.id&&source.id===context.creator_local_source_id&&
        (!context.creator_employee_source||source.path===context.creator_employee_source)){
       panel.authoringEmployeeReference=source.reference;
+      panel.authoringCapabilities=source.capabilities;
     }
   }
   if(session.active_turn?.active){const live=newLiveAgentMessage('restored-live-');panel.messages.push(live);for(const receipt of session.active_turn.answers||[])conversationQuestionAnswerMessage('panel',receipt.message,panel,receipt.prefix_message);conversationRestoreLiveInteraction(live,session.active_turn);panel.busy=true;panel.interactionDetached=true;setTimeout(()=>conversationWatchDetachedInteraction(panel,live),0);}
@@ -1410,7 +1526,7 @@ function conversationPanelIsVisibleHere(panel=S.conversationPanel){return !!pane
 function conversationPanelDraftKey(panel=S.conversationPanel){if(!panel)return "";if(panel.id!=null)return `chat:${panel.id}`;const context=panel.context||{},type=context.context_type||panel.kind||"general",intent=context.intent||"general",target=RunTeamsEmployeeDirectory.referenceKey(RunTeamsEmployeeDirectory.panelReference(panel))||RunTeamsEmployeeDirectory.forPanel(panel)?.key||context.workflow_id||(context.purpose==='create-employee'?'create-employee':'default');return `new:global:${type}:${intent}:${target}`;}
 
 /* module-function:conversationModeTitle */
-function conversationModeTitle(panel=S.conversationPanel){const type=conversationContextType(panel),intent=conversationIntent(panel);if(type==="pipeline")return intent==="create"?"创建流水线":"调整流水线";if(type==="worker")return intent==="chat"||intent==="work"?`与 ${panel?.context?.worker_name||panel?.context?.label||"员工"} 对话`:intent==="repair"?"修复员工":intent==="create"?"创建员工":"调整员工";if(type==="standard")return intent==="create"?"创建工作规范":"调整工作规范";if(type==="card")return intent==="repair"?"继续任务":"调整任务";return "新对话";}
+function conversationModeTitle(panel=S.conversationPanel){const type=conversationContextType(panel),intent=conversationIntent(panel);if(type==="pipeline")return intent==="create"?"创建智能体团队":"调整智能体团队";if(type==="worker")return intent==="chat"||intent==="work"?`与 ${panel?.context?.worker_name||panel?.context?.label||"员工"} 对话`:intent==="repair"?"修复员工":intent==="create"?"创建员工":"调整员工";if(type==="standard")return intent==="create"?"创建工作规范":"调整工作规范";if(type==="card")return intent==="repair"?"继续任务":"调整任务";return "新对话";}
 
 /* module-function:conversationPanelTitle */
 function conversationPanelTitle(panel=S.conversationPanel){if(!panel)return "新对话";const fixed=conversationFixedContext(panel);if(fixed?.kind==="员工"&&["chat","work"].includes(conversationIntent(panel)))return fixed.label||"员工";if(panel.kind!=="general")return conversationModeTitle(panel);const chat=S.chats.find(item=>String(item.id)===String(panel.id)),title=chat&&chat.title||panel.title||"";return !(panel.messages||[]).length||!title||title==="新对话"?conversationModeTitle(panel):title;}
@@ -1422,7 +1538,7 @@ function conversationHeaderTitle(panel=S.conversationPanel){
   if(fixed?.kind==="员工"&&["chat","work"].includes(conversationIntent(panel)))return fixed.label||"员工";
   if(fixed?.label&&conversationContextType(panel)!=="general"){
     const operation=conversationModeTitle(panel);
-    if(fixed.kind==="流水线"&&conversationIntent(panel)==="manage")return fixed.label;
+    if(fixed.kind==="智能体团队"&&conversationIntent(panel)==="manage")return fixed.label;
     if(operation&&operation!==fixed.label)return `${operation} ${fixed.label}`;
   }
   if(panel.kind!=="general")return conversationPanelTitle(panel);
@@ -1445,11 +1561,11 @@ function conversationSessionMenu(event){event.stopPropagation();return RunTeamsE
 /* module-function:conversationCreateAlternatives */
 function conversationCreateAlternatives(event){
   event.preventDefault();event.stopPropagation();
-  openMenu(event.currentTarget,[{head:true,label:"其他创建方式"},{label:"从空白开始",description:"直接进入流水线搭建",icon:"plus",fn:()=>beginCorePipelineDraft()},{divider:true},{empty:true,label:"模板与配置导入即将提供"}],{variant:"pipelineCreate"});
+  openMenu(event.currentTarget,[{head:true,label:"其他创建方式"},{label:"从空白开始",description:"直接进入智能体团队搭建",icon:"plus",fn:()=>beginCorePipelineDraft()},{divider:true},{empty:true,label:"模板与配置导入即将提供"}],{variant:"pipelineCreate"});
 }
 
 /* module-function:conversationPanelStarterItems */
-function conversationPanelStarterItems(panel=S.conversationPanel,employeeGuidance=null){
+function conversationPanelStarterItems(panel=S.conversationPanel){
   if(conversationEmployeeCreation(panel))return conversationHomeItems(panel).map(([,label,prompt,description,icon])=>[label,prompt,description,icon]);
   const type=conversationContextType(panel),intent=conversationIntent(panel);
   if(type==="card"&&intent==="repair")return [
@@ -1461,10 +1577,6 @@ function conversationPanelStarterItems(panel=S.conversationPanel,employeeGuidanc
     ["查看进展","总结这项任务目前的进展","查看已有成果和剩余工作","search"],
     ["补充要求","帮我补充这项任务的要求","补充目标、约束或交付","edit"],
     ["解决阻塞","检查这项任务为什么没有继续推进","找出任务没有推进的原因","shield"],
-  ];
-  if(employeeGuidance||RunTeamsEmployeeDirectory.employeePanel(panel)||(type==="worker"&&(intent==="chat"||intent==="work")))return [
-    ["开始一项工作","帮我开始一项工作","把一项工作交给这名员工。","spark","start"],
-    ["查看近期工作","总结你最近完成的工作和结果","了解这名员工最近完成了什么。","search","recent"],
   ];
   if(type==="worker"&&intent==="repair")return [
     ["查找原因","检查这个员工为什么无法完成工作","找出员工无法工作的原因","search"],
@@ -1488,43 +1600,43 @@ function conversationPanelStarterItems(panel=S.conversationPanel,employeeGuidanc
     ["检查冲突","检查这条规范是否过度约束或互相冲突","识别执行风险","search"],
   ];
   if(type==="pipeline"&&intent==="create")return [
-    ["从零搭建","从目标开始帮我搭建这条流水线","从目标设计流程","spark"],
-    ["迁移现有流程","把我现有的工作流程迁移到这里","把已有工作变成流水线","import"],
+    ["从零搭建","从目标开始帮我搭建这个智能体团队","从目标设计流程","spark"],
+    ["迁移现有流程","把我现有的工作流程迁移到这里","把已有工作变成智能体团队","import"],
     ["先做简单版本","先帮我搭建一个可以运行的简单版本","先搭建最小可用流程","flow"],
   ];
   if(type==="general")return [
     ["创建员工","帮我创建一名员工","定义一名能独立工作的员工","user"],
-    ["搭建流水线","帮我搭建一条流水线","把持续工作变成流程","flow"],
+    ["组建智能体团队","帮我组建一个智能体团队","把持续工作变成流程","flow"],
     ["开始一项工作","我想开始一项工作","直接研究、分析、创作或执行","spark"],
-    ["优化现有流水线","检查并优化现有流水线","调整员工分工和流转","edit"],
+    ["优化现有智能体团队","检查并优化现有智能体团队","调整员工分工和流转","edit"],
   ];
   
   return [
-    ["检查问题","检查这条流水线为什么没有顺利推进","找出流程中的问题","search"],
-    ["调整流程","帮我调整这条流水线的工作流程","优化员工和流转","flow"],
-    ["创建任务","在这条流水线里创建一项任务","把新工作放进流水线","plus"],
+    ["检查问题","检查这个智能体团队为什么没有顺利推进","找出流程中的问题","search"],
+    ["调整流程","帮我调整这个智能体团队的工作流程","优化员工和流转","flow"],
+    ["创建任务","在这个智能体团队里创建一项任务","把新工作放进智能体团队","plus"],
   ];
 }
 
 /* module-function:conversationPanelStarter */
-function conversationPanelStarter(prompt,example=null,promptKey=""){if(S.conversationDebugType)return toast("这是调试预览，不会修改当前对话","info");const panel=S.conversationPanel;if(!panel||panel.busy)return;panel.input=String((promptKey?globalThis.RunTeamsLocale?.t(promptKey,{},prompt)??prompt:prompt)||"");panel.example_materials=example;panel.example_materials_error="";panel.draft_restored=false;scheduleConversationPanelDraftSave();render();const box=document.getElementById("conversation_box");if(S.conversationPanel===panel&&box?.isContentEditable){box.focus();autoSizeChatInput(box);restoreConversationSelection("panel",panel.input.length);}}
+function conversationPanelStarter(prompt,example=null,promptKey=""){if(S.conversationDebugType)return toast("这是调试预览，不会修改当前对话","info");const panel=S.conversationPanel;if(!panel||panel.busy)return;panel.input=String((promptKey?globalThis.RunTeamsLocale?.t(promptKey,{},prompt)??prompt:prompt)||"");panel.example_materials=example;panel.draft_restored=false;scheduleConversationPanelDraftSave();render();const box=document.getElementById("conversation_box");if(S.conversationPanel===panel&&box?.isContentEditable){box.focus();autoSizeChatInput(box);restoreConversationSelection("panel",panel.input.length);}}
 
 /* module-function:conversationPanelEmptyPresentation */
 function conversationPanelEmptyPresentation(){return {icon:'user-guide',title:'今天想完成什么？',detail:''};}
 
 /* module-function:conversationPanelEmpty */
 function conversationPanelEmpty(panel=S.conversationPanel,composer=''){
-  if(panel?.context?.source_pipeline_workspace)return conversationNewEmpty({title:'讨论这条流水线',titleKey:'pipelineBoard.chatWelcome',notice:'在这里讨论目标、流程和进展。要新建任务，请打开看板上的岗位。',noticeKey:'pipelineBoard.chatHint',composer});
-  const published=conversationEmployeeGuidance(panel);if(published&&(published.loading||published.examples.length))return conversationEmployeeEmpty(published,composer);
-  const general=conversationContextType(panel)==='general',employeeCreation=conversationEmployeeCreation(panel);
-  if((general&&!published)||employeeCreation){
+  if(panel?.context?.source_pipeline_workspace)return conversationNewEmpty({title:'讨论这个智能体团队',titleKey:'pipelineBoard.chatWelcome',notice:'在这里讨论目标、流程和进展。要新建任务，请打开看板上的岗位。',noticeKey:'pipelineBoard.chatHint',composer});
+  const guidance=conversationEmployeeGuidance(panel),type=conversationContextType(panel),employeeCreation=conversationEmployeeCreation(panel);
+  if(!employeeCreation&&(guidance||RunTeamsAssetOverview.employeeEligible(panel)||(type==='worker'&&['chat','work'].includes(conversationIntent(panel)))))return conversationEmployeeEmpty(panel,guidance,composer);
+  if(type==='general'||employeeCreation){
     const actions=conversationHomeItems(panel).map(([key,label,,description,icon],index)=>{
       const prefix=employeeCreation?'employeeCreate':'newConversation';
       return conversationNewAction(label,`conversationHomeInsertChoice('${key}')`,icon,description,index,{title:`${prefix}.${key}Title`,detail:`${prefix}.${key}Detail`});
     }).join('');
-    return conversationNewEmpty({title:employeeCreation?'这名员工要负责什么？':'今天想完成什么？',titleKey:employeeCreation?'employeeCreate.title':'newConversation.title',actions,composer});
+    return conversationNewEmpty({title:employeeCreation?'这名员工要负责什么？':'今天想完成什么？',titleKey:employeeCreation?'employeeCreate.title':'newConversation.title',actions:actions+(employeeCreation?conversationNewAction('导入资产包','RunTeamsCreatorAuthor.choosePackage()','doc','使用已有员工和随附素材',2,{title:'materials.import',detail:'materials.use'}):''),composer});
   }
-  const items=conversationPanelStarterItems(panel,published);
+  const items=conversationPanelStarterItems(panel);
   const actions=items.map(([label,prompt,description,icon,key],index)=>{
     const encoded=encodeURIComponent(prompt).replace(/'/g,'%27');
     const copy=key?{title:`employeeChat.${key}Title`,detail:`employeeChat.${key}Detail`}:{};
@@ -1532,16 +1644,13 @@ function conversationPanelEmpty(panel=S.conversationPanel,composer=''){
     return conversationNewAction(label,`conversationPanelStarter(decodeURIComponent('${encoded}')${args})`,icon,description,index,copy);
   }).join('');
   const extra=conversationIs(panel,'pipeline','create')?`<button type="button" class="conversation-create-alternatives" aria-haspopup="menu" onclick="conversationCreateAlternatives(event)">其他创建方式${ICON('chev')}</button>`:'';
-  const boundAuthor=panel?.kind==='employee_design'&&!!RunTeamsEmployeeDirectory.forPanel(panel);
-  return conversationNewEmpty({actions,extra,composer,...(boundAuthor?
-    {title:'想和这名员工做什么？',titleKey:'employeeChat.conversationTitle'}:
-    published||items[0]?.[4]?{title:'你想交办什么工作？',titleKey:'employeeChat.emptyTitle'}:{})});
+  return conversationNewEmpty({actions,extra,composer});
 }
 
 /* module-function:conversationPanelPlaceholder */
 function conversationPanelPlaceholderCopy(panel){
   if(!panel)return null;
-  if(panel.context?.source_pipeline_workspace)return {key:'pipelineBoard.chatPrompt',text:'聊聊这条流水线的工作…'};
+  if(panel.context?.source_pipeline_workspace)return {key:'pipelineBoard.chatPrompt',text:'聊聊这个智能体团队的工作…'};
   if(typeof conversationEmployeeAssetMissing==='function'&&conversationEmployeeAssetMissing(panel))return {key:'employeeChat.unavailable',text:'员工暂不可用。你仍可以查看已保存的工作。'};
   if(panel.kind==='employee_design'&&panel.context?.creator_local_source_id&&panel.identity?.name)return {key:'employeeChat.design',text:'交办工作，或调整员工…'};
   if(conversationContextType(panel)!=='worker'||!['chat','work'].includes(conversationIntent(panel)))return null;
@@ -2012,8 +2121,8 @@ function conversationHomeItems(panel=S.conversationPanel){
  ];
  return [
  ['employee','创建员工','创建一名员工，帮我完成以下工作：','定义职责和工作方式，让 AI 负责一类工作。','users'],
- ['pipeline','创建流水线','创建一条流水线，处理以下工作：','安排员工分工，让工作按步骤推进。','flow'],
- ['resource','查找资源','查找适合以下工作的员工、技能或流水线：','根据你的需求，查找合适的员工、技能或流水线。','search-rail'],
+ ['pipeline','创建智能体团队','创建一个智能体团队，处理以下工作：','安排员工岗位，让成员独立工作或相互交接。','flow'],
+ ['resource','查找资源','查找适合以下工作的员工、技能或智能体团队：','根据你的需求，查找合适的员工、技能或智能体团队。','search-rail'],
 ];}
 function conversationHomeAvailable(panel){return !!panel&&!panel.messages?.length&&!panel.work?.length&&!panel.busy&&!panel.context?.source_pipeline_workspace&&!conversationEmployeeGuidance(panel)&&(conversationContextType(panel)==='general'||conversationEmployeeCreation(panel));}
 function conversationEmployeePromptChoices(panel){

@@ -1,17 +1,19 @@
-/* Trusted pipeline panels: existing configuration, history and records UI. */
+/* Trusted pipeline panels: configuration, task details and work records. */
 (()=>{
 'use strict';
 const host=()=>RunTeamsSourcePipelines,current=()=>host().taskWorkspace();
-const STATUS_FIRST_ROUTING='status-first',OUTCOME_PREFIX='outcome:',WAIT_FOR_INPUT='wait-for-input';
+const STATUS_FIRST_ROUTING='status-first',OUTCOME_PREFIX='outcome:',WAIT_FOR_INPUT='wait-for-input',COMPLETE_HERE='complete-here';
 const owned=s=>current()===s;
-const state=s=>s.panels||(s.panels={loading:false,error:'',data:null,draft:null,pending:null,history:null,historyOpen:false});
+const state=s=>s.panels||(s.panels={loading:false,error:'',data:null,draft:null,pending:null});
 const storageKey=s=>'runteams.pipeline-settings:'+s.storageScope+':'+JSON.stringify(s.reference);
 function persist(s){const p=state(s);if(!p.draft&&!p.pending){RunTeamsWorkState.removeItem(storageKey(s));return;}RunTeamsWorkState.setItem(storageKey(s),JSON.stringify({data:p.data,draft:p.draft,pending:p.pending,unknown:p.unknown}));}
 function select(kind){host().select(kind);}
-async function settings(){const s=current();if(!s)return;const p=state(s);select('settings');if(!p.data){try{const saved=JSON.parse(RunTeamsWorkState.getItem(storageKey(s))||'null');if(saved){Object.assign(p,saved);if(p.pending)p.unknown=true;}}catch(error){p.error='上次输入暂时无法读取，请先核对已保存内容。';}}return read(s);}
+async function settings({activityExpanded=false}={}){const s=current();if(!s)return;host().select('settings',{activityExpanded});return loadSettingsData(s);}
 async function read(s=current()){
  if(!owned(s))return;const p=state(s);if(p.loading)return;p.loading=true;render();
- try{const value=await host().request('settings',{reference:s.reference});if(!owned(s))return false;
+ const selection=S.sel,overview=selection?.type==='source-pipeline'&&selection.id==='settings';
+ try{const {configuration_states,...value}=await host().request('settings',{reference:s.reference,...(overview?{include_configuration:true}:{})});if(!owned(s))return false;
+  if(overview&&selection===S.sel)selection.configurationSnapshot=configuration_states;
   if(p.draft&&p.data?.source_revision!==value.source_revision)p.conflict=!p.pending;
   else{p.data=value;p.conflict=false;}
   if(!(p.draft&&p.error==='pipelineEditor.saveRejected'))p.error='';
@@ -32,7 +34,6 @@ async function refreshCommitted(s){
  const settings=await read(s);
  if(!owned(s)||!board||!settings)return;
  p.commitRefresh=null;
- if(p.historyOpen)void history(true);
 }
 function focusAfterSettingsAction(s,focused){
  if(!focused||!owned(s)||document.activeElement!==document.body)return;
@@ -40,7 +41,7 @@ function focusAfterSettingsAction(s,focused){
  if(recovery){recovery.focus({preventScroll:true});return;}
  requestAnimationFrame(()=>{
   if(!owned(s)||document.activeElement!==document.body)return;
-  document.querySelector('.source-pipeline-settings-drawer #source_pipeline_history_trigger')?.focus({preventScroll:true});
+  document.querySelector('.asset-overview-trigger')?.focus({preventScroll:true});
  });
 }
 async function retryCommittedRefresh(){
@@ -140,18 +141,18 @@ async function save(retry=false,s=current()){
 }
 async function rename(name,original){
  const s=current(),p=s&&state(s);
- if(!p||p.loading||p.saving||p.draft||p.pending||RunTeamsWorkState.getItem(storageKey(s)))throw Object.assign(Error('请先在流水线设置中处理未保存的修改。'),{pipelineRenameKey:'renameDraft'});
+ if(!p||p.loading||p.saving||p.draft||p.pending||RunTeamsWorkState.getItem(storageKey(s)))throw Object.assign(Error('请先在智能体团队设置中处理未保存的修改。'),{pipelineRenameKey:'renameDraft'});
  const value=await host().request('settings',{reference:s.reference});
  if(!owned(s))return;
- if(p.loading||p.saving||p.draft||p.pending)throw Object.assign(Error('请先在流水线设置中处理未保存的修改。'),{pipelineRenameKey:'renameDraft'});
- if(value.asset.pipeline.name!==original)throw Object.assign(Error('流水线名称已在其他窗口更新，请重新编辑。'),{pipelineRenameKey:'renameConflict'});
+ if(p.loading||p.saving||p.draft||p.pending)throw Object.assign(Error('请先在智能体团队设置中处理未保存的修改。'),{pipelineRenameKey:'renameDraft'});
+ if(value.asset.pipeline.name!==original)throw Object.assign(Error('智能体团队名称已在其他窗口更新，请重新编辑。'),{pipelineRenameKey:'renameConflict'});
  p.data=value;p.conflict=false;
- const asset=draft();if(!asset)throw Object.assign(Error('当前流水线名称不可编辑。'),{pipelineRenameKey:'renameUnavailable'});
+ const asset=draft();if(!asset)throw Object.assign(Error('当前智能体团队名称不可编辑。'),{pipelineRenameKey:'renameUnavailable'});
  asset.pipeline.name=name;
  await save();
  if(owned(s)&&p.draft){
   const [pipelineRenameKey,copy]=p.pending?
-   ['renamePending','请在流水线设置中核对名称。']:['renameRejected','无法更改流水线名称。可在流水线设置中继续编辑。'];
+   ['renamePending','请在智能体团队设置中核对名称。']:['renameRejected','无法更改智能体团队名称。可在智能体团队设置中继续编辑。'];
   throw Object.assign(Error(copy),{pipelineRenameKey});
  }
 }
@@ -166,61 +167,9 @@ async function receipt(){const s=current(),p=s&&state(s);if(!p?.pending||p.savin
  catch{if(owned(s))p.error=p.pending?(restoring?'pipelineSettings.restoreReceiptFailed':'pipelineEditor.receiptFailed'):(restoring?'pipelineSettings.restoredRefreshFailed':'pipelineEditor.savedRefreshFailed');}finally{p.saving=false;if(p.pending&&!owned(s))p.unknown=true;if(owned(s)){render();focusAfterSettingsAction(s,focused);}}
 }
 function cancel(){const s=current();if(!s||state(s).pending)return;const p=state(s);clearTimeout(p.saveTimer);p.draft=null;p.conflict=false;p.error='';p.validationError='';persist(s);void read(s);}
-async function history(retry=false){
- const s=current(),p=s&&state(s);if(!p)return;
- if(!retry)p.historyOpen=!p.historyOpen;
- if(!p.historyOpen){render();document.getElementById('source_pipeline_history_trigger')?.focus({preventScroll:true});return;}
- if(p.historyLoading)return;
- p.historyLoading=true;render();
- if(!retry)document.querySelector('.creator-history-popover')?.focus({preventScroll:true});
- try{
-  const r=await host().request('history',{reference:s.reference});
-  if(!Array.isArray(r?.items))throw Error('Invalid version history');
-  if(owned(s)){p.history=r.items;p.historyError='';}
- }
- catch(error){if(owned(s))p.historyError=error.message;}
- finally{
-  p.historyLoading=false;
-  if(owned(s)){
-   const focused=document.activeElement?.matches('.creator-history-popover');
-   render();
-   if(focused&&p.historyOpen)document.querySelector('.creator-history-popover')?.focus({preventScroll:true});
-  }
- }
-}
-function restore(index){const s=current(),p=s&&state(s),item=p?.history?.[index];if(!item||!p.data?.source_revision||item.revision===p.data.source_revision||p.settingsEdit||p.pending||p.draft||p.saving||p.commitRefresh||s.data.ui.mode!=='creator')return;
- const number=item.revision_number;
- const returnFocus=()=>document.querySelector(`.creator-history-popover [onclick="RunTeamsSourcePipelinePanels.restore(${index})"]`)||
-  document.getElementById('source_pipeline_history_trigger');
- const title=Number.isSafeInteger(number)?`恢复到修订 ${number}？`:'恢复此流水线版本？';
- confirmModal(title,'恢复后，看板会显示此版本的岗位与流转。员工资产和工作记录会保留。',()=>{if(!owned(s)||state(s)!==p)return;p.historyOpen=false;p.pending={operation_id:crypto.randomUUID(),reference:s.reference,base_revision:p.data.source_revision,restore_revision:item.revision};return save(true);},false,{titleKey:Number.isSafeInteger(number)?'employeeHistory.restoreRevision':'pipelineSettings.restoreTitle',titleVars:{number},messageKey:'pipelineSettings.restoreMessage',action:'恢复',actionKey:'employeeHistory.restoreAction',cancelKey:'employeeSettings.cancel',closeKey:'employeeSettings.closeDialog',focusCancel:true,returnFocus});}
-function header(p,title,description,titleKey,asset,locked){
- const s=current(),selection=S.sel,settings=selection?.id==='settings',author=s.data.ui.mode==='creator';
- const actions=[];
- if(author)actions.push({id:'history',label:'历史版本',labelKey:'pipelineSettings.history',platformId:'source_pipeline_history_trigger',
-  popup:'dialog',expanded:!!p.historyOpen,onPress:()=>history()});
- const versions=settings?window.RunTeamsPipelineMarket?.headerAction?.(s):null;
- if(versions)actions.push(p.settingsEdit?{...versions,disabled:true}:versions);
- requestAnimationFrame(()=>{
-  if(owned(s)&&S.sel===selection)RunTeamsEmployeeDrawerHeader.mount('source-pipeline-settings',p,{
-   kind:'settings',collapseLabelKey:'pipelineSettings.close',
-   onCollapse:()=>closeDetailWorkspace(),extras:{actions}});
- });
- const editable=settings&&author&&asset;
- const shownDescription=editable?description.trimEnd():description;
- const controls=editable?{
-  titleAction:settingsEditButton(p,'name',locked),
-  descriptionAction:settingsEditButton(p,'description',locked),
-  descriptionKey:shownDescription?undefined:'pipelineSettings.descriptionEmpty',
-  afterTitle:settingsEditForm(p,'name')
- }:{};
- return {toolbar:RunTeamsEmployeeDrawerHeader.markup('source-pipeline-settings')+(author?historyMarkup(p):'')+
-  (settings?window.RunTeamsPipelineMarket?.versionPopover?.(s)||'':''),
-  intro:`<section class="workspace-detail-head detail-drawer-intro">${detailDrawerHeading(editable?title.trimEnd():title,editable&&!shownDescription?'尚未填写说明。':shownDescription,'',editable?settingsEditForm(p,'description'):'',{titleKey,descriptionMarkdown:settings,...controls})}</section>`};
-}
 const settingsFields={
- name:{path:['pipeline','name'],label:'名称',labelKey:'name',edit:'编辑名称',editKey:'editName',limit:160},
- description:{path:['description'],label:'说明',labelKey:'description',edit:'编辑说明',editKey:'editDescription'}
+ standard:{path:['pipeline','team_standard'],label:'团队规范',labelKey:'standards'},
+ description:{path:['description'],label:'说明',labelKey:'description'}
 };
 const settingsValue=(asset,field)=>settingsFields[field].path.reduce((node,key)=>node[key],asset);
 function focusSettingsField(s,id){
@@ -244,7 +193,7 @@ async function finishSettingsEdit(field,submit){
  const s=current(),p=s&&state(s),edit=p?.settingsEdit;
  if(S.sel?.id!=='settings'||edit?.field!==field)return;
  const value=field==='description'?edit.value:edit.value.trim(),original=settingsValue(edit.base.asset,field)||'';
- if(submit&&(s.data.ui.mode!=='creator'||p.draft||p.pending||p.saving||p.commitRefresh||!p.data||field==='name'&&!value))return;
+ if(submit&&(s.data.ui.mode!=='creator'||p.draft||p.pending||p.saving||p.commitRefresh||!p.data))return;
  p.settingsEdit=null;
  document.activeElement?.blur?.();
  if(submit&&value!==original){
@@ -262,43 +211,18 @@ async function finishSettingsEdit(field,submit){
  }else render();
  if(!document.activeElement||document.activeElement===document.body)focusSettingsField(s,'source_pipeline_edit_'+field);
 }
-function settingsEditButton(p,field,locked){
- const {edit,editKey}=settingsFields[field],key='pipelineSettings.'+editKey;
- return `<button type="button" class="source-pipeline-field-edit" id="source_pipeline_edit_${field}" aria-label="${edit}" title="${edit}" data-app-i18n-aria-label="${key}" data-app-i18n-title="${key}" ${locked||p.settingsEdit||p.draft?'disabled':''} onclick="RunTeamsSourcePipelinePanels.startSettingsEdit('${field}')">${ICON('edit')}</button>`;
-}
 function settingsEditForm(p,field){
  const edit=p.settingsEdit;
  if(edit?.field!==field)return '';
- const {label,labelKey,limit}=settingsFields[field],id='source_pipeline_setting_'+field;
- const attributes=`id="${id}" class="inp" oninput="RunTeamsSourcePipelinePanels.updateSettingsEdit('${field}',this.value)"${limit?` maxlength="${limit}"`:''}`;
+ const {label,labelKey}=settingsFields[field],id='source_pipeline_setting_'+field;
+ const attributes=`id="${id}" class="inp" oninput="RunTeamsSourcePipelinePanels.updateSettingsEdit('${field}',this.value)"`;
  const finish="RunTeamsSourcePipelinePanels.finishSettingsEdit('"+field+"',";
  return `<form class="configuration-surface source-pipeline-field-form" onsubmit="event.preventDefault();${finish}true)" onkeydown="if(event.key==='Escape'&&!event.isComposing){event.preventDefault();event.stopPropagation();${finish}false)}">
   <label class="sr-only" for="${id}" data-app-i18n="pipelineSettings.${labelKey}">${label}</label>
-  ${field==='name'?`<input ${attributes} value="${esc(edit.value)}" required pattern=".*\\S.*">`:`<textarea ${attributes}>
-${esc(edit.value)}</textarea>`}
+  <textarea ${attributes}>
+${esc(edit.value)}</textarea>
   <div class="source-pipeline-field-actions"><button type="button" class="btn" onclick="${finish}false)" data-app-i18n="employeeSettings.cancel">取消</button><button class="btn pri" type="submit" data-app-i18n="pipelineSettings.saveField">保存</button></div>
  </form>`;
-}
-function historyMarkup(p){
- if(!p.historyOpen)return '';
- const s=current(),currentRevision=p.data?.source_revision??s.data.source_revision;
- const rows=(p.history||[]).map(item=>Number.isSafeInteger(item.revision_number)?{...item,version:undefined,revisionNumber:item.revision_number}:item);
- const notesFor=item=>item.notes_kind==='pipeline_definition'?'pipelineSettings.definitionNotes':item.notes_kind==='pinned_release'?'pipelineSettings.pinnedReleaseNotes':undefined;
- const body=p.historyLoading?RunTeamsSkeletons.region('history',undefined,'pipelineSettings.historyLoading'):p.historyError?RunTeamsLoadFailure.markup({variant:'local',title:'无法读取历史版本',titleKey:'pipelineSettings.historyFailed',labelKey:'employeeHistory.retry',busyLabelKey:'pipelineSettings.historyLoading',error:p.historyError,retry:'RunTeamsSourcePipelinePanels.history(true)',focusFallback:'.creator-history-popover'}):RunTeamsCreatorAuthor.historyList(rows,(item,index)=>s.data.ui.mode==='creator'&&p.data?.source_revision&&item.revision!==currentRevision&&!p.settingsEdit&&!p.draft&&!p.pending&&!p.commitRefresh?`RunTeamsSourcePipelinePanels.restore(${index})`:'',!!p.saving,{notesFor,currentRevision});
- return `<section class="creator-history-popover" role="dialog" tabindex="-1" aria-label="历史版本" data-app-i18n-aria-label="pipelineSettings.history"><div class="creator-history-title" data-app-i18n="pipelineSettings.history">历史版本</div><div class="creator-history-list">${body||'<p data-app-i18n="pipelineSettings.historyEmpty">还没有历史版本。</p>'}</div></section>`;}
-function toggleSettingsSection(button){
- const s=current();
- if(!s||S.sel?.type!=='source-pipeline'||S.sel.id!=='settings'||!button.isConnected)return;
- RunTeamsEmployeeDrawerHeader.toggleSection(button,state(s).collapsedSettings||=new Set());
-}
-function teamStandard(p,asset){
- const standard=asset.pipeline.team_standard?.trimEnd();
- const body=standard?`<div class="markdown-compact">${renderMarkdown(standard)}</div>`:
-  '<p data-app-i18n="pipelineSettings.empty">尚未填写团队规范。</p>';
- return RunTeamsEmployeeDrawerHeader.section({id:'pipeline-settings-standards',
-  title:'<span data-app-i18n="pipelineSettings.standards">团队规范</span>',
-  body,collapsedSections:p.collapsedSettings,action:'RunTeamsSourcePipelinePanels.toggleSettingsSection',
-  className:'source-pipeline-standards'});
 }
 function settingsContent(s,p,asset){
  const employees=p.data.employees;
@@ -307,19 +231,20 @@ function settingsContent(s,p,asset){
  const memberEntries=employees.filter(employee=>employee.field_count&&!employee.error).map(employee=>memberConfigurationEntry(s,employee));
  const entries=[...(own?[own]:[]),...memberEntries];
  requestAnimationFrame(()=>{
-  if(owned(s)&&S.sel===selection)configuration.mountGroup(entries,selection);
+  if(owned(s)&&S.sel===selection)configuration.mountGroup(entries,selection,selection.configurationSnapshot,p.loading);
  });
- const ownFields=own?configuration.groupParts(own.key,{name:'流水线自身',labelKey:'pipelineSettings.own'}):'';
+ const ownFields=own?configuration.groupParts(own.key,{name:'智能体团队自身',labelKey:'pipelineSettings.own'}):'';
  const programs=!own&&s.data.programs_available?RunTeamsWorkAuthorization.settings(ownConfigurationEntry(s)):'';
- const memberFields=memberEntries.map(entry=>configuration.groupParts(entry.key,entry.record)).join('');
+ const memberFields=memberEntries.map(entry=>configuration.groupParts(entry.key,{...entry.record,qualifyGroups:entries.length>1})).join('');
  const fields=ownFields+programs+memberFields;
- return teamStandard(p,asset)+(fields?`<div class="source-pipeline-own-settings settings-section-stack">${fields}</div>`:'');
+ return fields?`<div class="source-pipeline-own-settings settings-section-stack">${fields}</div>`:'';
 }
 function drawer(){const s=current();if(!s)return '';const p=state(s),positionKey=S.sel?.id==='position'?S.sel.positionKey:null,asset=p.draft||p.data?.asset,locked=s.data.ui.mode!=='creator'||!!p.pending||p.saving||p.commitRefresh;
- let body=p.loading&&!p.data?RunTeamsSkeletons.region('detail',undefined,'pipelineSettings.loading'):'';
+ const settingsLoading=(p.loading||!positionKey)&&!p.data&&!asset&&!p.error;
+ let body=settingsLoading?RunTeamsSkeletons.region(positionKey?'detail':'overview-configuration',undefined,'pipelineSettings.loading'):'';
  if(asset){
   if(positionKey)body+=positionMarkup(asset,positionKey,locked||p.conflict);
-  else body+=settingsContent(s,p,asset,locked||p.conflict);
+  else body+=settingsContent(s,p,asset);
  }
  if(p.conflict)body+='<div class="configuration-conflict" role="alert" data-app-i18n="pipelineEditor.conflict">源码已在其他位置更新，你的输入已保留。取消本次修改后可读取最新定义。</div>';
  if(p.commitRefresh&&!p.saving){
@@ -327,28 +252,41 @@ function drawer(){const s=current();if(!s)return '';const p=state(s),positionKey
   body+=`<p class="field-error" role="alert" data-app-i18n="${key}">${esc(RunTeamsLocale.t(key))}</p>`;
  }
  else if(/^(pipelineEditor|pipelineSettings|employeeHistory)\./.test(p.error))body+=`<p class="field-error" role="alert" data-app-i18n="${esc(p.error)}">${esc(RunTeamsLocale.t(p.error))}</p>`;
- else if(p.error)body+=RunTeamsLoadFailure.markup({variant:'local',title:'无法读取流水线设置',titleKey:'pipelineSettings.failed',labelKey:'employeeHistory.retry',busyLabelKey:'pipelineSettings.loading',error:p.error,retry:'RunTeamsSourcePipelinePanels.read()'});
+ else if(p.error)body+=RunTeamsLoadFailure.markup({variant:'local',title:'无法读取智能体团队设置',titleKey:'pipelineSettings.failed',labelKey:'employeeHistory.retry',busyLabelKey:'pipelineSettings.loading',error:p.error,retry:'RunTeamsSourcePipelinePanels.read()'});
  if(p.validationError)body+=`<p class="field-error" role="alert">${esc(p.validationError)}</p>`;
  body+=settingsActions(p);
- const title=asset?.pipeline.name||s.data.name||'流水线设置';
- const titleKey=asset?.pipeline.name||s.data.name?undefined:'pipelineSettings.title';
- const description=asset?.description||'';
-
- requestAnimationFrame(()=>{
-  if(!owned(s)||S.sel?.type!=='source-pipeline'||S.sel.id!=='settings')return;
-  const body=document.querySelector('.source-pipeline-settings-drawer .right-detail-scroll');
-  if(!body)return;
-  body.scrollTop=p.scroll?.[S.sel.id]||0;
- });
- return detailDrawerShell({className:'employee-configuration-drawer source-pipeline-settings-drawer'+(positionKey?' node-detail-drawer core-position-detail-drawer':' source-pipeline-settings-home'),
-  header:positionKey?positionHeader(s,asset,positionKey):header(p,title,description,titleKey,asset,locked||p.conflict),
-  introClass:!positionKey?'detail-drawer-summary':'',body,bodyClass:'employee-configuration-body'+(!positionKey?' settings-section-stack':''),
-  attrs:`data-pipeline-editor-owner="${esc(host().key(s.reference))}" aria-label="${positionKey?'岗位详情':'流水线设置'}" data-app-i18n-aria-label="${positionKey?'pipelineSettings.position':'pipelineSettings.title'}"`});
+ if(!positionKey){
+  const overview=RunTeamsAssetOverview,sel=S.sel,pipeline=asset?.pipeline||s.data.pipeline||{};
+  const standard=pipeline.team_standard||'',creator=s.data.ui.mode==='creator';
+  const standardBody=p.settingsEdit?.field==='standard'?settingsEditForm(p,'standard'):standard?renderMarkdown(standard):'<span data-app-i18n="pipelineSettings.empty">尚未填写团队规范。</span>';
+  const editable=creator&&asset&&!locked&&!p.conflict&&!p.settingsEdit;
+  const description=asset?asset.description||'':s.data.description||'';
+  const descriptionControl=p.settingsEdit?.field==='description'?settingsEditForm(p,'description'):editable?
+   `<button type="button" id="source_pipeline_edit_description" class="overview-edit-description" aria-label="编辑说明" data-app-i18n-aria-label="pipelineSettings.editDescription" onclick="RunTeamsSourcePipelinePanels.startSettingsEdit('description')">${description?esc(description):'<span data-app-i18n="pipelineSettings.descriptionEmpty">尚未填写说明。</span>'}</button>`:'';
+  const standardContent=`<div class="overview-standard markdown-compact" ${editable?'id="source_pipeline_edit_standard" role="button" tabindex="0" aria-label="编辑团队规范" data-app-i18n-aria-label="assetOverview.editStandard" onclick="RunTeamsSourcePipelinePanels.editStandard(event)" onkeydown="RunTeamsSourcePipelinePanels.editStandard(event)"':''}>${standardBody}</div>`;
+  const hasStandard=!!(standard||creator&&asset);
+  const standardId='overview-team-standard';
+  const collapsed=hasStandard&&(sel.standardSections??=new Set([standardId])).has(standardId);
+  const standardToggle=hasStandard?`<button type="button" class="overview-standard-toggle" aria-label="团队规范" title="团队规范" data-app-i18n-aria-label="pipelineSettings.standards" data-app-i18n-title="pipelineSettings.standards" aria-expanded="${!collapsed}" aria-controls="${standardId}" data-settings-section-key="${standardId}" onclick="RunTeamsSourcePipelinePanels.toggleStandard(this)" ${p.settingsEdit?'disabled':''}>${ICON('chev')}</button>`:'';
+  const descriptionRow=descriptionControl||(hasStandard?(description?`<span>${esc(description)}</span>`:'<span data-app-i18n="pipelineSettings.descriptionEmpty">尚未填写说明。</span>'):'');
+  const descriptionDetails=hasStandard?`<div id="${standardId}" class="settings-section-body overview-standard-body"${collapsed?' hidden':''}>${standardContent}</div>`:'';
+  const version=creator?p.data?.version:s.data.installed_version||p.data?.version;
+  const publication=window.RunTeamsPipelineMarket?.headerAction?.(s);
+  const publish=publication?`<button type="button" id="pipeline_market_open" class="btn pri sm" onclick="RunTeamsSourcePipelinePanels.overviewVersion()" ${publication.disabled?'disabled':''}${publication.popup?' aria-haspopup="dialog" aria-expanded="'+!!publication.expanded+'"':''}><span data-app-i18n="${esc(publication.labelKey)}">${esc(publication.label)}</span></button>`:'';
+  const mode=RunTeamsHost.pipeline?.creationModeControl(s)||'';
+  const extras=s.data.programs_available?RunTeamsCreatorWork.controls(host().workContext()):'';
+  return overview.shell({title:pipeline.name||s.data.name,description,descriptionControl:descriptionRow+standardToggle,descriptionDetails,avatar:host().pipelineIcon(s,false),
+   environment:RunTeamsEnvironment.pipelineRows(p.data),configuration:body,records:RunTeamsWorkRecords.taskResults(s.data.workflows||[],s.reference).results,
+   version,modeControl:mode,versionLoading:settingsLoading,actions:publish,extras:extras+(window.RunTeamsPipelineMarket?.versionPopover?.(s)||'')});
+ }
+ return detailDrawerShell({className:'employee-configuration-drawer source-pipeline-settings-drawer node-detail-drawer core-position-detail-drawer',
+  header:positionHeader(s,asset,positionKey),body,bodyClass:'employee-configuration-body',
+  attrs:`data-pipeline-editor-owner="${esc(host().key(s.reference))}" aria-label="岗位详情" data-app-i18n-aria-label="pipelineSettings.position"`});
 }
 const settingsBusyCopy={
  restore:['employeeHistory.restoring','正在恢复版本…'],
  checkRestore:['employeeHistory.checkingRestore','正在核对恢复结果…'],
- refresh:['pipelineSettings.refreshing','正在刷新流水线…']
+ refresh:['pipelineSettings.refreshing','正在刷新智能体团队…']
 };
 function settingsActions(p){
  if(p.saving){
@@ -363,7 +301,7 @@ function settingsActions(p){
    p.retry?['pipelineEditor.retrySave','重试原保存']:['pipelineEditor.checkSave','核对保存结果'];
   return `<div class="configuration-save configuration-save-inline">${restoring&&p.retry?'':`<span data-app-i18n="${statusKey}">${status}</span>`}<button class="btn" type="button" data-pipeline-recovery onclick="RunTeamsSourcePipelinePanels.receipt()" data-app-i18n="${actionKey}" aria-label="${action}" data-app-i18n-aria-label="${actionKey}">${action}</button></div>`;
  }
- if(p.commitRefresh)return '<div class="configuration-save configuration-save-inline"><button class="btn" type="button" data-pipeline-recovery onclick="RunTeamsSourcePipelinePanels.retryCommittedRefresh()" data-app-i18n="pipelineSettings.retryRefresh" aria-label="重新加载流水线" data-app-i18n-aria-label="pipelineSettings.retryRefresh">重新加载流水线</button></div>';
+ if(p.commitRefresh)return '<div class="configuration-save configuration-save-inline"><button class="btn" type="button" data-pipeline-recovery onclick="RunTeamsSourcePipelinePanels.retryCommittedRefresh()" data-app-i18n="pipelineSettings.retryRefresh" aria-label="重新加载智能体团队" data-app-i18n-aria-label="pipelineSettings.retryRefresh">重新加载智能体团队</button></div>';
  return p.draft&&(p.error||p.conflict)?`<div class="configuration-save configuration-save-inline"><button class="btn" type="button" onclick="RunTeamsSourcePipelinePanels.cancel()" data-app-i18n="employeeSettings.cancel">取消</button>${p.conflict?'':'<button class="btn" type="button" onclick="RunTeamsSourcePipelinePanels.save()" data-app-i18n="employeeHistory.retry">重试</button>'}</div>`:'';
 }
 function memberConfigurationEntry(s,e){
@@ -391,7 +329,7 @@ async function configurationRequest(session,method,body,receipt){const ref=sessi
 async function loadSettingsData(s){
  const p=state(s);
  if(!p.data){try{const saved=JSON.parse(RunTeamsWorkState.getItem(storageKey(s))||'null');if(saved){Object.assign(p,saved);if(p.pending)p.unknown=true;}}catch(error){p.error='上次输入暂时无法读取。';}}
- await read(s);
+ return read(s);
 }
 async function readEmployeeChoices(){
  const s=current(),p=s&&state(s);if(!p||p.choicesLoading)return;
@@ -450,6 +388,7 @@ function stageConnections(pipeline){
  };
  const caption=when=>Object.hasOwn(labels,when)?stageCopy(...labels[when]):when.replace(/^outcome:/,'');
  names.set(WAIT_FOR_INPUT,stageCopy('pipelineEditor.waitHere','留在当前岗位，待人工处理'));
+ if(pipeline.routing_policy===STATUS_FIRST_ROUTING)names.set(COMPLETE_HERE,stageCopy('pipelineEditor.completeHere','留在当前岗位并完成'));
  const existing=edges.map((edge,index)=>({index,from:edge.from,when:edge.when||'completed',to:edge.to}));
  const free=positions.flatMap(position=>{
   const when=position.kind==='approval'?'approved':'completed';
@@ -547,7 +486,7 @@ async function addStageMenu(trigger){
   if(routing){
    content=`<form class="source-pipeline-stage-route"><label><span data-app-i18n="pipelineBoard.stageConnection">接入流转</span><select class="inp" required data-stage-connection>${options([['','选择接入位置','pipelineBoard.chooseStageConnection'],...connections.map((edge,index)=>[String(index),edge.label])],'')}</select></label><div class="source-pipeline-stage-route-actions"><button class="btn sm" type="button" data-stage-back data-app-i18n="shell.settingsBack">返回</button><button class="btn pri sm" type="submit" data-app-i18n="pipelineBoard.add">添加</button></div></form>`;
   }else if(!ready&&failed){
-   content='<p role="alert" data-app-i18n="pipelineBoard.readFailed">无法读取流水线。</p><button class="btn sm" type="button" data-stage-retry data-app-i18n="employeeHistory.retry">重试</button>';
+   content='<p role="alert" data-app-i18n="pipelineBoard.readFailed">无法读取智能体团队。</p><button class="btn sm" type="button" data-stage-retry data-app-i18n="employeeHistory.retry">重试</button>';
   }else content=nodes?(ready?nodesMarkup():RunTeamsSkeletons.region('history',3,'pipelineBoard.loading')):rolesMarkup();
   menu.innerHTML=title+(routing?'':tabs)+`<div class="draft-picker-panel">${content}</div>`;
   const retry=menu.querySelector('[data-read-retry]');
@@ -815,7 +754,7 @@ async function removePosition(s,key){
  if(index<0)return;
  const blocked=removalBlock(pipeline,kind,index);
  if(blocked)return toast(RunTeamsLocale.t(blocked.key,blocked.vars),'info',blocked.key,blocked.vars);
- confirmModal('从流水线移除环节？','相关流转规则也会移除，已有工作记录会保留。',()=>{
+ confirmModal('从智能体团队移除环节？','相关流转规则也会移除，已有工作记录会保留。',()=>{
   if(owned(s)&&S.sel?.positionKey===key&&(state(s).draft||state(s).data?.asset)?.pipeline[kind][index]?.key===key)remove(kind,index);
  },true,{titleKey:"pipelineEditor.removeStepTitle",messageKey:"pipelineEditor.removeStepMessage",action:"移除环节",actionKey:"pipelineEditor.removeStep",cancelKey:"employeeSettings.cancel",closeKey:"employeeSettings.closeDialog"});
 }
@@ -849,8 +788,11 @@ function routeRows(asset,position,locked,{flat=false}={}){
   const target=existing.find(edge=>(edge.when||'completed')===value)?.to||'';
   const selected=targets.find(row=>row.key===target);
   const tone=boardPreferences(current()).colors?.[target]||defaultTone(selected?.kind);
-  const caption=target===WAIT_FOR_INPUT?'留在当前岗位，待人工处理':selected?.name||(target?'原目标（请核对）':'未指定');
-  return `<div class="bout node-route-row"><span class="bo-label" title="${esc(label)}"${labelKey?` data-app-i18n="${labelKey}" data-app-i18n-title="${labelKey}"`:''}>${esc(label)}</span><button type="button" data-menu-trigger="field" class="csel" aria-haspopup="menu" aria-expanded="false" data-app-i18n-aria-label="${labelKey?labelKey+'For':'pipelineEditor.routeFor'}" data-app-i18n-vars="${esc(JSON.stringify({name:position.name,route:label}))}" aria-label="${esc(position.name+' '+label+'的下游')}" data-position="${esc(key)}" data-route="${esc(value)}" data-value="${esc(target)}" onclick="RunTeamsSourcePipelinePanels.routeMenu(event)" ${locked?'disabled':''}><span class="cv"><span class="${selected?`column-group-name column-swatch-${esc(tone)}`:'node-route-empty'}"${selected?'':` data-app-i18n="pipelineEditor.${target===WAIT_FOR_INPUT?'waitHere':target?'routeMissing':'routeUnset'}"`}>${esc(caption)}</span></span>${ICON('chev')}</button></div>`;
+  const [captionKey,defaultCaption]=target===WAIT_FOR_INPUT?['waitHere','留在当前岗位，待人工处理']:
+   statusFirst&&target===COMPLETE_HERE?['completeHere','留在当前岗位并完成']:
+   target?['routeMissing','原目标（请核对）']:['routeUnset','未指定'];
+  const caption=selected?.name||defaultCaption;
+  return `<div class="bout node-route-row"><span class="bo-label" title="${esc(label)}"${labelKey?` data-app-i18n="${labelKey}" data-app-i18n-title="${labelKey}"`:''}>${esc(label)}</span><button type="button" data-menu-trigger="field" class="csel" aria-haspopup="menu" aria-expanded="false" data-app-i18n-aria-label="${labelKey?labelKey+'For':'pipelineEditor.routeFor'}" data-app-i18n-vars="${esc(JSON.stringify({name:position.name,route:label}))}" aria-label="${esc(position.name+' '+label+'的下游')}" data-position="${esc(key)}" data-route="${esc(value)}" data-value="${esc(target)}" onclick="RunTeamsSourcePipelinePanels.routeMenu(event)" ${locked?'disabled':''}><span class="cv"><span class="${selected?`column-group-name column-swatch-${esc(tone)}`:'node-route-empty'}"${selected?'':` data-app-i18n="pipelineEditor.${captionKey}"`}>${esc(caption)}</span></span>${ICON('chev')}</button></div>`;
  }).join('');
  const configuredExceptions=availableExceptions.filter(([value])=>configured(value));
  const optionalExceptions=availableExceptions.filter(([value])=>!configured(value));
@@ -901,21 +843,30 @@ function toggleRouteConditions(event){
  button.dataset.appI18n=expanded?'pipelineEditor.hideRouteConditions':'pipelineEditor.moreRouteConditions';
  button.textContent=RunTeamsLocale.t(button.dataset.appI18n,{},expanded?'收起额外条件':'更多流转条件');
 }
+function canCompleteHere(graph,position,when){
+ if(graph.routing_policy!==STATUS_FIRST_ROUTING||!position)return false;
+ return position.kind==='approval'?when==='approved':
+  ['completed','always'].includes(when)||when.startsWith(OUTCOME_PREFIX);
+}
 function routeMenu(event){
  const anchor=event.currentTarget,{position,route,value}=anchor.dataset,s=current(),p=s&&state(s);
  const graph=(p?.draft||p?.data?.asset)?.pipeline;
  if(!graph||anchor.disabled)return;
  const colors=boardPreferences(s).colors||{};
- const waitHere=graph.routing_policy===STATUS_FIRST_ROUTING&&graph.positions.some(row=>row.key===position&&row.kind==='employee');
- const choices=[{key:'',name:'未指定'},...(waitHere?[{key:WAIT_FOR_INPUT,name:'留在当前岗位，待人工处理'}]:[]),...[...graph.positions,...(graph.states||[])].filter(row=>row.key!==position)];
- openMenu(anchor,choices.map(row=>({label:row.name,labelKey:row.key===WAIT_FOR_INPUT?"pipelineEditor.waitHere":row.key?undefined:"pipelineEditor.routeUnset",labelClass:row.key&&row.key!==WAIT_FOR_INPUT?`column-group-name column-swatch-${colors[row.key]||defaultTone(row.kind)}`:'',selected:row.key===value,fn:()=>{if(owned(s)&&anchor.isConnected)setRoute(position,route,row.key);}})),{variant:'routeSelect'});
+ const sender=graph.positions.find(row=>row.key===position);
+ const choices=[{key:'',name:'未指定',labelKey:'pipelineEditor.routeUnset'}];
+ if(graph.routing_policy===STATUS_FIRST_ROUTING&&sender?.kind==='employee')choices.push({key:WAIT_FOR_INPUT,name:'留在当前岗位，待人工处理',labelKey:'pipelineEditor.waitHere'});
+ if(canCompleteHere(graph,sender,route))choices.push({key:COMPLETE_HERE,name:'留在当前岗位并完成',labelKey:'pipelineEditor.completeHere'});
+ choices.push(...[...graph.positions,...(graph.states||[])].filter(row=>row.key!==position));
+ openMenu(anchor,choices.map(row=>({label:row.name,labelKey:row.labelKey,labelClass:row.kind?`column-group-name column-swatch-${colors[row.key]||defaultTone(row.kind)}`:'',selected:row.key===value,fn:()=>{if(owned(s)&&anchor.isConnected)setRoute(position,route,row.key);}})),{variant:'routeSelect'});
 }
 function setRoute(key,when,target){
  const s=current(),p=s&&state(s),asset=p&&(p.draft||p.data?.asset);
  if(!asset||p.conflict)return;
  const graph=asset.pipeline,position=graph.positions.find(row=>row.key===key);
  const waitHere=target===WAIT_FOR_INPUT&&graph.routing_policy===STATUS_FIRST_ROUTING&&position?.kind==='employee';
- if(!position||target&&!waitHere&&!([...graph.positions,...(graph.states||[])].some(row=>row.key===target&&row.key!==key)))return;
+ const completeHere=target===COMPLETE_HERE&&canCompleteHere(graph,position,when);
+ if(!position||target&&!waitHere&&!completeHere&&!([...graph.positions,...(graph.states||[])].some(row=>row.key===target&&row.key!==key)))return;
  const prior=graph.edges.find(edge=>edge.from===key&&(edge.when||'completed')===when);
  if((prior?.to||'')===target)return;
  const edges=graph.edges.filter(edge=>edge!==prior);
@@ -1189,22 +1140,6 @@ function remove(kind,index){
  }
  queueSave(s);render();
 }
-function toggleRecords(){if(S.sel?.scope?.source_pipeline_reference){closeContextResults();return;}return records();}
-async function records(){const s=current();if(!s)return;selectDetailWorkspace({type:'core-results',id:'source-pipeline-records',scope:{source_pipeline_reference:s.reference},status:'loading',data:null,resultKey:'',sourceWorkspace:s});render();await setAppUrl(host().route(s.reference)+'?results=1',true);if(owned(s))return refreshRecords();}
-async function refreshRecords(preserveExisting=false){
- const selection=S.sel,s=current();
- if(!s||selection?.id!=='source-pipeline-records'||selection.sourceWorkspace!==s)return;
- if(!preserveExisting){selection.status='loading';render();}
- try{
-  if(preserveExisting)selection.pipelineRecordPreviews?.clear();
-  if(preserveExisting||!Array.isArray(s.data.workflows))await host().refresh();
-  if(!owned(s)||S.sel!==selection)return;
-  RunTeamsWorkRecords.updateTaskList(s);
- }catch(error){
-  if(owned(s)&&S.sel===selection){selection.status='error';selection.error=error.message;}
- }
- if(owned(s)&&S.sel===selection)render();
-}
 const flowKey=(s,id)=>'runteams.pipeline-flow:'+s.storageScope+':'+JSON.stringify(s.reference)+':'+id;
 function flowState(s,id){s.flowStates||={};if(!s.flowStates[id]){try{s.flowStates[id]=JSON.parse(RunTeamsWorkState.getItem(flowKey(s,id))||'null')||{};s.flowStates[id].busy=false;if(s.flowStates[id].pending)s.flowStates[id].unknown=true;}catch(error){s.flowStates[id]={error:{key:'flowReadFailed'}};}}return s.flowStates[id];}
 function feedbackOption(selection){
@@ -1222,9 +1157,32 @@ function feedbackConfigurationFields(selection){
 function feedbackRequiresText(option){
  return ['text','fields_and_text'].includes(option?.input_mode);
 }
+function topicApprovalChoices(workflow){
+ // The tarot pipeline already stores candidate IDs and reads the chosen ID from the approval note.
+ const {pipeline_work:work,pipeline_waiting:wait}=workflow.snapshot_json||{};
+ if(workflow.state!=='needs_approval'||workflow.cursor_key!=='choose-topic'||
+  work?.asset?.key!=='production'||wait?.kind!=='approval')return [];
+ const run=workflow.employee_runs?.find(run=>run.id===wait.source_run_id&&run.position_key==='topic');
+ const brief=run?.output_json?.output?.topic_brief;
+ const candidates=brief?.candidates;
+ if(!Array.isArray(candidates)||!candidates.length||!candidates.every(candidate=>
+  candidate&&['A','B','C'].includes(candidate.id)&&typeof candidate.title==='string'&&candidate.title.trim())||
+  new Set(candidates.map(candidate=>candidate.id)).size!==candidates.length)return [];
+ return candidates.map(({id,title})=>({id,label:`${id} · ${title}`,recommended:id===brief.recommended_id}));
+}
 async function flow(action,decision=''){const s=current(),selection=S.sel,w=selection?.workflow;if(!s||selection.id!=='work'||!w)return;const f=flowState(s,w.id);if(f.busy||f.preparing||f.error?.key==='flowReadFailed')return;const previous=f.pending;
  try{ if(!f.pending){
-  const response=document.getElementById('source_pipeline_response')?.value||'';
+  let response=document.getElementById('source_pipeline_response')?.value||'';
+  const topics=action==='decide'&&decision==='approved'?topicApprovalChoices(w):[];
+  if(topics.length){
+   const selected=document.querySelector('input[name="source_pipeline_choice"]:checked')?.value;
+   const topic=topics.find(option=>option.label===selected);
+   if(!topic){
+    const key='pipelineWork.chooseFeedback';
+    throw Object.assign(Error(workText('chooseFeedback','请先选择一项。')),{detailKey:key});
+   }
+   response=topic.id;
+  }
   const choice=action==='respond'?document.querySelector('input[name="source_pipeline_choice"]:checked')?.value:'';
   if(action==='respond'&&selection.humanRequest?.options?.some(option=>option.input_mode)){
    const option=selection.humanRequest.options.find(item=>item.label===choice);
@@ -1631,13 +1589,6 @@ function taskDocumentReader(id,selection,s){
  if(scroll)selection.workScroll=scroll.scrollTop;
  return openMarkdownLink('runteams://document/'+id,{returnToPipelineTask:true,isCurrent:()=>owned(s)&&S.sel===selection});
 }
-function openTaskDocument(id){
- const selection=S.sel;
- const s=current(),w=selection?.workflow;
- if(!s||selection?.id!=='work'||!w)return;
- const {files}=RunTeamsWorkRecords.taskDeliveries(w);
- if(files.some(file=>file.purpose==='document'&&Number(file.meta_json?.revision_of||file.id)===id))return taskDocumentReader(id,selection,s);
-}
 async function openTaskReport(button){
  const s=current(),selection=S.sel,w=selection?.workflow;
  if(!s||selection?.id!=='work'||!w||selection.openingTaskReport||!button.isConnected)return;
@@ -1646,45 +1597,22 @@ async function openTaskReport(button){
   const report=await host().request('task-report',{reference:s.reference,workflow_id:Number(w.id)});
   if(owned(s)&&S.sel===selection)await taskDocumentReader(report.document_id,selection,s);
  }catch(error){
-  if(owned(s)&&S.sel===selection)toast(error.message||workText('taskReportFailed','无法打开任务汇报，请重试。'),'err');
+  if(owned(s)&&S.sel===selection){
+   toast(error.message||workText('deliveryFileFailed','无法打开交付文档，请重试。'),'err');
+  }
  }finally{
   selection.openingTaskReport=false;
   if(button.isConnected){button.disabled=false;button.removeAttribute('aria-busy');}
  }
 }
-function taskReportAction(){
- return `<button type="button" class="btn sm source-work-report-open" onclick="RunTeamsSourcePipelinePanels.openTaskReport(this)">${ICON('doc')}<span data-app-i18n="workRecordDetail.openReport">在文档中打开</span></button>`;
+function finalDeliveryRow(selection){
+ return RunTeamsWorkRecords.deliveryRowMarkup({purpose:'document',name:selection.workflow.task?.title||selection.recordTitle||workText('title','任务')},{
+  key:'task-report-'+selection.workflow.id,action:'RunTeamsSourcePipelinePanels.openTaskReport(this)'
+ });
 }
-function taskDeliveryDescription(file,document){
- const meta=file.meta_json||{};
- for(const value of [file.description,meta.description,meta.work_report?.summary]){
-  if(typeof value!=='string')continue;
-  const sentences=value.split(/(?<=[。！？!?])\s*|(?<=\.)\s+|\n+/u);
-  const sentence=sentences.map(text=>text.trim()).find(text=>text&&text!==file.name&&
-   !/^(?:可评审|需补材料|需补需求|已完成|建议负责人确认立项)(?:[（(][a-z_]+[）)])?[。！？.!?]?$/iu.test(text)&&
-   !/^当前工作单绑定/.test(text));
-  if(sentence)return sentence;
- }
- const localized=window.RunTeamsLocale;
- if(document)return localized?.t('fileBrowser.kind.rich',{},'文档')??'文档';
- const name=file.filename||meta.path||file.name||'';
- const format=/\.([a-z0-9]{1,12})$/i.exec(name)?.[1]?.toUpperCase();
- const size=Number(file.size??meta.size);
- return [format,size>0?formatFileSize(size):''].filter(Boolean).join(' · ')||
-  (localized?.t('fileBrowser.attachment',{},'附件')??'附件');
-}
-function taskDeliveriesMarkup(selection,{files}){
- if(!files.length)return '';
- const rows=files.map((file,index)=>{
-  const document=file.purpose==='document',id=Number(document?file.meta_json?.revision_of||file.id:file.id);
-  const action=document?'RunTeamsSourcePipelinePanels.openTaskDocument':'openResultEvidenceFile';
-  return RunTeamsWorkRecords.rowMarkup({
-   key:'delivery-'+id,title:file.name||workText('deliveryUntitled','未命名交付物'),
-   created_at:file.created_at,previousTime:files[index-1]?.created_at||null,icon:document?'doc':resultEvidenceIcon(file),
-   summary:taskDeliveryDescription(file,document),role:file.role||''
-  },`${action}(${id})`);
- }).join('');
- return RunTeamsWorkRecords.taskSection(selection,'deliveries',workLabel('deliveryItems','交付物'),`<div class="result-delivery-list work-record-list" role="list" aria-label="交付物" data-app-i18n-aria-label="pipelineWork.deliveryItems">${rows}</div>`,selection.workflow.state==='completed');
+function taskDeliveriesMarkup(selection){
+ const rows=finalDeliveryRow(selection);
+ return RunTeamsWorkRecords.taskSection(selection,'deliveries',workLabel('deliveryItems','交付物'),`<div class="work-deliverable-list" role="list" aria-label="交付物" data-app-i18n-aria-label="pipelineWork.deliveryItems">${rows}</div>`,true);
 }
 function signingEntry(selection){
  const s=current(),w=selection?.workflow,source=selection?.signingSetup?.employee_source;
@@ -1739,7 +1667,7 @@ function feedbackBlocker(wait){
  return wait.prompt?.trim()||wait.result?.summary?.trim()||
   (wait.kind==='result'&&wait.result?.issues?.filter(RunTeamsWorkRecords.hasFailureReason).join('\n'))||'';
 }
-function workContent(selection,w,definition,names,interaction,workActions,statusEvent,deliveries,currentExecution,parkedRun,resultChecked=false,preparationReason,labelChoicesWithSummary=false){
+function workContent(selection,w,definition,names,interaction,workActions,statusEvent,currentExecution,parkedRun,resultChecked=false,preparationReason,labelChoicesWithSummary=false,topicApproval=false){
  const frozen=w.snapshot_json||{},wait=frozen.pipeline_waiting||{},handoff=frozen.pipeline_handoff||{},feedback=frozen.pipeline_feedback||{};
  const runs=w.employee_runs||[],latest=runs[0],objective=w.task?.payload_json?.objective||'';
  const approval=wait.kind==='approval'&&w.state==='needs_approval',position=definition.positions.find(p=>p.key===w.cursor_key);
@@ -1748,8 +1676,9 @@ function workContent(selection,w,definition,names,interaction,workActions,status
  const failure=RunTeamsWorkRecords.hasFailureReason(reason)?reason:failedRun?'':RunTeamsWorkRecords.missingFailureReason();
  const parkedResult=parkedRun?.output_json;
  const parkedReason=parkedResult?.summary?.trim()||parkedResult?.issues?.filter(Boolean).join('\n')||parkedResult?.title||'';
- const configuredApproval=approval&&!wait.approval_request?.question;
- const attention=approval?(wait.approval_request?.question||position?.prompt):feedbackBlocker(wait)||parkedReason;
+ const configuredApproval=approval&&!topicApproval&&!wait.approval_request?.question;
+ const approvalQuestion=topicApproval?workText('chooseTopic','选择本期选题'):wait.approval_request?.question||position?.prompt;
+ const attention=approval?approvalQuestion:feedbackBlocker(wait)||parkedReason;
  const normalize=text=>String(text||'').trim().replace(/\s+/g,' ');
  const latestSummary=normalize(latest&&RunTeamsWorkRecords.executionSummary(latest));
  const verified=frozen.pipeline_signing_verification;
@@ -1826,9 +1755,8 @@ function workContent(selection,w,definition,names,interaction,workActions,status
  const shownOutcome=parkedRun&&parkedReason&&primary===parkedReason&&!w.launch_error&&!frozen.pipeline_setup_required
   ?{runId:parkedRun.id,text:parkedReason}:null;
  const history=historyRuns.length||!currentExecution?RunTeamsWorkRecords.executionSectionMarkup(w,historyRuns,shownOutcome):'';
- if(w.state==='completed')content+=taskDeliveriesMarkup(selection,deliveries);
+ content+=taskDeliveriesMarkup(selection);
  if(runs.length)content+=history;
- if(w.state!=='completed')content+=taskDeliveriesMarkup(selection,deliveries);
  if(objective)content+=RunTeamsWorkRecords.taskSection(selection,'objective',workLabel('objective','任务说明'),RunTeamsWorkRecords.prose(objective),!runs.length);
  if(!configurationNeeded)content+=configuration;
  if(!runs.length)content+=history;
@@ -1836,11 +1764,11 @@ function workContent(selection,w,definition,names,interaction,workActions,status
 }
 function workDrawer(selection){const s=current(),w=selection.workflow;let body='',interaction='',workActions='',statusAction='',labelChoicesWithSummary=false;
  const statusEvent=w&&workStatusEvent(w);
- const deliveries=w&&RunTeamsWorkRecords.taskDeliveries(w);
  const currentExecution=w&&RunTeamsWorkRecords.currentExecutionOutsideHistory(w);
  if(selection.loading)body=RunTeamsSkeletons.region('task-detail',undefined,'pipelineWork.loading');else if(selection.error)body=RunTeamsLoadFailure.markup({variant:'local',title:'无法读取任务',titleKey:'pipelineWork.failed',labelKey:'employeeHistory.retry',busyLabelKey:'pipelineWork.loading',error:selection.error,retry:`RunTeamsSourcePipelines.openWork(${selection.workflowId})`});else if(w){
   workAuthorizationContext(w.snapshot_json?.employee_run_id??null);
   const frozen=w.snapshot_json||{},wait=frozen.pipeline_waiting||{},definition=frozen.pipeline_work?.asset?.pipeline||s.data.pipeline,names=new Map([...definition.positions,...definition.states].map(p=>[p.key,p.name])),f=flowState(s,w.id);
+  const topics=topicApprovalChoices(w);
   const parkedRun=parkedExecution(w,definition);
   const preparationReason=f.preparation?.visit===frozen.pipeline_visit?f.preparation.reason:frozen.pipeline_setup_required?.reason;
   const resultChecked=w.events?.some(event=>event.type==='workflow.result_checked'&&event.data_json?.visit===frozen.pipeline_visit);
@@ -1858,13 +1786,21 @@ function workDrawer(selection){const s=current(),w=selection.workflow;let body='
    const choices=wait.approval_request?.options??definition.edges
     .filter(edge=>edge.from===w.cursor_key)
     .map(edge=>({decision:edge.when||'completed'}));
-   interaction+=`<label class="lbl" for="source_pipeline_response" data-app-i18n="pipelineWork.note">决定说明</label><textarea class="input" id="source_pipeline_response" oninput="RunTeamsSourcePipelinePanels.answer(this.value)">${esc(f.response||'')}</textarea>`;
+   const selected=f.feedbackVisit===frozen.pipeline_visit?f.choice:'';
+   if(topics.length){
+    labelChoicesWithSummary=true;
+    interaction+=workflowHumanChoicesMarkup(topics,'source_pipeline_choice',selected,'RunTeamsSourcePipelinePanels.answer(document.getElementById(\'source_pipeline_response\')?.value||\'\',this.value)','source_pipeline_question');
+   }
+   const noteLabel=topics.length?workLabel('topicReturnNote','退回说明（选填）'):workLabel('note','决定说明');
+   const response=!topics.length||f.feedbackVisit===frozen.pipeline_visit?f.response||'':'';
+   interaction+=`<label class="lbl" for="source_pipeline_response">${noteLabel}</label><textarea class="input${topics.length?' source-work-custom-answer':''}" id="source_pipeline_response" oninput="RunTeamsSourcePipelinePanels.answer(this.value)">${esc(response)}</textarea>`;
    workActions=choices.map(option=>{
     const decision=option.decision;
+    const confirmTopic=topics.length&&decision==='approved';
     const label=option.label?esc(option.label):Object.hasOwn(approvalCopy,decision)
      ?`<span data-app-i18n="pipelineWork.decision.${decision}">${approvalCopy[decision]}</span>`
      :esc(decision);
-    return `<button type="button" class="btn${option.recommended?' pri':''}" data-decision="${esc(decision)}"${option.description?` title="${esc(option.description)}"`:''} onclick="RunTeamsSourcePipelinePanels.flow('decide',this.dataset.decision)">${label}</button>`;
+    return `<button type="button" class="btn${confirmTopic||option.recommended?' pri':''}" data-decision="${esc(decision)}"${confirmTopic&&!topics.some(topic=>topic.label===selected)?' disabled':''}${!confirmTopic&&option.description?` title="${esc(option.description)}"`:''} onclick="RunTeamsSourcePipelinePanels.flow('decide',this.dataset.decision)">${label}</button>`;
    }).join('');
   }else if(selection.signingSetup){
    workActions=`<button type="button" class="btn pri" onclick="RunTeamsSourcePipelinePanels.resumeSigning()" ${s.data.runtime.status==='running'&&savedSigningTeam(selection)?'':'disabled'}>${workLabel('signingContinue','材料已准备好，继续验证')}</button>`;
@@ -1912,28 +1848,17 @@ function workDrawer(selection){const s=current(),w=selection.workflow;let body='
    if(resultChecked&&w.retry_mode==='verify')workActions=`<button type="button" class="btn" data-stage-recovery onclick="RunTeamsSourcePipelinePanels.flow('retry',true)" ${s.data.runtime.status==='running'?'':'disabled'}>${workLabel('confirmedRestart','确认未生效，重新执行')}</button>`;
    else workActions=`<button type="button" class="btn" onclick="RunTeamsSourcePipelinePanels.flow('recover')">${workLabel('checkExecutionResult','核对执行结果')}</button>`;
   }
-  body=workContent(selection,w,definition,names,interaction,workActions,statusEvent,deliveries,currentExecution,parkedRun,resultChecked,preparationReason,labelChoicesWithSummary);
+  body=workContent(selection,w,definition,names,interaction,workActions,statusEvent,currentExecution,parkedRun,resultChecked,preparationReason,labelChoicesWithSummary,topics.length>0&&s.data.runtime.status==='running');
  }
  const definition=w?.snapshot_json?.pipeline_work?.asset?.pipeline||s.data?.pipeline;
  const progress=w?workProgress(w,definition,statusEvent,currentExecution,statusAction):'';
  const title=w?.task?.title;
  const cardTitle=s.data?.workflows?.find(row=>Number(row.id)===Number(selection.workflowId))?.title||selection.recordTitle;
  return RunTeamsWorkRecords.taskDetailMarkup({selection,title:title||cardTitle||workText('title','任务'),
-  titleKey:title||cardTitle?undefined:'pipelineWork.title',metadata:progress,actions:w?taskReportAction():'',
+  titleKey:title||cardTitle?undefined:'pipelineWork.title',metadata:progress,
   back:RunTeamsWorkRecords.taskBackMarkup(selection),body,inputId:'source_pipeline_response'});
 }
 
-function closeHistory(){const s=current(),p=s&&state(s);if(!p?.historyOpen)return;p.historyOpen=false;document.querySelector('.source-pipeline-settings-drawer .creator-history-popover')?.remove();document.getElementById('source_pipeline_history_trigger')?.setAttribute('aria-expanded','false');}
-document.addEventListener?.('scroll',event=>{const s=current();if(s&&S.sel?.type==='source-pipeline'&&['settings','members'].includes(S.sel.id)&&event.target.isConnected&&event.target.matches?.('.source-pipeline-settings-drawer > .right-detail-scroll,.source-pipeline-settings-drawer > .employee-configuration-body')){const p=state(s);p.scroll||={};p.scroll[S.sel.id]=event.target.scrollTop;}},true);
-document.addEventListener?.('pointerdown',event=>{const p=current()?.panels;if(p?.historyOpen&&!event.target.closest?.('.source-pipeline-settings-drawer .creator-history-popover,#source_pipeline_history_trigger'))closeHistory();});
-document.addEventListener?.('keydown',event=>{
- const s=current();
- if(event.key!=='Escape'||event.defaultPrevented||!s?.panels?.historyOpen)return;
- event.preventDefault();event.stopPropagation();closeHistory();
- const focusTrigger=()=>document.getElementById('source_pipeline_history_trigger')?.focus({preventScroll:true});
- focusTrigger();
- requestAnimationFrame(()=>{if(owned(s)&&document.activeElement===document.body)focusTrigger();});
-});
 window.addEventListener('beforeunload',event=>{const p=current()?.panels;if(p?.draft||p?.pending){event.preventDefault();event.returnValue='';}});
 async function revealTaskCredential({s,selection,w,c,state},field){
  if(state.credentialBusy||state.saving||state.pending||state.draft||!c.editable)return null;
@@ -1941,5 +1866,10 @@ async function revealTaskCredential({s,selection,w,c,state},field){
  return owned(s)&&S.sel===selection&&selection.taskConfiguration===c?reply.value:null;
 }
 RunTeamsConfigurationFields.bindCredentialEditor(taskCredentialOwner,saveTaskCredential,revealTaskCredential);
-window.RunTeamsSourcePipelinePanels={openTaskDocument,openTaskReport,mountSigningConfiguration,resumeSigning,openSigningConversation,taskConfigurationDraft,leaveTaskConfiguration,saveTaskConfiguration,reloadTaskConfiguration,toggleTaskConfigurationSection,addStageMenu,columns,columnClick,columnAvatar,columnMenu,position,retryPositionRuntime,setRoute,routeMenu,togglePositionSection,toggleRouteConditions,positionSkillHint,dismissSkillHint,programContext,authorizeWork,configureWork,configureOwn,workSettings:runId=>{const original=workAuthorizationContext(runId);if(original)return configureWork(original,RunTeamsWorkAuthorization.state({panel:original,privateWork:original,pipeline:false}));},settings,toggleSettingsSection,startSettingsEdit,updateSettingsEdit,finishSettingsEdit,rename,read,drawer,changed,save,receipt,retryCommittedRefresh,cancel,history,restore,readEmployeeChoices,configurationRequest,holdTextField,records,toggleRecords,refreshRecords,workDrawer,flow,retryFlow,answer,inputDraft};
+function editStandard(event){if(event.type==='keydown'&&!['Enter',' '].includes(event.key)||event.target.closest('a,input,button,textarea'))return;event.preventDefault();startSettingsEdit('standard');}
+function toggleStandard(button){
+ if(RunTeamsAssetOverview.pipeline()&&!state(current()).settingsEdit)RunTeamsEmployeeDrawerHeader.toggleSection(button,S.sel.standardSections);
+}
+function overviewVersion(){const s=current();if(!s||!RunTeamsAssetOverview.pipeline())return;const action=window.RunTeamsPipelineMarket?.headerAction?.(s);if(action&&!action.disabled)action.onPress();}
+window.RunTeamsSourcePipelinePanels={loadSettingsData,editStandard,toggleStandard,overviewVersion,openTaskReport,mountSigningConfiguration,resumeSigning,openSigningConversation,taskConfigurationDraft,leaveTaskConfiguration,saveTaskConfiguration,reloadTaskConfiguration,toggleTaskConfigurationSection,addStageMenu,columns,columnClick,columnAvatar,columnMenu,position,retryPositionRuntime,setRoute,routeMenu,togglePositionSection,toggleRouteConditions,positionSkillHint,dismissSkillHint,programContext,authorizeWork,configureWork,configureOwn,workSettings:runId=>{const original=workAuthorizationContext(runId);if(original)return configureWork(original,RunTeamsWorkAuthorization.state({panel:original,privateWork:original,pipeline:false}));},settings,startSettingsEdit,updateSettingsEdit,finishSettingsEdit,rename,read,drawer,changed,save,receipt,retryCommittedRefresh,cancel,readEmployeeChoices,configurationRequest,holdTextField,workDrawer,flow,retryFlow,answer,inputDraft};
 })();

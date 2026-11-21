@@ -41,7 +41,7 @@ def for_work(reference,revision,binding,program,descriptor):
     elif type(binding) is PipelineWorkBinding:
         from runteams_core.pipelines.pipeline_references import checked_reference
         checked=checked_reference(reference);kind='pipeline'
-        if binding.pipeline_id!=digest(checked):raise PermissionError('连接不属于原流水线。')
+        if binding.pipeline_id!=digest(checked):raise PermissionError('连接不属于原智能体团队。')
     else:raise PermissionError('连接缺少实际工作身份。')
     if binding.account_scope!=scope['cache_scope'] or checked.get('storage_kind')=='local' and checked.get('library_id')!=scope['library_id']:
         raise PermissionError('连接不属于当前资料库。')

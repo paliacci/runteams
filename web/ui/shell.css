@@ -25,10 +25,20 @@
 .product-shell .list-page-header--controls>.list-page-heading { flex:1 1 auto; min-width:0; }
 .product-shell .list-page-header--controls>.list-page-controls { display:flex; flex:0 0 auto; align-items:center; justify-content:flex-end; flex-wrap:nowrap; width:auto; min-width:0; gap:12px; }
 .product-shell .list-page-header h1 { margin:0; color:var(--text-primary); font-size:var(--list-title-size)!important; font-weight:600!important; line-height:var(--list-title-line)!important; letter-spacing:-.02em; }
+.product-shell :is(.docs-page,.trash-page) .list-page-header h1 { font-weight:500!important; }
 .product-shell .list-page-header p { margin:var(--list-description-gap) 0 0!important; color:var(--text-secondary); font-size:var(--list-description-size)!important; line-height:var(--list-description-line)!important; }
 .product-shell .list-page-header .trash-head-subline { align-items:flex-start; }
 .product-shell .list-page-header .sk-page-title { height:var(--list-title-line); }
 .product-shell .list-page-header .sk-page-subtitle { margin-top:var(--list-description-gap)!important; height:var(--list-description-line); }
+.product-shell .list-page--fixed-header { overflow:hidden; }
+.product-shell .list-page--fixed-header>.list-page-content {
+  display:flex; flex-direction:column; height:100%; min-height:0; padding-block-end:0!important;
+}
+.product-shell .list-page-scroll {
+  flex:1 1 auto; min-height:0; overflow:auto; scrollbar-width:thin;
+  padding-block-end:var(--list-page-bottom); scroll-padding-block-start:40px;
+}
+.product-shell .list-page-scroll .docs-breadcrumb { margin-block-start:0; }
 @container list-page (max-width:780px) {
   .product-shell .list-page-header--controls:has(>.list-page-controls>.rt-search-field) { flex-direction:column; align-items:stretch; gap:16px; }
   .product-shell .list-page-header--controls:has(>.list-page-controls>.rt-search-field)>.list-page-heading { flex:0 0 auto; width:100%; }
@@ -37,9 +47,11 @@
 }
 @container list-page (max-width:600px) {
   .product-shell .list-page-content { padding:var(--list-page-narrow-top) var(--list-page-narrow-side) 64px!important; }
+  .product-shell .list-page-scroll { padding-block-end:64px; }
 }
 @container list-page (max-width:320px) {
   .product-shell .list-page-content { padding:24px 12px 56px!important; }
+  .product-shell .list-page-scroll { padding-block-end:56px; }
   .product-shell .list-page-header--controls>.list-page-controls { flex-wrap:wrap; gap:8px; }
   .product-shell .list-page-controls>.rt-search-field { flex-basis:100%; }
 }
@@ -360,13 +372,13 @@
 .body.conversation-drawer-under-header>#rgPipelineHead .conversation-panel-controls .conversation-header-model button.csel,
 .product-shell .conversation-main .conversation-composer button.csel,
 .product-shell .conversation-main .conversation-composer button.cattach-btn):not(:where(button[data-menu-trigger="field"]:not(.copt *,.conversation-model-control *,.conversation-main-header *,.conversation-panel-controls *):not(:disabled,[aria-disabled="true"],[aria-invalid="true"],.invalid,.error,[inert] *,[aria-invalid="true"] *,.field.invalid *,.field.error *))):hover:not(.conversation-employee-session):not(:disabled):not([aria-disabled="true"]):not([inert] *){
-  background:var(--surface-hover)!important;color:var(--text-primary)!important;
+  background:var(--menu-trigger-hover-background,var(--surface-hover))!important;color:var(--text-primary)!important;
 }
 :is(button[data-menu-trigger],button[aria-haspopup="menu"],button.csel,
 .body.conversation-drawer-under-header>#rgPipelineHead .conversation-panel-controls .conversation-header-model button.csel,
 .product-shell .conversation-main .conversation-composer button.csel,
 .product-shell .conversation-main .conversation-composer button.cattach-btn):not(:where(button[data-menu-trigger="field"]:not(.copt *,.conversation-model-control *,.conversation-main-header *,.conversation-panel-controls *):not(:disabled,[aria-disabled="true"],[aria-invalid="true"],.invalid,.error,[inert] *,[aria-invalid="true"] *,.field.invalid *,.field.error *))):is([aria-expanded="true"],.menu-trigger-active):not(:disabled):not([aria-disabled="true"]):not([inert] *){
-  background:var(--surface-hover)!important;color:var(--text-primary)!important;
+  background:var(--menu-trigger-open-background,var(--surface-hover))!important;color:var(--text-primary)!important;
 }
 :is(button[data-menu-trigger],button[aria-haspopup="menu"],button.csel,
 .body.conversation-drawer-under-header>#rgPipelineHead .conversation-panel-controls .conversation-header-model button.csel):not(:where(button[data-menu-trigger="field"]:not(.copt *,.conversation-model-control *,.conversation-main-header *,.conversation-panel-controls *):not(:disabled,[aria-disabled="true"],[aria-invalid="true"],.invalid,.error,[inert] *,[aria-invalid="true"] *,.field.invalid *,.field.error *))):focus-visible{
@@ -395,7 +407,7 @@ button.csel[data-menu-trigger]{height:36px;box-sizing:border-box;font-size:calc(
 :is(.product-shell,#modalHost,#childModalHost) [aria-invalid="true"]:focus-visible:not(:disabled):not([aria-disabled="true"]){outline-color:var(--status-danger)!important;border-color:var(--status-danger)!important;}
 
 /* The focused row action carries the edge; its enclosing row adds no second frame. */
-.product-shell .employee-automation-drawer .employee-automation-row:focus-within{outline:none!important;}
+.product-shell .asset-overview .employee-automation-row:focus-within{outline:none!important;}
 
 /* Market child shares the chat text inset and the parent navigation target width. */
 
@@ -484,6 +496,7 @@ body{font-size:var(--interface-font-size)}
 /* Employee session entry and menu header action. */
 .conversation-panel-title-wrap>.conversation-employee-session{display:inline-flex;align-items:center;justify-content:center;width:15px;height:28px;min-width:15px;flex:0 0 15px;padding:0;margin-left:0}
 .conversation-panel-title-wrap>.conversation-employee-session>.i{width:15px;height:15px}
+.conversation-session-switcher{--menu-trigger-open-background:transparent}
 
 /* Conversation identity elements share a 4px inter-item gap. */
 :is(.conversation-main,.body.conversation-drawer-under-header>#rgPipelineHead) .conversation-panel-header{column-gap:4px!important}

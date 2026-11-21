@@ -32,7 +32,7 @@ def _applied_catalog(ref, bundle):
     package = validate(role['package'])
     work.verify_context(role['context'], package, read_build=True)
     if role['context']['asset'] != bundle['asset'] or role['context'].get('source_revision', package['revision']) != bundle['revision']:
-        raise ContractError('流水线自身程序与已应用岗位版本不一致。')
+        raise ContractError('智能体团队自身程序与已应用岗位版本不一致。')
     if rented_references.is_rented(ref):
         from runteams_core.pipelines.pipeline_context import current
         return current().rented_applied_catalog(ref,bundle['revision'])
@@ -98,7 +98,7 @@ class PipelineMCPWork(EmployeeMCPWork):
         verify_pipeline_programs(attachments)
         declared = {(row['key'], row['source']) for row in asset.get('programs', [])}
         if declared != {(row['key'], row['source']) for row in attachments}:
-            raise ContractError('流水线自身程序附件不完整。')
+            raise ContractError('智能体团队自身程序附件不完整。')
         packages = {}
         for attachment in attachments:
             package = MCPBundle.inspect(base64.b64decode(attachment['content_base64'], validate=True))
@@ -107,7 +107,7 @@ class PipelineMCPWork(EmployeeMCPWork):
                           'asset': asset, 'programs': attachments, 'configuration': config})
         base = self.root / 'pipeline-workspaces' / device_data.epoch(chat) / release
         if any(path.is_symlink() for path in (base, *base.parents)):
-            raise ContractError('流水线程序工作目录无效。')
+            raise ContractError('智能体团队程序工作目录无效。')
         _directory(base); _directory(base / '.runteams')
         own = {'reference': ref, 'revision': revision, 'generation': generation,
                'release_digest': release, 'asset': copy.deepcopy(asset), 'configuration': copy.deepcopy(config)}
@@ -116,9 +116,9 @@ class PipelineMCPWork(EmployeeMCPWork):
                   'revision': revision, 'generation': generation, 'release_digest': release}
         known = path.exists() or path.is_symlink()
         if known:
-            if _read(path) != record: raise ContractError('流水线程序原工作绑定已变化。')
+            if _read(path) != record: raise ContractError('智能体团队程序原工作绑定已变化。')
         elif ((base/'.runteams/mcp-runtime-state.json').exists() or (base/'.runteams/mcp-calls').exists()):
-            raise ContractError('流水线程序原工作引用缺失，请保留原记录并核对。')
+            raise ContractError('智能体团队程序原工作引用缺失，请保留原记录并核对。')
         if pin:
             self.check_operation(chat)
             if not known:
@@ -142,20 +142,20 @@ class PipelineMCPWork(EmployeeMCPWork):
         self.core_factory()._actor()
         root = self.root / 'pipeline-workspaces' / device_data.epoch(chat)
         if any(path.is_symlink() for path in (root,*root.parents)):
-            raise ContractError('流水线程序工作目录无效。')
+            raise ContractError('智能体团队程序工作目录无效。')
         if not root.exists():return []
         from runteams_core.authoring.source.creator_source_revisions import REV
         result=[]
         for base in sorted(root.iterdir()):
             if (not base.is_dir() or base.is_symlink() or len(base.name)!=64
                     or any(c not in '0123456789abcdef' for c in base.name)):
-                raise ContractError('流水线程序工作目录无效。')
+                raise ContractError('智能体团队程序工作目录无效。')
             if (base/'.runteams').is_symlink():
-                raise ContractError('流水线程序工作目录无效。')
+                raise ContractError('智能体团队程序工作目录无效。')
             path=base/'.runteams'/FILE
             if not path.exists() and not path.is_symlink():
                 if ((base/'.runteams/mcp-runtime-state.json').exists() or (base/'.runteams/mcp-calls').exists()):
-                    raise ContractError('流水线程序原工作引用缺失，请保留原记录并核对。')
+                    raise ContractError('智能体团队程序原工作引用缺失，请保留原记录并核对。')
                 continue
             value=_read(path)
             if (set(value)!={'schema','reference','revision','generation','release_digest'}
@@ -163,7 +163,7 @@ class PipelineMCPWork(EmployeeMCPWork):
                     or value['release_digest']!=base.name or type(value['generation']) is not int or value['generation']<0
                     or not isinstance(value['revision'],str)
                     or value['revision']!=ref['source_id'] and not REV.fullmatch(value['revision'])):
-                raise ContractError('流水线程序原工作绑定已变化。')
+                raise ContractError('智能体团队程序原工作绑定已变化。')
             result.append(base)
         self.check()
         return result
@@ -179,7 +179,7 @@ class PipelineMCPWork(EmployeeMCPWork):
         self.check()
         ref = pipeline_chat_binding.reference(chat); saved = control.read(self.core_factory(), ref)
         if saved['status'] != 'running' or not saved['bundle']:
-            raise PermissionError('请先暂停、应用流水线更新并启动，再运行自身程序。')
+            raise PermissionError('请先暂停、应用智能体团队更新并启动，再运行自身程序。')
         self.configuration(chat)
 
     def enable(self, chat, expected, confirmed):
@@ -200,7 +200,7 @@ class PipelineMCPWork(EmployeeMCPWork):
         saved = control.read(self.core_factory(), pipeline_chat_binding.reference(chat))
         if (saved['status'] != 'paused' or not saved['bundle'] or
                 saved['quiesced_revision'] != saved['revision']):
-            raise PermissionError('流水线尚未确认暂停，不能准备启动自身程序。')
+            raise PermissionError('智能体团队尚未确认暂停，不能准备启动自身程序。')
         self.configuration(chat)
         return super().resume(chat, expected)
 
@@ -213,7 +213,7 @@ class PipelineMCPWork(EmployeeMCPWork):
     def configuration(self, chat, expected=None):
         own, _, _, binding = self._identity(chat)
         if expected is not None and binding != expected:
-            raise PermissionError('流水线程序版本或配置已更新，请重新打开。')
+            raise PermissionError('智能体团队程序版本或配置已更新，请重新打开。')
         from runteams_core.configuration.employee_configuration import _validate_snapshot, EMPTY
         from runteams_core.pipelines.source_pipeline_settings import OwnConfiguration
         snapshot = own['configuration']
@@ -227,7 +227,7 @@ class PipelineMCPWork(EmployeeMCPWork):
             if 'grant_id' in selected:
                 grant = product_store.get_local_asset_grant(selected['grant_id'])
                 if local_assets.fingerprint(grant) != selected.get('fingerprint'):
-                    raise PermissionError('流水线授权资料已变化，请重新核对配置。')
+                    raise PermissionError('智能体团队授权资料已变化，请重新核对配置。')
         return own, snapshot, binding
 
     def credential_configuration(self, chat, binding):
@@ -244,7 +244,7 @@ class PipelineMCPWork(EmployeeMCPWork):
         managed = bool(managed_fields(own['asset'].get('configuration', EMPTY)))
         owner = {'chat_id': chat, 'program': package, 'binding': digest(binding.__dict__)}
         if managed and not lease(own['reference'], owner, 'claim')['ok']:
-            raise PermissionError('流水线业务资料正在处理中，请稍后核对原操作。')
+            raise PermissionError('智能体团队业务资料正在处理中，请稍后核对原操作。')
         key = (chat, package, binding)
         with self.lock: self.effects[key] = self.effects.get(key, 0) + 1
         try: yield
@@ -275,7 +275,7 @@ class PipelineMCPWork(EmployeeMCPWork):
         saved=control.read(self.core_factory(),pipeline_chat_binding.reference(chat))
         if (actual!=binding or package not in packages or not self.enabled(binding,package) or
                 self.suspended(base) and saved['status']!='paused'):
-            raise PermissionError('原流水线界面或授权已变化。')
+            raise PermissionError('原智能体团队界面或授权已变化。')
         # The trusted work projection remains readable while paused. Author
         # tools still use check_operation and cannot execute or resume here.
         return {'authorized':True,'context_revision':0}
@@ -310,7 +310,7 @@ class PipelineMCPWork(EmployeeMCPWork):
                         self.app_authority(chat,package,binding,session)
                         self.check_operation(chat)
                         if session.closed or self.sessions.get((chat,package)) is not session:
-                            raise PermissionError('原流水线程序已关闭，请核对原交办。')
+                            raise PermissionError('原智能体团队程序已关闭，请核对原交办。')
                     def notify():
                         self.check()
                         if self.work_wake is not None:self.work_wake()
@@ -342,10 +342,10 @@ class PipelineMCPWork(EmployeeMCPWork):
                     current, packages, _, actual = self._identity(chat)
                     if (actual != binding or package not in packages or not self.enabled(binding, package)
                             or self.suspended(base)):
-                        raise PermissionError('本流水线程序授权已失效。')
+                        raise PermissionError('本智能体团队程序授权已失效。')
                     self.configuration(chat, binding)
                     if not isinstance(message, dict) or set(message) != {'jsonrpc', 'id', 'method', 'params'} or message['jsonrpc'] != '2.0':
-                        raise ValueError('流水线资料请求无效。')
+                        raise ValueError('智能体团队资料请求无效。')
                     method, params = message['method'], message['params']
                     if method == 'configuration/read' and params == {}:
                         value = copy.deepcopy(mounted)
@@ -356,7 +356,7 @@ class PipelineMCPWork(EmployeeMCPWork):
                             raise PermissionError('业务写入必须来自当前获准的工具调用。')
                         value = self._data(current, snapshot, chat, package, binding, params)
                     else:
-                        raise PermissionError('此宿主只开放本流水线配置和授权业务资料。')
+                        raise PermissionError('此宿主只开放本智能体团队配置和授权业务资料。')
                     self.check()
                     return {'jsonrpc': '2.0', 'id': message['id'], 'result': value}
 
@@ -384,7 +384,7 @@ def control_programs(host, action, chats):
     """Original pipeline control callback, scoped to its actual owned chats."""
     from runteams_core.storage import product_store
     if action not in ('pause', 'start'):
-        raise ValueError('请选择暂停或启动流水线程序。')
+        raise ValueError('请选择暂停或启动智能体团队程序。')
     for chat in chats:
         session = product_store.get_chat(chat, include_messages=False)
         own = bool(session and session.get('context', {}).get('source_pipeline_workspace'))

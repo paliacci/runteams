@@ -21,7 +21,7 @@ def dispatch(name,arguments,context):
     if not session:raise registry.AgentToolError('本机对话已不存在，请重新打开。')
     saved=session.get('context') or {}
     if saved.get('pipeline_work'):
-        raise registry.AgentToolError('本次岗位已有流水线工作，请通过岗位交接工具读取输入或提交问题与结果，不能另行派工或代替人工决定。')
+        raise registry.AgentToolError('本次岗位已有智能体团队工作，请通过岗位交接工具读取输入或提交问题与结果，不能另行派工或代替人工决定。')
     workspace=(session.get('kind')=='general' and session.get('subject_type')=='workspace'
                and saved.get('context_type','general')=='general')
     worker=(session.get('kind')=='general' and session.get('subject_type')=='employee'
@@ -55,11 +55,17 @@ def dispatch(name,arguments,context):
             {**context,'conversation_context':saved})
         device_data.check(actual);return result
     from runteams_core.employees import employee_binding
-    binding=employee_binding.for_context(context)
+    from runteams_core.foundation.contracts import ContractError
+    read_only=name in ('runteams_get_context','runteams_get_employee')
+    try:
+        binding=employee_binding.for_context(context,read_only=read_only)
+    except ContractError as error:
+        message='暂时无法读取当前员工的已保存资料。' if read_only else str(error)
+        raise registry.AgentToolError(message) from error
     employee=binding['employee'];values=deepcopy(arguments or {})
     ctx={**context,'conversation_context':saved}
     summary=employee_binding.summary(binding)
-    if name in ('runteams_get_context','runteams_get_employee'):
+    if read_only:
         allowed=set() if name=='runteams_get_context' else {'employee_id','name','task_limit'}
         if set(values)-allowed:raise registry.AgentToolError('员工读取包含未知参数。')
         if values.get('employee_id') is not None and values['employee_id']!=binding['asset_id']:
@@ -67,7 +73,7 @@ def dispatch(name,arguments,context):
         if values.get('name') not in (None,'',employee['name']):
             raise registry.AgentToolError('当前对话只能读取原绑定员工。')
         contracts=[];recent=[]
-        if binding['package']:
+        if binding['package'] or binding.get('source_description'):
             from runteams_core.employees.employee_chat_work import catalog
             recent=catalog(binding['reference'],limit=registry._positive_int(values.get('task_limit'),'task_limit') or 50)
             contracts=[{'employee_reference':binding['reference'],'skill_key':skill['key'],

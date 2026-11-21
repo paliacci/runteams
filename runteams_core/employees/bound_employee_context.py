@@ -30,6 +30,10 @@ class BoundEmployeeContext:
         from runteams_core.configuration.employee_configuration import for_chat
         return for_chat(chat_id)
 
+    def unpinned_work_configuration(self, session):
+        self._check()
+        return None
+
     def validate_configuration_snapshot(self, definition, reference, revision, snapshot):
         self._check()
         from runteams_core.configuration.employee_configuration import _validate_snapshot

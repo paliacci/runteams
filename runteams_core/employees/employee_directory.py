@@ -12,6 +12,7 @@ import sqlite3
 
 from runteams_core.storage import device_data
 from runteams_core.assets import source_links
+from runteams_core.conversations.page_paths import page_id
 from runteams_core.authoring.creator_contracts import canonical, strict_json
 from runteams_core.authoring.source.creator_local_source import current_store, _read
 from runteams_core.authoring.source.creator_source_revisions import Revisions
@@ -20,18 +21,48 @@ from runteams_core.assets.asset_references import BusinessReference
 SCHEMA='runteams.employee-directory/v1'
 
 
-def source_entries(store,source_id,*,sessions=(),display_only=False,pipeline_memberships=None):
+def source_entries(store,source_id,*,sessions=(),display_only=False,pipeline_memberships=None,include_background=False):
     revisions=Revisions(store,source_id,display_only=display_only)
     with (revisions.display_files() if display_only else nullcontext(revisions.files())) as files:
-        return _source_entries(store,source_id,sessions,revisions.original['created_at'],files,pipeline_memberships)
+        return _source_entries(store,source_id,sessions,revisions.original['created_at'],files,pipeline_memberships,include_background)
 
 
-def _source_entries(store,source_id,sessions,created_at,files,pipeline_memberships):
+def _overview_capabilities(files, directories):
+    from runteams_core.assets.skills.skill_metadata import frontmatter
+
+    capabilities = []
+    for directory in directories if isinstance(directories, list) else []:
+        if not isinstance(directory, str):
+            continue
+        try:
+            extension = strict_json(files.get(directory + '/runteams.json', b'{}'))
+            if not isinstance(extension, dict):
+                continue
+            work = extension.get('work') or {}
+            if not isinstance(work, dict) or work.get('show_in_overview') is False:
+                continue
+            name, summary = work.get('name'), work.get('summary')
+            if not name or not summary:
+                markdown = files.get(directory + '/SKILL.md', b'')
+                metadata = frontmatter(markdown.decode('utf-8'))
+                name = name or extension.get('display_name') or metadata['name']
+                summary = summary or metadata['description']
+        except ValueError:
+            continue
+        if isinstance(name, str) and isinstance(summary, str) and name.strip() and summary.strip():
+            capabilities.append({'name': name, 'summary': summary, 'objective': work.get('objective') or summary,
+                                 'assets': work.get('assets', []), 'examples': work.get('examples', []),
+                                 'package_key': directory.rsplit('/', 1)[-1], 'show_in_overview': bool(work)})
+    return capabilities
+
+
+def _source_entries(store,source_id,sessions,created_at,files,pipeline_memberships,include_background=False):
     project=strict_json(files.get('project.json',b'null'))
     if (not isinstance(project,dict) or project.get('schema')!='runteams.creator-project/2'
             or not isinstance(project.get('entrypoints'),dict) or not isinstance(project['entrypoints'].get('employees'),list)
             or any(not isinstance(path,str) for path in project['entrypoints']['employees'])):
         raise ValueError('员工工程入口无效，请在原工程中修正。')
+    from runteams_core.assets.skills.skill_metadata import declared_environment
     from runteams_core.employees.employee_references import source_reference
     paths=project['entrypoints']['employees'];bound=source_links.links(store,source_id)
     entries=[]
@@ -42,12 +73,23 @@ def _source_entries(store,source_id,sessions,created_at,files,pipeline_membershi
             raise ValueError('员工资源身份无效，请在原工程中修正。')
         matches=[session for session in sessions if
             (session.get('context') or {}).get('creator_local_source_id')==source_id and
-            (session['context'].get('creator_employee_source')==path or len(paths)==1)]
+            session['context'].get('creator_employee_source')==path]
         session=max(matches,key=lambda item:(str(item.get('updated_at','')),item['id']),default=None)
         from runteams_core.employees.employee_avatars import identity
         record={**identity(employee, files=files),'direct_assignment':False,'active_release':None}
+        if include_background and session:
+            from runteams_core.assets.workspace_background import display_fields
+            record.update(display_fields(employee, files=files))
+        directories=employee.get('skill_dirs')
+        if isinstance(directories,list) and any(isinstance(directory,str) and files.get(directory+'/mcp/manifest.json')
+                                                for directory in directories):
+            record['local_mcp']=True
+        environment = sorted({tool for directory in directories or [] if isinstance(directory, str)
+                              for tool in declared_environment(files.get(directory + '/SKILL.md', b''))})
         entries.append({'key':source_links.source_key(source_id,path),'record':record,'asset':None,'work':None,
-            'source':{'id':source_id,'path':path,'reference':source_reference(source_id,path),'chat_id':session['id'] if session else None,'target':(session or {}).get('context',{}).get('creator_source_target')},
+            'source':{'id':source_id,'path':path,'version':project.get('version'),'description':employee.get('description',''),
+                      **({'environment_tools': environment} if environment else {}),
+                      'capabilities':_overview_capabilities(files,directories),'reference':source_reference(source_id,path),'chat_id':session['id'] if session else None,'target':(session or {}).get('context',{}).get('creator_source_target')},
             'reference':bound.get(path),'open':{'action':'source-work'},
             # A conversation can change the navigation target without changing roster order.
             'updated_at':created_at})
@@ -88,13 +130,13 @@ def _collect_pipeline_memberships(source_id, paths, files, groups):
             groups.setdefault(key, {}).setdefault(group_key, {'key': group_key, 'name': name, 'order': order})
 
 
-def for_session(session):
+def for_session(session, *, include_background=False):
     context=session.get('context') or {};store=current_store(context['creator_local_scope'])
-    rows=source_entries(store,context['creator_local_source_id'],sessions=[session])
+    rows=source_entries(store,context['creator_local_source_id'],sessions=[session],include_background=include_background)
     selected=context.get('creator_employee_source')
-    rows=[row for row in rows if row['source']['path']==selected] if selected else rows
+    rows=[row for row in rows if row['source']['path']==selected]
     if len(rows)!=1:raise ValueError('员工源码入口不匹配。')
-    return rows[0]
+    return {**rows[0], 'page_id': page_id(rows[0]['key'])}
 
 
 def local_entries(*,errors=None):
@@ -150,6 +192,8 @@ def assemble(sources,assets,works):
             display={**work,**({key:row['record'].get(key) for key in ('name','avatar','avatar_src')} if row.get('source') else {})}
             row.update(record=display,updated_at=work.get('updated_at',''))
         by_ref[identity]=key
+    for row in rows.values():
+        row['page_id'] = page_id(row['key'])
     return sorted(rows.values(),key=lambda row:(str(row.get('updated_at','')),row['key']),reverse=True)
 
 

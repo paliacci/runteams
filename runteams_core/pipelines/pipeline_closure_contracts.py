@@ -37,6 +37,12 @@ def portable_employee(files, compiled, path):
                    'skill_bundles': asset['skill_bundles']})
 
 
+def employee_digest(files, path, asset):
+    from runteams_core.assets.knowledge_archive import index
+    records = index(files).get(path)
+    return digest({'employee': asset, 'materials': records}) if records else digest(asset)
+
+
 def _origin(value):
     if not isinstance(value, dict): _fail()
     common = {'kind', 'employee_source', 'source_sha256'}
@@ -83,7 +89,7 @@ def verify(files, compiled):
         values = {p: b for p, b in files.items() if p.startswith(prefix)}
         allowed = {path, employee['soul_file']} | {p for p in values if any(p.startswith(d + '/') for d in employee['skill_dirs'])}
         if set(values) != allowed or tree(values)['sha256'] != record['files_sha256']: _fail()
-        if digest(portable_employee(files, compiled, path)) != record['asset_sha256']: _fail('pipeline_closure_employee_changed')
+        if employee_digest(files, path, portable_employee(files, compiled, path)) != record['asset_sha256']: _fail('pipeline_closure_employee_changed')
         expected_files.update(values)
     if generated != expected_files or {p for p in compiled['employees'] if p.startswith(PREFIX)} != set(manifest['employees']): _fail()
     return manifest
@@ -111,6 +117,11 @@ def verify_prepared(original, files, compiled):
             if record['origin']['kind'] == 'source' and pin['kind'] == 'download': _fail('pipeline_dependency_authority_changed')
         if changed: expected[path] = canonical(pipeline)
     if remaining: _fail('pipeline_closure_unbound_employee')
+    from runteams_core.assets.knowledge_archive import INDEX, index
+    original_materials = index(original)
+    generated_materials = {k:v for k,v in index(files).items() if k in manifest['employees']}
+    if generated_materials:
+        expected[INDEX] = canonical({**original_materials, **generated_materials})
     actual_root = {p: b for p, b in files.items() if p != MANIFEST and not p.startswith(PREFIX)}
     if actual_root != expected: _fail('pipeline_closure_root_changed')
     return manifest
@@ -120,5 +131,5 @@ def check_original(files, origin, expected_asset):
     from runteams_core.authoring.creator_contracts import compile_source
     if tree(files)['sha256'] != origin['source_sha256']: _fail('pipeline_dependency_source_changed')
     compiled = compile_source(files)
-    if origin['employee_source'] not in compiled['employees'] or digest(portable_employee(files, compiled, origin['employee_source'])) != expected_asset:
+    if origin['employee_source'] not in compiled['employees'] or employee_digest(files, origin['employee_source'], portable_employee(files, compiled, origin['employee_source'])) != expected_asset:
         _fail('pipeline_dependency_version_changed')

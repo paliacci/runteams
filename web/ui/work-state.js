@@ -17,7 +17,7 @@
   if(s.queue.length||s.draining)throw Error('请等待操作记录保存后重试。');
   const mutation=s.mutation;
   s.reading=(async()=>{
-   const result=await api(path+'read','POST',{});if(!current(s))throw Error('资料库已改变，请重新打开。');
+   const result=await api(path+'read','POST',{},{readCurrent:true});if(!current(s))throw Error('资料库已改变，请重新打开。');
    if(result.error)throw Error(result.error);
    if(result.schema!=='runteams.work-ui-state-list/1'||!result.items||typeof result.items!=='object'||Array.isArray(result.items))throw Error('原操作界面资料未能核对。');
    const versions=new Map(),values=new Map();

@@ -100,6 +100,45 @@ test('a confirmed continue keeps the drawer and applies the receipt before backg
   assert.equal(owner.error, '');
 });
 
+test('topic approval uses candidates from the exact source run and submits the chosen ID', async () => {
+  const {context, work, requests} = fixture();
+  work.state = 'needs_approval';
+  work.cursor_key = 'choose-topic';
+  work.snapshot_json.pipeline_work = {asset: {key: 'production'}};
+  work.snapshot_json.pipeline_waiting = {kind: 'approval', source_run_id: 10};
+  work.employee_runs = [
+    {id: 9, position_key: 'topic', output_json: {output: {topic_brief: {
+      candidates: [{id: 'C', title: '旧题'}], recommended_id: 'C',
+    }}}},
+    {id: 10, position_key: 'topic', output_json: {output: {topic_brief: {
+      candidates: [{id: 'A', title: '首推题'}, {id: 'B', title: '另一个题'}], recommended_id: 'A',
+    }}}},
+  ];
+  const choices = context.topicApprovalChoices(work);
+  assert.deepEqual(Array.from(choices, choice => [choice.label, choice.recommended]), [
+    ['A · 首推题', true], ['B · 另一个题', false],
+  ]);
+  assert.equal(context.topicApprovalChoices({...work, cursor_key: 'review'}).length, 0);
+
+  context.workText = (_key, fallback) => fallback;
+  context.document.getElementById = () => ({value: '退回时再改'});
+  await context.flow('decide', 'approved');
+  assert.deepEqual(requests, []);
+
+  let command;
+  context.reply = (_action, data) => {
+    command = data;
+    return {status: 'committed', result: {workflow: {...work, updated_at: 'decided'}}};
+  };
+  context.document.querySelector = () => ({value: 'B · 另一个题'});
+  await context.flow('decide', 'approved');
+  assert.equal(command.note, 'B');
+  assert.equal(command.decision, 'approved');
+  await context.flow('decide', 'rejected');
+  assert.equal(command.note, '退回时再改');
+  assert.equal(command.decision, 'rejected');
+});
+
 test('an older read cannot overwrite a newer confirmed drawer state', async () => {
   const {context, owner, work, pipeline} = fixture();
   owner.workflow = {...work, state: 'ready'};
@@ -282,11 +321,11 @@ test('a choice-based wait shows configuration only within its selected response'
   vm.runInContext(panels.slice(panels.indexOf('function feedbackBlocker('), panels.indexOf('function workDrawer(')), context);
   owner.humanRequest = {question: '补哪一项？', options: [{label: '政策', configuration_fields: ['privacy_url']}]};
   const definition = {positions: []};
-  const render = response => context.workContent(owner, work, definition, new Map(), response, '', null, [], null, null);
+  const render = response => context.workContent(owner, work, definition, new Map(), response, '', null, null, null);
   assert.doesNotMatch(render('<choice-inputs>'), /all-configuration-fields/);
   assert.match(render('<selected-policy-field>'), /selected-policy-field/);
   work.snapshot_json.pipeline_waiting.result = {summary: '登录已失效'};
-  const form = context.workContent(owner, work, definition, new Map(), '<choice-inputs>', '', null, [], null, null,
+  const form = context.workContent(owner, work, definition, new Map(), '<choice-inputs>', '', null, null, null,
     false, undefined, true);
   assert.match(form, /id="source_pipeline_question">登录已失效.*<choice-inputs>/);
   assert.doesNotMatch(form, /查看原问题|source-work-feedback-context/);
@@ -314,7 +353,7 @@ test('a parked result shows its summary once and retains the execution and earli
   const definition = {positions: [{key: 'review'}], states: [{key: 'pool', kind: 'pool'}]};
   const work = {id: 42, state: 'blocked', cursor_key: 'pool', employee_runs: [run, prior],
     snapshot_json: {employee_run_id: 7, pipeline_applied_result: true, pipeline_work: {position_key: 'review'}}};
-  const render = () => env.workContent({}, work, definition, new Map(), '', '', null, [], null, env.parkedExecution(work, definition));
+  const render = () => env.workContent({}, work, definition, new Map(), '', '', null, null, env.parkedExecution(work, definition));
   const markup = render();
   assert.equal(markup.replace(/<[^>]*>/g, '').split(summary).length - 1, 1);
   assert.match(markup, /data-attempt-id="7".*复核资料/);
@@ -357,4 +396,20 @@ test('a missing response checks the original operation receipt without issuing a
   assert.deepEqual(requests, ['flow', 'flow-operation']);
   assert.equal(owner.workflow, updated);
   assert.equal(context.flowState(context.current(), work.id).pending, null);
+});
+
+test('all team cards open one task document regardless of layout and progress', () => {
+  const env = vm.createContext({
+    workLabel: (_key, fallback) => fallback, workText: (_key, fallback) => fallback,
+    RunTeamsWorkRecords: {
+      deliveryRowMarkup: (file, options) => file.name + ' ' + options.action,
+      taskSection: (_selection, _id, _label, body) => body,
+    },
+  });
+  vm.runInContext(panels.slice(panels.indexOf('function finalDeliveryRow('), panels.indexOf('function signingEntry(')), env);
+  for (const state of ['running', 'completed', 'canceled']) {
+    const html = env.taskDeliveriesMarkup({workflow: {id: 42, state, task: {title: 'Original card'}}});
+    assert.equal(html.split('openTaskReport(this)').length - 1, 1);
+    assert.match(html, /Original card/);
+  }
 });

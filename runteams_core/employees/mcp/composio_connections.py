@@ -24,9 +24,10 @@ UNKNOWN = '服务未确认执行结果。请先到原应用核对，再决定是
 
 
 class ComposioError(Exception):
-    def __init__(self, message, code='composio_error'):
+    def __init__(self, message, code='composio_error', *, status=None):
         super().__init__(message)
         self.code = code
+        self.status = status
 
 
 def request(key, method, path, *, query=None, body=None, execution=False):
@@ -48,7 +49,7 @@ def request(key, method, path, *, query=None, body=None, execution=False):
             raise ComposioError(UNKNOWN, 'outcome_unknown')
         if not 200 <= response.status < 300:
             # Never echo upstream errors: they may include credentials or args.
-            raise ComposioError('Composio 拒绝了请求（HTTP %s）。请检查账号授权、工具参数或项目配置。' % response.status)
+            raise ComposioError('Composio 拒绝了请求（HTTP %s）。请检查账号授权、工具参数或项目配置。' % response.status, status=response.status)
         value = strict_json(raw)
         if not isinstance(value, dict):
             raise ValueError()
@@ -102,6 +103,42 @@ def tool(row):
             'description': row.get('description') or '', 'inputSchema': row.get('input_parameters') or {},
             'version': row.get('version'), 'no_auth': row.get('no_auth') is True,
             'tags': row.get('tags') or []}
+
+
+# Map provider tools to the operations an asset can declare. Keep names and
+# account display attributes out of the matching logic.
+_APPLICATION_OPERATIONS = {
+    'gmail': {'mail.read': 'GMAIL_FETCH_EMAILS', 'mail.draft': 'GMAIL_CREATE_EMAIL_DRAFT'},
+    'outlook': {'mail.read': 'OUTLOOK_LIST_MESSAGES', 'mail.draft': 'OUTLOOK_CREATE_DRAFT'},
+}
+
+
+def compatible_applications(required, read_toolkit, read_tool, *, toolkit_required=None):
+    known = {operation for mapping in _APPLICATION_OPERATIONS.values() for operation in mapping}
+    if (not isinstance(required, list) or not 1 <= len(required) <= len(known)
+            or any(not isinstance(item, str) or item not in known for item in required)
+            or len(set(required)) != len(required)):
+        raise ValueError('应用能力要求无效。')
+    items = []
+    for application, mapping in _APPLICATION_OPERATIONS.items():
+        if (toolkit_required is not None and application != toolkit_required) or set(required) - mapping.keys():
+            continue
+        try:
+            metadata = read_toolkit(application)
+            if metadata['slug'] != application:
+                continue
+            definitions = {operation: read_tool(mapping[operation]) for operation in required}
+        except ComposioError as error:
+            if error.status != 404:
+                raise
+            continue
+        if any(definition.get('toolkit', {}).get('slug') != application
+               or definition.get('slug') != mapping[operation] or not definition.get('version')
+               or definition.get('is_deprecated') or definition.get('deprecated')
+               for operation, definition in definitions.items()):
+            continue
+        items.append({**metadata, 'operations': {operation: tool(definition) for operation, definition in definitions.items()}})
+    return items
 
 
 def accounts(key, user, selected):
@@ -168,6 +205,7 @@ def _dispatch(db, data):
     fields = {
         'status': set(), 'save': {'token'}, 'remove': {'revision'},
         'catalog': {'revision', 'search', 'cursor'},
+        'compatible-applications': {'revision', 'operations', 'toolkit'},
         'toolkit': {'revision', 'toolkit'},
         'tool': {'revision', 'toolkit', 'tool'},
         'tools': {'revision', 'toolkit', 'search', 'cursor'},
@@ -217,6 +255,15 @@ def _dispatch(db, data):
         query.update(toolkit_slug=slug(data['toolkit']), toolkit_versions='latest')
         if search: query['query'] = search
         return page(request(key, 'GET', '/tools', query=query), tool)
+    if action == 'compatible-applications':
+        required_toolkit = slug(data['toolkit']) if data['toolkit'] else None
+        db.commit()  # Exact metadata reads do not serialize unrelated account mutations.
+        return {'items': compatible_applications(
+            data['operations'],
+            lambda name: toolkit(request(key, 'GET', '/toolkits/' + name)),
+            lambda name: request(key, 'GET', '/tools/' + name, query={'version': 'latest'}),
+            toolkit_required=required_toolkit,
+        )}
     selected = slug(data['toolkit'])
     if action == 'toolkit':
         return toolkit(request(key, 'GET', '/toolkits/' + selected))

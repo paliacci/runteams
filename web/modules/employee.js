@@ -123,11 +123,8 @@ function coreEmployeeRuntimeChannel(runtime){return (S.channels||[]).find(item=>
 function employeeSettingsCopy(key,fallback){
  return window.RunTeamsLocale?.t('employeeSettings.'+key,{},fallback)??fallback;
 }
-/* module-function:trashCoreEmployee */
-function trashCoreEmployee(id){const scope=_employeeBusinessScopeSequence,item=RunTeamsEmployeeDirectory.assets().find(row=>Number(row.id)===Number(id));if(!item||!RunTeamsHost.assets.canTrashEmployee?.(item))return;confirmModal(employeeSettingsCopy("trashTitle","将这名员工移到垃圾箱？"),employeeSettingsCopy("trashDetails","可以在「员工 → 已删除的云端员工」恢复员工草稿和发布版本。本机已有工作和文件会保留。"),async()=>{try{const out=await employeeScopedApi(`/api/core/employees/${Number(id)}/trash`,"POST",{},scope);if(out.error){toast(out.error,"err");return;}await refreshCoreTeam();employeeAssertBusinessScope(scope);render();toast(employeeSettingsCopy("trashed","已将员工移到垃圾箱"),"ok");}catch(error){if(scope===_employeeBusinessScopeSequence)toast(error.message||employeeSettingsCopy('trashFailed','无法将员工移到垃圾箱'),'err');}},true,{action:employeeSettingsCopy("trash","移到垃圾箱"),cancel:employeeSettingsCopy("cancel","取消"),close:employeeSettingsCopy("closeDialog","关闭弹窗"),titleKey:"employeeSettings.trashTitle",messageKey:"employeeSettings.trashDetails",actionKey:"employeeSettings.trash",cancelKey:"employeeSettings.cancel",closeKey:"employeeSettings.closeDialog"});}
-
 /* module-function:coreEmployeeRowMenu */
-function coreEmployeeRowMenu(event,id){event.preventDefault();event.stopPropagation();const item=employeeSummary(id);if(!item)return;const items=[{label:employeeSettingsCopy('title','员工设置'),labelKey:'employeeSettings.title',icon:'settings',fn:()=>openCoreEmployeeEditor(id)},{label:employeeSettingsCopy('records','工作记录'),labelKey:'employeeSettings.records',icon:'clock',fn:()=>openContextResults({employee_id:Number(id)})}];if(RunTeamsHost.assets.canTrashEmployee?.(item))items.push({label:employeeSettingsCopy('trash','移到垃圾箱'),labelKey:'employeeSettings.trash',icon:'trash',fn:()=>trashCoreEmployee(id)});openMenu(event.currentTarget,items,{variant:'workerAction',...(event.type==='contextmenu'?{at:{x:event.clientX,y:event.clientY}}:{})});}
+function coreEmployeeRowMenu(event,id){event.preventDefault();event.stopPropagation();const item=employeeSummary(id);if(!item)return;const items=[{label:employeeSettingsCopy('title','员工设置'),labelKey:'employeeSettings.title',icon:'settings',fn:()=>openCoreEmployeeEditor(id)},{label:employeeSettingsCopy('records','工作记录'),labelKey:'employeeSettings.records',icon:'clock',fn:()=>openContextResults({employee_id:Number(id)})}];openMenu(event.currentTarget,items,{variant:'workerAction',...(event.type==='contextmenu'?{at:{x:event.clientX,y:event.clientY}}:{})});}
 /* module-function:openCoreEmployeeEditor */
 async function openCoreEmployeeEditor(id){
   const entry=RunTeamsEmployeeDirectory.entryFor(id)||RunTeamsEmployeeDirectory.assetEntry(id);
@@ -145,7 +142,7 @@ async function openCoreEmployeeEditor(id){
 function coreEmployeeEditorDrawer(){
   const id=Number(S.sel?.id)||0,item=employeeSummary(id)||{},loading=S.sel?.status==='loading',failed=S.sel?.status==='error';
   const identity=detailDrawerEmployeeIdentity({...item,skills:[],description:item.description||''});
-  const body=loading?RunTeamsSkeletons.region('detail',undefined,'employeeSettings.loading'):failed?RunTeamsLoadFailure.markup({variant:'modal',title:'无法读取员工设置',titleKey:'employeeSettings.legacyUnavailable',labelKey:'employeeSettings.reload',busyLabelKey:'employeeSettings.loading',retry:`openCoreEmployeeEditor(${id})`,error:S.sel?.error}):employeeLifecycleSection(item,id)+(window.RunTeamsWorkResources?.section(item,id)||'');
+  const body=loading?RunTeamsSkeletons.region('detail',undefined,'employeeSettings.loading'):failed?RunTeamsLoadFailure.markup({variant:'modal',title:'无法读取员工设置',titleKey:'employeeSettings.legacyUnavailable',labelKey:'employeeSettings.reload',busyLabelKey:'employeeSettings.loading',retry:`openCoreEmployeeEditor(${id})`,error:S.sel?.error}):employeeLifecycleSection(item,id);
   const header={toolbar:'<div id="employee_settings_header"></div>',intro:identity};
   return detailDrawerShell({className:'employee-settings-drawer',header,introClass:'employee-settings-identity detail-employee-summary',body:`<div data-sdk-settings-slot>${body}</div>`,bodyClass:'employee-settings-content',attrs:'data-rt-ui data-app-i18n-aria-label="employeeSettings.title" aria-label="员工设置"'+(loading?' aria-busy="true"':'')});
 }
@@ -210,7 +207,7 @@ function employeeConnectionMarkup(d,s,index,row,prefix='employee_mcp_connection'
         body+=`<button type="button" class="btn" onclick="${action('Revoke')}" ${locked?'disabled':''}>${employeeConsentText("revoke","撤销授权")}</button>`;
       }else if(pending)body+=`<button class="btn" type="button" onclick="${action('Read')}" ${s.busy?'disabled':''}>${employeeConsentText("checkResult","核对结果")}</button>`;
       else{
-        body+=`<div class="field"><label for="${prefix}_credential_${index}">${employeeConsentText("credential","本机凭据")}</label><select class="inp" id="${prefix}_credential_${index}" onchange="${action('Credential')}" ${locked?'disabled':''}><option value="" data-app-i18n="employeeConsent.chooseCredential">选择本机凭据</option>${d.credential_names.map((name,i)=>`<option value="${i}">${esc(name)}</option>`).join('')}<option value="new" data-app-i18n="employeeConsent.addToken">添加访问令牌</option></select></div><div class="field" id="${prefix}_token_field_${index}" hidden><label for="${prefix}_token_${index}">${employeeConsentText("token","访问令牌")}</label><input class="inp" id="${prefix}_token_${index}" type="password" autocomplete="off" spellcheck="false" maxlength="8192" oninput="${action('Enable')}" ${locked?'disabled':''}><p class="employee-sdk-note">${employeeConsentText("tokenStorage","访问令牌仅保存在这台电脑的凭据保险箱中，不会加入作品或工作备份。")}</p></div><label class="employee-sdk-consent"><input type="checkbox" id="${prefix}_consent_${index}" onchange="${action('Enable')}" ${locked?'disabled':''}><span>${subject==='流水线'?employeeConsentText('allowPipeline','允许此流水线使用所选凭据访问此服务，最长 1 小时。'):employeeConsentText('allowEmployee','允许此员工使用所选凭据访问此服务，最长 1 小时。')}</span></label><button class="btn pri" type="button" id="${prefix}_authorize_${index}" onclick="${action('Authorize')}" disabled>${employeeConsentText("authorize","授权连接")}</button>`;
+        body+=`<div class="field"><label for="${prefix}_credential_${index}">${employeeConsentText("credential","本机凭据")}</label><select class="inp" id="${prefix}_credential_${index}" onchange="${action('Credential')}" ${locked?'disabled':''}><option value="" data-app-i18n="employeeConsent.chooseCredential">选择本机凭据</option>${d.credential_names.map((name,i)=>`<option value="${i}">${esc(name)}</option>`).join('')}<option value="new" data-app-i18n="employeeConsent.addToken">添加访问令牌</option></select></div><div class="field" id="${prefix}_token_field_${index}" hidden><label for="${prefix}_token_${index}">${employeeConsentText("token","访问令牌")}</label><input class="inp" id="${prefix}_token_${index}" type="password" autocomplete="off" spellcheck="false" maxlength="8192" oninput="${action('Enable')}" ${locked?'disabled':''}><p class="employee-sdk-note">${employeeConsentText("tokenStorage","访问令牌仅保存在这台电脑的凭据保险箱中，不会加入作品或工作备份。")}</p></div><label class="employee-sdk-consent"><input type="checkbox" id="${prefix}_consent_${index}" onchange="${action('Enable')}" ${locked?'disabled':''}><span>${subject==='智能体团队'?employeeConsentText('allowPipeline','允许此智能体团队使用所选凭据访问此服务，最长 1 小时。'):employeeConsentText('allowEmployee','允许此员工使用所选凭据访问此服务，最长 1 小时。')}</span></label><button class="btn pri" type="button" id="${prefix}_authorize_${index}" onclick="${action('Authorize')}" disabled>${employeeConsentText("authorize","授权连接")}</button>`;
       }
       body+='</section>';
   return body;
@@ -222,8 +219,10 @@ window.RunTeamsWorkAuthorization=(()=>{
  const text=(key,fallback)=>RunTeamsLocale?.t('workAuthorization.'+key,{},fallback)||fallback;
  const copy=(key,fallback)=>'<span data-app-i18n="workAuthorization.'+key+'">'+esc(text(key,fallback))+'</span>';
  const equal=(a,b)=>!!a&&!!b&&JSON.stringify(a)===JSON.stringify(b);
- function context(){
+ function context(includeWorkbench=true){
   if(RunTeamsHost.session.workspace(S))return null;
+  const workbench=includeWorkbench&&window.RunTeamsCreatorWork?.authorizationContext();
+  if(workbench&&S.sel?.type==='creator-work')return workbench;
   const privateWork=window.RunTeamsSourcePipelinePanels?.programContext();
   if(privateWork)return {panel:privateWork,privateWork,pipeline:false};
   const own=window.RunTeamsSourcePipelines?.workContext();if(own)return {panel:own,pipeline:true};
@@ -232,16 +231,18 @@ window.RunTeamsWorkAuthorization=(()=>{
  }
  function assertCurrent(s){
   employeeAssertBusinessScope(s.scope);
-  if(Number(s.panel?.id)!==Number(s.chat))throw Error(text('changed','工作已变化，请返回原工作重新打开。'));
+  if(Number(s.workbenchId??s.panel?.id)!==Number(s.chat))throw Error(text('changed','工作已变化，请返回原工作重新打开。'));
   if(s.deviceScope!==RunTeamsHost.session.deviceScope(S))throw Error(text('changed','工作已变化，请返回原工作重新打开。'));
   if(s.boardOwner){if(window.RunTeamsSourcePipelines?.current()!==s.boardOwner||!s.boardOwner.data?.workflows?.some(w=>w.id===s.workflowId&&w.work_chat_id===s.chat))throw Error(text('changed','工作已变化，请返回原工作重新打开。'));return;}
   if(s.privateWork){if(window.RunTeamsSourcePipelinePanels?.programContext()!==s.privateWork)throw Error(text('changed','工作已变化，请返回原工作重新打开。'));}
   else if(s.panel!==(s.pipeline?window.RunTeamsSourcePipelines?.workContext():S.conversationPanel))throw Error(text('changed','工作已变化，请返回原工作重新打开。'));
+  if(s.workbenchId&&window.RunTeamsCreatorWork?.authorizationContext()?.workbenchId!==s.workbenchId)throw Error(text('changed','工作已变化，请返回原工作重新打开。'));
  }
  function state(c){
   if(!c?.panel)return null;
-  let s=[...states.values()].find(s=>s.panel===c.panel&&s.scope===_employeeBusinessScopeSequence&&s.deviceScope===RunTeamsHost.session.deviceScope(S));
-  if(!s){s={...c,key:++sequence,chat:c.panel.id,scope:_employeeBusinessScopeSequence,deviceScope:RunTeamsHost.session.deviceScope(S),data:null,loading:false,busy:false,error:''};states.set(s.key,s);}
+  const id=c.workbenchId??c.panel.id;
+  let s=[...states.values()].find(s=>s.panel===c.panel&&s.chat===id&&s.scope===_employeeBusinessScopeSequence&&s.deviceScope===RunTeamsHost.session.deviceScope(S));
+  if(!s){s={...c,key:++sequence,chat:id,scope:_employeeBusinessScopeSequence,deviceScope:RunTeamsHost.session.deviceScope(S),data:null,loading:false,busy:false,error:''};states.set(s.key,s);}
   return s;
  }
  async function request(s,body,observe=false){
@@ -262,9 +263,8 @@ window.RunTeamsWorkAuthorization=(()=>{
   if(d?.available){
    if(d.enabled)body=`<button class="detail-head-more" type="button" data-menu-trigger="quiet" aria-haspopup="menu" aria-expanded="false" aria-label="更多操作" data-app-i18n-aria-label="automationList.more" onclick="RunTeamsWorkAuthorization.settingsMenu(${s.key},this)" ${s.busy?'disabled':''}>${ICON('more')}</button>`;
    if(d.calls?.some(row=>row.state==='unknown'))body+='<p class="employee-sdk-error" role="alert">'+employeeConsentText('unknownResult','有操作的结果尚未确认。请核对结果。')+'</p>';
-   for(const [index,row] of services(s).entries())body+=employeeConnectionMarkup({credential_names:row.credential_names},s,index,row,'work_connection_'+s.key,(verb,i)=>`RunTeamsWorkAuthorization.connection${verb}(${s.key},${i})`,s.pipeline?'流水线':'员工');
+   for(const [index,row] of services(s).entries())body+=employeeConnectionMarkup({credential_names:row.credential_names},s,index,row,'work_connection_'+s.key,(verb,i)=>`RunTeamsWorkAuthorization.connection${verb}(${s.key},${i})`,s.pipeline?'智能体团队':'员工');
   }
-  body+=window.RunTeamsWorkResources?.entry(s,s.key)||'';
   if(s.error)body+=`<p class="employee-sdk-error" role="alert">${esc(s.error)}</p>`;
   if(s.error||s.connectionPending)body+=`<button class="btn sm" type="button" onclick="RunTeamsWorkAuthorization.read(${s.key})" ${s.busy?'disabled':''}>${employeeConsentText('checkResult','核对结果')}</button>`;
   return body;
@@ -389,9 +389,9 @@ window.RunTeamsWorkAuthorization=(()=>{
   if(s.data.suspended){try{await request(s,{action:'resume',binding_sha256:s.data.binding_sha256});await read(s);}catch(error){s.error=error.message;await configure(s);return false;}}
   return !s.error;
  }
- async function beforeSend(id){const c=context();return Number(c?.panel.id)===Number(id)?prepare(c):true;}
+ async function beforeSend(id){const c=context(false);return Number(c?.panel.id)===Number(id)?prepare(c):true;}
  async function notify(chat){
-  const c=context();if(Number(c?.panel.id)!==Number(chat)||dialog||document.getElementById('modalHost'))return;
+  const c=context();if(Number(c?.workbenchId??c?.panel.id)!==Number(chat)||dialog||document.getElementById('modalHost'))return;
   const s=state(c);await read(s);
   try{assertCurrent(s);}catch{return;}
   if(!s.error&&pending(s))void show(s,'operation');

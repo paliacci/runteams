@@ -163,7 +163,9 @@ class EmployeeSchedules:
         skills = value['runtime_source']['skills'] if 'runtime_source' in value else [
             {'key': u['skill_key'], 'name': u['work']['name'], 'input_schema': u['work']['input_schema']}
             for u in value['active_release']['snapshot_json']['work_units']]
-        return {'items': rows, 'reference': value['native_asset']['employee_reference'],
+        from runteams_core.pipelines.scheduled_followup import targets
+        ref = value['native_asset']['employee_reference']
+        return {'items': rows, 'reference': ref, 'followup_targets': targets(self.controller_factory, ref, skills),
                 'skills': skills,
                 'storage_scope': 'device', 'unavailable':value.get('runtime_source',{}).get('unavailable','')}
 
@@ -380,14 +382,17 @@ class EmployeeSchedules:
 
     def materialize_due_automations(self, limit=20, has_open_work=None):
         from runteams_core.automation import automation_time as time_rules
+        selection, ids = self.dispatch_selection('id')
         statement = ("SELECT * FROM schedules WHERE enabled=1 AND deleted=0 AND next_run_at<>'' "
-                     "AND next_run_at<=? ORDER BY next_run_at,id LIMIT ?")
-        params = (time_rules.now(), min(20, limit))
+                     "AND next_run_at<=?" + selection + " ORDER BY next_run_at,id LIMIT ?")
+        params = (time_rules.now(), *ids, min(20, limit))
         with self.connection() as c:
             if c is None or c.execute(statement, params).fetchone() is None:
                 return
         with self.connection(write=True) as c:
             for row in c.execute(statement, params).fetchall():
+                if not self.dispatch_allowed(row['id']):
+                    continue
                 try:
                     from runteams_core.employees.managed_employee_data import writer_busy
                     if writer_busy(json.loads(row['reference'])):
@@ -400,13 +405,14 @@ class EmployeeSchedules:
                     (next_run(row['schedule_kind'], row['interval_sec'], json.loads(row['schedule'])), row['id']))
 
     def claim_next_automation_run(self):
-        statement = "SELECT * FROM occurrences WHERE status='queued' ORDER BY id LIMIT 1"
+        selection, ids = self.dispatch_selection('schedule_id')
+        statement = "SELECT * FROM occurrences WHERE status='queued'" + selection + " ORDER BY id LIMIT 1"
         with self.connection() as c:
-            if c is None or c.execute(statement).fetchone() is None:
+            if c is None or c.execute(statement, ids).fetchone() is None:
                 return None
         with self.connection(write=True) as c:
-            row = c.execute(statement).fetchone()
-            if row is None:
+            row = c.execute(statement, ids).fetchone()
+            if row is None or not self.dispatch_allowed(row['schedule_id']):
                 return None
             c.execute("UPDATE occurrences SET status='running' WHERE id=?", (row['id'],))
             return {**dict(row), 'automation_id': row['schedule_id']}
@@ -420,8 +426,25 @@ class EmployeeSchedules:
                 + selection, ids).fetchone()[0]
         return None if due is None else max(0, (timestamp(due) - datetime.now(timezone.utc)).total_seconds())
 
+    def dispatch_ids(self):
+        from runteams_core.automation.automation_dispatch import selected_schedule_ids
+        device_data.check(self.scope)
+        return selected_schedule_ids(self.directory, self.binding(), allow_indefinite=True)
+
+    def scoped_dispatch_enabled(self):
+        return bool(self.dispatch_ids())
+
+    def dispatch_allowed(self, schedule_id):
+        ids = self.dispatch_ids()
+        return ids is None or schedule_id in ids
+
     def dispatch_selection(self, column):
-        return '', ()
+        ids = self.dispatch_ids()
+        if ids is None:
+            return '', ()
+        if not ids:
+            return ' AND 0', ()
+        return ' AND ' + column + ' IN (' + ','.join('?' for _ in ids) + ')', ids
 
     def admitted(self, core, operation):
         events = core.repository.events('employee-schedule:' + operation)
@@ -429,6 +452,9 @@ class EmployeeSchedules:
 
     def execute(self, job, cancel_event=None):
         device_data.check(self.scope)
+        if not self.dispatch_allowed(job['schedule_id']):
+            self.finish_automation_run(job['id'], 'queued', '本机自动化处于维护暂停。')
+            return
         if cancel_event is not None and cancel_event.is_set():
             raise Cancelled('本次运行已取消。')
         with self.connection() as c:
@@ -471,8 +497,10 @@ class EmployeeSchedules:
         controller.wake()
 
     def reconcile(self):
+        selection, ids = self.dispatch_selection('schedule_id')
         with self.connection() as c:
-            rows = [] if c is None else [dict(r) for r in c.execute("SELECT * FROM occurrences WHERE status IN ('waiting','running','blocked','interrupted')")]
+            rows = [] if c is None else [dict(r) for r in c.execute(
+                "SELECT * FROM occurrences WHERE status IN ('waiting','running','blocked','interrupted')" + selection, ids)]
         if not rows:
             self.recovering = False
             return False

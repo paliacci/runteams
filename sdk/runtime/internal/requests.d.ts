@@ -6,4 +6,6 @@ export interface Parameters {
   "data.query": { "collection": string; "limit": number; "cursor"?: string | null; "filter"?: JsonObject };
   "data.mutate": { "collection": string; "mutations": Array<{ "id": string; "base_revision": string | null; "value": JsonObject | null }>; "operation_key": string };
   "connection.http": { "connection": string; "endpoint": string; "path_params"?: {[key: string]: string}; "query"?: {[key: string]: string | number | boolean}; "body"?: JsonObject | null; "operation_key"?: string };
+  "application.status": { "application": string };
+  "application.call": { "application": string; "tool": string; "arguments": JsonObject; "operation_key": string };
 }

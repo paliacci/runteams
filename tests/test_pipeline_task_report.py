@@ -7,7 +7,8 @@ from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
 
-from runteams_core.documents import rich_documents
+from runteams_core.documents import rich_document_assets, rich_documents
+from runteams_core.documents.document_export import export_document
 from runteams_core.documents.document_service import Documents
 from runteams_core.foundation.contracts import ContractError
 from runteams_core.pipelines import pipeline_task_report
@@ -17,6 +18,102 @@ from runteams_core.work import device_work
 
 
 class PipelineTaskReportTests(unittest.TestCase):
+    def test_followup_distinguishes_zero_from_a_missing_metric(self):
+        update = {'observed_at': '2026-11-20T15:00:00Z', 'source_url': 'https://example.com/post',
+                  'content': 'Public observation', 'metrics': {'comments': 0, 'views': None}}
+        document = pipeline_task_report.add_followup({'blocks': []}, update, {})
+        text = document['blocks'][0]['props']['text']
+        self.assertIn('comments · 0', text)
+        self.assertIn('views · —', text)
+
+    def test_forwarding_a_report_keeps_the_original_producers_exact_version(self):
+        from runteams_core.pipelines.pipeline_task_delivery import _report
+        pin = {'report_id': 20, 'artifact_id': 21, 'revision': 2, 'sha256': 'expected'}
+        published = {**pin, 'id': 20}
+        other = {**published, 'id': 31, 'artifact_id': 31}
+        runs = [(10, {'output': {'receipt': pin}, 'report_references': [published]}),
+                (11, {'output': {'receipt': pin}, 'report_references': [other]})]
+        self.assertEqual(_report({'output': 'receipt'}, runs), (10, published))
+        runs[-1][1]['output']['receipt'] = {**pin, 'sha256': 'changed'}
+        self.assertIsNone(_report({'output': 'receipt'}, runs))
+
+    def test_completed_delivery_uses_one_document_with_exact_accepted_content(self):
+        png = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jkf8AAAAASUVORK5CYII='
+        reference = {'local_test': 'pipeline'}
+        scope = {'storage_kind': 'local', 'library_id': 'test', 'storage_namespace': 'test'}
+        policy = {'parameter': 'goal', 'goals': {'package': ['cover']},
+                  'sections': {'cover': {'title': '头图', 'output': 'cover.report'}}}
+        for existing in (False, True):
+            with self.subTest(existing=existing), TemporaryDirectory() as directory, \
+                    patch.object(device_data, 'root', return_value=Path(directory)), \
+                    patch.object(device_data, 'identity', return_value=scope), \
+                    patch.object(device_data, 'personal', return_value=True), \
+                    patch.object(pipeline_task_report.pipeline_references, 'checked_reference', side_effect=lambda value: value):
+                storage = device_work.DeviceWorkStorage()
+                core = Documents()
+                core.root = Path(directory) / 'work'
+                core.repository = Repository(storage.path, storage=storage)
+                frozen = {'pipeline_work': {'reference': reference, 'asset': {'pipeline': {
+                    'positions': [{'key': 'design', 'name': '设计'}], 'delivery': policy}}},
+                    'pipeline_input': {'parameters': {'goal': 'package'}}}
+                timestamp = '2026-11-06T06:00:00+00:00'
+                with core.repository.connect() as connection:
+                    task = connection.execute('INSERT INTO tasks(employee_id,title,payload_json,state,created_at,updated_at) '
+                        "VALUES(1,'最终交付','{}','ready',?,?)", (timestamp, timestamp)).lastrowid
+                    workflow = connection.execute('INSERT INTO workflow_runs(task_id,state,cursor_key,snapshot_json,created_at,updated_at) '
+                        "VALUES(?,'ready','design',?,?,?)", (task, json.dumps(frozen), timestamp, timestamp)).lastrowid
+                original = pipeline_task_report.open_report(core, reference, workflow) if existing else None
+                stage = core.create_agent_document('阶段汇报', '验收稿')
+                attachment = {'name': 'cover.png', 'type': 'image/png', 'data': png}
+                png_id = rich_document_assets.upload(core, stage['id'], attachment)['id']
+                doc = rich_documents.from_markdown('验收稿。 [退修单](runteams://document/123)')
+                doc['blocks'].append({'id': 'image', 'type': 'image', 'props': {'assetId': png_id}, 'children': []})
+                accepted = rich_documents.write(core, name=stage['name'], document=doc,
+                    document_id=stage['id'], base_revision=stage['revision'], author='agent')
+                with core.repository.connect() as connection:
+                    for attempt in (1, 2):
+                        run = connection.execute('INSERT INTO employee_runs(workflow_run_id,position_key,attempt,state,input_json,'
+                            "output_json,created_at,updated_at) VALUES(?,'design',?,'completed','{}','{}',?,?)",
+                            (workflow, attempt, timestamp, timestamp)).lastrowid
+                    meta = json.loads(connection.execute('SELECT meta_json FROM artifacts WHERE id=?', (accepted['id'],)).fetchone()[0])
+                    meta['work_report'] = {'workflow_id': workflow, 'employee_run_id': run}
+                    connection.execute('UPDATE artifacts SET meta_json=? WHERE id=?', (json.dumps(meta), accepted['id']))
+                    ref = {'report_id': stage['id'], 'artifact_id': accepted['id'],
+                           'revision': accepted['revision'], 'sha256': meta['sha256']}
+                    output = {'output': {'cover': {'report': ref}}, 'report_references': [{**ref, 'id': stage['id']}]}
+                    connection.execute('UPDATE employee_runs SET output_json=? WHERE id=?', (json.dumps(output), run))
+                    frozen['pipeline_lineage'] = [run]
+                    connection.execute("UPDATE workflow_runs SET state='completed',snapshot_json=? WHERE id=?",
+                                       (json.dumps(frozen), workflow))
+                receipt = pipeline_task_report.open_report(core, reference, workflow)
+                self.assertEqual(pipeline_task_report.open_report(core, reference, workflow), receipt)
+                self.assertEqual(pipeline_task_report.final_delivery_reference(core, {'task_id': task, 'task': {'title': '最终交付'}}),
+                                 {'id': receipt['document_id'], 'name': '最终交付'})
+                if original:
+                    self.assertEqual(receipt['document_id'], original['document_id'])
+                final = core.document_detail(receipt['document_id'])
+                self.assertFalse(final['editable'])
+                data, name, _ = export_document(core, final)
+                exported = json.loads(data)
+                self.assertEqual(name, '最终交付.json')
+                self.assertIn('验收稿', data.decode())
+                self.assertNotIn('runteams://document/123', data.decode())
+                self.assertEqual(list(exported['assets'].values()), [attachment])
+                self.assertNotIn(png_id, exported['assets'])
+
+                # A team without a declared delivery layout uses the same root and pinned file.
+                del frozen['pipeline_work']['asset']['pipeline']['delivery']
+                with core.repository.connect() as connection:
+                    connection.execute('UPDATE workflow_runs SET snapshot_json=? WHERE id=?', (json.dumps(frozen), workflow))
+                merged = pipeline_task_report.open_report(core, reference, workflow)
+                self.assertEqual(merged['document_id'], receipt['document_id'])
+                self.assertGreater(merged['revision'], receipt['revision'])
+                structured = core.document_detail(merged['document_id'])
+                data, _, _ = export_document(core, structured)
+                self.assertIn('验收稿', data.decode())
+                self.assertEqual(list(json.loads(data)['assets'].values()), [attachment])
+                self.assertEqual(merged, pipeline_task_report.open_report(core, reference, workflow))
+
     def test_upgrade_repeat_open_revision_and_cleanup(self):
         self.check_report_language(False)
 
@@ -39,13 +136,13 @@ class PipelineTaskReportTests(unittest.TestCase):
         core.root = root / 'work'
         core.repository = Repository(storage.path, storage=storage)
         with sqlite3.connect(storage.path) as connection:
-            for kind, name in device_work.TASK_REPORT_STRUCTURE:
+            for kind, name in (*reversed(device_work.DOCUMENT_FOLDER_STRUCTURE), *device_work.TASK_REPORT_STRUCTURE):
                 connection.execute(f'DROP {kind} {name}')
             connection.execute(f'PRAGMA user_version={device_work.PREVIOUS_VERSION}')
 
         reference = {'local_test': 'pipeline'}
         frozen = {'pipeline_work': {'reference': reference, 'asset': {'pipeline': {
-            'positions': [{'key': 'reviewer', 'name': '审查员'}], 'states': []}}},
+            'positions': [{'key': 'reviewer', 'name': '审查员'}]}}},
             'pipeline_input': {'objective': '审查交付物'}}
         if english:
             frozen['language_policy'] = {'communication_language': 'en'}
@@ -71,11 +168,11 @@ class PipelineTaskReportTests(unittest.TestCase):
         self.assertFalse(report['editable'])
         self.assertEqual(report['source'], rich_documents.TASK_REPORT_SOURCE)
         body = json.loads(report['content'])['blocks'][0]['props']['text']
-        self.assertIn('Task created' if english else '创建任务', body)
+        self.assertIn('Ready' if english else '等待开始', body)
         self.assertIn('审查交付物', body)
         self.assertIn('审查员', body)
-        self.assertIn('Task report' if english else '任务汇报', report['name'])
-        self.assertIn(f'runteams://document/{stage}', body)
+        self.assertEqual(report['name'], '验证任务')
+        self.assertNotIn(f'runteams://document/{stage}', body)
         with self.assertRaises(ContractError):
             rich_documents.write(core, name='覆盖', document=rich_documents.from_markdown('覆盖'),
                                  document_id=report_id, base_revision=1)

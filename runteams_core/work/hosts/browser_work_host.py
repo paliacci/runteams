@@ -21,6 +21,8 @@ from runteams_core.authoring.creator_ui import ui_json
 from runteams_core.work.hosts.native_work_owner import ACTIVE_WORK_LIMIT
 
 ROOT = resource_root()
+# Match the MCP worker frame budget, with room for the UI reply envelope.
+MCP_TOOL_REPLY_LIMIT = 4 * 1024 * 1024 + 8192
 
 
 class WorkClientExpired(PermissionError):
@@ -39,8 +41,11 @@ def transport(config, path, payload=None, *, asset=False):
             ui_json(payload); headers['Content-Type'] = 'application/json'
         connection.request('GET' if body is None else 'POST', path, body, headers)
         response = connection.getresponse()
-        raw = response.read((8 * 1024 * 1024 if asset else 131072) + 1)
-        if response.status != 200 or len(raw) > (8 * 1024 * 1024 if asset else 131072):
+        limit = 8 * 1024 * 1024 if asset else 131072
+        if path == '/message' and payload and payload.get('method') == 'mcp.tools.call':
+            limit = MCP_TOOL_REPLY_LIMIT
+        raw = response.read(limit + 1)
+        if response.status != 200 or len(raw) > limit:
             raise PermissionError('work_access_denied') if response.status == 403 else RuntimeError('work_reply_unknown')
         return (raw, dict(response.getheaders())) if asset else strict_json(raw)
     finally:

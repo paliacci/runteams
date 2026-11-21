@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Codex App Server 持久对话客户端。
 
-这里只服务 RunTeams 顶层对话。流水线岗位继续使用一次性 ``codex exec``，保持
+这里只服务 RunTeams 顶层对话。智能体团队岗位继续使用一次性 ``codex exec``，保持
 既有的隔离、工作区与进程治理语义。
 """
 import json
@@ -368,7 +368,7 @@ def run_turn(channel, thread_id, message, developer_instructions, *, model="", e
             defer_question(message_data['id'], params.get('questions') or [])
         elif employee_mcp and message_data.get('id') is not None and method in (
                 'item/commandExecution/requestApproval','item/fileChange/requestApproval',
-                'mcpServer/elicitation/request','tool/requestUserInput','item/tool/requestUserInput'):
+                'mcpServer/elicitation/request'):
             try:
                 if active_thread_id and params.get('threadId') not in (None,active_thread_id):
                     raise PermissionError('Official approval thread changed')

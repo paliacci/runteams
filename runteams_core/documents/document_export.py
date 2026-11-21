@@ -1,9 +1,50 @@
 """Export committed content without an editor process."""
+from io import BytesIO
 import json
+from pathlib import Path
+import re
+from zipfile import ZIP_DEFLATED, ZipFile
 from runteams_core.documents import rich_documents
 from runteams_core.foundation.contracts import ContractError
 
 MAX_EXPORT_BYTES=128*1024*1024
+
+
+def export_documents(core, identifiers):
+    """Build one archive from the document library's current saved versions."""
+    if not isinstance(identifiers, str) or not re.fullmatch(r'[1-9][0-9]{0,15}(?:,[1-9][0-9]{0,15}){0,999}', identifiers):
+        raise ContractError('请选择最多 1000 份文档导出。')
+    buffer = BytesIO()
+    names = set()
+    total = 0
+    with core.repository.definition_lock(), core.repository.read_snapshot() as connection, \
+            ZipFile(buffer, 'w', ZIP_DEFLATED) as archive:
+        for identifier in dict.fromkeys(map(int, identifiers.split(','))):
+            row = connection.execute('SELECT name,meta_json FROM artifacts WHERE id=? AND trashed_at IS NULL',
+                                     (identifier,)).fetchone()
+            if not row or not core.is_document_artifact(core._decode_meta(row['meta_json']), row['name']):
+                raise ContractError('文档已不存在，请刷新文档列表。')
+            detail = core.document_detail(identifier, refresh_task_report=False)
+            raw, name, _ = export_document(core, detail)
+            if detail['content_model'] != rich_documents.MODEL:
+                suffix = Path(detail['path']).suffix.lower()
+                if suffix in core.DOCUMENT_TEXT_SUFFIXES:
+                    name = detail['name']
+                    if not name.lower().endswith(suffix):
+                        name += suffix
+            stem, suffix = Path(name.replace('\\', '/')).name.rsplit('.', 1)
+            stem = re.sub(r'[\x00-\x1f\x7f:]', '_', stem).strip(' .')[:160] or '文档'
+            name = stem + '.' + suffix
+            ordinal = 1
+            while name.casefold() in names:
+                ordinal += 1
+                name = f'{stem} ({ordinal}).{suffix}'
+            names.add(name.casefold())
+            total += len(raw)
+            if total > MAX_EXPORT_BYTES:
+                raise ContractError('导出内容过大，请分批导出。')
+            archive.writestr(name, raw)
+    return buffer.getvalue(), 'RunTeams 文档.zip', 'application/zip'
 
 
 def export_document(core, detail):

@@ -25,7 +25,7 @@ node data-model-check.mjs
 node reply-check.mjs
 ```
 
-The build publishes assets under `web/rich-document/dist` and replaces the entry only after assets exist. Old hashed assets stay available for open readers. A new frame under an old host asks the user to refresh before editing; it never silently mixes incompatible save protocols. The shared chat renderer is still built from its existing, unchanged source; laboratory boot, fixtures, browser-local storage and test banners are not shipped.
+The build publishes assets under `web/rich-document/dist` and replaces the entry after its assets exist. Old hashed assets stay available for open readers. The final build step uses Python 3.12 to register the published files with the local edition's HTTP server. A new frame under an old host asks the user to refresh before editing. Laboratory boot, fixtures, browser-local storage and test banners stay in the laboratory.
 
 Backend checks include `tests.test_rich_documents`, `tests.test_rich_document_assets`, `tests.test_work_reports`, `tests.test_device_work_retention`, and the document window checks and `tests.test_document_engine_retirement`. DOM checks use actual React/BlockNote with geometry stubs; real browser evidence is recorded separately. Current verification and scoped recovery patch: `design/evidence/document-lab-integration-20261030/`.
 
@@ -34,3 +34,12 @@ Only the local source service was updated. No cloud deployment, installer rebuil
 The standalone product detail view reuses the existing host-owned document header and settings menu. `header_in_host` suppresses the duplicate frame toolbar; validated `header-action` messages export the live complete document or retry saving. Embedded reports retain no page header. The lab/unhosted frame toolbar remains available.
 
 The host-owned left outline reuses the existing document navigation styles and local collapse preference. `outline.js` observes rendered headings and named data blocks, publishes bounded metadata only, and navigates only to known targets on trusted `outline-jump` messages. Scrolling updates the active entry without replacing navigation buttons. It never changes document blocks or selection; embedded reports have no outline. Narrow views overlay the panel and collapse it after choosing a section.
+
+
+## Bound reply display
+
+The reply entry reuses Table/Chart/Explorer from `src/reply-components.jsx`. json-render adds a bounded v2 catalog (`src/reply-catalog.js`), local state bindings, Messages and Detail; the existing `runteams-view` parser and employee reply skill own delivery. `web/ui/reply-spec.js` owns validation and data paths; it does not choose components. Provider fixtures contain only raw synthetic data.
+
+Open `/?preview=json-render` for four editable raw-data fixtures. Choose an existing connected model and click AI generation: the page uses the shared conversation creation/stream transport and renders the returned spec in place. The model chooses catalog components and field mappings; original data is bound locally without being rewritten. Invalid model output is shown as an error with the raw reply available; there is no local selector or fallback template. Stop/recover uses the original conversation, including after a tab reload, without silently starting another request. Test conversations remain in existing history. No additional cloud backend or model SDK is used.
+
+Run `node reply-check.mjs` and `node json-render-check.mjs` from this directory. The latter checks arbitrary data shapes, bindings, rejected actions, real rendering and stale-data updates. New components must be added to both the catalog and the bounded contract, with documentation in the existing employee skill.

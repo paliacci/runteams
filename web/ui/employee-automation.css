@@ -1,30 +1,19 @@
-.employee-automation-drawer{display:flex;flex-direction:column;min-height:0;height:100%;overflow:hidden}
-.employee-automation-add{display:inline-flex;align-items:center;gap:4px;height:28px;width:auto;padding:0 4px;border-radius:7px;font-size:calc(12px * var(--interface-font-scale,1));line-height:18px;color:var(--text-secondary);white-space:nowrap}
-.employee-automation-add .i{width:16px!important;height:16px!important}
-.employee-automation-add:hover,.employee-automation-icon-action:hover{background:var(--surface-hover);color:var(--text-primary)}
-.employee-automation-add:disabled,.employee-automation-icon-action:disabled{opacity:.45;cursor:default}
-.employee-automation-body{--employee-automation-inset:20px;flex:1;min-height:0;overflow:auto;padding:0 var(--employee-automation-inset) 24px!important;gap:0!important}
-.employee-automation-list{display:flex;flex-direction:column;gap:2px;min-width:0;margin-inline:calc(-1 * var(--employee-automation-inset))}
-.employee-automation-row{display:grid;grid-template-columns:34px minmax(0,1fr) 26px;align-items:center;column-gap:0;min-height:68px;flex:none;border-radius:0;padding:12px var(--employee-automation-inset);box-sizing:border-box}
-.employee-automation-row:focus-within{background:var(--surface-hover)}
-.employee-automation-open{grid-column:2;display:flex;align-items:center;align-self:stretch;min-width:0;width:100%;padding:0;border:0;border-radius:8px;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer}
-.employee-automation-copy{width:100%;min-width:0;box-sizing:border-box;padding:0 4px 0 12px}
+.employee-automation-list{display:flex;flex-direction:column;min-width:0}
+.employee-automation-row{display:grid;grid-template-columns:minmax(0,1fr) 28px 28px;align-items:center;box-sizing:border-box;min-height:52px;padding:5px 8px;border-radius:6px;--list-row-hover-bg:transparent;--menu-trigger-hover-background:transparent}
+.employee-automation-open{grid-column:1;grid-row:1;display:flex;align-items:center;align-self:stretch;min-width:0;width:100%;padding:0;border:0;background:transparent;color:inherit;font:inherit;text-align:left;cursor:pointer}
+.employee-automation-copy{width:100%;min-width:0}
 .employee-automation-copy b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:calc(13px * var(--interface-font-scale,1));font-weight:500;line-height:20px;color:var(--text-primary)}
-.employee-automation-copy small{display:block;margin-top:6px;font-size:calc(11px * var(--interface-font-scale,1));line-height:17px;color:var(--text-secondary);overflow-wrap:anywhere}
-.employee-automation-icon-action{display:grid;place-items:center;width:100%;height:28px;border-radius:7px;color:var(--text-secondary)}
-.employee-automation-icon-action .i{width:16px;height:16px}
-.employee-automation-toggle{width:34px;height:34px;color:var(--icon-blue)}
-.employee-automation-toggle .i{width:24px;height:24px}
-.employee-automation-row[data-schedule-state="paused"] .employee-automation-toggle{color:var(--text-muted)}
-.employee-automation-row[data-schedule-state="running"] .employee-automation-toggle{color:var(--status-running)}
-.employee-automation-row[data-schedule-state="attention"] .employee-automation-toggle{color:var(--status-attention)}
-.employee-automation-row[data-schedule-state="failed"] .employee-automation-toggle{color:var(--status-danger)}
-.employee-automation-loading{padding:20px 0;color:var(--text-secondary);font-size:12px}
+.employee-automation-copy small{display:block;margin-top:2px;font-size:calc(11px * var(--interface-font-scale,1));line-height:17px;color:var(--text-secondary);overflow-wrap:anywhere}
+.employee-automation-icon-action{grid-row:1;grid-column:3;display:grid;place-items:center;width:28px;height:28px;border-radius:7px;color:var(--text-secondary)}
+.employee-automation-toggle{grid-column:2}
+.employee-automation-icon-action .i{width:14px;height:14px}
+.employee-automation-icon-action:hover:not(:disabled){background:transparent;color:var(--text-primary)}
+.employee-automation-icon-action:disabled{opacity:.45;cursor:default}
 .employee-automation-recovery{flex:none;margin-bottom:16px;font-size:12px;line-height:20px;color:var(--text-secondary)}
 .employee-automation-records>div{padding:12px 0;border-bottom:1px solid var(--border-default)}
 .employee-automation-records span{display:block;color:var(--text-secondary);font-size:12px;margin-top:4px}
 .employee-automation-records p{overflow-wrap:anywhere}
-.employee-automation-add:focus-visible,.employee-automation-icon-action:focus-visible{outline:2px solid var(--control-focus);outline-offset:2px}
+.employee-automation-icon-action:focus-visible{outline:2px solid var(--control-focus);outline-offset:2px}
 
 .employee-schedule-editor .automation-form-section-title{align-items:flex-start;flex-wrap:wrap;gap:8px}
 .employee-schedule-editor .automation-form-section-title span{min-width:0;line-height:20px}
@@ -90,6 +79,3 @@
 #modalHost .employee-schedule-editor #employee_schedule_name:focus,
 #modalHost .employee-schedule-editor #employee_schedule_name:focus-visible{border:0!important;outline:0!important;box-shadow:none!important;appearance:none;-webkit-appearance:none;background:transparent;border-radius:0;padding:0;height:auto;min-height:0}
 #modalHost .employee-schedule-editor #employee_schedule_name::placeholder{color:var(--text-muted);opacity:1}
-
-/* A confirmed create action keeps its paint while the list is revalidated. */
-.employee-automation-drawer [data-rt-ui] .employee-automation-add:disabled[data-read-pending]{opacity:1;color:var(--rt-text-primary)}

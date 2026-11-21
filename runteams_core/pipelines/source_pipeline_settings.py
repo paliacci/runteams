@@ -15,7 +15,7 @@ from runteams_core.pipelines import source_pipeline_work as work, source_pipelin
 from runteams_core.foundation.contracts import ContractError
 from runteams_core.authoring.creator_contracts import canonical, strict_json, digest
 from runteams_core.authoring.source.creator_source_revisions import Revisions
-from runteams_core.configuration.employee_configuration import ConfigurationStore, EMPTY
+from runteams_core.configuration.employee_configuration import ConfigurationStore, EMPTY, profile
 
 
 def _source(ref):
@@ -27,7 +27,7 @@ def _source(ref):
 def _asset(files, ref):
     project = strict_json(files['project.json'])
     if ref['pipeline_source'] not in project['entrypoints'].get('pipelines', []):
-        raise PermissionError('流水线不属于当前源码工程。')
+        raise PermissionError('智能体团队不属于当前源码工程。')
     from runteams_core.authoring.creator_definitions import validate_author
     return validate_author('pipeline', strict_json(files[ref['pipeline_source']]))
 
@@ -74,7 +74,7 @@ def own_configuration(core, data):
         'reveal-credential': {'field','definition_sha256'}, 'save': {
         'operation_id', 'expected_revision', 'definition_sha256', 'values', 'bindings'}}.get(action)
     if extra is None or set(data) != {'reference', 'action'} | extra:
-        raise ContractError('流水线配置请求无效。')
+        raise ContractError('智能体团队配置请求无效。')
     with own_configuration_store(data['reference']) as config:
         if action == 'reveal-credential': return config.reveal_credential(**{k:data[k] for k in extra})
         if action == 'credential': return config.credential(**{k:data[k] for k in extra})
@@ -92,7 +92,7 @@ def configuration(ref, employee_source):
         revision = revisions._head(); asset = _asset(revisions._files(revision), ref)
         member = next((m for m in asset['employees'] if selector(m) == employee_source and any(
             p.get('employee_ref') == m['ref'] for p in asset['pipeline']['positions'])), None)
-        if member is None: raise PermissionError('这名员工不属于流水线岗位。')
+        if member is None: raise PermissionError('这名员工不属于智能体团队岗位。')
     if 'dependency' not in member:
         from runteams_core.pipelines.pipeline_employee_dependencies import member_reference
         from runteams_core.configuration.employee_configuration import for_source
@@ -100,7 +100,7 @@ def configuration(ref, employee_source):
             # for_source already owns this exact project's edit lock.
             now = _asset(revisions._files(revisions._head()), ref)
             if not any(m == member and any(p.get('employee_ref') == m['ref'] for p in now['pipeline']['positions']) for m in now['employees']):
-                raise PermissionError('流水线岗位已改变，请重新打开配置。')
+                raise PermissionError('智能体团队岗位已改变，请重新打开配置。')
             config = PipelineConfiguration(ref, original.reference, original.definition, original.definition_revision)
             config.employee = original.employee
             yield config
@@ -112,7 +112,7 @@ def configuration(ref, employee_source):
     with revisions.locked():
         now = _asset(revisions._files(revisions._head()), ref)
         if not any(m == member and any(p.get('employee_ref') == m['ref'] for p in now['pipeline']['positions']) for m in now['employees']):
-            raise PermissionError('流水线岗位已改变，请重新打开配置。')
+            raise PermissionError('智能体团队岗位已改变，请重新打开配置。')
         connection_asset=({**{k:member['dependency'][k] for k in ('installation_id','release_id','rental_source_id') if k in member['dependency']},'employee_source':member['dependency']['employee_source']} if member.get('dependency',{}).get('kind')=='download' else None)
         config = PipelineConfiguration(ref, description['reference'], employee.get('configuration', EMPTY), description['revision'],connection_asset=connection_asset)
         config.employee = {key: employee[key] for key in ('name', 'avatar')}
@@ -135,7 +135,7 @@ def employee_configuration(core, data):
         'reveal-credential': {'field','definition_sha256'}, 'save': {
         'operation_id', 'expected_revision', 'definition_sha256', 'values', 'bindings'}}.get(action)
     if extra is None or set(data) != allowed | extra:
-        raise ContractError('流水线员工配置请求无效。')
+        raise ContractError('智能体团队员工配置请求无效。')
     if action == 'receipt':
         # A lost save remains recoverable after this employee leaves the graph,
         # just like the independent employee's original source receipt path.
@@ -156,32 +156,95 @@ def employee_configuration(core, data):
         return config.save(**{k: v for k, v in data.items() if k in extra})
 
 
-def read(core, ref):
+def read(core, ref, *, include_configuration=False):
     core._actor(); ref, revisions = _source(ref)
     with revisions.locked():
         revision = revisions._head(); files = revisions._files(revision); asset = _asset(files, ref)
-    from runteams_core.pipelines.pipeline_employee_dependencies import describe as describe_member, member_reference
-    from runteams_core.pipelines.pipeline_dependency_contracts import selector
-    from runteams_core.configuration.configuration_schema import fields
-    from runteams_core.pipelines.source_pipeline_workspace import skill_description
-    employees = []
-    for member in asset['employees']:
-        positions = [p for p in asset['pipeline']['positions'] if p.get('employee_ref') == member['ref']]
-        if not positions: continue
-        try:
-            description = describe_member(ref, member, revision)
-            employee = description['asset']['employee']
-            row = {'reference': description['reference'], 'name': employee['name'], 'revision': description['revision'],
-                   'field_count': len(fields(employee.get('configuration', EMPTY))),
-                   'member_ref': member['ref'],
-                   'skills': [skill for bundle in description['asset'].get('skill_bundles', [])
-                              if (skill := skill_description(bundle)) is not None]}
-        except (ValueError, OSError, PermissionError) as error:
-            row = {'reference': member_reference(ref, member), 'name': positions[0]['name'],
-                   'field_count': 0, 'member_ref': member['ref'], 'error': str(error)}
-        employees.append({'source': selector(member), 'positions': [p['name'] for p in positions], **row})
-    return {'reference': ref, 'source_revision': revision, 'asset': asset,
+    embedded = {} if include_configuration else None
+    employees = _settings_employees(ref, revision, files, asset, configuration_employees=embedded)
+    result = {'reference': ref, 'source_revision': revision, 'asset': asset,
+            'version': strict_json(files['project.json']).get('version'),
             'employees': employees, 'storage_scope': 'device'}
+    if include_configuration:
+        states = {}
+        # Embedded members share one validated source revision. Reuse its declarations
+        # while the head is locked. Dynamic values still use the normal scoped store.
+        with revisions.locked():
+            if revisions._head() == revision:
+                for path, (reference, employee) in embedded.items():
+                    try:
+                        store = PipelineConfiguration(ref, reference, employee['configuration'], revision)
+                        store.employee = profile(employee)
+                        states[path] = store.read()
+                    except (ValueError, OSError, PermissionError):
+                        continue
+                if any(group['fields'] for group in asset.get('configuration', EMPTY)['groups']):
+                    try:
+                        states[''] = OwnConfiguration(ref, asset, revision).read()
+                    except (ValueError, OSError, PermissionError):
+                        pass
+        for row in employees:
+            if row['field_count'] and row['source'] not in embedded:
+                try:
+                    with configuration(ref, row['source']) as store:
+                        states[row['source']] = store.read()
+                except (ValueError, OSError, PermissionError):
+                    continue
+        # Missing groups use the individual read, including its recovery controls.
+        result['configuration_states'] = states
+    return result
+
+
+def _settings_employees(ref, revision, files, asset, *, configuration_employees=None):
+    from runteams_core.authoring.source.creator_source_import import validated_employee_assets
+    from runteams_core.configuration.configuration_schema import fields
+    from runteams_core.employees.employee_references import source_reference
+    from runteams_core.pipelines.pipeline_dependency_contracts import selector
+    from runteams_core.pipelines.pipeline_employee_dependencies import describe as describe_member, member_reference
+    from runteams_core.pipelines.source_pipeline_workspace import skill_description
+
+    positions = {}
+    for position in asset['pipeline']['positions']:
+        positions.setdefault(position.get('employee_ref'), []).append(position['name'])
+    members = [member for member in asset['employees'] if member['ref'] in positions]
+    embedded = {member['ref'] for member in members if 'dependency' not in member and not rented_references.is_rented(ref)}
+    source_assets = {}
+    source_error = None
+    if embedded:
+        # These members belong to the same authorized, immutable snapshot as the pipeline.
+        try:
+            source_assets = validated_employee_assets(files)
+        except (ValueError, OSError, PermissionError) as error:
+            source_error = str(error)
+
+    employees = []
+    for member in members:
+        reference = None
+        try:
+            if member['ref'] in embedded:
+                path = member['source']
+                reference = source_reference(ref['source_id'], path)
+                if source_error is not None:
+                    raise ContractError(source_error)
+                if path not in source_assets:
+                    raise ContractError('员工源码入口已不存在，请在原工程中核对。')
+                member_asset, member_revision = source_assets[path], revision
+            else:
+                description = describe_member(ref, member, revision)
+                reference = description['reference']
+                member_asset, member_revision = description['asset'], description['revision']
+            employee = member_asset['employee']
+            row = {'reference': reference, 'name': employee['name'], 'revision': member_revision,
+                   'field_count': len(fields(employee.get('configuration', EMPTY))),
+                   'skills': [skill for bundle in member_asset.get('skill_bundles', [])
+                              if (skill := skill_description(bundle)) is not None]}
+            if configuration_employees is not None and row['field_count'] and member['ref'] in embedded:
+                configuration_employees[member['source']] = (reference, employee)
+        except (ValueError, OSError, PermissionError) as error:
+            row = {'reference': reference or member_reference(ref, member), 'name': positions[member['ref']][0],
+                   'field_count': 0, 'error': str(error)}
+        employees.append({'source': selector(member), 'member_ref': member['ref'], 'positions': positions[member['ref']], **row})
+    return employees
 
 
 def edit(core, data):
@@ -191,7 +254,7 @@ def edit(core, data):
     if set(data) not in ({'reference', 'base_revision', 'operation_id', 'asset'},
                          {'reference', 'base_revision', 'operation_id', 'avatar'},
                          {'reference', 'base_revision', 'operation_id', 'restore_revision'}):
-        raise ContractError('流水线保存参数无效。')
+        raise ContractError('智能体团队保存参数无效。')
     try:
         if str(uuid.UUID(data['operation_id'])) != data['operation_id']: raise ValueError()
     except (ValueError, TypeError, AttributeError):
@@ -218,17 +281,17 @@ def edit(core, data):
         if bundled(reference):
             files[reference] = restored_files[reference]
     if not isinstance(asset, dict) or asset.get('key') != previous.get('key'):
-        raise ContractError('流水线身份不能在编辑中改变。')
+        raise ContractError('智能体团队身份不能在编辑中改变。')
     graph = asset.get('pipeline')
     if not isinstance(graph, dict) or graph.get('routing_policy') != previous['pipeline'].get('routing_policy'):
-        raise ContractError('流水线流转规则版本不能在常规编辑中改变。')
+        raise ContractError('智能体团队流转规则版本不能在常规编辑中改变。')
     from runteams_core.authoring.source.creator_source_import import validate_source
     from runteams_core.authoring.creator_conversation_assets import compile_catalog
     original = compile_catalog(files, validate_source(files))
     files[ref['pipeline_source']] = canonical(asset)
     checked = compile_catalog(files, validate_source(files))
     if original['employees'] != checked['employees']:
-        raise ContractError('流水线编辑不能改写员工资产。')
+        raise ContractError('智能体团队编辑不能改写员工资产。')
     from runteams_core.pipelines.pipeline_employee_dependencies import describe as describe_member
     for member in asset['employees']:
         if 'dependency' in member:
@@ -265,14 +328,31 @@ def history(core, ref):
             if fingerprint == previous: continue
             result.append({'revision': row['revision'], 'created_at': row['created_at'],
                 'revision_number': len(result) + 1, 'notes_kind': 'pipeline_definition',
-                'version': '修订 ' + str(len(result) + 1), 'notes': '流水线定义和团队规范；员工资产保持独立。'})
+                'version': '修订 ' + str(len(result) + 1), 'notes': '智能体团队定义和团队规范；员工资产保持独立。'})
             previous = fingerprint
     return {'items': list(reversed(result)), 'storage_scope': 'device'}
 
 
-def records(core, ref):
+def _overview_record(core, connection, row, task_id, frozen, reports):
+    from runteams_core.pipelines import pipeline_task_report
+    identifier = row['id']
+    record = {'key': f'workflow-{identifier}', 'workflow_id': identifier, 'state': row['state']}
+    if row['state'] == 'recorded':
+        return None
+    if row['state'] == 'completed':
+        record['delivery_document'] = pipeline_task_report.final_delivery_reference(core, {'task_id': task_id, 'task': row})
+    summary = reports[0]['summary'] if reports else ''
+    if not summary:
+        attempt = connection.execute('SELECT output_json FROM employee_runs WHERE workflow_run_id=? ORDER BY id DESC LIMIT 1',
+                                     (identifier,)).fetchone()
+        output = json.loads(attempt[0]) if attempt else {}
+        summary = output.get('summary') or next(iter(output.get('issues') or []), '')
+    return {**record, 'summary': summary}
+
+
+def records(core, ref, *, overview=False):
     from runteams_core.pipelines.source_pipeline_workspace import workspace
-    with core.repository.read_snapshot():
+    with core.repository.read_snapshot() as connection:
         ref = pipeline_references.checked_reference(ref); rows = workspace(core, ref)['workflows']
         from runteams_core.employees.employee_chat_work import delivery
         from runteams_core.work.work_reports import catalog as report_catalog
@@ -280,9 +360,15 @@ def records(core, ref):
         for report in report_catalog(core): report_groups.setdefault(report['binding'].get('workflow_id'), []).append(report)
         deliveries = []
         for row in reversed(rows):
-            detail = work.work(core, ref, row['id'])['workflow']
-            projected = delivery(core, {**row, 'workflow_id': row['id'], 'updated_at': detail['updated_at']},
-                                 report_groups.get(row['id'], []))
+            ledger, frozen = work._authorized_work(connection, ref, row['id'])
+            reports = report_groups.get(row['id'], [])
+            if overview:
+                preview = _overview_record(core, connection, row, ledger['task_id'], frozen, reports)
+                if preview is not None:
+                    deliveries.append(preview)
+                    continue
+            projected = delivery(core, {**row, 'workflow_id': row['id']},
+                                 reports)
             projected['origin'] = {'kind':'workflow','workflow_id':row['id']}
             deliveries.append(projected)
         return {'schema': 'runteams.result-view/v1', 'scope': {'source_pipeline_reference': ref},

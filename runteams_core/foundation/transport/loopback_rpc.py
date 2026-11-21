@@ -82,7 +82,8 @@ def proxy(url):
         request = Request(url, data=json.dumps(message).encode(), headers={
             'Content-Type': 'application/json', 'Authorization': 'Bearer ' + capability}, method='POST')
         human_input = message.get('method') == 'tools/call' and (message.get('params') or {}).get('name') == 'runteams_request_choice'
-        with urlopen(request, timeout=None if human_input else 300) as response:
+        application_turn = message.get('method') == 'tools/call' and (message.get('params') or {}).get('name') == 'runteams_employee_apps'
+        with urlopen(request, timeout=None if human_input or application_turn else 300) as response:
             result = json.load(response)
         if result is not None:
             sys.stdout.write(json.dumps(result, ensure_ascii=False) + '\n')

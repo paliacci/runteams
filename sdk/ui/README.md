@@ -169,3 +169,9 @@ Normal transitions preserve the document. A cancelled or unconfirmed native layo
 ## Shared panel heading
 
 The SDK panel heading follows the platform drawer contract: 8px top padding, 20px horizontal padding, a 22px/32px title at weight 600, and a 12px/18px description at weight 400 with an 8px gap. Font sizes honor the host interface scale when provided. Edit `web/ui/kit/components/styles.css`, then run `python3 sdk/ui/build.py`; do not edit `dist/` directly. The locked portable palette is maintained in `sdk/ui/foundation/theme.css`.
+
+## Loading placeholders and escaped text
+
+Use `.rt-skeleton` from the shared stylesheet to build placeholders with the dimensions of the content being loaded. Mark the shapes `aria-hidden`, provide an accessible label, and clear the busy state when the request settles. Keep existing content visible during background refreshes.
+
+Use `decodeHtmlEntities(text)` (also available on `RunTeamsMCP`) when a source documents or supplies an HTML-escaped plain-text field such as a message preview. It decodes one layer of semicolon-terminated character references. Write the result using `textContent`. Ordinary text and HTML documents have their own rendering paths.

@@ -15,11 +15,11 @@ _SENSITIVE_KEY = re.compile(r"(?:secret|token|password|passwd|api[_-]?key|creden
 _RUNTEAMS_TOOL_LABELS = {
     "runteams_request_choice": "请求用户选择",
     "runteams_get_context": "读取当前上下文",
-    "runteams_list_pipelines": "读取流水线列表",
-    "runteams_get_pipeline": "读取流水线详情",
+    "runteams_list_pipelines": "读取智能体团队列表",
+    "runteams_get_pipeline": "读取智能体团队详情",
     "runteams_get_task": "读取任务详情",
     "runteams_get_employee": "读取员工详情",
-    "runteams_propose_pipeline_change": "整理流水线改动",
+    "runteams_propose_pipeline_change": "整理智能体团队改动",
     "runteams_propose_task": "整理任务方案",
     "runteams_creator_source": "编辑员工资源",
 }

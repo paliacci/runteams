@@ -3,6 +3,7 @@
 Reading/opening this workspace never builds an employee, admits work, resumes a
 pipeline or mutates its source. The work ledger remains the board's only truth.
 """
+from runteams_core.conversations.page_paths import page_id
 from runteams_core.pipelines import pipeline_references
 import copy
 import json
@@ -29,7 +30,7 @@ def _definition(ref):
         files = revisions._files(revision)
     project = strict_json(files['project.json'])
     if ref['pipeline_source'] not in project['entrypoints'].get('pipelines', []):
-        raise ContractError('流水线源码入口已不存在。')
+        raise ContractError('智能体团队源码入口已不存在。')
     return revision, _pipeline_definition(files, ref['pipeline_source']), files
 
 
@@ -72,6 +73,8 @@ def catalog(core):
             break
     from runteams_core.pipelines.pipeline_context import current
     rows.extend(current().rented_catalog())
+    for row in rows:
+        row['page_id'] = page_id(row['reference'])
     store.check_scope()
     return {'items': rows, 'errors': errors, 'storage_scope': 'device'}
 
@@ -97,12 +100,12 @@ def preferences(ref, data=None):
             if (not fields or fields - {'mode', 'view'} or type(data.get('expected_revision')) is not int or
                     'mode' in fields and data['mode'] not in allowed_modes(ref) or
                     'view' in fields and data['view'] not in ('board', 'conversation')):
-                raise ContractError('流水线显示设置无效。')
+                raise ContractError('智能体团队显示设置无效。')
             patch = {field: data[field] for field in fields}
             if data['expected_revision'] != value['revision']:
                 if data['expected_revision'] + 1 == value['revision'] and all(value[k] == v for k, v in patch.items()):
                     return value
-                raise ContractError('另一窗口已修改流水线显示设置，请重新读取。')
+                raise ContractError('另一窗口已修改智能体团队显示设置，请重新读取。')
             value = {**value, **patch, 'revision': value['revision'] + 1}
             connection.execute('INSERT INTO device_settings(key,value) VALUES(?,?) '
                                'ON CONFLICT(key) DO UPDATE SET value=excluded.value',
@@ -110,7 +113,8 @@ def preferences(ref, data=None):
         return value
 
 
-def workspace(core, ref, active_ids=()):
+def workspace(core, ref, active_ids=(), *, background_revision=None):
+    from runteams_core.assets.workspace_background import display_fields
     from runteams_core.pipelines.pipeline_card_actions import capabilities
     from runteams_core.pipelines.source_pipeline_flow import launch_failure, retry_mode
     core._actor()
@@ -133,7 +137,7 @@ def workspace(core, ref, active_ids=()):
         for row in rows:
             snapshot = json.loads(row['snapshot_json'])
             if (snapshot.get('pipeline_work') or {}).get('reference') != ref:
-                raise PermissionError('工作不属于这条流水线。')
+                raise PermissionError('工作不属于这个智能体团队。')
             error = launch_failure(connection, row, snapshot)
             workflows.append({'id': row['id'], 'state': 'blocked' if error else row['state'], 'cursor_key': row['cursor_key'],
                               'title': row['title'], 'objective': json.loads(row['payload_json']).get('objective', ''),
@@ -142,21 +146,27 @@ def workspace(core, ref, active_ids=()):
                               'card_actions': capabilities(row, snapshot, active_ids),
                               'retry_mode': retry_mode(row['state'],row['cursor_key'],snapshot,positions,
                                                        active=row['id'] in active, launch_error=error)})
-    return {'reference': ref, 'name': asset['pipeline']['name'], 'source_revision': revision,
+    return {'reference': ref, 'name': asset['pipeline']['name'], 'description': asset.get('description', ''), 'source_revision': revision,
             **({'avatar': icon['avatar'], 'avatar_src': image_src(icon)} if icon else {}),
+            **(display_fields(asset, files=files) if revision != background_revision else {}),
             'pipeline': copy.deepcopy(asset['pipeline']), 'programs_available': bool(asset.get('programs')),
             'runtime': runtime, 'workflows': workflows,
             'ui': preferences(ref), 'allowed_modes': allowed_modes(ref), 'storage_scope': 'device'}
 
 
-def conversation(core, ref, runtime):
-    """One pipeline's own conversation, independent of every position chat."""
+def conversation(core, ref, runtime, *, discussion_id=None):
+    """Open the board conversation or one separately requested team discussion."""
     from runteams_core.storage import product_store
     core._actor()
     ref = pipeline_references.checked_reference(ref)
     _, asset, _ = _definition(ref)
     if not isinstance(runtime, dict) or set(runtime) - {'channel_id', 'model', 'reasoning_effort'}:
         raise ContractError('会话运行设置无效。')
+    if discussion_id is not None:
+        try:
+            discussion_id = str(uuid.UUID(discussion_id))
+        except (ValueError, AttributeError, TypeError):
+            raise ContractError('新对话编号无效。') from None
     # The source lock serializes competing windows, not worker execution.
     # Recover a chat committed before a lost preference/open response by its
     # immutable binding; there is no second authoritative chat-id index.
@@ -165,13 +175,19 @@ def conversation(core, ref, runtime):
             ids = [row[0] for row in connection.execute(
                 "SELECT id FROM chats WHERE kind='general' AND subject_type='workspace' "
                 "AND json_extract(context_json,'$.source_pipeline_workspace.source_id')=? "
-                "AND json_extract(context_json,'$.source_pipeline_workspace.pipeline_source')=? ORDER BY id",
-                (ref['source_id'], ref['pipeline_source']))]
+                "AND json_extract(context_json,'$.source_pipeline_workspace.pipeline_source')=? "
+                "AND json_extract(context_json,'$.source_pipeline_discussion') IS ? ORDER BY created_at,id",
+                (ref['source_id'], ref['pipeline_source'], discussion_id))]
         for identifier in ids:
             session = product_store.get_chat(identifier)
             if session['context'].get(CONTEXT) == ref:
                 return {'session': session, 'storage_scope': 'device'}
-        identifier = product_store.create_chat(**runtime, context={'context_type': 'general', CONTEXT: ref})
+        context = {'context_type': 'general', CONTEXT: ref}
+        if discussion_id:
+            context['source_pipeline_discussion'] = discussion_id
+        identifier = product_store.create_chat(**runtime, context=context)
+        if discussion_id:
+            return {'session': product_store.get_chat(identifier), 'storage_scope': 'device'}
         with device_data.connect() as connection:
             connection.execute("UPDATE chats SET title=?,title_source='system' WHERE id=?",
                                (asset['pipeline']['name'], identifier))
@@ -199,7 +215,9 @@ def skill_description(bundle):
         return None
     route = contract.get('output_schema', {}).get('properties', {}).get('route', {})
     routes = route.get('enum', [route.get('const')]) if isinstance(route, dict) else []
-    return {'key': bundle['package_key'], 'name': skill.get('display_name') or contract['name'],
+    from runteams_core.assets.skills.skill_metadata import bundle_environment
+    tools = bundle_environment(bundle)
+    return {**({'environment_tools': tools} if tools else {}), 'key': bundle['package_key'], 'name': skill.get('display_name') or contract['name'],
             'inputs': _skill_fields(contract.get('input_schema', {})),
             'outputs': _skill_fields(contract.get('output_schema', {})),
             'routes': list(dict.fromkeys(value for value in routes if isinstance(value, str) and value.strip()))}
@@ -212,9 +230,10 @@ def creation_choices(core):
     from runteams_core.employees.source_employee_runtime import describe, units
     choices, errors, employees = [], [], []
     source_errors = {}
+    catalog_cache = {}
     for entry in local_entries(errors=source_errors):
         try:
-            employee = describe(entry['source']['reference'])
+            employee = describe(entry['source']['reference'], catalog_cache=catalog_cache)
             employee.update(origin='创作', version='修订 ' + employee['revision'].removeprefix('r-')[:8],
                 dependency={'kind': 'source', 'source_id': employee['reference']['source_id'],
                             'employee_source': employee['reference']['employee_source'], 'revision': employee['revision'],
@@ -249,7 +268,7 @@ def create(core, data):
     core._actor()
     fields = {'operation_id', 'employee_reference', 'source_revision', 'skill_key', 'name'}
     if not fields <= data.keys() <= fields | {'dependency', 'end_name'}:
-        raise ContractError('请填写流水线名称并选择第一个岗位。')
+        raise ContractError('请填写智能体团队名称并选择第一个岗位。')
     try:
         operation = str(uuid.UUID(data['operation_id']))
         if operation != data['operation_id']:
@@ -257,7 +276,7 @@ def create(core, data):
     except (ValueError, TypeError, AttributeError):
         raise ContractError('请沿原创建操作核对结果。') from None
     if not isinstance(data['name'], str) or not data['name'].strip() or len(data['name']) > 80:
-        raise ContractError('请填写不超过 80 字的流水线名称。')
+        raise ContractError('请填写不超过 80 字的智能体团队名称。')
     if 'end_name' in data:
         end_name = data['end_name']
         if not isinstance(end_name, str) or not end_name.strip() or len(end_name.strip()) > 160:
@@ -279,7 +298,7 @@ def create(core, data):
     pipeline_key = 'p-' + uuid.UUID(operation).hex
     path = 'pipelines/' + pipeline_key + '.json'
     if path in files:
-        raise ContractError('流水线源码入口已存在，请核对原创建结果。')
+        raise ContractError('智能体团队源码入口已存在，请核对原创建结果。')
     operation_key = 'pipeline-create-' + operation
     graph = new_pipeline_graph(data['name'], employee['employee']['name'], data['skill_key'], data.get('end_name'))
     reserved = revisions.operation_files(operation_key)
@@ -294,7 +313,7 @@ def create(core, data):
     files['project.json'] = canonical(project)
     after = compile_catalog(files, validate_source(files))
     if after['employees'] != catalog['employees']:
-        raise ContractError('流水线创建不能修改员工资产。')
+        raise ContractError('智能体团队创建不能修改员工资产。')
     result = revisions.commit(files, data['source_revision'], operation_key)
     return {'reference': pipeline_references.reference(data['employee_reference']['source_id'], path),
             'revision': result['revision'], 'storage_scope': 'device'}

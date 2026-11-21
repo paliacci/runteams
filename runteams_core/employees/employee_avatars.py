@@ -59,9 +59,9 @@ def bundled(reference):
                  or PurePosixPath(reference).suffix.lower() in MEDIA))
 
 
-def validate_image(path, body):
+def validate_image(path, body, *, max_bytes=MAX_BYTES):
     suffix = PurePosixPath(path).suffix.lower()
-    if suffix not in MEDIA or not isinstance(body, bytes) or not 0 < len(body) <= MAX_BYTES:
+    if suffix not in MEDIA or not isinstance(body, bytes) or not 0 < len(body) <= max_bytes:
         raise CreatorContractError('invalid_employee_avatar', '头像须为不超过512 KB的 PNG、JPEG、WebP 或静态 SVG。')
     image_errors = (ValueError, OSError, SyntaxError, ET.ParseError)
     if suffix != '.svg':
@@ -108,7 +108,7 @@ def validate_image(path, body):
     return MEDIA[suffix]
 
 
-def attachment(reference, files):
+def attachment(reference, files, *, max_bytes=MAX_BYTES):
     if not bundled(reference):
         if reference.startswith('preset:') and not canonical_preset(reference):
             raise CreatorContractError('invalid_employee_avatar', '预设头像不存在。')
@@ -117,19 +117,19 @@ def attachment(reference, files):
         return None
     path = relative(reference)
     body = files.get(path)
-    validate_image(path, body)
+    validate_image(path, body, max_bytes=max_bytes)
     return {'sha256': hashlib.sha256(body).hexdigest(), 'content_base64': base64.b64encode(body).decode('ascii')}
 
 
-def verify_attachment(reference, value):
-    if not isinstance(value, dict) or set(value) != {'sha256', 'content_base64'} or not isinstance(value['content_base64'], str) or len(value['content_base64']) > (MAX_BYTES + 2) // 3 * 4:
+def verify_attachment(reference, value, *, max_bytes=MAX_BYTES):
+    if not isinstance(value, dict) or set(value) != {'sha256', 'content_base64'} or not isinstance(value['content_base64'], str) or len(value['content_base64']) > (max_bytes + 2) // 3 * 4:
         raise CreatorContractError('invalid_employee_avatar', '头像附件无效。')
     try:
         body = base64.b64decode(value['content_base64'], validate=True)
     except (ValueError, TypeError) as error:
         raise CreatorContractError('invalid_employee_avatar') from error
     relative(reference)
-    media = validate_image(reference, body)
+    media = validate_image(reference, body, max_bytes=max_bytes)
     if hashlib.sha256(body).hexdigest() != value['sha256']:
         raise CreatorContractError('invalid_employee_avatar', '头像附件摘要不一致。')
     return 'data:' + media + ';base64,' + value['content_base64']

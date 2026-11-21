@@ -1,4 +1,5 @@
 """Pure declarations from the original skill bytes; no installation or execution."""
+import base64
 import json
 import re
 import yaml
@@ -44,11 +45,34 @@ def frontmatter(text):
     if "metadata" in values and (not isinstance(values["metadata"], dict) or any(
             not isinstance(k, str) or not isinstance(v, str) for k, v in values["metadata"].items())):
         raise ContractError("SKILL.md metadata 必须是文本键值映射")
+    if "runteams-environment" in values.get("metadata", {}):
+        environment_tools(values)
     try:
         json.dumps(values, allow_nan=False)
     except (TypeError, ValueError, RecursionError) as exc:
         raise ContractError("SKILL.md frontmatter 包含不可保存的值") from exc
     return values
+
+
+ENVIRONMENT_TOOLS = ("ffmpeg", "ffprobe")
+
+
+def environment_tools(meta):
+    tools = meta.get('metadata', {}).get('runteams-environment', '').split()
+    if any(name not in ENVIRONMENT_TOOLS for name in tools) or len(set(tools)) != len(tools):
+        raise ContractError("技能运行环境声明包含不支持或重复的检查项")
+    return tools
+
+
+def declared_environment(markdown):
+    if b'runteams-environment' not in markdown:
+        return []
+    return environment_tools(frontmatter(markdown.decode('utf-8')))
+
+
+def bundle_environment(bundle):
+    markdown = next(file for file in bundle['files'] if file['path'] == 'SKILL.md')
+    return declared_environment(base64.b64decode(markdown['content_base64'], validate=True))
 
 
 def extension(files, meta):

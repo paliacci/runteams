@@ -17,7 +17,8 @@ sys.path.insert(0,str(ROOT))
 def expected():
     result={'/':['web/index.html','text/html; charset=utf-8']}
     types={'.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.svg':'image/svg+xml',
-           '.woff2':'font/woff2','.html':'text/html; charset=utf-8','.json':'application/json','.wasm':'application/wasm',
+           '.woff':'font/woff','.woff2':'font/woff2','.ttf':'font/ttf',
+           '.html':'text/html; charset=utf-8','.json':'application/json','.wasm':'application/wasm',
            '.png':'image/png','.jpg':'image/jpeg','.webp':'image/webp','.txt':'text/plain; charset=utf-8'}
     for directory in ('web/ui','web/modules','web/vendor','web/fonts','web/worker-avatars','web/provider-icons','web/rich-document'):
         for path in sorted((ROOT/directory).rglob('*')):

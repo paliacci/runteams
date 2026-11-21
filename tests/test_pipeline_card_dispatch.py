@@ -14,6 +14,7 @@ from runteams_core.application.http.local_pipeline_http import dispatch
 from runteams_core.application.local_runtime import LocalRuntime
 from runteams_core.application.local_work_core import LocalWorkCore
 from runteams_core.employees import employee_context
+from runteams_core.foundation.contracts import ContractError, normalize_pipeline_definition, repair_pipeline_definition
 from runteams_core.pipelines import pipeline_position_runtime, pipeline_task_report, source_pipeline_control as control
 from runteams_core.pipelines import source_pipeline_flow as flow, source_pipeline_work as work
 from runteams_core.storage import device_data
@@ -116,6 +117,48 @@ class CardDispatchTests(TestCase):
             dispatch(self.runtime, 'POST', '/api/device/work/source-pipelines/dispatch', self.command)
         wake.assert_not_called(); self.assertEqual(self.executed, [])
 
+    def test_completed_result_finishes_at_its_position_without_another_visit(self):
+        identifier = work.create(self.core, self.command)['workflow']['id']
+        with self.core.repository.connect() as connection:
+            row = flow._row(connection, identifier)
+            frozen = json.loads(row['snapshot_json'])
+            graph = frozen['pipeline_work']['asset']['pipeline']
+            graph.update(routing_policy='status-first', edges=[
+                {'from': 'first', 'to': 'second'},
+                {'from': 'second', 'to': 'complete-here', 'when': 'outcome:delivered'},
+            ])
+            for i, position in enumerate(graph['positions'], start=1):
+                position['employee_id'] = i
+            self.assertEqual(repair_pipeline_definition(graph)['edges'], graph['edges'])
+            frozen['employee_run_id'] = None
+            frozen['pipeline_submission'] = {'result': {'status': 'completed', 'summary': 'Candidate delivered',
+                'output': {'route': 'delivered'}, 'issues': []}}
+            flow._save(self.core, connection, row, frozen, 'running')
+
+        with patch.object(flow, '_result'):
+            self.assertEqual(flow.finish_turn(self.core, identifier, 'completed'), 'completed')
+            self.assertEqual(flow.finish_turn(self.core, identifier, 'completed'), 'completed')
+
+        with self.core.repository.connect() as connection:
+            row = flow._row(connection, identifier)
+            self.assertEqual((row['state'], row['cursor_key']), ('completed', 'second'))
+            self.assertEqual(json.loads(row['snapshot_json'])['pipeline_visit'], frozen['pipeline_visit'])
+        events = self.core.repository.events('workflow_run:' + str(identifier))
+        self.assertEqual([event['type'] for event in events].count('workflow.completed'), 1)
+        self.assertNotIn('workflow.routed', [event['type'] for event in events])
+
+    def test_complete_here_cannot_turn_an_employee_failure_or_rejection_into_success(self):
+        graph = copy.deepcopy(self.state['bundle']['asset']['pipeline'])
+        graph.update(routing_policy='status-first', edges=[{'from': 'first', 'to': 'second'}])
+        for i, position in enumerate(graph['positions'], start=1):
+            position['employee_id'] = i
+        for kind, condition in [('employee', 'failed'), ('employee', 'needs_human'), ('approval', 'rejected')]:
+            with self.subTest(kind=kind, condition=condition):
+                graph['positions'][1]['kind'] = kind
+                graph['edges'][1:] = [{'from': 'second', 'to': 'complete-here', 'when': condition}]
+                with self.assertRaisesRegex(ContractError, '仅适用于完成结果或审批通过'):
+                    normalize_pipeline_definition(graph)
+
     def card(self, action, identifier=None, **fields):
         from runteams_core.pipelines.pipeline_card_actions import command
         if identifier is None:
@@ -193,7 +236,7 @@ class CardDispatchTests(TestCase):
         from runteams_core.pipelines.pipeline_card_actions import command
         out, data = self.card('pause'); identifier = out['workflow']['id']
         self.state['status'] = 'paused'
-        with self.assertRaisesRegex(ContractError, '启动流水线'):
+        with self.assertRaisesRegex(ContractError, '启动智能体团队'):
             self.card('resume', identifier)
         with self.assertRaises(PermissionError):
             command(self.core, {**data, 'reference': {**self.reference, 'source_id': 'b'*64}})

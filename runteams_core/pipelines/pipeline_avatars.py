@@ -23,7 +23,7 @@ def image_src(asset):
     if employee_avatars.bundled(reference):
         return employee_avatars.verify_attachment(reference, asset.get('avatar_file'))
     if 'avatar_file' in asset:
-        raise CreatorContractError('invalid_pipeline_avatar', '流水线图标附件与引用不匹配。')
+        raise CreatorContractError('invalid_pipeline_avatar', '智能体团队图标附件与引用不匹配。')
     if reference is None:
         return ''
     url = employee_avatars.preset_src(reference)

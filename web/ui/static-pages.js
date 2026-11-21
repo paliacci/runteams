@@ -21,7 +21,7 @@ function error(options){
   const missing=options.pageKind==='conversation'&&(options.error?.status===404||options.error==='这段对话已不存在'||options.error?.message==='这段对话已不存在');
   return global.RunTeamsLoadFailure.markup({variant:'modal',title:missing?'这段对话已不存在':'无法读取对话',titleKey:missing?'conversationDetail.missing':'conversationDetail.loadFailed',label:'重试',labelKey:'conversationDetail.retry',busyLabelKey:'conversationDetail.loading',error:options.error,retry});
  }
- if(options.pageKind==='pipeline')return global.RunTeamsLoadFailure.markup({title:'无法读取流水线',titleKey:'pipelineBoard.readFailed',label:'重试',labelKey:'employeeHistory.retry',busyLabelKey:'pipelineBoard.loading',error:options.error,retry});
+ if(options.pageKind==='pipeline')return global.RunTeamsLoadFailure.markup({title:'无法读取智能体团队',titleKey:'pipelineBoard.readFailed',label:'重试',labelKey:'employeeHistory.retry',busyLabelKey:'pipelineBoard.loading',error:options.error,retry});
  return global.RunTeamsLoadFailure.markup({title:'暂时无法加载此页面',titleKey:'skeleton.pageFailed',labelKey:'employeeHistory.retry',busyLabelKey:'skeleton.loading',error:options.error,retry});
 }
 // One real composer frame from first paint; only unresolved inner controls load.
@@ -30,17 +30,49 @@ function composer(content=null,{surface='panel',busy=false,attributes='',runtime
  const body=content??`<div class="ccomposer-editor" role="textbox" aria-multiline="true" aria-label="${esc(placeholder)}"${placeholderKey?` data-app-i18n-aria-label="${esc(placeholderKey)}"`:''} aria-disabled="true" aria-busy="true" contenteditable="false" data-placeholder="${esc(placeholder)}"${placeholderKey?` data-app-i18n-data-placeholder="${esc(placeholderKey)}"`:''} data-empty="true"></div><div class="cfoot"><div class="cfoot-left"><button class="cattach-btn" type="button" disabled aria-label="添加内容" data-app-i18n-aria-label="composer.add">${icon('plus')}</button>${runtime?`<div class="copt runtime">${runtimePending()}</div>`:''}</div><div class="cfoot-right"><button class="sendbtn" type="button" disabled aria-label="发送" data-app-i18n-aria-label="composer.send">${icon('arrow')}</button></div></div>`;
  return `<div data-conversation-surface="${esc(surface)}" class="ccomposer${surface==='panel'?' conversation-composer':''}${busy?' is-busy':''}" ${attributes}>${body}</div>`;
 }
-function conversationWelcomeOptions(kind){
- const placeholder='<span class="conversation-new-action-placeholder"><span class="skeleton-block"></span><span class="skeleton-block"></span></span>';
- return `<div class="conversation-new-actions" inert aria-hidden="true">${placeholder.repeat(kind==='employee'?2:3)}</div>`;
+// Keep only the dimensions of the last employee welcome in this browser tab.
+const welcomeSizeKey='runteams.employee-welcome-size.v1';
+function employeeWelcomeSize(){
+ try{
+  const saved=JSON.parse(global.sessionStorage.getItem(welcomeSizeKey));
+  const key=localLayoutStorageKey(localConversationId());
+  if(!key||saved?.key!==key||saved.width!==global.innerWidth||!Number.isFinite(saved.title))return null;
+  return Array.isArray(saved.buttons)&&saved.buttons.length<=3&&saved.buttons.every(box=>
+   Array.isArray(box)&&box.length===2&&box.every(value=>Number.isFinite(value)&&value>0))?saved:null;
+ }catch{return null;}
+}
+global.addEventListener?.('pagehide',()=>{
+ const title=global.document.querySelector('.is-home-start #conversation_empty_title[data-app-i18n="employeeChat.emptyTitle"]');
+ const key=localLayoutStorageKey(localConversationId());
+ if(!title||!key)return;
+ const root=title.parentElement;
+ if(root.querySelector('[inert],.rt-load-failure'))return;
+ const buttons=Array.from(root.querySelectorAll('.conversation-new-action'),button=>{
+  const {width,height}=button.getBoundingClientRect();
+  return [width,height];
+ });
+ try{global.sessionStorage.setItem(welcomeSizeKey,JSON.stringify({key,width:global.innerWidth,title:title.getBoundingClientRect().height,buttons}));}catch{}
+});
+function conversationWelcomeOptions(kind,size=kind==='employee'?employeeWelcomeSize():null){
+ const rows=size?size.buttons:Array(3).fill(null);
+ if(!rows.length)return '';
+ const placeholders=rows.map(box=>{
+  const style=box?` style="box-sizing:border-box;width:${box[0]}px;height:${box[1]}px;max-width:100%"`:'';
+  return `<span class="conversation-new-action-placeholder"${style}><span class="skeleton-block"></span><span class="skeleton-block"></span></span>`;
+ });
+ return `<div class="conversation-new-actions" inert aria-hidden="true">${placeholders.join('')}</div>`;
 }
 function conversationWelcomeContent(kind='general',withComposer=true){
  const employee=kind==='employee',pipeline=kind==='pipeline',creating=kind==='create-employee';
- const title=employee?'你想交办什么工作？':pipeline?'讨论这条流水线':creating?'这名员工要负责什么？':'今天想完成什么？';
- const prompt=employee?'交办工作…':pipeline?'聊聊这条流水线的工作…':creating?'描述员工要负责的工作…':undefined;
+ const title=pipeline?'讨论这个智能体团队':creating?'这名员工要负责什么？':'今天想完成什么？';
+ // An employee layout hint covers both authoring and assignment conversations.
+ const size=employee?employeeWelcomeSize():null;
+ const titleSize=Number.isFinite(size?.title)?` style="height:${size.title}px"`:'';
+ const heading=employee?`<strong class="conversation-welcome-title-placeholder" aria-hidden="true"${titleSize}><span class="skeleton-block"></span></strong>`:`<strong data-app-i18n="${creating?'employeeCreate.title':pipeline?'pipelineBoard.chatWelcome':'newConversation.title'}">${title}</strong>`;
+ const prompt=employee?'交办工作…':pipeline?'聊聊这个智能体团队的工作…':creating?'描述员工要负责的工作…':undefined;
  const promptKey=employee?'employeeChat.assign':creating?'employeeCreate.prompt':pipeline?'pipelineBoard.chatPrompt':undefined;
- const options=pipeline?'<p class="conversation-new-notice" data-app-i18n="pipelineBoard.chatHint">在这里讨论目标、流程和进展。要新建任务，请打开看板上的岗位。</p>':conversationWelcomeOptions(kind);
- return `<div class="conversation-empty-state conversation-employee-guidance conversation-new-state" role="status" aria-busy="true"><strong${employee?' data-app-i18n="employeeChat.emptyTitle"':creating?' data-app-i18n="employeeCreate.title"':pipeline?' data-app-i18n="pipelineBoard.chatWelcome"':' data-app-i18n="newConversation.title"'}>${title}</strong>${options}${withComposer?`<div class="rail-assistant-input conversation-home-composer">${composer(null,{runtime:false,placeholder:prompt,placeholderKey:promptKey})}</div>`:''}</div>`;
+ const options=pipeline?'<p class="conversation-new-notice" data-app-i18n="pipelineBoard.chatHint">在这里讨论目标、流程和进展。要新建任务，请打开看板上的岗位。</p>':conversationWelcomeOptions(kind,size);
+ return `<div class="conversation-empty-state conversation-employee-guidance conversation-new-state" role="status" aria-busy="true">${heading}${options}${withComposer?`<div class="rail-assistant-input conversation-home-composer">${composer(null,{runtime:false,placeholder:prompt,placeholderKey:promptKey})}</div>`:''}</div>`;
 }
 function conversationWelcome(kind,header=''){
  return `<section class="rail-assistant is-home-start" aria-busy="true">${header}<div class="rail-assistant-scroll conversation-start-scroll">${conversationWelcomeContent(kind)}</div></section>`;
@@ -50,7 +82,7 @@ function conversationAwaitingLocal(header='',{label='对话',labelKey='conversat
 }
 function localConversationId(value=global.location.href){
  const url=new URL(global.RunTeamsRoutes.unmount(value),global.location.origin);
- const id=url.pathname.match(/^\/chats\/(local-[a-f0-9]{32})\/?$/)?.[1]||url.searchParams.get('chat')||'';
+ const id=url.pathname.match(/^(?:\/(?:employees|pipelines)\/[a-f0-9]{32})?\/chats\/(local-[a-f0-9]{32})\/?$/)?.[1]||url.searchParams.get('chat')||'';
  return /^local-[a-f0-9]{32}$/.test(id)?id:'';
 }
 function localConversationRoute(value){return !!localConversationId(value);}
@@ -60,7 +92,7 @@ function conversationPendingHeader({route,layout='',failed=false}={}){
  const employee=layout==='employee'||!!saved?.employeeReference;
  if(employee&&!failed)return global.RunTeamsSkeletons.workspaceHeader();
  const newChat=!id&&(layout==='general'||layout==='create-employee');
- const title=saved?.employeeName||saved?.title||(newChat?'新对话':layout==='pipeline'?'流水线对话':failed?'对话':'');
+ const title=saved?.employeeName||saved?.title||(newChat?'新对话':layout==='pipeline'?'智能体团队对话':failed?'对话':'');
  if(!title)return global.RunTeamsSkeletons.workspaceHeader();
  const label=saved?.employeeName||saved?.title?'':newChat?'shell.newChat':layout==='pipeline'?'conversationDetail.pipelineTitle':'conversationDetail.title';
  const heading=`<span class="conversation-panel-heading"><h2 id="conversation_panel_title" class="conversation-panel-name"${label?` data-app-i18n="${label}"`: ''}>${esc(title)}</h2></span>`;
@@ -115,10 +147,11 @@ function requestConversationLayout(value){
  const entry={scope,started:Date.now(),used:false};
  entry.session=read('/api/device/page-ids').then(receipt=>{
    if(global.RunTeamsDeviceDisplay?.scope!==scope||!receipt)return null;
+   const row=receipt.items?.find(item=>item.resource==='chats'&&item.public_id===id);
+   const route=global.RunTeamsRoutes.preview(value);
+   if(!row||!/^\d+$/.test(row.id)||route.kind==='chat'&&route.ownerPath!==row.owner_path)return null;
    rememberConversationLayouts(receipt);
    repaintLocalConversation(id);
-   const row=receipt.items?.find(item=>item.resource==='chats'&&item.public_id===id);
-   if(!row||!/^\d+$/.test(row.id))return null;
    return read('/api/chat/'+row.id+'?messages_limit=30');
   }).then(session=>{
    if(global.RunTeamsDeviceDisplay?.scope!==scope||session?.storage_scope!=='device'||session.public_id!==id||!Array.isArray(session.messages))return null;
@@ -137,23 +170,9 @@ async function takeLocalConversation(id,scope){
  const session=await entry.session;
  return String(session?.id)===String(id)&&key===localConversationId()&&global.RunTeamsDeviceDisplay?.scope===scope?session:null;
 }
-function pipelineViewKey(route){
- const scope=global.RunTeamsDeviceDisplay?.scope||global.document.querySelector('meta[name="runteams-library-id"]')?.content;
- const path=new URL(global.RunTeamsRoutes.unmount(route||global.location.href),global.location.origin).pathname;
- return scope&&/^\/pipelines\/local\/[a-f0-9]{64}\/[A-Za-z0-9_-]+$/.test(path)?'runteams.pipeline-view.v1:'+scope+':'+path:'';
-}
-function pipelineViewHint(route){
- try{const key=pipelineViewKey(route);return key&&global.sessionStorage.getItem(key)==='conversation'?'conversation':'';}catch{return '';}
-}
-function rememberPipelineView(route,view){
- try{const key=pipelineViewKey(route);if(key)global.sessionStorage.setItem(key,view==='conversation'?'conversation':'board');}catch{}
-}
 function pipelinePendingHeader(failed=false){
  if(!failed)return global.RunTeamsSkeletons.workspaceHeader({pipeline:true});
- return global.RunTeamsShell.pageHeader('<span class="conversation-panel-heading"><h2 class="conversation-panel-name pipeline-title" data-app-i18n="pipelineBoard.pipeline">流水线</h2></span>','',true);
-}
-function pipelineConversationPending(){
- return `<main class="conversation-workspace-main"><div class="conversation-main-frame">${conversationAwaitingLocal('',{label:'流水线对话',labelKey:'pipelineBoard.conversationOpening'}).replace('class="rail-assistant','class="rail-assistant conversation-main')}</div></main>`;
+ return global.RunTeamsShell.pageHeader('<span class="conversation-panel-heading"><h2 class="conversation-panel-name pipeline-title" data-app-i18n="pipelineBoard.pipeline">智能体团队</h2></span>','',true);
 }
 function captureComposer(root=global.document?.getElementById('app')){return root?.querySelector?.('.conversation-main .conversation-composer')||null;}
 function restoreComposer(previous,root=global.document?.getElementById('app')){
@@ -164,25 +183,40 @@ function restoreComposer(previous,root=global.document?.getElementById('app')){
  for(const attr of [...next.attributes])previous.setAttribute(attr.name,attr.value);
  previous.replaceChildren(...next.childNodes);next.replaceWith(previous);
 }
-function frame(kind,body,classes='environment-page',content='environment-content list-page-content'){return `<main class="${classes} pending-page" data-pending-page="${kind}"><div class="${content}">${body}</div></main>`;}
+function frame(kind,body,classes='environment-page',content='environment-content list-page-content',attributes=''){return `<main class="${classes} pending-page" data-pending-page="${kind}"${attributes?' '+attributes:''}><div class="${content}">${body}</div></main>`;}
 
-function documentSkeleton(){return `<div class="docs-table">${shape('文档列表',Array.from({length:4},()=>`<div class="docs-row skeleton-docs-row" data-skeleton-row inert><span class="docs-cell docs-cell-title">${line('name')}</span><span class="docs-cell docs-cell-editor">${line('meta')}</span><span class="docs-cell docs-cell-time">${line('meta')}</span><span class="docs-cell docs-cell-more">${line('meta')}</span></div>`).join(''),'documentList.loading')}</div>`;}
+function documentHeader(query=values.docs||'',{more=true,disabled=false,pending=false}={}){
+ const button=more?`<button type="button" class="btn docs-header-more" data-menu-trigger="outlined" aria-haspopup="menu" aria-expanded="false"${disabled||pending?' disabled':''} aria-label="更多操作" title="更多操作" data-app-i18n-aria-label="documentList.more" data-app-i18n-title="documentList.more" onclick="docsOpenMoreMenu(event)">${icon('more')}</button>`:'';
+ return `<header class="environment-title environment-extension-header docs-head list-page-header list-page-header--controls">
+   <div class="environment-extension-heading list-page-heading"><div class="environment-extension-title-row"><h1 data-app-i18n="documentList.title">文档</h1></div><p data-app-i18n="documentList.description">查看和管理对话与员工交付的文档。</p></div>
+   <div class="environment-catalog-actions docs-actions list-page-controls">${button}<label class="environment-search rt-search-field">${icon('search')}<input type="search" data-static-field="docs" id="docs_search" autocomplete="off" spellcheck="false" placeholder="搜索文档名和正文" aria-label="搜索文档名和正文" data-app-i18n-aria-label="documentList.search" data-app-i18n-placeholder="documentList.search" value="${esc(query)}"${disabled?' disabled':''} oninput="RunTeamsStaticPages.set('docs',this.value)"></label></div>
+ </header>`;
+}
+function documentSkeleton({header=true,count=6,labelKey='documentList.loading'}={}){
+ const columns=header?`<div class="docs-thead"><span class="docs-cell docs-cell-title" data-app-i18n="documentList.name">标题</span><span class="docs-cell docs-cell-editor" data-app-i18n="documentList.editor">最后编辑者</span><span class="docs-cell docs-cell-time" data-app-i18n="documentList.created">创建时间</span></div>`:'';
+ const rows=Array.from({length:count},()=>`<div class="docs-row skeleton-docs-row" data-skeleton-row>
+   <span class="docs-cell docs-cell-title"><span class="skeleton-block sk-doc-title"></span></span>
+   <span class="docs-cell docs-cell-editor"><span class="skeleton-block sk-doc-avatar"></span><span class="skeleton-block sk-doc-editor"></span></span>
+   <span class="docs-cell docs-cell-time"><span class="skeleton-block sk-doc-time"></span></span>
+ </div>`).join('');
+ return shape('文档列表',`<div class="docs-table docs-table--selectable">${columns}${rows}</div>`,labelKey);
+}
 function page(value,options={}){
  const kind=global.RunTeamsSkeletons.normalize(value),region=global.RunTeamsSkeletons.region;
  const extension=global.RunTeamsHost.pages.render(kind,options);if(extension!==null)return extension;
  let failed=false;const body=(html)=>{if(options.error&&failed)return '';if(options.error)failed=true;return data(html,{...options,pageKind:kind});},rows=(label,count=3,key)=>shape(label,Array.from({length:count},()=>`<div class="route-sk-row" data-skeleton-row inert>${line('avatar')}<div class="route-sk-copy-group">${line('name')}${line('copy')}</div></div>`).join(''),key);
  const fields=(labels)=>labels.map(label=>`<div class="field"><label>${label}</label>${options.error?'':shape(label,line(label==='详细介绍'?'editor':'field'))}</div>`).join('');
  switch(kind){
- case 'docs':return frame(kind,`<header class="environment-title environment-extension-header list-page-header list-page-header--controls"><div class="environment-extension-heading list-page-heading"><h1 data-app-i18n="documentList.title">文档</h1><p data-app-i18n="documentList.description">查看和管理对话与员工交付的文档。</p></div><div class="environment-catalog-actions list-page-controls">${search('docs','搜索文档名和正文','environment-search','docs_search','documentList.search')}</div></header>`+body(documentSkeleton()),'environment-page docs-page list-page','environment-content docs-content list-page-content');
- case 'trash':return frame(kind,`<header class="trash-head list-page-header"><div class="trash-head-copy"><h1 data-app-i18n="trash.title">垃圾箱</h1><div class="trash-head-subline"><p data-app-i18n="trash.retention">项目通常保留 30 天。含文档的员工、流水线、岗位或任务不会自动清除。</p></div></div></header>`+body(region('trash',undefined,'trash.loading')),'trash-page list-page','trash-content list-page-content');
+ case 'docs':return frame(kind,documentHeader(undefined,{pending:true})+`<div class="list-page-scroll"><div class="docs-body">${body(documentSkeleton())}</div></div>`,'environment-page docs-page list-page list-page--fixed-header','environment-content docs-content list-page-content','data-list-selection="docs"');
+ case 'trash':return frame(kind,`<header class="trash-head list-page-header"><div class="trash-head-copy"><h1 data-app-i18n="trash.title">垃圾箱</h1><div class="trash-head-subline"><p data-app-i18n="trash.retention">项目通常保留 30 天。含文档的员工、智能体团队、岗位或任务不会自动清除。</p></div></div></header>`+body(region('trash',undefined,'trash.loading')),'trash-page list-page','trash-content list-page-content');
  case 'document-reader':return `<main class="doc-reader-page pending-page" data-pending-page="${kind}"><header class="doc-reader-bar">${back('/documents','返回文档列表','documentReader.back')} ${options.error?'':`<div aria-hidden="true">${line('name')}</div>`}</header><div class="doc-reader-column">${body(`<div class="doc-reader-skeleton">${shape('文档',line('title')+line(),'documentReader.opening')}</div>`)}</div></main>`;
  case 'employee-settings':return frame(kind,back('/chats/new')+head(pageCopy('员工设置','employeeSettings.title'))+body(rows('员工设置',1,'employeeSettings.loading')));
  case 'run-detail':return frame(kind,back('/chats/new')+body(rows('工作记录',1,'skeleton.workRecord'))+staticTabs([pageCopy('进度','workflowDetail.progress'),pageCopy('原始记录','workflowDetail.raw')],'工作记录视图','workflowDetail.runViews')+`<h3>${pageCopy('工作过程','workflowDetail.activity')}</h3>`+body(region('history',undefined,'skeleton.workActivity')));
  case 'pipeline': {
-  const pending=pipelineViewHint(options.route)==='conversation'?pipelineConversationPending():global.RunTeamsSkeletons.pipelineBoard();
+  const pending=global.RunTeamsSkeletons.pipelineBoard();
   return `<main class="pending-page pending-pipeline" data-pending-page="${kind}">${pipelinePendingHeader(!!options.error)}${body(pending)}</main>`;
  }
- case 'pipeline-new':return `<main class="pending-page pending-pipeline" data-pending-page="${kind}"><div class="vhead core-pipeline-head"><div class="pipeline-title-host">${shape('流水线名称',line('name'),'skeleton.pipelineName')}</div><div class="grow"></div>${global.RunTeamsSkeletons.conversationHeaderActions()}</div>${body(`<div class="board skeleton-board"><div class="cols">${Array.from({length:4},()=>`<div class="col skeleton-column column-color-gray"><div class="col-surface">${shape('岗位',line('name')+rows('任务',3,'skeleton.tasks'),'skeleton.roles')}</div></div>`).join('')}</div></div>`)}</main>`;
+ case 'pipeline-new':return `<main class="pending-page pending-pipeline" data-pending-page="${kind}"><div class="vhead core-pipeline-head"><div class="pipeline-title-host">${shape('智能体团队名称',line('name'),'skeleton.pipelineName')}</div></div>${body(`<div class="board skeleton-board"><div class="cols">${Array.from({length:4},()=>`<div class="col skeleton-column column-color-gray"><div class="col-surface">${shape('岗位',line('name')+rows('任务',3,'skeleton.tasks'),'skeleton.roles')}</div></div>`).join('')}</div></div>`)}</main>`;
  case 'conversation-new':case 'employee-examples': {
   const employee=kind==='employee-examples';
   const purpose=global.RunTeamsRoutes.preview(options.route||location.href)?.purpose;
@@ -211,24 +245,27 @@ function fail(root,options){
  const workspace=root.querySelector('.conversation-workspace-main[data-pending-page],.pending-pipeline[data-pending-page="pipeline"]');
  if(workspace){workspace.outerHTML=page(workspace.dataset.pendingPage,options);return;}
  const regions=[...root.querySelectorAll('[data-pending-data]')];regions.forEach((region,i)=>{region.innerHTML=i?'':error(options);});root.querySelectorAll('.route-sk-region,.workspace-header-loading').forEach(region=>region.remove());}
-function title(kind){const extra=global.RunTeamsHost.pages.title(kind);if(extra!==null)return extra;return ({'conversation-new':'新对话',conversation:'对话','employee-examples':'员工',docs:'文档','document-reader':'文档',pipeline:'流水线','pipeline-new':'新建流水线',trash:'垃圾箱','employee-settings':'员工设置','run-detail':'工作记录','design-system':'设计系统'})[kind]||'工作区';}
+function title(kind){const extra=global.RunTeamsHost.pages.title(kind);if(extra!==null)return extra;return ({'conversation-new':'新对话',conversation:'对话','employee-examples':'员工',docs:'文档','document-reader':'文档',pipeline:'智能体团队','pipeline-new':'新建智能体团队',trash:'垃圾箱','employee-settings':'员工设置','run-detail':'工作记录','design-system':'设计系统'})[kind]||'工作区';}
 function keys(event){if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;const buttons=[...event.currentTarget.querySelectorAll('button:not([disabled]),a[role=tab]')],at=buttons.indexOf(event.target);if(at<0)return;event.preventDefault();const index=event.key==='Home'?0:event.key==='End'?buttons.length-1:(at+(event.key==='ArrowRight'?1:-1)+buttons.length)%buttons.length;buttons[index].click();buttons[index].focus({preventScroll:true});}
 function set(name,value,notify=true){values[name]=String(value||'');if(notify)change?.(name,values[name]);}
 function select(button,name,value){set(name,value);button.closest('[role="tablist"]')?.querySelectorAll('[role="tab"]').forEach(el=>{el.setAttribute('aria-selected',String(el===button));});}
 function choose(button,name,value){set(name,value);global.RunTeamsHost.pages.changed?.(button,name,value);}
 
+function pageScroll(root){return root?.querySelector('.list-page-scroll')||root;}
+
 function capture(){
  const root=document.querySelector('#rgMid .pending-page,#rgMid .environment-page,#rgMid .trash-page'),active=document.activeElement,field=active?.matches?.('#rgMid [data-static-field]')?active:null;
  if(!root&&!field)return null;
- return {node:field,key:field?.dataset.staticField,value:field?.value,start:field?.selectionStart,end:field?.selectionEnd,top:root?.scrollTop||0,left:root?.scrollLeft||0,url:location.href};
+ const scroll=pageScroll(root);
+ return {node:field,key:field?.dataset.staticField,value:field?.value,start:field?.selectionStart,end:field?.selectionEnd,top:scroll?.scrollTop||0,left:scroll?.scrollLeft||0,url:location.href};
 }
 function restore(saved){
  if(!saved||saved.url!==location.href)return;
- const root=document.querySelector('#rgMid .pending-page,#rgMid .environment-page,#rgMid .trash-page');if(root){root.scrollTop=saved.top;root.scrollLeft=saved.left;}
+ const scroll=pageScroll(document.querySelector('#rgMid .pending-page,#rgMid .environment-page,#rgMid .trash-page'));if(scroll){scroll.scrollTop=saved.top;scroll.scrollLeft=saved.left;}
  if(!saved.node)return;
  const next=document.querySelector(`#rgMid [data-static-field="${saved.key}"]`);if(!next||next.value!==saved.value)return;
  if(next!==saved.node)next.replaceWith(saved.node);saved.node.focus({preventScroll:true});if(saved.start!==null)saved.node.setSelectionRange(saved.start,saved.end);
 }
 
-global.RunTeamsStaticPages={composer,pipelineViewHint,rememberPipelineView,pipelineConversationPending,conversationWelcome,conversationWelcomeContent,conversationWelcomeOptions,conversationAwaitingLocal,conversationPendingHeader,localConversationRoute,localConversationLayout,rememberConversationLayouts,rememberLocalSessionLayout,takeLocalConversation,captureComposer,restoreComposer,runtimePending,page,title,fail,error,keys,icon,search,documentSkeleton,values,set,select,choose,capture,restore,connect:callback=>{change=callback;},reset:()=>{for(const key of Object.keys(values))delete values[key];}};
+global.RunTeamsStaticPages={composer,conversationWelcome,conversationWelcomeContent,conversationWelcomeOptions,conversationAwaitingLocal,conversationPendingHeader,localConversationRoute,localConversationLayout,rememberConversationLayouts,rememberLocalSessionLayout,takeLocalConversation,captureComposer,restoreComposer,runtimePending,page,title,fail,error,keys,icon,search,documentHeader,documentSkeleton,values,set,select,choose,capture,restore,connect:callback=>{change=callback;},reset:()=>{for(const key of Object.keys(values))delete values[key];}};
 })(window);

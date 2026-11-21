@@ -1,5 +1,7 @@
 .creator-work-drawer{display:flex;flex-direction:column;min-height:0;height:100%;overflow:hidden}
 .creator-work-viewport{flex:1;min-height:0;position:relative;overflow:hidden;background:var(--panel)}
+.creator-work-drawer>.right-detail-scroll>.creator-work-native-body{flex:1}
+.creator-work-native-body.is-mounted{padding:0}
 .creator-send-pending{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 12px;margin-bottom:8px;border:1px solid var(--border-default);border-radius:10px;color:var(--text-secondary);background:var(--surface);font-size:12px}
 .creator-send-pending button{flex:none}
 
@@ -11,5 +13,19 @@
 .body.creator-work-full>#rgDrawer>.detail-resize-handle,.body.creator-work-full>#rgDetailHandle{display:none}
 .body.creator-work-full .creator-work-drawer{border-left:0!important}
 
-
 .creator-work-placeholder{height:100%;min-height:0;box-sizing:border-box;display:flex;align-items:center;justify-content:center;padding:20px;overflow:auto}
+
+.employee-inbox-summary{height:100%;box-sizing:border-box;overflow:auto;padding:16px 20px;color:var(--text);font-size:13px;line-height:1.5}
+.employee-inbox-summary section+section{margin-top:24px}
+.employee-inbox-summary header,.employee-inbox-summary li{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.employee-inbox-summary h3{margin:0;font-size:14px}
+.employee-inbox-summary p{margin:6px 0;color:var(--text-secondary);overflow-wrap:anywhere}
+.employee-inbox-summary p:empty{margin:0}
+.employee-inbox-summary dl{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));margin:8px 0}
+.employee-inbox-summary dl div,.employee-inbox-summary details,.employee-inbox-summary li{padding:7px 0;border-bottom:1px solid var(--border-default)}
+.employee-inbox-summary dt{font-size:12px;color:var(--text-secondary)}
+.employee-inbox-summary dd{margin:0;font-size:18px;font-variant-numeric:tabular-nums}
+.employee-inbox-summary summary{cursor:pointer;font-weight:600;padding:4px 0}
+.employee-inbox-summary select.inp{width:auto;max-width:100%}
+.employee-inbox-summary textarea{box-sizing:border-box;width:100%;margin-top:8px}
+.employee-inbox-summary ul{margin:0;padding:0;list-style:none}

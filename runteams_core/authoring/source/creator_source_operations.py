@@ -4,13 +4,24 @@ from runteams_core.authoring.creator_authoring import file_payload
 from runteams_core.authoring.creator_contracts import relative
 from runteams_core.authoring.source.creator_source_revisions import Revisions
 
-ACTIONS = frozenset({'', '/file', '/workspace', '/history', '/receipt', '/edit', '/restore', '/build', '/session', '/recovery', '/export','/configuration','/identity'})
+ACTIONS = frozenset({'', '/file', '/workspace', '/history', '/receipt', '/edit', '/restore', '/build', '/session', '/recovery', '/export','/configuration','/identity','/attach-knowledge'})
 
 @dataclass(frozen=True)
 class SourceDownload:
-    raw: bytes
+    store: object
     identity: str
     revision: str
+    entry: str | None
+
+    @property
+    def raw(self):
+        from runteams_core.authoring.source.knowledge_packages import download
+        with download(self.store, self.identity, self.revision, self.entry) as (stream, _):
+            return stream.read()
+
+    def send(self, handler):
+        from runteams_core.authoring.source.knowledge_packages import send_http
+        send_http(handler, self.store, self.identity, self.revision, self.entry)
 
 
 def read(store, identity, file, query):
@@ -29,8 +40,8 @@ def read(store, identity, file, query):
         if 'operation_id' in query:value=source_receipt(ref,query['operation_id'][0])
         else:
             with for_source(ref) as config:value=config.read()
-    elif file == '/export' and set(query)=={'revision'} and len(query['revision'])==1:
-        return SourceDownload(Revisions(store,identity).export(query['revision'][0]), identity, query['revision'][0])
+    elif file == '/export' and set(query) in ({'revision'}, {'revision', 'entry'}) and all(len(v) == 1 for v in query.values()):
+        return SourceDownload(store, identity, query['revision'][0], query.get('entry', [None])[0])
     elif file == '/build' and (not query or set(query)=={'operation_key'} and len(query['operation_key'])==1):
         from runteams_core.authoring.compilation.creator_local_build import LocalBuilds
         builds = LocalBuilds(store,identity)
@@ -61,6 +72,9 @@ def read(store, identity, file, query):
 
 
 def write(store, identity, file, body, scope, serialize):
+    if file == '/attach-knowledge':
+        from runteams_core.authoring.source.knowledge_packages import attach
+        return attach(store, identity, body)
     if file=='/configuration' and isinstance(body,dict) and body.get('action') in ('credential','reveal-credential'):
         action=body['action']
         fields={'employee_source','action','field','definition_sha256'}

@@ -11,7 +11,8 @@ function fixture() {
     workspaceAccountCacheToken: () => 'owner', _workspaceBusinessGeneration: 1, workspaceDeviceStorageScope: () => 'library',
     workRecordStateCopy: value => ({key: 'state.' + value, label: value}), coreWorkflowStateClass: value => value,
     detailDrawerHeading: (title, description, metadata) => `<h2>${title}</h2>${metadata}`,
-    detailDrawerHeader: (heading, className, actions, unused, back) => heading + back + actions,
+    RunTeamsAssetOverview: {backMarkup: () => ''},
+    detailDrawerHeader: (heading, className, actions, back) => heading + back + actions,
     detailDrawerShell: options => options, detailDrawerActions: actions => `<actions>${actions}</actions>`,
     RunTeamsSkeletons: {drawerHeading: () => 'loading title', region: () => 'loading body'},
     RunTeamsEmployeeDrawerHeader: {section: options => `<section id="${options.id}">${options.title}${options.body}</section>`},
@@ -31,9 +32,13 @@ test('independent and pipeline tasks use the same task shell while loading', () 
   const {context, ui} = fixture();
   const independent = ui.employeeTaskDrawer({type: 'core-workflow', id: 42, loading: true, recordTitle: 'Original task'});
   const panels = fs.readFileSync('web/ui/source-pipeline-panels.js', 'utf8');
-  Object.assign(context, {current: () => ({}), RunTeamsWorkRecords: ui, workText: (key, fallback) => fallback});
-  vm.runInContext(panels.slice(panels.indexOf('function workDrawer('), panels.indexOf('\nfunction closeHistory(')), context);
-  const pipeline = context.workDrawer({type: 'source-pipeline', id: 'work', workflowId: 42, loading: true, recordTitle: 'Original task'});
+  Object.assign(context, {
+    RunTeamsSourcePipelines: {taskWorkspace: () => ({})},
+    RunTeamsWorkRecords: ui,
+    RunTeamsConfigurationFields: {bindCredentialEditor() {}},
+  });
+  vm.runInContext(panels, context);
+  const pipeline = context.window.RunTeamsSourcePipelinePanels.workDrawer({type: 'source-pipeline', id: 'work', workflowId: 42, loading: true, recordTitle: 'Original task'});
   assert.equal(independent.className, pipeline.className);
   assert.equal(independent.bodyClass, pipeline.bodyClass);
   assert.equal(independent.attrs, pipeline.attrs);
@@ -52,6 +57,28 @@ test('a completed independent task shows the latest result with no conversation 
   assert.match(view.body, /source-work-context.*Current result/);
   assert.match(view.body, /pipelineWork.objective/);
   assert.doesNotMatch(view.body, /查看对话|继续处理|确认并继续|continueEmployeeTask/);
+});
+
+test('pipeline execution badges follow the recorded result regardless of column order', () => {
+  const {ui} = fixture();
+  const positions = [
+    {key: 'design', name: '能量提示物设计'},
+    {key: 'review', name: '免费审稿'},
+    {key: 'script', name: '口播稿生成器'},
+  ];
+  const run = {id: 17, position_key: 'review', state: 'completed', output_json: {}};
+  const snapshot_json = {pipeline_work: {asset: {pipeline: {positions}}}};
+  const badge = (to, when) => {
+    const events = to ? [{type: 'workflow.routed', data_json: {employee_run_id: 17, from: 'review', to, when}}] : [];
+    return ui.attemptsMarkup({snapshot_json, events}, [run]);
+  };
+
+  assert.match(badge('design', 'outcome:locked'), /data-work-state="handed_off"[^>]*>已交接<\/span>/);
+  assert.match(badge('script', 'outcome:revise'), /data-work-state="returned"[^>]*>已退回口播稿生成器<\/span>/);
+  assert.match(badge('script', 'completed'), /data-work-state="handed_off"/);
+  assert.match(badge('script', 'revise'), /data-work-state="returned"/);
+  assert.match(badge('abandoned', 'outcome:rejected'), /data-work-state="completed"/);
+  assert.match(badge(), /data-work-state="completed"/);
 });
 
 test('running and waiting independent tasks expose only their actual supported actions', () => {
@@ -78,4 +105,45 @@ test('an outdated independent task read cannot replace a newer selection', async
   await pending;
   assert.equal(context.S.sel, next);
   assert.equal(selection.workflow.state, 'running');
+});
+
+test('reopening a report reuses its saved version and loads a newer one when available', async () => {
+  const {context, ui} = fixture();
+  const html = fs.readFileSync('web/index.html', 'utf8');
+  const report = {id: 1, revision: 2, document_key: 'report'};
+  const data = () => ({results: [{key: 'report-1', report_document: {...report}}]});
+  const selection = context.S.sel = {type: 'core-results', scope: {employee_id: 1},
+    status: 'ready', resultKey: 'report-1', data: data()};
+  const reads = [];
+  const paints = [];
+  Object.assign(context, {
+    URL, location: {href: 'http://localhost/chats/1'}, RunTeamsWorkRecords: ui,
+    RunTeamsEmployeeDirectory: {forPanel: () => ({record: {id: 1}}), employeePanel: () => true, panelReference: () => null},
+    selectDetailWorkspace: value => {context.S.sel = value;},
+    appRouteLocation: () => new URL(context.location.href), setAppUrl() {}, scheduleResultActionProgress() {},
+    closeContextResults() {context.S.sel = null;},
+    render() {paints.push(selection.reportDocuments?.[1]?.status);},
+    async api(path) {
+      reads.push(path);
+      return path.startsWith('/api/core/results?') ? data() : {...report, content: 'Saved report'};
+    },
+  });
+  context.S.conversationPanel = {id: 1};
+  context.document.querySelector = () => null;
+  vm.runInContext(html.slice(html.indexOf('let _contextResultsSequence='), html.indexOf('function revealContextResultReference(')), context);
+  await ui.loadReport(selection);
+  reads.length = 0;
+  paints.length = 0;
+
+  await ui.toggle();
+  await ui.toggle();
+  assert.equal(context.S.sel, selection);
+  assert.deepEqual(reads, ['/api/core/results?employee_id=1']);
+  assert.ok(paints.every(status => status === 'ready'));
+
+  report.revision = 3;
+  await ui.toggle();
+  await ui.toggle();
+  assert.equal(selection.reportDocuments[1].doc.revision, 3);
+  assert.equal(reads.filter(path => path === '/api/core/documents/1').length, 1);
 });

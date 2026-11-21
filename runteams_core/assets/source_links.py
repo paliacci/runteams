@@ -53,15 +53,25 @@ def link_source(store,source_id,mapping):
         store.check_scope()
 
 
-def linked_source(store,reference):
-    identity=reference_key(reference);matches=[];after=None
+def linked_sources(store, identities):
+    """Resolve a batch in one pass through this workspace's source catalog."""
+    matches = {}
+    after = None
     while True:
-        page=store.list(after)
+        page = store.list(after)
         for source in page['items']:
-            for path,ref in links(store,source['id']).items():
-                if reference_key(ref)==identity:matches.append((source['id'],path))
-        after=page['next_cursor']
-        if after is None:break
-    if len(matches)>1:raise ValueError('员工身份关联重复。')
-    return matches[0] if matches else None
+            for path, reference in links(store, source['id']).items():
+                key = reference_key(reference)
+                if key not in identities:
+                    continue
+                if key in matches:
+                    raise ValueError('员工身份关联重复。')
+                matches[key] = (source['id'], path)
+        after = page['next_cursor']
+        if after is None:
+            return matches
 
+
+def linked_source(store, reference):
+    key = reference_key(reference)
+    return linked_sources(store, {key}).get(key)

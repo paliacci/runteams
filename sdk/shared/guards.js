@@ -8,10 +8,10 @@ export class RunTeamsError extends Error {
   }
 }
 export const retries = ['never', 'read', 'reconcile', 'reauthorize'];
-export function jsonCopy(value, limit = 16384, maxDepth = 32) {
+export function jsonCopy(value, limit = 16384, maxDepth = 32, maxNodes = 4096) {
   const seen = new Set(); let count = 0;
   function visit(item, depth) {
-    if (++count > 4096 || depth > maxDepth) throw new RunTeamsError('sdk_json_budget');
+    if (++count > maxNodes || depth > maxDepth) throw new RunTeamsError('sdk_json_budget');
     if (item === null || typeof item === 'boolean' || typeof item === 'string') return JSON.stringify(item);
     if (typeof item === 'number' && Number.isFinite(item) && (!Number.isInteger(item) || Number.isSafeInteger(item))) return JSON.stringify(item);
     if (typeof item !== 'object' || seen.has(item)) throw new RunTeamsError('sdk_invalid_json');
@@ -76,7 +76,8 @@ export function matches(schema, value) {
 }
 export function parameters(schemas, method, value, profile) {
   const frame = profile === 'view' ? {schema: 'runteams.ui-context/2', id: 4096, method, params: value} : {abi: 'runteams.sdk/1', id: 4096, method, params: value};
-  const copy = jsonCopy(frame, profile === 'view' ? 20000 : 16384, profile === 'view' ? 16 : 32).params;
+  const limit = profile === 'view' ? 20000 : method === 'data.mutate' ? 128 * 1024 : 16384;
+  const copy = jsonCopy(frame, limit, profile === 'view' ? 16 : 32).params;
   if (!Object.hasOwn(schemas, method) || !matches(schemas[method], copy)) throw new RunTeamsError('sdk_invalid_params');
   return copy;
 }

@@ -1,12 +1,14 @@
 """First-use approval remains version-bound and separate from tool approval."""
+import json
 import tempfile
 import threading
 import unittest
 from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
-from runteams_core.employees.mcp.device_employee_mcp import EmployeeMCPWork
+from unittest.mock import Mock, patch
+from runteams_core.employees.mcp.device_employee_mcp import EmployeeMCPWork, WORKBENCH_ID_MIN
+from runteams_core.employees.mcp.employee_mcp import WorkBinding
 from runteams_core.foundation.contracts import digest
 
 
@@ -88,12 +90,41 @@ class WorkAuthorizationTests(unittest.TestCase):
             t,result,key=self.start(lambda notify:h.ask(1,'tool',{},notify=notify))
             h.answer(1,digest(h.binding.__dict__),key,'decline');t.join(2)
         self.assertEqual(result,[{'accepted':False}]);self.assertTrue(h.state(1)['enabled'])
+    def test_employee_app_writes_request_operation_confirmation(self):
+        host = self.host
+        package = 'package'
+        host.binding = WorkBinding('scope', 'employee', 'release', 'work')
+        result = {'structuredContent': {'updated': True}}
+        session = Mock()
+        session.lock = threading.RLock()
+        session.tool_catalog.return_value = [{'name': 'refresh'}]
+        session.closed = False
+        session.call_tool.return_value = result
+
+        def write(path, value):
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps(value))
+
+        for chat in (WORKBENCH_ID_MIN, 1):
+            with self.subTest(chat=chat), patch.multiple(
+                    host, check_operation=Mock(), enabled=Mock(return_value=True),
+                    trust_namespace='employee-mcp', session=Mock(return_value=session),
+                    ask=Mock(return_value={'accepted': True}), _write=write):
+                host.sessions[(chat, package)] = session
+                self.assertEqual(host.call(chat, package, 'refresh', {}, str(chat),
+                                           source='app', expected_session=session), result)
+                host.ask.assert_called_once()
+
     def test_finished_turn_releases_programs_without_manual_close(self):
         h=self.host;h.enable(1,digest(h.binding.__dict__),True)
         @contextmanager
         def serve(dispatch):yield 'endpoint','token'
         with patch('runteams_core.foundation.transport.loopback_rpc.serve_rpc',serve):
-            with h.runtime_scope(1):self.assertIn(1,h.turns)
+            with h.runtime_scope(1) as scope:
+                self.assertIn(1,h.turns)
+                config = scope['mcp_servers']['runteams_employee_package']
+                self.assertEqual(config['default_tools_approval_mode'], 'approve')
+                self.assertFalse(h.pending)
         self.assertEqual(h.closed_chats,[1]);self.assertFalse(h.turns)
     def test_live_view_retains_program_until_last_user_finishes(self):
         h=self.host;h.enable(1,digest(h.binding.__dict__),True)

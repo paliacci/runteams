@@ -57,7 +57,7 @@ class PipelineSchedules(EmployeeSchedules):
                 asset=read(core,reference)['asset']
             positions=[{'key':p['key'],'name':p['name']} for p in asset['pipeline']['positions']]
         except (ValueError,ContractError,PermissionError):
-            positions=[];unavailable='流水线资产暂不可用，请核对版本；已有计划和记录仍保留。'
+            positions=[];unavailable='智能体团队资产暂不可用，请核对版本；已有计划和记录仍保留。'
         with self.connection() as c:
             rows=[] if c is None else [self.record(c,r) for r in c.execute(
                 'SELECT * FROM schedules WHERE reference=? AND deleted=0 ORDER BY id DESC',(canonical(reference),))]
@@ -125,7 +125,7 @@ class PipelineSchedules(EmployeeSchedules):
                         c.execute('UPDATE schedules SET revision=revision+1,employee_id=?,reference=?,release_digest=?,name=?,payload=?,enabled=?,schedule_kind=?,interval_sec=?,schedule=?,next_run_at=? WHERE id=?',(*values,identifier))
                         self.cancel_rows(c,identifier)
                 elif action=='run':
-                    if control.read(core,ref)['status']!='running':raise ContractError('流水线已暂停，不能开始新工作。')
+                    if control.read(core,ref)['status']!='running':raise ContractError('智能体团队已暂停，不能开始新工作。')
                     self.fire(c,row,'manual:'+data['operation_id'])
                 elif action=='resolve':
                     c.execute("UPDATE occurrences SET status='cancelled',reason='用户核对后结束本次记录，原工作未重做。' WHERE schedule_id=? AND status='interrupted'",(identifier,))
@@ -164,7 +164,7 @@ class PipelineSchedules(EmployeeSchedules):
             with self.connection(write=True) as c:
                 for row in c.execute(statement,params).fetchall():
                     try:
-                        if control.read(core,json.loads(row['reference']))['status']!='running':raise ContractError('流水线已暂停，本次未创建工作。')
+                        if control.read(core,json.loads(row['reference']))['status']!='running':raise ContractError('智能体团队已暂停，本次未创建工作。')
                         self.fire(c,row,row['next_run_at'])
                     except ContractError as exc:
                         c.execute("INSERT OR IGNORE INTO occurrences(schedule_id,scheduled_for,operation_id,status,snapshot,reason) VALUES(?,?,?,'skipped',?,?)",(row['id'],row['next_run_at'],str(uuid.uuid4()),canonical(dict(row)),str(exc)))
@@ -205,7 +205,7 @@ class PipelineSchedules(EmployeeSchedules):
                     if cancel_event is not None and cancel_event.is_set():
                         self.finish_automation_run(job['id'],'cancelled','本次触发已停止。');return
                     if control.read(core,request['reference'])['status']!='running':
-                        self.finish_automation_run(job['id'],'queued','流水线已暂停，等待启动。');return
+                        self.finish_automation_run(job['id'],'queued','智能体团队已暂停，等待启动。');return
                     try:result=work.create(core,request);identifier=result['workflow']['id']
                     except work.WorkAdmissionUnknown:
                         identifier=self._receipt(core,request)
@@ -244,7 +244,7 @@ class PipelineSchedules(EmployeeSchedules):
         if row is None:return
         request=json.loads(row['snapshot']);core=self.core();admitted=row['workflow_id'] or self._receipt(core,request)
         if admitted:status,reason='waiting',''
-        elif status=='failed' and control.read(core,request['reference'])['status']!='running':status,reason='queued','流水线已暂停，等待启动。'
+        elif status=='failed' and control.read(core,request['reference'])['status']!='running':status,reason='queued','智能体团队已暂停，等待启动。'
         with self.connection(write=True) as c:c.execute('UPDATE occurrences SET status=?,workflow_id=?,reason=? WHERE id=?',(status,admitted,str(reason)[:1000],identifier))
 
 

@@ -68,7 +68,7 @@ test('one idle timeout, no idle frame loop and no duplicate work after repeated 
 });
 
 test('natural blink closes and reopens both eyes then returns to an idle timeout',()=>{
- const f=fixture();f.controller.sync();f.blink();f.frame(80);
+ const f=fixture();f.controller.sync();f.blink();f.frame(81);
  assert.ok(f.node.eyes.every(eye=>eye.attrs.transform==='scale(1 0.040)'));
  f.controller.sync();f.frame(140);
  assert.ok(f.node.eyes.every(eye=>eye.attrs.transform==='scale(1 1.000)'));

@@ -52,7 +52,7 @@ def describe(pipeline, member, revision):
             result = employee.describe(ref, revision=revision)
     else:
         if rented_references.is_rented(pipeline):
-            raise PermissionError('租用流水线不能改绑本机员工。')
+            raise PermissionError('租用智能体团队不能改绑本机员工。')
         pin = pipeline_dependency_contracts.checked(member['dependency'])
         if pin['kind'] == 'source':
             result = employee.describe(employee.reference(pin['source_id'], pin['employee_source']), revision=pin['revision'])

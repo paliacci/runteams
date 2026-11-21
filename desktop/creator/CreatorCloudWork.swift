@@ -126,8 +126,10 @@ final class CreatorCloudWork: NSObject, URLSessionTaskDelegate {
             }
             request.setValue("application/json", forHTTPHeaderField: "Content-Type"); request.httpBody = body
         }
+        let limit = path == "message" && payload?["method"] as? String == "mcp.tools.call"
+            ? CreatorWebHost.mcpToolReplyLimit : 131_072
         session.dataTask(with: request) { data, response, error in
-            guard error == nil, let data = data, data.count <= 131_072,
+            guard error == nil, let data = data, data.count <= limit,
                   let response = response as? HTTPURLResponse,
                   let value = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
                 done(.failure(error ?? TransportError.invalidReply)); return

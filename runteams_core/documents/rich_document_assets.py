@@ -89,20 +89,34 @@ def _file(value):
             'data': 'data:' + mime + ';base64,' + base64.b64encode(raw).decode()}
 
 
+def _attachment(root, file):
+    return _encoded({'schema': 'runteams.document-attachment/1', 'document_root': root, **file})
+
+
+def attachment_id(root, file):
+    return hashlib.sha256(_attachment(root, file)).hexdigest()
+
+
+def store(core, root, value):
+    """Save a validated attachment for the writer's document root."""
+    file = _file(value)
+    raw = _attachment(root, file)
+    identifier = hashlib.sha256(raw).hexdigest()
+    path = _directory(core, 'rich-assets', create=True) / (identifier + '.json')
+    if path.exists() or path.is_symlink():
+        if path.is_symlink() or path.read_bytes() != raw:
+            raise ContractError('已有附件校验失败，未覆盖原件。')
+    else:
+        _atomic(path, raw)
+    return {'id': identifier, 'name': file['name'], 'type': file['type']}
+
+
 def upload(core, document_id, value):
     with core.repository.definition_lock():
         root = _document(core, document_id, write=True)
-        file = _file(value)
-        raw = _encoded({'schema': 'runteams.document-attachment/1', 'document_root': root, **file})
-        identifier = hashlib.sha256(raw).hexdigest()
-        path = _directory(core, 'rich-assets', create=True) / (identifier + '.json')
-        if path.exists() or path.is_symlink():
-            if path.is_symlink() or path.read_bytes() != raw:
-                raise ContractError('已有附件校验失败，未覆盖原件。')
-        else:
-            _atomic(path, raw)
+        saved = store(core, root, value)
         core._actor()
-        return {'id': identifier, 'name': file['name'], 'type': file['type']}
+        return saved
 
 
 def read(core, document_id, identifier):

@@ -56,7 +56,7 @@ def dispatch_rpc(message, context=None):
                       "isError": True}
         else:
             result = agent_tool_registry.mcp_call_result(
-                name, params.get("arguments"), context)
+                name, params.get("arguments"), {**context, "call_id": request_id})
     else:
         if request_id is None:
             return None

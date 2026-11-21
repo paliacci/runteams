@@ -298,6 +298,10 @@
     "work_example": {
       "type": "object",
       "properties": {
+        "icon": {
+          "type": "string",
+          "enum": ["spark", "search", "edit", "message-circle-more", "doc", "clipboard-check", "file-table", "file-code", "clock", "briefcase", "globe", "wrench"]
+        },
         "title": {
           "type": "string",
           "minLength": 1,

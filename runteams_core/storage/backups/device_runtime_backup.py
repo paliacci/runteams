@@ -8,9 +8,10 @@ Only references already persisted with this conversation are backed up.
 def verify(connection):
     from runteams_core.storage.device_data import SCHEMA_VERSION, schema
     from runteams_core.storage.device_schema import verify as verify_schema
-    if connection.execute('PRAGMA user_version').fetchone()[0]!=SCHEMA_VERSION:
+    version = connection.execute('PRAGMA user_version').fetchone()[0]
+    if version not in (5, 6, SCHEMA_VERSION):
         raise ValueError('备份本机数据版本不受支持。')
-    verify_schema(connection,schema())
+    verify_schema(connection,schema(version))
     rows = connection.execute('SELECT r.chat_id,r.generation,r.provider,r.thread_id,c.runtime_generation,c.runtime_provider,i.chat_id '
         'FROM device_chat_runtime_links r LEFT JOIN chats c ON c.id=r.chat_id '
         'LEFT JOIN device_chat_index i ON i.chat_id=r.chat_id').fetchall()

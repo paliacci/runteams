@@ -1,5 +1,9 @@
 # Third-party runtime notices
 
+- `websocket-client==1.9.2` (Apache-2.0) is used for the private Composio
+  realtime connection in the application backend. Preserve the distribution's
+  license when packaging. Upstream: https://github.com/websocket-client/websocket-client
+
 ## Agent Python runtime (2026-10-27)
 
 Work-environment version checks use `packaging==26.3` in the application backend,
@@ -43,9 +47,18 @@ artifact files and immutable revisions. No separate document kernel, Pandoc,
 upstream editor, corresponding-source companion or runtime download is included.
 The locked frontend dependencies and their license notices still belong in releases.
 
+## Workspace background colors
+
+Wallpaper color extraction uses pyvips 3.1.1 and the pinned pyvips-binary 8.17.3
+distribution for the same libvips processing as the Open3D source algorithm.
+Keep the complete distribution metadata, license notices, and native companion
+library directories for pyvips, pyvips-binary, CFFI and pycparser when packaging.
+
+Sources: https://github.com/libvips/pyvips ; https://pypi.org/project/pyvips-binary/8.17.3/ .
+
 ## Rich document reader and editor (2026-10-29, local source integration)
 
-The new content surface uses BlockNote core/react/shadcn 0.56.0 (MPL-2.0), React/ReactDOM 19.2.0 (MIT), Streamdown 2.7.1 (Apache-2.0), TanStack React Table 8.21.3 (MIT), Recharts 3.10.1 (MIT), Lucide React 1.64.0 (ISC), and KaTeX 0.19.1 (MIT). Exact dependency versions and transitive dependencies are locked in `frontend/rich-document/package-lock.json`. Upstream packages remain unmodified.
+The new content surface uses BlockNote core/react/shadcn 0.56.0 (MPL-2.0), React/ReactDOM 19.2.3 (MIT), Streamdown 2.7.1 (Apache-2.0), TanStack React Table 8.21.3 (MIT), Recharts 3.10.1 (MIT), Lucide React 1.64.0 (ISC), and KaTeX 0.19.1 (MIT). Exact dependency versions and transitive dependencies are locked in `frontend/rich-document/package-lock.json`. Upstream packages remain unmodified.
 
 Sources: https://github.com/TypeCellOS/BlockNote ; https://github.com/vercel/streamdown ; https://github.com/TanStack/table ; https://github.com/recharts/recharts ; https://github.com/lucide-icons/lucide ; https://github.com/facebook/react .
 
@@ -92,3 +105,13 @@ viewer with autorun disabled. Locked resource-viewer dependency notices are in
 web/vendor/licenses/RESOURCE_VIEWER_DEPENDENCIES.txt and linked legal comments
 are in web/vendor/resource-viewer.js.LEGAL.txt. Hanken Grotesk's OFL-1.1 notice
 is retained at web/fonts/hanken-grotesk-LICENSE.txt.
+
+## json-render reply display (2026-11-13)
+
+The bounded reply renderer uses unmodified @json-render/core and @json-render/react 0.22.0 (Apache-2.0), Zod 4.3.6 (MIT), and the shared React/ReactDOM 19.2.3 runtime. No hosted json-render service or additional model provider is used. Exact archives and integrity values are locked in frontend/rich-document/package-lock.json; notices accompany the static bundle in web/rich-document/licenses/DEPENDENCIES.txt.
+
+Upstream: https://github.com/vercel-labs/json-render ; https://github.com/colinhacks/zod .
+
+## Office knowledge previews
+
+Workbook reading uses openpyxl 3.1.5 and et-xmlfile 2.0.0 (MIT), xlrd 2.0.2 (BSD), and defusedxml 0.7.1 (PSF). Distribution metadata and upstream license files accompany the packaged libraries.

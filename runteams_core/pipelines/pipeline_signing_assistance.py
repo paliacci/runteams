@@ -66,7 +66,7 @@ def _target(row, frozen):
 
 def bind(core, chat_id, reference, workflow_id):
     if access.bound(chat_id) != reference:
-        raise PermissionError('对话不属于这条流水线。')
+        raise PermissionError('对话不属于这个智能体团队。')
     key = _key(chat_id)
     with core.repository.connect() as connection:
         row, frozen = access._row(connection, reference, workflow_id)

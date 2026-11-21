@@ -22,6 +22,7 @@
     "index.d.ts",
     "presentation.js",
     "host.js",
+    "text.js",
     "dist",
     "examples",
     "README.md",

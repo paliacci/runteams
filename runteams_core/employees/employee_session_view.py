@@ -1,5 +1,7 @@
 """Canonical projection of verified employee sessions for both hosts."""
 SESSION_KIND='employee_design'
+BACKGROUND_FIELDS=('workspace_background_src','workspace_background_color')
+IDENTITY_FIELDS=('name','avatar','avatar_src',*BACKGROUND_FIELDS)
 
 def work_session_record(session):
     """Validate a saved local work identity without authorizing its execution."""
@@ -20,7 +22,7 @@ def work_session_record(session):
         verify_context(context['pipeline_work'],package)
     return True
 
-def public_session(session):
+def public_session(session, *, include_background=True):
     if not session:
         return session
     value = dict(session)
@@ -28,19 +30,21 @@ def public_session(session):
     value["context"] = context
     if value.get('kind') == SESSION_KIND and context.get('creator_local_source_id'):
         from runteams_core.employees.employee_directory import for_session
-        try:employee = for_session(session)
+        try:employee = for_session(session, include_background=include_background)
         except (ValueError,OSError) as exc:
             # A broken resource projection cannot make the original transcript
             # unreadable. No employee or permission is synthesized from its title.
             value['employee_error']=str(exc)
         else:
             value['employee'] = employee
-            value['identity'] = {key:employee['record'][key] for key in ('name','avatar','avatar_src') if key in employee['record']}
+            value['identity'] = {key:employee['record'][key] for key in IDENTITY_FIELDS if key in employee['record']}
+            for key in BACKGROUND_FIELDS:
+                employee['record'].pop(key, None)
     if value.get('kind') == 'general' and context.get('local_employee_package'):
         from runteams_core.employees.source_employee_runtime import for_chat
         try:
-            employee = for_chat(value['id'])
-            value['identity'] = {key:employee[key] for key in ('name','avatar','avatar_src') if key in employee}
+            employee = for_chat(value['id'], include_background=include_background)
+            value['identity'] = {key:employee[key] for key in IDENTITY_FIELDS if key in employee}
             from runteams_core.employees.mcp.device_employee_mcp import bundles
             value['identity']['local_mcp'] = bool(bundles(employee))
         except (ValueError,OSError) as exc:value['employee_error']=str(exc)

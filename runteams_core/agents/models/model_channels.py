@@ -12,9 +12,10 @@ import math
 import signal
 import tempfile
 import re
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 
-from runteams_core.agents.environment import cli_compatibility
+from runteams_core.agents.environment import cli_compatibility, cli_discovery
 from runteams_core.agents.adapters.adapter_claude import ClaudeCodeAdapter, resolve_claude
 from runteams_core.agents.adapters.adapter_codex import CodexAdapter, resolve_codex
 from runteams_core.agents.models import provider_catalog
@@ -523,7 +524,12 @@ def channel_usage(channel, timeout=5):
 
 def channels_usage(channels):
     """批量读取已连接渠道的额度，保持与渠道目录相同的公开字段边界。"""
-    usages = [channel_usage(channel) for channel in channels if channel.get("enabled", 1)]
+    enabled = [channel for channel in channels if channel.get("enabled", 1)]
+    if len(enabled) > 1:
+        with ThreadPoolExecutor(max_workers=min(4, len(enabled)), thread_name_prefix='channel-usage') as pool:
+            usages = list(pool.map(channel_usage, enabled))
+    else:
+        usages = [channel_usage(channel) for channel in enabled]
     # 默认渠道记录可能存在但尚未完成登录；账户菜单只展示真正已连接的 CLI。
     return {"channels": [item for item in usages if item.get("status") not in ("not_connected", "disabled")],
             "checked_at": time.time()}
@@ -722,7 +728,6 @@ def channel_catalog(channel, refresh=False, *, observation=None):
 
 def global_catalog(channels, refresh=False):
     """整个产品共享的 CLI 模型目录。"""
-    from concurrent.futures import ThreadPoolExecutor
     with ThreadPoolExecutor(max_workers=2, thread_name_prefix='model-catalog') as pool:
         return {"channels": list(pool.map(lambda channel: channel_catalog(channel, refresh=refresh), channels))}
 
@@ -907,11 +912,10 @@ def probe(channel, *, account_summary=True, installation_only=False):
 
 def login_command(channel):
     """返回可复制到终端的订阅登录命令；凭据由官方 CLI 自己管理。"""
-    try:
-        from runteams_core.agents.environment.cli_discovery import cached_display_executable
-        exe = cached_display_executable(channel.get('provider'), channel.get('executable') or '') or resolve_channel_executable(channel)
-    except Exception:
-        exe = provider_info(channel.get("provider"))["executable"]
+    provider = channel.get('provider')
+    info = provider_info(provider)
+    exe = (_expanded(channel.get('executable') or os.environ.get(info['binary_env']) or '')
+           or cli_discovery.cached_display_executable(provider) or info['executable'])
     config_dir = _expanded(channel.get("config_dir") or "")
     prefix = ""
     if config_dir:
@@ -930,9 +934,9 @@ def public_channel(channel, with_status=False):
     item = dict(channel)
     info = provider_info(item.get("provider"))
     item["provider_label"] = info["label"]
-    item["login_command"] = login_command(item)
     if with_status:
         # An explicit check can verify a disabled CLI without connecting it.
         item["probe"] = (probe(item) if item.get("enabled", 1)
                          else probe({**item, "enabled": True}, installation_only=True))
+    item["login_command"] = login_command(item)
     return item

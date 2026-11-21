@@ -1,9 +1,10 @@
 /* Trusted platform UI only. Author pages never load this file or receive Chat methods. */
 (function(){
   'use strict';
-  let scope='',chat=null,workContext='',items=[],active=null,reading=null,opening=false,lastRead=0,layoutBusy=false,lastFrame='',generation=0,readError='',retrying=null;
+  let scope='',chat=null,workContext='',items=[],active=null,reading=null,opening=false,lastRead=0,layoutBusy=false,lastFrame='',generation=0,readError='',retrying=null,openRequest=null;
   let header=null,headerOwner=null,headerRevision=null,displayRevision=0,layoutQueued=false,frameRetries=0;
   let discoveryVersion='',lastDiscovery=0;
+  let employeeWorkbench=null;
   const pipelineSlots=new Map();
   const pending=new Map();
   const recovery=new Map();
@@ -18,6 +19,14 @@
   const isPipeline=p=>!!p?.context?.source_pipeline_workspace;
   const context=()=>{if(S.booting||S.workspaceSwitchPending||S.pageTransition)return null;const own=pipelinePanel();if(own)return own;const p=S.conversationPanel;return !S.booting&&!S.workspaceSwitchPending&&!S.pageTransition&&activeRailMode()==='assistant'&&(p?.kind==='general'||p?.kind==='employee_design')&&!p.loading&&!p.error&&Number(p.id)>0?p:null;};
   const employeePanel=p=>isPipeline(p)||RunTeamsEmployeeDirectory.employeePanel(p);
+  function employeeWorkbenchTarget(p){
+    if(!p||isPipeline(p)||p.context?.pipeline_work)return null;
+    const saved=p.context?.local_employee_package,source=RunTeamsEmployeeDirectory.forPanel(p)?.source;
+    const reference=p.kind==='employee_design'?source?.reference:saved?.reference;
+    if(reference?.schema!=='runteams.local-employee-reference/1')return null;
+    return {reference,revision:p.kind==='employee_design'?null:saved.revision};
+  }
+  const workId=p=>employeeWorkbenchTarget(p)?employeeWorkbench?.id:Number(p?.id);
   const contextIdentity=p=>JSON.stringify([workspace(),p?.kind,p?.subject_type,
     RunTeamsEmployeeDirectory.referenceKey(RunTeamsEmployeeDirectory.panelReference(p)),
     p?.context?.creator_local_scope,p?.context?.creator_local_source_id,
@@ -30,7 +39,7 @@
   // Work records are a platform view; this host only presents author-provided pages.
 
   const mcpEmployee=employee=>employee?.local_mcp===true||(typeof downloadedEmployeeSummary==='function'&&downloadedEmployeeSummary(employee?.id??S.conversationPanel?.context?.target_employee_id)?.local_mcp===true);
-  const folderEmployee=employee=>!mcpEmployee(employee)&&(employee?.schema==='runteams.downloaded-employee/v1'?employee.sdk_resources===true:employee?.source_mode==='folder');
+  const folderEmployee=employee=>!mcpEmployee(employee)&&(employee?.schema==='runteams.downloaded-employee/v1'?employee.sdk_employee===true:employee?.source_mode==='folder');
   const needsRecovery=id=>{
     if(!bridge()||isPipeline(S.conversationPanel)||isPipeline(context()))return false;
     if(active?.mcp&&Number(active.chat)===Number(id))return false;
@@ -41,11 +50,12 @@
     return !!active?.id&&!active.mcp||!!last?.metadata?.creator_context_ref;
   };
   const repaint=()=>{if(typeof render==='function')render();};
-  async function release(entry){if(!entry?.id)return;try{await call({action:'unmount',id:entry.id,chat_id:entry.chat});}catch(e){} }
+  const discoveryPending=()=>reading?.generation===generation;
+  async function release(entry){if(!entry?.id)return;try{await call({action:'unmount',id:entry.id,chat_id:entry.owner});}catch(e){} }
   function refreshContext(){
     const p=context(),next=token(),nextContext=contextIdentity(p);
     if(scope!==next||chat!==(p?.id||null)||workContext!==nextContext){
-      const old=active;if(old?.id)void call({action:'visibility',id:old.id,chat_id:old.chat,visible:false}).catch(()=>{});
+      const old=active;if(old?.id)void call({action:'visibility',id:old.id,chat_id:old.owner,visible:false}).catch(()=>{});
       const nextScope=next+':'+String(S.localLibrary?.cache_scope||RunTeamsHost.session.deviceScope(S)||'');
       // Only pipeline pages are retained; independent employees keep their lifecycle.
       if(old?.pipelineWindow&&scope===next&&old.slotScope===nextScope&&(!isPipeline(p)||old.pipelineWindow!==RunTeamsSourcePipelines.key(p.context.source_pipeline_workspace)||workContext===nextContext)){
@@ -60,7 +70,8 @@
       if(saved)pipelineSlots.delete(slotKey);
       if(saved?.active.id)saved.active.recheck=true;
       active=saved?.active||(employeePanel(p)?emptyPanel(p):null);items=saved?.items||[];lastRead=saved?.lastRead||0;readError=saved?.readError||'';
-      scope=next;chat=p?.id||null;workContext=nextContext;generation++;lastFrame='';opening=false;discoveryVersion='';lastDiscovery=0;
+      scope=next;chat=p?.id||null;workContext=nextContext;generation++;lastFrame='';opening=false;openRequest=null;discoveryVersion='';lastDiscovery=0;
+      employeeWorkbench=null;
       if(active&&isPipeline(p))Object.assign(active,{pipelineWindow:RunTeamsSourcePipelines.key(p.context.source_pipeline_workspace),slotKey,slotScope:nextScope});
     }
     return p;
@@ -70,8 +81,10 @@
       try{await window.RunTeamsSourcePipelines?.ensureWorkContext();}catch(e){return;}
     }
     const p=refreshContext();
-    if(!p||(!S.localLibrary&&!RunTeamsHost.session.ready(S))||!bridge()||p.kind==='employee_design')return;
+    if(!p||(!S.localLibrary&&!RunTeamsHost.session.ready(S))||!bridge()||!workId(p)||p.kind==='employee_design'&&!employeeWorkbench)return;
+    if(employeeWorkbench&&!force&&!visibleWork())return;
     if(!employeePanel(p)&&!active?.id&&!needsRecovery(Number(p.id)))return;
+    if(openRequest&&!force)return;
     const epoch=generation;
     if(isPipeline(p)&&active?.recheck){
       const owner=active;if(owner.checking)return;owner.checking=true;
@@ -90,37 +103,49 @@
     // process hint must not restart it behind an unresolved or failed page.
     // Explicit opening/retry still performs the original complete discovery.
     if(!force&&(retrying===epoch||opening||active?.loading||active?.reopenRequired))return;
-    if(reading===epoch||!force&&Date.now()-lastRead<4000)return;
-    reading=epoch;lastRead=Date.now();
+    if(discoveryPending())return reading.promise;
+    if(!force&&Date.now()-lastRead<4000)return;
+    lastRead=Date.now();
+    const request={generation:epoch,promise:null};
+    reading=request;
+    request.promise=discover(p,epoch,force);
+    return request.promise;
+  }
+  async function discover(p,epoch,force){
+    const request=reading;
+    const current=()=>!!refreshContext()&&epoch===generation&&token()===scope;
     try{
       // This token only suppresses idle metadata rereads. Opening a menu and
       // every actual mount/tool still use the original complete verification.
       let observed='';
+      const owner=workId(p);
       if(isPipeline(p)||items.some(item=>item.mcp)){
-        const hint=await RunTeamsWorkAuthorization.request(RunTeamsWorkAuthorization.state({panel:p,pipeline:isPipeline(p)}),null,true);
-        if(refreshContext()!==p||epoch!==generation||token()!==scope)return;
-        if(hint.schema!=='runteams.mcp-observation/1'||hint.chat_id!==Number(p.id)||hint.owner!==(isPipeline(p)?'pipeline':'employee')||typeof hint.version!=='string')throw Error('工作引用已变化。');
+        const auth=employeeWorkbench?{panel:p,workbenchId:owner}:{panel:p,pipeline:isPipeline(p)};
+        const hint=await RunTeamsWorkAuthorization.request(RunTeamsWorkAuthorization.state(auth),null,true);
+        if(!current())return;
+        if(hint.schema!=='runteams.mcp-observation/1'||hint.chat_id!==owner||hint.owner!==(isPipeline(p)?'pipeline':'employee')||typeof hint.version!=='string')throw Error('工作引用已变化。');
         observed=hint.version;
         // Known menu entries refresh on change or deliberate opening. Idle
         // pages do not rebuild full assets on a timer; an empty menu keeps a
         // bounded probe so a newly provided page can acquire an entry point.
         if(!force&&(!readError||active?.reopenRequired)&&observed===discoveryVersion&&(items.length||Date.now()-lastDiscovery<30000))return;
       }
-      const result=await call({action:'discover',workspace_id:workspace(),chat_id:Number(p.id)});
-      if(refreshContext()!==p||epoch!==generation||token()!==scope)return;
+      const result=await call({action:'discover',workspace_id:workspace(),chat_id:owner});
+      if(!current())return;
       if(!Array.isArray(result.items))throw Error('work_discovery_unavailable');
       const recovered=!!readError&&!active?.reopenRequired;
       if(recovered)readError='';
       discoveryVersion=observed;lastDiscovery=Date.now();
       if(active?.readUnavailable){active.readUnavailable=false;lastFrame='';}
-      const discovered=result.items.map(item=>({...item,mcp:result.authority==='device-owned-mcp-work'}));
+      const discovered=result.items.filter(item=>item.views.length)
+        .map(item=>({...item,mcp:result.authority==='device-owned-mcp-work'}));
       const changed=JSON.stringify(items)!==JSON.stringify(discovered);items=discovered;
       if(active&&!active.empty&&!items.some(i=>i.installation_id===active.installation&&i.views.some(v=>v.id===active.view))){const old=active;active=employeePanel(p)?emptyPanel(p):null;void release(old);repaint();}
       else if(changed||recovered)repaint();
-      const choices=items.flatMap(work=>work.views||[]);
-      if(active?.empty&&!active.reopenRequired&&visibleWork()&&choices.length===1&&!opening){const work=items.find(w=>w.views.includes(choices[0]));await open(work,choices[0]);}
+      const choice=automaticView();
+      if(!openRequest&&active?.empty&&!active.reopenRequired&&visibleWork()&&choice&&!opening)await open(choice.work,choice.view);
       void layout();
-    }catch(e){if(refreshContext()===p&&epoch===generation&&token()===scope){
+    }catch(e){if(current()){
       readError='readFailed';items=[];
       // An unavailable read says nothing about the author's unsaved document.
       // Keep its instance hidden until the original discovery verifies it again.
@@ -129,39 +154,83 @@
       else if(!active?.reopenRequired)active=employeePanel(p)?emptyPanel(p):null;
       repaint();
     }}
-    finally{if(reading===epoch)reading=null;}
+    finally{if(reading===request)reading=null;}
+  }
+  function hasWorkbench(panel){
+    if(!panel||panel.loading||panel.error||!employeePanel(panel)&&String(panel.id)!==String(chat))return false;
+    const views=items.flatMap(w=>w.views),employee=RunTeamsEmployeeDirectory.forPanel(panel);
+    if(employee?.record?.history_only&&!views.length)return false;
+    return !!(views.length||readError||active?.id||visibleWork()||mcpEmployee(panel.identity)||
+      panel.kind==='employee_design'&&employee?.source&&mcpEmployee(employee.record));
   }
   function controls(panel){
-    if(!panel||panel.loading||panel.error||!employeePanel(panel)&&String(panel.id)!==String(chat))return '';
-    const views=items.flatMap(w=>w.views),employee=RunTeamsEmployeeDirectory.forPanel(panel);
-    if(!views.length&&!readError&&!active?.id&&!visibleWork()&&!mcpEmployee(panel.identity))return '';
-    const history=employee?.record;
-    if(history?.history_only&&!views.length)return '';
-    return RunTeamsShell.headerAction({label:'工作台',labelKey:'employeeWork.title',icon:ICON('briefcase'),action:'RunTeamsCreatorWork.showPanel(event)',className:'creator-work-trigger creator-work-toggle',selected:!!visibleWork(),menu:views.length>1,disabled:opening});
+    const workbench=hasWorkbench(panel),records=RunTeamsWorkRecords.scopeForPanel(panel);
+    if(!workbench&&!records)return '';
+    return RunTeamsShell.headerAction({label:'工作台',labelKey:'employeeWork.title',icon:ICON('clipboard-check'),action:'RunTeamsCreatorWork.toggleEmployeeWork()',
+      className:'creator-work-trigger creator-work-toggle',selected:!!visibleWork()||RunTeamsWorkRecords.activeForPanel(panel),disabled:workbench&&(opening||!!openRequest)});
   }
-  async function showPanel(event){
-    // DOM events release currentTarget after the first await. Keep the trigger
-    // and resolve its replacement if a verified refresh repaints the header.
-    event={currentTarget:event?.currentTarget};
-    const p=refreshContext(),identity=token();if(!p||opening)return;
-    if(!await RunTeamsWorkAuthorization.beforeSend(p.id))return;
-    if(bridge()&&(isPipeline(p)||items.some(item=>item.mcp))){await sync(true);if(context()!==p||token()!==identity)return;}
-    const views=items.flatMap(work=>work.views||[]);
-    if(isPipeline(p)&&views.length>1)return menu(event);
+  function toggleEmployeeWork(){
+    const panel=S.conversationPanel;
+    if(RunTeamsWorkRecords.activeForPanel(panel)||!hasWorkbench(panel))return RunTeamsWorkRecords.toggle();
+    return showPanel();
+  }
+  async function prepareWorkbench(p,current,preferSummary=false){
+    const target=employeeWorkbenchTarget(p);
+    if(!target)return RunTeamsWorkAuthorization.beforeSend(p.id);
+    const result=await api('/api/employee-workbench/prepare','POST',preferSummary?{...target,prefer_summary:true}:target);
+    if(!current())return false;
+    if(result.error||
+       RunTeamsEmployeeDirectory.referenceKey(result.reference)!==RunTeamsEmployeeDirectory.referenceKey(target.reference)||
+       target.revision&&result.revision!==target.revision)throw Error(result.error||'工作引用已变化。');
+    if(preferSummary&&result.summary?.kind==='eva-inbox'){
+      const old=active;
+      active={...emptyPanel(p),summary:result.summary};
+      employeeWorkbench=null;items=[];readError='';
+      void release(old);
+      return true;
+    }
+    if(!Number.isSafeInteger(result.id))throw Error('工作引用已变化。');
+    if(active?.summary)active=emptyPanel(p);
+    if(employeeWorkbench?.id!==result.id){
+      if(active?.id){const old=active;active=emptyPanel(p);void release(old);}
+      items=[];discoveryVersion='';lastDiscovery=0;readError='';
+    }
+    employeeWorkbench=result;
+    return RunTeamsWorkAuthorization.prepare({panel:p,workbenchId:result.id});
+  }
+  async function showPanel(){
+    const p=refreshContext();if(!p||opening||openRequest)return;
     if(visibleWork())return togglePanel();
-    if(active?.id&&Number(active.chat)===Number(p.id)){if(!visibleWork())return reveal();return togglePanel();}
-    if(views.length>1)return menu(event);
-    if(views.length===1){const work=items.find(item=>item.views.includes(views[0]));return open(work,views[0]);}
-    if(bridge()){lastRead=0;await sync();if(context()!==p||token()!==identity)return;}
-    if(readError){active??=emptyPanel(p);selectDetailWorkspace({type:'creator-work',id:p.id});repaint();return;}
-    if(items.some(work=>work.views?.length))return menu(event);
-    return;
+    if(active?.id&&!active.recheck&&!active.readUnavailable&&p.kind!=='employee_design')return reveal();
+    const request={};openRequest=request;
+    reveal();
+    const selection=S.sel,sequence=_detailOpenSequence;
+    const stillRequested=()=>!!refreshContext()&&openRequest===request&&S.sel===selection&&_detailOpenSequence===sequence;
+    try{
+      if(!await prepareWorkbench(p,stillRequested,true)||!stillRequested()||active?.summary)return;
+      if(!bridge()){
+        readError='openFailed';
+        return;
+      }
+      await sync(true);
+      if(!stillRequested())return;
+      const choice=automaticView();
+      if(!active?.id&&choice)return await open(choice.work,choice.view);
+    }catch{
+      if(stillRequested())readError='openFailed';
+    }finally{
+      if(openRequest===request){openRequest=null;repaint();void layout();}
+    }
   }
   function menu(event){
     const choices=[];for(const work of items)for(const view of work.views)choices.push({label:view.title||workCopy('workContent','工作内容'),labelKey:view.title?undefined:'employeeWork.workContent',icon:'briefcase',fn:()=>active?.installation===work.installation_id&&active?.view===view.id?togglePanel():open(work,view)});
     if(choices.length===1)return choices[0].fn();
     const anchor=event.currentTarget?.isConnected===false?document.querySelector('.creator-work-trigger'):event.currentTarget;
     if(anchor)popMenu(anchor,choices,'railItem');
+  }
+  function automaticView(){
+    const views=items.flatMap(work=>work.views.map(view=>({work,view})));
+    return views.length===1?views[0]:null;
   }
   function sidebarChoices(){
     const p=context();if(!p||isPipeline(p)||String(p.id)!==String(chat)||!bridge())return [];
@@ -171,35 +240,49 @@
   async function openShortcut(row,current){
     const p=refreshContext();if(!bridge())throw Object.assign(Error('当前窗口无法打开工作界面。'),{messageKey:'employeeWork.windowUnavailable'});
     if(!p||Number(p.id)!==row.chat_id||!current())return;
-    if(!await RunTeamsWorkAuthorization.beforeSend(p.id)||!current())return;
-    const epoch=generation,result=checked(await call({action:'discover',workspace_id:workspace(),chat_id:Number(p.id)}));
+    if(!await prepareWorkbench(p,current)||!current())return;
+    const epoch=generation,id=workId(p);
+    let owner=id,result=checked(await call({action:'discover',workspace_id:workspace(),chat_id:id}));
     if(epoch!==generation||!current())return;
-    const work=result.items?.find(item=>item.installation_id===row.installation_id),view=work?.views.find(view=>view.id===row.view);
+    let work=result.items?.find(item=>item.installation_id===row.installation_id);
+    if(!work&&id!==p.id&&p.kind==='general'){
+      // Previously saved shortcuts carry the installation from their original conversation.
+      if(!await RunTeamsWorkAuthorization.beforeSend(p.id)||epoch!==generation||!current())return;
+      owner=Number(p.id);
+      result=checked(await call({action:'discover',workspace_id:workspace(),chat_id:owner}));
+      if(epoch!==generation||!current())return;
+      work=result.items?.find(item=>item.installation_id===row.installation_id);
+      if(work)employeeWorkbench=null;
+    }
+    const view=work?.views.find(view=>view.id===row.view);
     if(!work||!view)throw Object.assign(Error('此界面已不可用，可以从“常用”中移除。'),{messageKey:'employeeWork.pinnedViewUnavailable'});
-    return open({...work,mcp:result.authority==='device-owned-mcp-work'},view);
+    return open({...work,mcp:result.authority==='device-owned-mcp-work'},view,owner);
   }
   function frame(){const node=document.getElementById('creator_work_viewport');if(!node)return null;const r=node.getBoundingClientRect();return r.width>=1&&r.height>=1&&r.x>=0&&r.y>=0&&r.right<=innerWidth+1&&r.bottom<=innerHeight+1?{x:Math.max(0,r.x),y:Math.max(0,r.y),width:Math.min(r.width,innerWidth-r.x),height:Math.min(r.height,innerHeight-r.y)}:null;}
-  async function open(work,view){
+  async function open(work,view,owner){
     const p=refreshContext();if(!p||opening)return;
     if(get(p.id))return workNotice('checkBeforeLeaving','请先核对上一条消息的发送状态。');
-    const epoch=generation;opening=true;const previous=active;const retention=isPipeline(p)?{pipelineWindow:RunTeamsSourcePipelines.key(p.context.source_pipeline_workspace),slotKey:scope+':'+String(S.localLibrary?.cache_scope||RunTeamsHost.session.deviceScope(S)||'')+':'+workContext,slotScope:scope+':'+String(S.localLibrary?.cache_scope||RunTeamsHost.session.deviceScope(S)||'')}:{};active={...retention,title:view.title||'工作内容',titleKey:view.title?undefined:'employeeWork.workContent',chat:Number(p.id),mcp:!!work.mcp,installation:work.installation_id,view:view.id,loading:true};
+    const epoch=generation;owner=owner??workId(p);opening=true;const previous=active;
+    const replacingWorkbench=!!previous?.id&&previous.mcp&&work.mcp&&previous.owner===owner
+      &&(employeeWorkbench?.id===owner||previous.installation===work.installation_id);const retention=isPipeline(p)?{pipelineWindow:RunTeamsSourcePipelines.key(p.context.source_pipeline_workspace),slotKey:scope+':'+String(S.localLibrary?.cache_scope||RunTeamsHost.session.deviceScope(S)||'')+':'+workContext,slotScope:scope+':'+String(S.localLibrary?.cache_scope||RunTeamsHost.session.deviceScope(S)||'')}:{};active={...retention,title:view.title||'工作内容',titleKey:view.title?undefined:'employeeWork.workContent',chat:Number(p.id),owner,mcp:!!work.mcp,installation:work.installation_id,view:view.id,loading:true};
     let failure='openFailed';
     const openingEntry=active;selectDetailWorkspace({type:'creator-work',id:p.id});const selection=S.sel,sequence=_detailOpenSequence;
     const currentIntent=()=>S.sel===selection&&sequence===_detailOpenSequence;repaint();
     try{
-      await release(previous);let rect=frame();
+      if(!replacingWorkbench)await release(previous);
+      let rect=frame();
       // Native author views can suppress the platform's animation callbacks.
       // Layout readiness is bounded independently of those paint callbacks.
       for(let n=0;!rect&&n<30&&epoch===generation&&currentIntent();n++){await new Promise(resolve=>setTimeout(resolve,16));rect=frame();}
       if(!currentIntent())return;
       if(!rect){failure='windowTooSmall';throw Error('work_viewport_unavailable');}
-      const result=await call({action:'open',workspace_id:workspace(),chat_id:Number(p.id),installation_id:work.installation_id,view:view.id,input:{},operation_key:uid(),frame:rect});
+      const result=await call({action:'open',workspace_id:workspace(),chat_id:owner,installation_id:work.installation_id,view:view.id,input:{},operation_key:uid(),frame:rect});
       if(result.mounted!==true)throw Error('work_mount_unconfirmed');
-      const mounted={...retention,id:result.id,chat:Number(p.id),title:view.title||'工作内容',titleKey:view.title?undefined:'employeeWork.workContent',mcp:!!work.mcp,installation:work.installation_id,view:view.id,viewport:rect};
+      const mounted={...retention,id:result.id,chat:Number(p.id),owner,title:view.title||'工作内容',titleKey:view.title?undefined:'employeeWork.workContent',mcp:!!work.mcp,installation:work.installation_id,view:view.id,viewport:rect};
       if(epoch!==generation||scope!==token()||!currentIntent()){
         // The mount may complete after its window was hidden while no id was
         // available. Revoke visibility before retaining its live page.
-        try{await call({action:'visibility',id:mounted.id,chat_id:mounted.chat,visible:false});}
+        try{await call({action:'visibility',id:mounted.id,chat_id:mounted.owner,visible:false});}
         catch(error){await release(mounted);throw error;}
         const cached=pipelineSlots.get(retention.slotKey);
         if(cached?.active===openingEntry&&cached.active.slotScope===token()+':'+String(S.localLibrary?.cache_scope||RunTeamsHost.session.deviceScope(S)||''))cached.active=mounted;
@@ -207,13 +290,19 @@
         else await release(mounted);
         return;
       }
-      active=mounted;readError='';lastFrame='';repaint();
+      active=mounted;readError='';lastFrame='';repaint();return true;
     }catch(e){
       const cached=pipelineSlots.get(retention.slotKey);
       if(cached?.active===openingEntry){cached.active={...retention,...emptyPanel(p),reopenRequired:true};cached.readError=failure;}
-      if(epoch===generation||active===openingEntry){readError=failure;active=employeePanel(p)?{...retention,...emptyPanel(p),reopenRequired:true}:null;repaint();}
+      if(epoch===generation||active===openingEntry){
+        readError=replacingWorkbench&&currentIntent()?'':failure;
+        active=replacingWorkbench&&currentIntent()?previous:employeePanel(p)?{...retention,...emptyPanel(p),reopenRequired:true}:null;
+        if(active===previous)workNotice('openFailed','无法打开工作台');
+        repaint();
+      }
     }
     finally{
+      if(replacingWorkbench&&active!==previous)await release(previous);
       // An intent can end before native dispatch. Keep no loading placeholder
       // after this operation has settled, including in its retained window.
       const cached=pipelineSlots.get(retention.slotKey);
@@ -223,7 +312,7 @@
     }
   }
   // Suspension retains the mounted page; only the coordinator changes visibility.
-  function suspend(){if(!active)return;displayRevision++;lastFrame='';if(active.id)void call({action:'visibility',id:active.id,chat_id:active.chat,visible:false}).catch(()=>{});}
+  function suspend(){if(!active)return;displayRevision++;lastFrame='';if(active.id)void call({action:'visibility',id:active.id,chat_id:active.owner,visible:false}).catch(()=>{});}
   function hide(){if(S.sel?.type==='creator-work')selectDetailWorkspace(null);else suspend();}
   function reveal(){const p=refreshContext();if(!p||!employeePanel(p))return;if(!active)active=emptyPanel(p);selectDetailWorkspace({type:'creator-work',id:p.id});displayRevision++;lastFrame='';repaint();void layout();}
   function togglePanel(){
@@ -243,15 +332,64 @@
   }
   async function close(){const old=active;if(old&&get(old.chat))return workNotice('checkBeforeLeaving','请先核对上一条消息的发送状态。');hide();active=null;await release(old);repaint();}
   async function retryPanel(){
-    const owner=generation;if(retrying===owner||reading===owner)return;
+    const owner=generation;if(retrying===owner)return;
     lastRead=0;retrying=owner;
     if(active?.reopenRequired)active.reopenRequired=false;
     repaint();
-    try{await sync(true);}
-    finally{if(retrying===owner)retrying=null;if(generation===owner)repaint();}
+    try{
+      const p=context();
+      if(p&&employeeWorkbenchTarget(p)&&!await prepareWorkbench(p,()=>generation===owner&&!!visibleWork(),true))return;
+      if(active?.summary)return;
+      await sync(true);
+    }catch{if(generation===owner)readError='openFailed';}
+    finally{if(retrying===owner)retrying=null;if(generation===owner){repaint();
+      if(visibleWork()?.summary&&document.activeElement===document.body)
+        document.getElementById('eva_summary_refresh')?.focus({preventScroll:true});
+    }}
+  }
+  const evaCategories={reply:'需要回复',action:'需要行动',waiting:'等待跟进',reference:'仅供参考',archived:'已归档',drafts:'已留存草稿'};
+  const evaServices={gmail:'Gmail',outlook:'Outlook',googlecalendar:'Google Calendar',googlemeet:'Google Meet'};
+  const evaPrompts={
+    mail:()=>`请检查已连接邮箱最近 ${document.getElementById('eva_mail_hours')?.value||24} 小时的收件，按我的规则分类并为需要回复的邮件准备草稿。列出需要我处理的事项。`,
+    calendar:()=> '请在我的日历中查找空闲时段，汇报冲突和候选时间。\n时区：\n日期范围：\n时长：\n参会人：',
+    meeting:()=> '请根据本次附上的逐字稿整理会议纪要，列出决定、行动项、负责人、截止日期和待确认事项。',
+  };
+  async function copyEvaPrompt(task){
+    if(!visibleWork()?.summary||!Object.hasOwn(evaPrompts,task))return;
+    const owner=active, text=evaPrompts[task](), status=document.getElementById('eva_copy_status'), fallback=document.getElementById('eva_copy_fallback');
+    try{
+      await navigator.clipboard.writeText(text);
+      if(visibleWork()!==owner)return;
+      fallback.hidden=true;status.textContent='已复制。请粘贴到 Eva 的对话。';
+    }catch{
+      if(visibleWork()!==owner)return;
+      fallback.hidden=false;fallback.value=text;fallback.focus();fallback.select();
+      status.textContent='已选中指令。请按复制快捷键。';
+    }
+  }
+  function evaPanel(data){
+    const copyButton=task=>`<button type="button" class="btn sm" onclick="RunTeamsCreatorWork.copyEvaPrompt('${task}')">复制交办指令</button>`;
+    return `<div class="employee-inbox-summary">
+      <section aria-labelledby="eva_mail_heading">
+        <header><h3 id="eva_mail_heading">邮件处理</h3><button id="eva_summary_refresh" type="button" class="btn sm" onclick="RunTeamsCreatorWork.retryPanel()">刷新</button></header>
+        <p role="status">${data.total?`${data.limited?'已读取前':'已记录'} ${esc(String(data.total))} 封邮件。`:'暂无邮件处理记录。'}</p>
+        ${data.total?`<dl>${Object.entries(evaCategories).map(([key,label])=>`<div><dt>${label}</dt><dd>${esc(String(data.counts[key]))}</dd></div>`).join('')}</dl>`:''}
+        ${data.connections.gmail?`<p>${data.gmail_initialized?'Gmail 增量同步进度已保存。':'Gmail 暂无已保存的同步进度。'}</p>`:''}
+      </section>
+      <section aria-labelledby="eva_tasks_heading">
+        <h3 id="eva_tasks_heading">常用交办</h3>
+        <details><summary>处理新邮件</summary><p>选择时间范围，按已有规则分类并准备必要的回复草稿。</p>
+          <label for="eva_mail_hours">检查范围</label> <select class="inp" id="eva_mail_hours"><option value="24">最近 24 小时</option><option value="72">最近 3 天</option><option value="168">最近 7 天</option></select> ${copyButton('mail')}</details>
+        <details><summary>查找空闲时间</summary><p>在指令中补上时区、日期范围、时长和参会人。</p>${copyButton('calendar')}</details>
+        <details><summary>整理会议纪要</summary><p>交办时附上逐字稿。需要会后自动寄给自己时，将 Google Meet 会议标题设为以「【Eva纪要】」开头，邀请 Fireflies，并将会议隐私设为仅自己。</p>${copyButton('meeting')}</details>
+        <p id="eva_copy_status" role="status"></p>
+        <textarea id="eva_copy_fallback" class="inp" aria-label="交办指令" rows="4" readonly hidden></textarea>
+      </section>
+      <section aria-labelledby="eva_apps_heading"><h3 id="eva_apps_heading">应用连接</h3>
+        <ul>${Object.entries(evaServices).map(([key,label])=>`<li><span>${label}</span><span>${data.connections[key]?'已连接':'未连接'}</span></li>`).join('')}</ul>
+      </section></div>`;
   }
   function emptyContent(){
-    if(retrying===generation)return '<div class="creator-work-placeholder-note" role="status" data-app-i18n="employeeWork.loading">正在读取工作页面…</div>';
     if(readError){
       const titles={readFailed:'无法读取工作页面',reopen:'工作台已关闭',openFailed:'无法打开工作台',windowTooSmall:'请放大窗口以打开工作台。'};
       const [label,labelKey]=readError==='reopen'?['重新打开工作台','employeeWork.reopenAction']:
@@ -261,10 +399,27 @@
     if(items.some(work=>work.views?.length))return `<div class="creator-work-placeholder"><button type="button" class="btn" onclick="RunTeamsCreatorWork.menu(event)" data-app-i18n="employeeWork.view">查看工作内容</button></div>`;
     return '<div class="creator-work-placeholder-note" role="status" data-app-i18n="employeeWork.empty">还没有可用的工作页面。</div>';
   }
-  function drawer(){return visibleWork()?`<aside class="drawer right-detail-drawer creator-work-drawer" data-rt-ui aria-label="${esc(active.title)}"${active.empty?' data-app-i18n-aria-label="employeeWork.title"':active.titleKey?` data-app-i18n-aria-label="${esc(active.titleKey)}"`:""}><div id="creator_work_header" class="creator-work-header"></div><div id="creator_work_viewport" class="creator-work-viewport" aria-busy="${!!active.loading||retrying===generation}">${active.loading?RunTeamsSkeletons.region('detail',undefined,'employeeWork.opening'):active.empty||active.readUnavailable?emptyContent():''}</div></aside>`:'';}
+  function drawer(){
+    if(!visibleWork())return '';
+    const title=workCopy('title','工作台'),titleKey='employeeWork.title';
+    const full=!active.readUnavailable&&active.display?.mode==='full';
+    const header={
+      toolbar:'<div id="creator_work_header" class="creator-work-header"></div>',
+      intro:full?'':`<section class="workspace-detail-head detail-drawer-intro">${detailDrawerHeading(
+        title,'查看这名员工的工作数据，处理待办事项。','','',{titleKey,descriptionKey:'employeeWork.description'})}</section>`,
+    };
+    const shell={className:'creator-work-drawer',header,introClass:'detail-drawer-summary',
+      attrs:`data-rt-ui aria-label="${esc(title)}" data-app-i18n-aria-label="${titleKey}"`};
+    const loading=!!active.loading||retrying===generation||!!openRequest&&!active.id;
+    const content=loading?RunTeamsSkeletons.region('detail',undefined,'employeeWork.loading'):
+      active.summary?(readError?emptyContent():evaPanel(active.summary)):active.empty||active.readUnavailable?emptyContent():'';
+    const attrs=full?`data-rt-ui aria-label="${esc(active.title)}"${active.titleKey?` data-app-i18n-aria-label="${esc(active.titleKey)}"`:''}`:shell.attrs;
+    return detailDrawerShell({...shell,attrs,bodyClass:`creator-work-native-body${(active.id||active.summary)&&!loading||full?' is-mounted':''}`,
+      body:`<div id="creator_work_viewport" class="creator-work-viewport" aria-busy="${loading}">${content}</div>`});
+  }
   function decorate(){
     const node=document.getElementById('creator_work_header'),kit=window.RunTeamsUIComponents;
-    document.getElementById('rgBody')?.classList.toggle('creator-work-full',!!visibleWork()&&!active.readUnavailable&&active.display?.mode==='full');
+    document.getElementById('rgBody')?.classList.toggle('creator-work-full',!!visibleWork()&&(!active.readUnavailable&&active.display?.mode==='full'));
     if(headerOwner!==active){header?.dispose();header=null;headerRevision=null;headerOwner=active;}
     if(!node||!kit)return;
     node.hidden=!active?.readUnavailable&&active?.display?.mode==='full';
@@ -274,13 +429,18 @@
       header.collapseButton.setAttribute('data-app-i18n-title','employeeWork.close');
     }
     if(node.firstChild!==header.element)node.replaceChildren(header.element);
-    const data=active?.display?.header,revision=data?.revision||'';
+    const records=!isPipeline(context())&&!!RunTeamsWorkRecords.scopeForPanel();
+    const recordsActions=records?[{id:'@work-records',platformId:'employee_work_records',label:'工作记录',labelKey:'workRecords.title',
+      onPress:RunTeamsWorkRecords.openFromWorkbench}]:[];
+    const data=active?.display?.header, nativeRevision=data?.revision||'';
+    const revision=JSON.stringify([nativeRevision,active.empty,isPipeline(context()),records]);
     if(revision===headerRevision)return;
     const owner=active,epoch=owner.displayEpoch;
     header.setExtras({text:'',actions:[...(data?.actions||[]).map(action=>({...action,onPress:()=>{
-      if(active!==owner||owner.displayEpoch!==epoch||owner.display?.header?.revision!==revision)return;
-      void call({action:'header-action',id:owner.id,chat_id:owner.chat,epoch,revision,key:action.id}).catch(()=>workNotice('actionExpired','此操作已失效。请重新打开工作内容。'));
-    }})),...(owner.empty||isPipeline(context())?[]:[{id:'@platform-pin',label:'添加到常用',labelKey:'employeeWork.pin',onPress:pinCurrent}])]});
+      if(active!==owner||owner.displayEpoch!==epoch||(owner.display?.header?.revision||'')!==nativeRevision)return;
+      void call({action:'header-action',id:owner.id,chat_id:owner.owner,epoch,revision:nativeRevision,key:action.id}).catch(()=>workNotice('actionExpired','此操作已失效。请重新打开工作内容。'));
+    }})),
+      ...(owner.empty||isPipeline(context())?[]:[{id:'@platform-pin',label:'添加到常用',labelKey:'employeeWork.pin',onPress:pinCurrent}]),...recordsActions]});
     headerRevision=revision;
   }
   // Called only in the trusted platform document by the native mounted host.
@@ -308,32 +468,33 @@
     if(closed){const old=active;readError='reopen';active=employeePanel(context())?closedPanel(old):null;void release(old);}
     repaint();decorate();void layout();
   }
+  const workOverlayOpen=()=>!!document.querySelector('#modalHost,#settingsWorkspace,#popmenu,[role="dialog"],#railSearchHost');
   async function layout(){
     decorate();
     if(layoutBusy){layoutQueued=true;return;}
     if(!active?.id)return;
-    const revision=displayRevision,current=active,rect=visibleWork()&&!active.recheck&&!active.readUnavailable?frame():null;if(!rect){if(lastFrame!=='hidden'){lastFrame='hidden';void call({action:'visibility',id:current.id,chat_id:current.chat,visible:false}).catch(()=>{});}return;}
-    const blocked=!!document.querySelector('#modalHost,#settingsWorkspace,#popmenu,[role="dialog"],#railSearchHost');
+    const revision=displayRevision,current=active,rect=visibleWork()&&!active.recheck&&!active.readUnavailable?frame():null;if(!rect){if(lastFrame!=='hidden'){lastFrame='hidden';void call({action:'visibility',id:current.id,chat_id:current.owner,visible:false}).catch(()=>{});}return;}
+    const blocked=workOverlayOpen();
     const preference=document.documentElement.dataset.theme;
     const theme=preference==='dark'||(preference!=='light'&&matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light';
     const signature=JSON.stringify([rect,blocked,theme]);if(signature===lastFrame)return;
     layoutBusy=true;let stage='theme';
     const outdated=()=>active!==current||current.recheck||current.readUnavailable||revision!==displayRevision||JSON.stringify(frame())!==JSON.stringify(rect);
     try{
-      await call({action:'theme',id:current.id,chat_id:current.chat,theme});
+      await call({action:'theme',id:current.id,chat_id:current.owner,theme});
       if(outdated()){layoutQueued=true;return;}
       if(!blocked){
-        stage='frame';await call({action:'frame',id:current.id,chat_id:current.chat,frame:rect});frameRetries=0;
+        stage='frame';await call({action:'frame',id:current.id,chat_id:current.owner,frame:rect});frameRetries=0;
         if(outdated()){layoutQueued=true;return;}
       }
-      stage='visibility';await call({action:'visibility',id:current.id,chat_id:current.chat,visible:!blocked});
+      stage='visibility';await call({action:'visibility',id:current.id,chat_id:current.owner,visible:!blocked});
       if(!outdated())lastFrame=signature;else layoutQueued=true;
     }catch(e){
       if(active===current){
         if(stage==='frame'&&frameRetries++<3){
           // Native window bounds can change before WebKit delivers resize. Hide
           // until a fresh bounded frame is accepted; never reopen the document.
-          lastFrame='';void call({action:'visibility',id:current.id,chat_id:current.chat,visible:false}).catch(()=>{});
+          lastFrame='';void call({action:'visibility',id:current.id,chat_id:current.owner,visible:false}).catch(()=>{});
           requestAnimationFrame(()=>void layout());
         }else if(revision!==displayRevision){layoutQueued=true;}
         else{active=null;lastFrame='';void release(current);repaint();}
@@ -531,8 +692,13 @@
     if(active?.pipelineWindow===windowKey){const old=active;active=null;void release(old);}
     for(const [key,saved] of pipelineSlots)if(saved.active.pipelineWindow===windowKey){pipelineSlots.delete(key);void release(saved.active);}
   }
-  window.RunTeamsCreatorWork={closeWindow,hide,suspend,reveal,retryPanel,applyDisplay,clearDisplay,togglePanel,sync,controls,showPanel,menu,open,close,drawer,layout,pendingMarkup,retry,retryFromButton,send,beforeSend,beforeRender:refreshContext,sidebarChoices,pinCurrent,openShortcut,
-    current:visibleWork,
+  function authorizationContext(){
+    const panel=context();
+    return panel?.id===chat&&employeeWorkbench&&employeeWorkbenchTarget(panel)
+      ?{panel,workbenchId:employeeWorkbench.id}:null;
+  }
+  window.RunTeamsCreatorWork={closeWindow,hide,suspend,reveal,retryPanel,copyEvaPrompt,applyDisplay,clearDisplay,togglePanel,sync,controls,toggleEmployeeWork,showPanel,menu,open,close,drawer,layout,pendingMarkup,retry,retryFromButton,send,beforeSend,beforeRender:refreshContext,sidebarChoices,pinCurrent,openShortcut,authorizationContext,
+    current:visibleWork,hasWorkbench,
     hasPending:id=>!!get(id),pendingInput:id=>get(id)?.input,
     requestStop:id=>{const p=get(id);if(!p||p.phase==='dispatch_unknown')return false;p.cancelRequested=true;return true;}};
   window.addEventListener('runteams-ui-ready',()=>void layout());

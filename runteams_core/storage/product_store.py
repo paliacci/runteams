@@ -586,7 +586,7 @@ def create_chat(channel_id=None, model="", reasoning_effort="", scope_pipeline_i
         employee_context().validate_source_package(package)
     if subject_type == "employee":
         if scope_type == "pipeline" and scope_pipeline_id in (None, ""):
-            raise ValueError("流水线作用域必须绑定流水线")
+            raise ValueError("智能体团队作用域必须绑定智能体团队")
         if scope_type == "run" and scope_run_id in (None, ""):
             raise ValueError("运行作用域必须绑定 WorkflowRun")
         if scope_type == "global":
@@ -595,7 +595,7 @@ def create_chat(channel_id=None, model="", reasoning_effort="", scope_pipeline_i
     if 'source_pipeline_workspace' in context:
         from runteams_core.pipelines.pipeline_references import checked_reference
         if subject_type != 'workspace' or scope_type != 'global' or scope_pipeline_id or scope_run_id:
-            raise ValueError('流水线会话归属不能改变。')
+            raise ValueError('智能体团队会话归属不能改变。')
         checked_reference(context['source_pipeline_workspace'])
     local = device_data.personal() and device_data.eligible({
         'kind':'general','context':context,'subject_type':subject_type,'scope_type':scope_type,
@@ -719,6 +719,9 @@ def get_chat(chat_id, include_messages=True, *, message_limit=None, message_curs
                 item[target] = json.loads(item.pop(source) or "{}")
             except (TypeError, ValueError) as exc:
                 raise ValueError('云端会话记录无效，请重新读取或修复。') from exc
+        if item['storage_scope']=='device':
+            from runteams_core.conversations.page_paths import chat_owner_path
+            item['owner_path'] = chat_owner_path(item['context'])
         if message_limit is not None:
             from runteams_core.foundation.read_pages import page_size, scope_key, cursor_after, cursor_for, CursorError
             from runteams_core.storage.business_storage import storage_for
@@ -764,12 +767,12 @@ def update_chat_config(chat_id, channel_id, model, reasoning_effort,
             from runteams_core.pipelines.pipeline_references import checked_reference
             checked_reference(pipeline_binding)
             if context is not None and (not isinstance(context, dict) or context.get('source_pipeline_workspace') != pipeline_binding):
-                raise ValueError('流水线会话归属不能改变。')
+                raise ValueError('智能体团队会话归属不能改变。')
             if scope_pipeline_id:
-                raise ValueError('流水线会话不能绑定其他流水线。')
+                raise ValueError('智能体团队会话不能绑定其他智能体团队。')
             context = pipeline_context
         elif isinstance(context, dict) and 'source_pipeline_workspace' in context:
-            raise ValueError('不能把已有对话改为流水线会话。')
+            raise ValueError('不能把已有对话改为智能体团队会话。')
         if current and (current["subject_type"] == "employee" or pipeline_binding is not None):
             # Employee Bot identity and scope are fixed for the session lifetime.
             # The generic config endpoint is called before every turn by the
@@ -818,6 +821,9 @@ def add_chat_message(chat_id, role, text, applied=None, attachments=None,
              json.dumps(metadata or {}, ensure_ascii=False), now()),
         ).lastrowid
         connection.execute("UPDATE chats SET updated_at=? WHERE id=?", (now(), chat_id))
+        if role == 'user' and attachments and device_chat(chat_id):
+            from runteams_core.conversations import asset_sources
+            asset_sources.capture(connection, chat_id, attachments)
         return message_id
 
 

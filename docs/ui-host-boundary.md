@@ -33,6 +33,9 @@ shared assets. Hosts compose their inputs through these slots; they do not rewri
 function bodies, copy the shared application, or strip hidden business code from
 a local release.
 
+Employee work examples use the shared conversation composer. Put required file
+and folder choices in its add menu and show selected items in the attachment list.
+
 ## Settings and identity
 
 Settings navigation is derived from panels that actually exist. Unknown panel

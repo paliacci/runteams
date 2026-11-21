@@ -30,14 +30,12 @@ class EmployeeMCPBridge(NativeViewTransport):
         self.opened = {'entry': 'views/mcp-host.html'}
         self.servers, self.threads = [], []
         try:
-            session.start()
-            tools = session.list_tools()
+            tools = session.tool_catalog()
             if {t['name'] for t in tools} & {t['name'] for t in host_tools}:
                 raise MCPError('mcp_reserved_host_tool')
             tools = [*tools, *host_tools]
             resource = session.read_app(tool)
             self.app_html, self.app_policy = _resource_html(resource)
-            session.runtime.verify()
             self.script = app_host_script(session.runtime)
             self.html = host_html(session.bundle.manifest.get('display_name',session.bundle.manifest['name']),tools,input_value)
             for control in (False, True):

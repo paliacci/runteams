@@ -52,8 +52,8 @@
    remain siblings; only the successful empty branch establishes this layout.
    New bounded content containers can opt in with .rt-empty-region. */
 .rt-empty-region{display:flex;flex-direction:column;flex:1 0 auto;min-width:0;min-height:0}
-:where(.creator-work-viewport,.employee-automation-body,.result-evidence-preview-content.is-archive):has(>.rt-empty-state:not([hidden])){display:flex;flex-direction:column;overflow:auto}
-:where(.creator-work-viewport,.employee-automation-body):has(>.rt-empty-state:not([hidden])){flex:1 1 0}
+:where(.creator-work-viewport,.result-evidence-preview-content.is-archive):has(>.rt-empty-state:not([hidden])){display:flex;flex-direction:column;overflow:auto}
+:where(.creator-work-viewport):has(>.rt-empty-state:not([hidden])){flex:1 1 0}
 
 /* Empty and failure artwork follows the effective theme, including
    system appearance before account preferences load. Painted insets (magnifier

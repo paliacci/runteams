@@ -37,7 +37,7 @@ def read(core, ref, connection=None):
     if row:
         value=json.loads(row[0])
         if not isinstance(value,dict) or value.get('reference')!=ref:
-            raise ContractError('流水线运行记录的资产归属不一致。')
+            raise ContractError('智能体团队运行记录的资产归属不一致。')
         return value
     return {'reference': ref, 'revision': 0, 'status': 'running', 'bundle': None, 'quiesced_revision': None}
 
@@ -65,7 +65,7 @@ def _owned_entry(ref):
     with revisions.locked():
         files=revisions._files(revisions._head());project=strict_json(files['project.json'])
     if ref['pipeline_source'] not in project['entrypoints'].get('pipelines',[]) or ref['pipeline_source'] not in files:
-        raise ContractError('流水线不属于当前源码工程。')
+        raise ContractError('智能体团队不属于当前源码工程。')
 
 
 def state(core, ref, active_ids=(), *, connection=None):
@@ -114,7 +114,7 @@ def member_configuration_snapshot(package, context, *, defer_credentials=False):
             raise
         labels = [field['label'] for field in fields(definition) if field['key'] in error.errors]
         if labels:
-            raise ContractError('请在流水线设置中核对当前岗位的配置：' + '、'.join(labels)) from error
+            raise ContractError('请在智能体团队设置中核对当前岗位的配置：' + '、'.join(labels)) from error
         raise
 
 
@@ -133,10 +133,10 @@ def bundle_for_work(core, connection, frozen):
         "AND json_extract(data_json,'$.bundle.generation')=? ORDER BY id DESC LIMIT 1",
         (stream(ref), STATE_EVENT, generation)).fetchone()
     if row is None:
-        raise ContractError('无法读取这项工作的原流水线版本。')
+        raise ContractError('无法读取这项工作的原智能体团队版本。')
     bundle = json.loads(row[0])
     if bundle['asset'] != frozen['pipeline_work']['asset']:
-        raise ContractError('原工作与流水线版本不一致。')
+        raise ContractError('原工作与智能体团队版本不一致。')
     return bundle
 
 
@@ -170,7 +170,7 @@ def admit(connection, core, ref, candidate,start_column_key=None):
     check_available(core, ref, connection)
     current = read(core, ref, connection)
     if current['status'] != 'running':
-        raise ContractError('流水线已暂停，不能开始新工作。')
+        raise ContractError('智能体团队已暂停，不能开始新工作。')
     bundle = current['bundle']
     runtime_changed = bundle and {
         key: role['package']['runtime'] for key, role in bundle['roles'].items()
@@ -188,12 +188,12 @@ def prepare_bundle(ref, operation_id, revision):
     revisions = work.source(ref)
     with revisions.locked():
         if revisions._head() != revision:
-            raise ContractError('流水线源码已有更新，请重新核对要应用的版本。')
+            raise ContractError('智能体团队源码已有更新，请重新核对要应用的版本。')
         files = revisions._files(revision)
     compiled = validate_source(files)
     asset = compiled['pipelines'].get(ref['pipeline_source'])
     if asset is None:
-        raise ContractError('流水线源码入口已不存在。')
+        raise ContractError('智能体团队源码入口已不存在。')
     from runteams_core.pipelines.pipeline_dependency_contracts import key as member_key, selector
     has_dependencies = any('dependency' in member for member in asset['employees'])
     if has_dependencies:
@@ -204,7 +204,7 @@ def prepare_bundle(ref, operation_id, revision):
                 employee_context().prepare_source_build(revisions.store, ref['source_id'], revision, operation_id)
                 break
             except BlockingIOError:
-                if time.monotonic() >= deadline: raise ContractError('流水线运行包正在准备，请沿原操作核对。') from None
+                if time.monotonic() >= deadline: raise ContractError('智能体团队运行包正在准备，请沿原操作核对。') from None
                 time.sleep(.05)
     from runteams_core.pipelines import pipeline_position_runtime as position_runtime
     from runteams_core.pipelines.pipeline_employee_dependencies import member_reference
@@ -229,7 +229,7 @@ def prepare_bundle(ref, operation_id, revision):
             configurations[employee_key] = _role(package, context)['configuration']
         roles[position['key']] = {'package': package, 'context': context, 'configuration': copy.deepcopy(configurations[employee_key])}
     if not roles:
-        raise ContractError('流水线至少需要一个员工岗位。')
+        raise ContractError('智能体团队至少需要一个员工岗位。')
     canonical_asset = next(iter(roles.values()))['context']['asset']
     bundle = {'revision': revision, 'generation': 0, 'asset': canonical_asset, 'roles': roles}
     if 'configuration' in canonical_asset:
@@ -307,7 +307,7 @@ def _request(data):
     if not isinstance(data, dict) or set(data) not in (
             {'operation_id', 'reference', 'action', 'expected_revision'},
             {'operation_id', 'reference', 'action', 'expected_revision', 'source_revision'}):
-        raise ContractError('流水线控制参数无效。')
+        raise ContractError('智能体团队控制参数无效。')
     try:
         key = str(uuid.UUID(data['operation_id']))
     except (ValueError, TypeError, AttributeError):
@@ -455,8 +455,8 @@ def command(core, data, active_ids=()):
             with core.repository.read_snapshot() as connection:committed=_receipt(connection,key,request)
             if committed:return _project(core,data,active_ids)
             if current['status'] != 'paused':
-                raise ContractError('请先暂停流水线，并等待岗位执行确实结束后再更新或启动。')
-            raise ContractError('流水线运行状态已变化，请重新核对。')
+                raise ContractError('请先暂停智能体团队，并等待岗位执行确实结束后再更新或启动。')
+            raise ContractError('智能体团队运行状态已变化，请重新核对。')
         if action == 'update':
             candidate = prepare_bundle(ref, key, request['source_revision'])
         else:
@@ -488,13 +488,13 @@ def command(core, data, active_ids=()):
         if receipt is None:
             saved = read(core, ref, connection); rows = _rows(connection, ref)
             if saved['revision'] != request['expected_revision']:
-                raise ContractError('流水线运行状态已变化，请重新核对。')
+                raise ContractError('智能体团队运行状态已变化，请重新核对。')
             if action == 'pause':
                 saved.update(status='paused', revision=saved['revision'] + 1, quiesced_revision=None, pause_error='')
                 for row in rows: _park(core, connection, row)
             else:
                 if (saved['status'] != 'paused' or saved['quiesced_revision'] != saved['revision'] or _live(rows, active_ids)):
-                    raise ContractError('岗位执行尚未确认停止，流水线继续保持暂停。')
+                    raise ContractError('岗位执行尚未确认停止，智能体团队继续保持暂停。')
                 if action == 'update':
                     if revisions._head() != candidate['revision']:
                         raise ContractError('源码在准备期间已有更新，请核对原版本。')
@@ -523,7 +523,7 @@ def command(core, data, active_ids=()):
                 else:
                     bundle = saved['bundle']
                     if digest(bundle)!=validated_bundle:
-                        raise ContractError('流水线应用版本已变化，请核对原操作。')
+                        raise ContractError('智能体团队应用版本已变化，请核对原操作。')
                     for row in rows:
                         if row['state'] in TERMINAL: continue
                         frozen = json.loads(row['snapshot_json'])
@@ -623,7 +623,7 @@ def check_chat_operation(chat_id):
     if (frozen.get('work_chat_id') != chat_id or frozen.get('pipeline_generation') != context.get('pipeline_generation') or
             frozen.get('pipeline_unresolved') or not row or row['state']!='running' or
             not (frozen.get('pipeline_execution') or {}).get('active')):
-        raise PermissionError('流水线已暂停或岗位版本已更新，原工作现场不能继续执行。')
+        raise PermissionError('智能体团队已暂停或岗位版本已更新，原工作现场不能继续执行。')
 
 
 def verify_state(value, scope):
@@ -631,23 +631,23 @@ def verify_state(value, scope):
     from runteams_core.employees.employee_work_contracts import verify_frozen
     if (not isinstance(value,dict) or set(value)-{'reference','revision','status','bundle','quiesced_revision','pause_error'} or
             type(value.get('revision')) is not int or value['revision']<0 or value.get('status') not in ('running','paused')):
-        raise ContractError('流水线运行状态记录无效。')
+        raise ContractError('智能体团队运行状态记录无效。')
     ref=pipeline_references.checked_reference(value['reference'],scope);bundle=value['bundle']
     if value.get('quiesced_revision') not in (None,value['revision']):
-        raise ContractError('流水线停止回执版本无效。')
+        raise ContractError('智能体团队停止回执版本无效。')
     if bundle is None:return
     if (set(bundle)-{'configuration'}!={'revision','generation','asset','roles'} or type(bundle['generation']) is not int or
             bundle['generation']<1 or set(bundle['roles'])!={p['key'] for p in bundle['asset']['pipeline']['positions'] if p['kind']=='employee'}):
-        raise ContractError('流水线应用版本记录无效。')
+        raise ContractError('智能体团队应用版本记录无效。')
     if 'configuration' in bundle['asset']:
         from runteams_core.configuration.employee_configuration import verify_snapshot_record
         verify_snapshot_record(bundle['asset']['configuration'],ref,bundle['revision'],bundle.get('configuration'),scope)
     elif 'configuration' in bundle:
-        raise ContractError('流水线配置不属于已应用的定义。')
+        raise ContractError('智能体团队配置不属于已应用的定义。')
     for key,role in bundle['roles'].items():
         if set(role)!={'package','context','configuration'} or role['context']['asset']!=bundle['asset'] or role['context']['reference']!=ref:
-            raise ContractError('流水线岗位应用记录不一致。')
+            raise ContractError('智能体团队岗位应用记录不一致。')
         if role['context']['position_key']!=key or role['context'].get('source_revision', role['package']['revision'])!=bundle['revision']:
-            raise ContractError('流水线岗位版本未统一。')
+            raise ContractError('智能体团队岗位版本未统一。')
         verify_frozen({'schema':SCHEMA,'employee_reference':role['package']['reference'],'package':role['package'],
             'pipeline_work':role['context'],'pipeline_generation':bundle['generation'],'pipeline_visit':1},scope)

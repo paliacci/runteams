@@ -2,15 +2,6 @@
 from runteams_core.employees.bound_employee_context import BoundEmployeeContext
 from runteams_core.agents.tools.tool_services import ToolServiceUnavailable
 class LocalEmployeeContext(BoundEmployeeContext):
-    def verify_connection_archive(self,*args):
-        self._check();raise PermissionError('本机资料库不核验官方MCP资产回执。')
-
-    def work_resource_setup(self,employee,packages):
-        self._check();return False
-
-    def connection_provider(self,host,chat):
-        self._check();raise PermissionError('本机资料库不提供官方MCP服务授权。')
-
     def directory(self,**kwargs):
         self._check()
         from runteams_core.employees.employee_directory import local_entries, assemble, SCHEMA

@@ -6,6 +6,7 @@ window.RunTeamsReplyContent=(()=>{
  const copy=(key,fallback)=>safe(window.RunTeamsLocale?.t(key,{},fallback)??fallback);
  const viewStatus={table:['replyContent.loadingTable','正在显示表格…'],chart:['replyContent.loadingChart','正在显示图表…'],explorer:['replyContent.loadingExplorer','正在显示交互内容…']};
  function validate(value){
+  if(value?.version===2)return globalThis.RunTeamsReplySpec.validate(value);
   if(!value||value.version!==1||!['table','chart','explorer'].includes(value.type))throw Error('Unsupported content');
   if(typeof value.title!=='string'||!value.title.trim()||value.title.length>120)throw Error('Missing title');
   if(!Array.isArray(value.columns)||!value.columns.length||value.columns.length>12||!Array.isArray(value.rows)||value.rows.length>500)throw Error('Table limits');
@@ -24,7 +25,13 @@ window.RunTeamsReplyContent=(()=>{
   for(const line of lines){
    if(!fence){const match=line.match(/^ {0,3}(`{3,}|~{3,})([^\n]*)\n?$/);if(match){fence={char:match[1][0],length:match[1].length,rich:match[2].trim()==='runteams-view'};block=line;}else ordinary+=line;continue;}
    block+=line;const close=line.trim();if(close.length>=fence.length&&[...close].every(c=>c===fence.char)){
-    if(fence.rich&&parts.filter(p=>p.type==='view').length<12){try{if(block.length>100000)throw Error();const json=block.slice(block.indexOf('\n')+1,block.lastIndexOf(line));const data=validate(JSON.parse(json));flush();parts.push({type:'view',data,raw:block});}catch{ordinary+=block;}}else ordinary+=block;
+    if(fence.rich&&parts.filter(p=>p.type==='view').length<12){
+     try{
+      const json=block.slice(block.indexOf('\n')+1,block.lastIndexOf(line)),value=JSON.parse(json);
+      if(value?.version!==2&&block.length>100000)throw Error();
+      const data=validate(value);flush();parts.push({type:'view',data,raw:block});
+     }catch{ordinary+=block;}
+    }else ordinary+=block;
     fence=null;block='';
    }
   }
@@ -37,11 +44,11 @@ window.RunTeamsReplyContent=(()=>{
    if(part.type==='loading')return `<div class="reply-content-loading" role="status" data-app-i18n="replyContent.preparing">${copy('replyContent.preparing','正在整理数据…')}</div>`;
    const key=context.key+':'+index++,signature=JSON.stringify(part.data);let record=records.get(key);
    if(!record||record.signature!==signature){record={token:'reply-view-'+(++serial),data:part.data,signature};records.set(key,record);}
-   const [statusKey,statusText]=viewStatus[part.data.type];
+   const [statusKey,statusText]=viewStatus[part.data.type]||['replyContent.preparing','正在整理数据…'];
    queue();return `<div class="reply-content-slot" data-reply-view="${record.token}" aria-label="${safe(part.data.title)}"><p role="status" data-app-i18n="${statusKey}">${copy(statusKey,statusText)}</p></div>`;
   }).join('');
  }
- function plainText(text){return split(String(text)).map(part=>part.type==='text'?part.text:part.type==='view'?part.data.title+'\n'+[part.data.columns.map(c=>c.label).join('\t'),...part.data.rows.map(row=>part.data.columns.map(c=>row[c.key]??'—').join('\t'))].join('\n'):'').join('\n');}
+ function plainText(text){return split(String(text)).map(part=>part.type==='text'?part.text:part.type==='view'?(part.data.version===2?globalThis.RunTeamsReplySpec.plain(part.data):part.data.title+'\n'+[part.data.columns.map(c=>c.label).join('\t'),...part.data.rows.map(row=>part.data.columns.map(c=>row[c.key]??'—').join('\t'))].join('\n')):'').join('\n');}
  async function load(){
   if(!bundlePromise)bundlePromise=(async()=>{
    const bundle=window.RunTeamsReplyBundle;if(!bundle)throw Error('Missing renderer');
@@ -79,5 +86,5 @@ window.RunTeamsReplyContent=(()=>{
   const start=()=>{new MutationObserver(changes=>{if(changes.some(c=>[...c.addedNodes].some(n=>n.nodeType===1&&(n.matches?.('[data-reply-view]')||n.querySelector?.('[data-reply-view]')))))queue();}).observe(document.body,{childList:true,subtree:true});document.addEventListener('click',event=>{if(event.target.closest('[data-reply-retry]'))queue();});};
   if(document.body)start();else document.addEventListener('DOMContentLoaded',start,{once:true});
  }
- return {markup,plainText,split,validate,scan};
+ return {markup,plainText,split,validate,scan,load};
 })();

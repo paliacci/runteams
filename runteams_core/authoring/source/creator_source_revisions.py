@@ -160,7 +160,7 @@ class Revisions:
                 return self._revision(revision)[1]
             return None
 
-    def commit(self, files, base, operation_key):
+    def commit(self, files, base, operation_key, *, knowledge_stage=None):
         files = source_files(files)
         revision = _operation_revision(operation_key)
         source = tree(files)
@@ -175,6 +175,13 @@ class Revisions:
                 raise SourceConflict('源码已在其他位置更新。当前编辑已保留，请先核对最新源码。')
             from runteams_core.employees.employee_avatars import validate_sources
             validate_sources(files)
+            from runteams_core.assets import workspace_background
+            workspace_background.validate_sources(files)
+            from runteams_core.authoring.source.knowledge_packages import require, location, install_tree
+            if knowledge_stage:
+                from runteams_core.assets.knowledge_archive import index
+                install_tree(knowledge_stage, location(self.root, index(files)))
+            require(self.root, files)
             revisions = self.root / 'revisions'
             if revisions.is_symlink():
                 raise ValueError('源码修订目录无效。')
@@ -218,10 +225,13 @@ class Revisions:
     def snapshot(self, destination):
         """Copy only committed reachable revisions, under the same writer lock."""
         with self.locked():
+            from runteams_core.authoring.source.knowledge_packages import backup_knowledge
+            backup_knowledge(self.root, Path(destination), self.store.files(self.identity))
             history = self._history()
             for meta in history:
                 revision = meta['revision']
-                self._revision(revision)
+                _, files = self._revision(revision)
+                backup_knowledge(self.root, Path(destination), files)
                 target = Path(destination) / 'revisions' / revision
                 target.mkdir(mode=0o700, parents=True)
                 for name in ('revision.json', 'source.zip'):

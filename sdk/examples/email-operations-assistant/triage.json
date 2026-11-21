@@ -1,0 +1,68 @@
+{
+  "key": "mail_triage",
+  "label": "邮件跟进状态",
+  "binding": {
+    "provider": "local_collection",
+    "key": "mail_triage",
+    "resource_kind": "collection",
+    "access": "read_write",
+    "record_schema": {
+      "type": "object",
+      "required": [
+        "sender",
+        "subject",
+        "snippet",
+        "received_at",
+        "draft",
+        "message_id",
+        "reason",
+        "due_at",
+        "state"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "sender": {
+          "type": "string",
+          "maxLength": 480
+        },
+        "subject": {
+          "type": "string",
+          "maxLength": 600
+        },
+        "snippet": {
+          "type": "string",
+          "maxLength": 1600
+        },
+        "received_at": {
+          "type": "string",
+          "maxLength": 72
+        },
+        "draft": {
+          "type": "string",
+          "maxLength": 12000
+        },
+        "message_id": {
+          "type": "string",
+          "maxLength": 128
+        },
+        "reason": {
+          "type": "string",
+          "maxLength": 600
+        },
+        "due_at": {
+          "type": "string",
+          "maxLength": 40
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "followup",
+            "review",
+            "done",
+            "ignored"
+          ]
+        }
+      }
+    }
+  }
+}

@@ -52,6 +52,15 @@ CREATE TABLE artifacts(
   employee_run_id INTEGER REFERENCES employee_runs(id), name TEXT NOT NULL,
   ref TEXT NOT NULL, meta_json TEXT NOT NULL CHECK(json_valid(meta_json)),
   created_at TEXT NOT NULL, trashed_at TEXT);
+CREATE TABLE document_folders(
+  id TEXT PRIMARY KEY NOT NULL,
+  parent_id TEXT REFERENCES document_folders(id),
+  name TEXT NOT NULL CHECK(length(name) BETWEEN 1 AND 100));
+CREATE UNIQUE INDEX document_folder_siblings ON document_folders(coalesce(parent_id,''),name COLLATE NOCASE);
+CREATE TABLE document_folder_entries(
+  document_id INTEGER PRIMARY KEY REFERENCES artifacts(id) ON DELETE CASCADE,
+  folder_id TEXT NOT NULL REFERENCES document_folders(id));
+CREATE INDEX document_folder_contents ON document_folder_entries(folder_id);
 CREATE UNIQUE INDEX device_work_task_report ON artifacts(json_extract(meta_json,'$.pipeline_task_report.task_id'))
   WHERE json_extract(meta_json,'$.source')='pipeline_task_report'
     AND json_extract(meta_json,'$.revision_of')=id;

@@ -22,7 +22,7 @@
     },
     "dist/components/styles.css": {
       "source": "web/ui/kit/components/styles.css",
-      "sha256": "42705a9d5c775cc72569de918b7b52967f0fd595621584d4565ba662a55d14f0"
+      "sha256": "183a3414def0b8a81d203d71b0453694a5d81649573afdcec54a8304c66fcb48"
     }
   }
 }

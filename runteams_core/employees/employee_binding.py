@@ -23,13 +23,21 @@ def authoring_reference(session):
     return employee_references.checked_reference(for_session(session)['source']['reference'])
 
 
-def resolve(session):
-    """Read exact frozen bytes. This neither acquires nor publishes an asset."""
+def resolve(session, *, read_only=False):
+    """Resolve a work package, or read the saved source for a context query."""
     from runteams_core.storage import product_store
     if not session or not product_store.device_chat(session['id']):
         raise ContractError('请在员工的原工作对话中继续。')
     reference = authoring_reference(session)
     if reference is not None:
+        if read_only:
+            from runteams_core.employees.source_employee_runtime import describe
+            from runteams_core.employees.employee_avatars import identity
+            description = describe(reference)
+            asset = description['asset']
+            return {'reference': reference, 'package': None, 'asset_id': None,
+                    'employee': identity(asset['employee'], avatar_file=asset.get('avatar_file')),
+                    'source_description': description}
         from runteams_core.employees.source_employee_runtime import prepare, employee
         import uuid
         package = prepare(reference, str(uuid.uuid4()))
@@ -51,7 +59,7 @@ def resolve(session):
     return current().acquired_binding(session)
 
 
-def for_context(context):
+def for_context(context, *, read_only=False):
     """Model-provided names/IDs cannot override the server-owned chat binding."""
     from runteams_core.storage import product_store
     from runteams_core.foundation.identity.work_identity import principal
@@ -66,7 +74,7 @@ def for_context(context):
     if not session or (session.get('subject_type') != 'employee' and
                        session.get('kind') != 'employee_design'):
         return None
-    binding = resolve(session)
+    binding = resolve(session, read_only=read_only)
     supplied = (context or {}).get('conversation_context') or {}
     for field in ('source_employee', 'employee_reference'):
         if supplied.get(field) is not None and not employee_references.same(supplied[field], binding['reference']):
@@ -77,17 +85,27 @@ def for_context(context):
 def summary(binding):
     item = binding['employee']
     from runteams_core.employees.source_employee_runtime import units, package_asset
-    skills = units(package_asset(binding['package'])) if binding['package'] else [
-        {'key': u['skill_key'], 'name': u['work']['name'],
-         'input_schema': u['work']['input_schema']}
-        for u in item['active_release']['snapshot_json']['work_units']]
-    if binding['package']:
+    description = binding.get('source_description')
+    package = binding['package']
+    asset = description['asset'] if description else package_asset(package) if package else None
+    environment = []
+    if asset:
+        from runteams_core.assets.skills.skill_metadata import bundle_environment
+        environment = sorted({name for bundle in asset['skill_bundles'] for name in bundle_environment(bundle)})
         from runteams_core.authoring.creator_conversation_assets import extension
-        declared={bundle['package_key']:extension(bundle).get('work') for bundle in package_asset(binding['package'])['skill_bundles']}
-        skills=[{**(declared.get(skill['key']) or {}),**skill} for skill in skills]
+        declared={bundle['package_key']:extension(bundle).get('work') for bundle in asset['skill_bundles']}
+        skills=[{**(declared.get(skill['key']) or {}),**skill} for skill in units(asset)]
+    else:
+        skills = [{'key': u['skill_key'], 'name': u['work']['name'],
+                   'input_schema': u['work']['input_schema']}
+                  for u in item['active_release']['snapshot_json']['work_units']]
+    revision = (description or package or {}).get('revision')
+    if item.get('market_delivery') is True:
+        revision = item['active_release']['digest']
     return {'schema': 'runteams.bound-employee/v1', 'reference': deepcopy(binding['reference']),
             'name': item['name'], 'avatar': item['avatar'], **({'avatar_src':item['avatar_src']} if item.get('avatar_src') else {}), 'skills': skills,
-            'storage_scope': 'device', 'source_revision': (binding['package'] or {}).get('revision')}
+            **({'environment_tools': environment} if asset else {}),
+            'storage_scope': 'device', 'source_revision': revision}
 
 
 def public(session):

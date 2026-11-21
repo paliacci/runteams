@@ -118,6 +118,8 @@ def main(argv=None, *, packaged=False):
     commands.add_parser('build')
     test = commands.add_parser('test'); test.add_argument('--cases', default='dev/tests.json');test.add_argument('--trust-local-code',action='store_true')
     archive = commands.add_parser('pack'); archive.add_argument('--output', required=True)
+    archive.add_argument('--knowledge', action='append', default=[], metavar='ENTRY=FOLDER',
+                         help='include the selected employee or pipeline materials folder')
     inspect = commands.add_parser('inspect'); inspect.add_argument('archive')
     preview = commands.add_parser('preview'); preview.add_argument('--port', type=int, default=0)
     args = parser.parse_args(argv)
@@ -137,7 +139,17 @@ def main(argv=None, *, packaged=False):
                 'runtime': builder.runtime.manifest_sha256,
             })
         else:
-            files = inspect_file(args.archive) if args.command == 'inspect' else read_source(args.project)
+            from . import knowledge
+            if args.command == 'inspect':
+                with TemporaryDirectory() as directory:
+                    files = knowledge.inspect_package(args.archive, Path(directory))
+            else:
+                files = read_source(args.project)
+            blobs = {}
+            if args.command == 'pack':
+                folders = knowledge.folders_for(files, args.project, args.knowledge)
+                if folders:
+                    files, blobs = knowledge.media.inventory(files, folders)
             if args.command in ('build', 'test', 'preview'):
                 if args.command == 'test' and not args.trust_local_code:
                     raise ValueError('local_code_trust_required: self-test executes the current local author program')
@@ -153,8 +165,9 @@ def main(argv=None, *, packaged=False):
                 target = Path(args.output).resolve()
                 if target.is_relative_to(Path(args.project).resolve()):
                     raise ValueError('output_must_be_outside_source')
-                raw = pack(files); write_new(target, raw)
-                result.update(archive=str(target), archive_sha256=sha(raw), format='runteams.source-archive/1-dev')
+                checksum = knowledge.save_package(target, files, blobs)
+                result.update(archive=str(target), archive_sha256=checksum,
+                              format='runteams.knowledge-package/1' if blobs else 'runteams.source-archive/1-dev')
             if args.command in ('test', 'preview'):
                 if packaged:
                     with TemporaryDirectory(prefix='runteams-sdk-') as folder:

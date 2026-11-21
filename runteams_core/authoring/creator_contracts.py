@@ -181,6 +181,9 @@ def _compile_checked_source(files, *, schema_validator=None, source_index=None):
     def read(path):
         return strict_json(files[asset(path)])
     project = contract('project.schema.json', read('project.json'))
+    if 'asset-materials.json' in files:
+        from runteams_core.assets.knowledge_archive import index
+        index(files)
     if project['schema']=='runteams.creator-project/2':
         project={**project,**{k:project.get(k,[]) for k in ('operations','data_models','migrations','connections')}}
         project['entrypoints']={**project['entrypoints'],'pipelines':project['entrypoints'].get('pipelines',[]),
@@ -200,12 +203,14 @@ def _compile_checked_source(files, *, schema_validator=None, source_index=None):
     for ref in references:
         asset(ref)
     employees = {}
+    from runteams_core.assets.workspace_background import source_fields as workspace_background_fields
     for path in project['entrypoints']['employees']:
         employee = read(path)
         from runteams_core.authoring.creator_definitions import validate_author
         employee = validate_author('employee', employee)
         from runteams_core.employees.employee_avatars import attachment
         attachment(employee['avatar'], files)
+        workspace_background_fields(employee, files)
         asset(employee['soul_file'])
         for directory in employee['skill_dirs']:
             asset(relative(directory) + '/SKILL.md')
@@ -215,6 +220,7 @@ def _compile_checked_source(files, *, schema_validator=None, source_index=None):
         pipeline = read(path)
         from runteams_core.authoring.creator_definitions import validate_author
         pipeline = validate_author('pipeline', pipeline)
+        workspace_background_fields(pipeline, files)
         if 'avatar' in pipeline:
             from runteams_core.pipelines.pipeline_avatars import source_attachment
             source_attachment(pipeline['avatar'], files)

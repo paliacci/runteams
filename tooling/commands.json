@@ -93,6 +93,12 @@
       "description": "Export a self-contained macOS development workspace, without account data."
     },
     {
+      "path": "runteams_core/devtools/migrate_asset_knowledge.py",
+      "module": "runteams_core.devtools.migrate_asset_knowledge",
+      "command": true,
+      "description": "One-time offline relocation of installed knowledge originals without rewriting signed versions."
+    },
+    {
       "path": "runteams_core/devtools/package_creator_builder.py",
       "module": "runteams_core.devtools.package_creator_builder",
       "command": true,

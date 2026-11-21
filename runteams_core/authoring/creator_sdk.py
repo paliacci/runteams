@@ -33,7 +33,8 @@ def bounded_json(value, *, limit=16384):
 
 
 def sdk_frame(value, *, reply=False):
-    bounded_json(value)
     if not isinstance(value, dict) or type(value.get('id')) is not int:
         raise CreatorContractError('sdk_invalid_sequence')
+    limit = 128 * 1024 if not reply and value.get('method') == 'data.mutate' else 16384
+    bounded_json(value, limit=limit)
     return contract('reply.schema.json' if reply else 'request.schema.json', value)

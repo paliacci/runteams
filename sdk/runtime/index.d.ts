@@ -13,7 +13,8 @@ export function operationKey(value: string): RuntimeOperationKey;
 export interface RuntimeHost {
   readonly version: '1.0.0';
   negotiate(required: string[]): unknown;
-  data: {query(params: Parameters['data.query']): unknown; mutate(params: Parameters['data.mutate']): unknown};
+  data?: {query(params: Parameters['data.query']): unknown; mutate(params: Parameters['data.mutate']): unknown};
+  application?: {status(params: Parameters['application.status']): unknown; call(params: Parameters['application.call']): unknown};
   connection?: {http(params: Parameters['connection.http']): unknown};
 }
 export interface RecordValue<T extends JsonObject = JsonObject> {id: string; revision: string; value: T;}
@@ -28,6 +29,10 @@ export interface Runtime {
   readonly data: {
     query<T extends JsonObject = JsonObject>(params: Parameters['data.query']): DataPage<T>;
     mutate(params: Omit<Parameters['data.mutate'], 'operation_key'> & {operation_key: RuntimeOperationKey}): MutationReceipt;
+  };
+  readonly application: {
+    status(params: Parameters['application.status']): {connected: boolean; binding_key: string | null};
+    call(params: Omit<Parameters['application.call'], 'operation_key'> & {operation_key: RuntimeOperationKey}): JsonObject;
   };
   readonly connection: {http(params: Parameters['connection.http']): {status: number; body: JsonValue}};
 }

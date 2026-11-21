@@ -13,7 +13,7 @@ const table=(columns=5)=>`<div class="route-sk-table" style="--skeleton-columns:
 const fields=()=>`<div class="route-sk-fields">${repeat(3,`<div>${line('tab')}${line('field')}</div>`)}${line('editor')}</div>`;
 const tree=()=>`<div class="route-sk-tree">${line('tab')}${repeat(6,line('tree-row'))}</div>`;
 const composer=()=>`<div class="route-sk-composer">${line('copy')}<div>${line('tab')}${line('meta')}</div></div>`;
-const chat=()=>`<div class="route-sk-chat">${heading()}<div class="route-sk-chat-body">${repeat(3,paragraph())}</div>${composer()}</div>`;
+const chat=()=>`<div class="route-sk-chat">${workspaceHeader()}<div class="route-sk-chat-body">${repeat(3,paragraph())}</div>${composer()}</div>`;
 const skillRows=()=>`<div class="route-sk-skill-grid">${repeat(8,`<div class="route-sk-row" data-skeleton-row inert>${line('avatar')}${copy()}</div>`)}</div>`;
 const library=()=>`${heading()}<div class="route-sk-tabs">${repeat(2,line('tab'))}</div>${skillRows()}`;
 const detail=()=>`${heading(true)}<div class="route-sk-identity route-sk-detail-identity">${line('large-avatar')}${copy()}${line('action')}</div>${tabs()}<div class="route-sk-detail-columns"><div>${repeat(3,paragraph())}</div><div class="route-sk-card">${copy()}${line('field')}${line('field')}</div></div>`;
@@ -24,16 +24,19 @@ const pageStatus={
  'conversation-new':['skeleton.newConversation','正在打开新对话…'],
  conversation:['conversationDetail.loading','正在读取对话…'],
  'employee-examples':['conversationDetail.loading','正在读取员工对话…'],
- pipeline:['pipelineBoard.loading','正在读取流水线…'],
- 'pipeline-new':['skeleton.newPipeline','正在打开新建流水线…'],
+ pipeline:['pipelineBoard.loading','正在读取智能体团队…'],
+ 'pipeline-new':['skeleton.newPipeline','正在打开新建智能体团队…'],
  docs:['documentList.loading','正在读取文档…'],
  'document-reader':['documentReader.opening','正在打开文档…'],
- automations:['automationList.loading','正在读取自动化…'],
  trash:['trash.loading','正在读取垃圾箱…'],
  'design-system':['skeleton.designSystem','正在读取设计系统…'],
  workspace:['skeleton.workspace','正在打开工作区…']
 };
 const regionStatus={
+ 'overview-deliveries':pageStatus.docs,
+ 'overview-knowledge':['assetKnowledge.loading','正在读取资料…'],
+ 'overview-activity':['workRecords.loading','正在读取工作记录…'],
+ 'overview-automation':['automationList.loading','正在读取自动化…'],
  reviews:['skeleton.reviews','正在读取评价…'],
  versions:['employeeHistory.loading','正在读取历史版本…'],
  documents:pageStatus.docs,trash:pageStatus.trash,
@@ -42,7 +45,6 @@ const regionStatus={
  'conversation-messages':pageStatus.conversation,
  parameters:['taskEdit.loadingInputs','正在加载任务输入…'],
  history:['employeeHistory.loading','正在读取历史版本…'],
- 'employee-automations':pageStatus.automations,
  'source-list':['skeleton.list','正在读取列表…'],
  skills:['skeleton.skills','正在读取技能…']
 };
@@ -54,6 +56,7 @@ function statusAttrs(key='skeleton.loading',fallback='正在加载…'){
 function normalize(value){
  if(typeof value==='string'&&Object.hasOwn(pageStatus,value))return value;
  const route=typeof value==='string'?{kind:value}:value||{},kind=route.kind;
+ if(kind==='employee-work')return 'employee-examples';
  if(kind==='bot')return route.settings?'employee-settings':route.chatId==='new'?'employee-examples':'conversation';
  if(kind==='docs')return route.documentId?'document-reader':'docs';
  const contributed=global.RunTeamsHost.pages.normalize(value);if(contributed!==null)return contributed;
@@ -73,7 +76,22 @@ function region(kind,count,labelKey){
  switch(kind){
   case 'documents':case 'trash':body=table(3);break;
   case 'parameters':body=fields();break;
-  case 'employee-automations':body=repeat(count||3,`<div class="route-sk-automation-row" data-skeleton-row inert>${line('automation-toggle')}<div class="route-sk-automation-copy">${line('automation-name')}${line('automation-time')}</div>${line('automation-more')}</div>`);break;
+  case 'overview-configuration':body=`${line('drawer-section')}<div class="overview-field-skeleton">${line('name')}${line('field')}</div>`;break;
+  case 'overview-knowledge':case 'overview-deliveries':
+   body=repeat(kind==='overview-knowledge'?(count??3):2,`<div class="overview-delivery-skeleton" data-skeleton-row>${line('delivery-icon')}${line('name')}${line('meta')}</div>`);break;
+  case 'overview-activity':{
+   const record=`<div class="result-delivery-summary" data-skeleton-row>
+    <div class="result-delivery-title overview-sk-title">${line('name')}${line('meta')}<span class="skeleton-block i"></span></div>
+    <div class="result-delivery-line overview-sk-detail">${line('short')}${line('meta')}</div>
+   </div>`;
+   body=`<div class="work-record-list overview-records overview-activity-rows">${repeat(2,record)}</div>`;break;
+  }
+  case 'overview-automation':
+   body=repeat(2,`<div class="employee-automation-row" data-skeleton-row>
+    <div class="employee-automation-copy"><div class="overview-sk-title">${line('name')}</div><div class="overview-sk-detail">${line('short')}</div></div>
+    <span class="employee-automation-icon-action employee-automation-toggle">${line('overview-control')}</span>
+    <span class="employee-automation-icon-action">${line('overview-control')}</span>
+   </div>`);break;
   case 'history':body=repeat(count||3,`<div class="route-sk-history-row" data-skeleton-row inert>${line('name')}${line('meta')}</div>`);break;
 
   case 'pipeline-stage-employees':body=repeat(count||3,`<div class="route-sk-stage-employee" data-skeleton-row inert>${line('stage-avatar')}<div class="route-sk-stage-copy">${line('stage-name')}${line('stage-skill')}</div></div>`);break;
@@ -118,17 +136,16 @@ function pipelineColumns(){
  return `<div class="cols" aria-hidden="true" inert>${columns}</div>`;
 }
 function pipelineBoard(){
- return `<main class="home-workspace source-pipeline-workspace pipeline-board-loading" role="status" aria-label="正在读取流水线" data-app-i18n-aria-label="pipelineBoard.loading" aria-busy="true"><div class="board core-pipeline-board skeleton-board">${pipelineColumns()}</div></main>`;
+ return `<main class="home-workspace source-pipeline-workspace pipeline-board-loading" role="status" aria-label="正在读取智能体团队" data-app-i18n-aria-label="pipelineBoard.loading" aria-busy="true"><div class="board core-pipeline-board skeleton-board">${pipelineColumns()}</div></main>`;
 }
-function conversationHeaderActions(){return '<div class="conversation-panel-controls conversation-header-skeleton-actions" inert aria-hidden="true">'+repeat(3,'<span class="skeleton-block conversation-header-skeleton-action"></span>')+'</div>';}
 function workspaceHeader({pipeline=false}={}){
- const label=pipeline?'正在读取流水线信息':'正在读取对话信息';
+ const label=pipeline?'正在读取智能体团队信息':'正在读取对话信息';
  const title=`<span class="conversation-header-skeleton" aria-hidden="true"><span class="skeleton-block conversation-header-skeleton-title"></span></span>`;
- return `<header class="conversation-panel-header workspace-header-loading${pipeline?' employee-desk':''}" role="status" aria-label="${label}" data-app-i18n-aria-label="${pipeline?'pipelineBoard.loading':'conversationDetail.headerLoading'}" aria-busy="true">${title}${conversationHeaderActions()}</header>`;
+ return `<header class="conversation-panel-header workspace-header-loading${pipeline?' employee-desk':''}" role="status" aria-label="${label}" data-app-i18n-aria-label="${pipeline?'pipelineBoard.loading':'conversationDetail.headerLoading'}" aria-busy="true">${title}</header>`;
 }
 function wrap(kind,body){
  const status=Object.hasOwn(pageStatus,kind)?pageStatus[kind]:global.RunTeamsHost.pages.skeletonStatus?.(kind)||[];
  return `<div class="route-skeleton" data-page-skeleton="${kind}" ${statusAttrs(...status)}><div class="route-sk-shapes" aria-hidden="true" inert>${body}</div></div>`;
 }
-global.RunTeamsSkeletons={normalize,fromLocation,page,region,wrap,statusAttrs,drawerHeading,conversationHeaderActions,pipelineColumns,pipelineBoard,workspaceHeader};
+global.RunTeamsSkeletons={normalize,fromLocation,page,region,wrap,statusAttrs,drawerHeading,pipelineColumns,pipelineBoard,workspaceHeader};
 })(window);

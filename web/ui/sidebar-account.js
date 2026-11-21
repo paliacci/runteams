@@ -38,7 +38,7 @@
     const employee=host.employee?.(item.employee)||item.employee;
     const pipeline=kind==='pipeline'&&(item.pipeline_name||item.name);
     const subtitle=[employee?.name||(kind==='employee'?item.name:''),pipeline].filter(Boolean).join('\u2002');
-    const fallback={pipeline:'流水线',employee:'员工'}[kind]||'员工';
+    const fallback={pipeline:'智能体团队',employee:'员工'}[kind]||'员工';
     const nameCopy=subtitle?` title="${escape(subtitle)}"`:` data-app-i18n="sidebarAttention.${kind}"`;
     const icon=employee?.name&&host.avatar?host.avatar(employee):host.icon(kind==='pipeline'?'flow':'user');
     return `<button type="button" class="rail-pending-item" data-pending-key="${escape(item.key)}" onclick="RunTeamsSidebar.openItem(this.dataset.pendingKey)"><span class="rail-pending-source-icon${kind==='pipeline'&&!employee?.name?' is-pipeline-fallback':''}" aria-hidden="true">${icon}</span><span class="rail-pending-copy"><span class="rail-pending-title" title="${escape(title)}"${titleCopy}>${escape(title)}</span><small${nameCopy}>${escape(subtitle||fallback)}</small></span></button>`;}

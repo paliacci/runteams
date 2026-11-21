@@ -7,7 +7,7 @@ PATH = '/api/creator-source/drafts'
 
 
 def dispatch(runtime, method, path, data):
-    match = re.fullmatch(re.escape(PATH) + r'/([a-f0-9]{64})(/(?:file|workspace|history|receipt|edit|restore|session|recovery|build|export|configuration|identity))?', path)
+    match = re.fullmatch(re.escape(PATH) + r'/([a-f0-9]{64})(/(?:file|workspace|history|receipt|edit|restore|session|recovery|build|export|configuration|identity|attach-knowledge))?', path)
     if not match:
         raise KeyError('本机源码接口不存在。')
     if not isinstance(data, dict):

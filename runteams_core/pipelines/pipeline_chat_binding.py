@@ -8,6 +8,6 @@ def reference(chat):
     if (not device_data.personal() or not product_store.device_chat(chat) or not session or
             session['kind'] != 'general' or session['subject_type'] != 'workspace' or
             'source_pipeline_workspace' not in session['context']):
-        raise PermissionError('请打开这条流水线自己的会话。')
+        raise PermissionError('请打开这个智能体团队自己的会话。')
     return pipeline_references.checked_reference(session['context']['source_pipeline_workspace'])
 

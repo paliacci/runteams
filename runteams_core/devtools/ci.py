@@ -45,6 +45,8 @@ def main():
     subprocess.run([str(interpreter), '-I', '-m', 'pip', 'install', str(wheel)], check=True)
     subprocess.run([str(interpreter), '-I', '-B', '-m', 'runteams_core.devtools.verify_install'], cwd=output, check=True)
     subprocess.run([str(interpreter), '-I', '-B', '-m', 'unittest', 'discover', '-s',
+                    str(ROOT / 'tests'), '-p', 'test_reply_visualizations.py'], cwd=output, check=True)
+    subprocess.run([str(interpreter), '-I', '-B', '-m', 'unittest', 'discover', '-s',
                     str(ROOT / 'tests'), '-p', 'test_library_settings.py'], cwd=output, check=True)
     report['library_settings_transactions'] = True
     subprocess.run([str(interpreter), '-I', '-B', '-m', 'unittest', 'discover', '-s',

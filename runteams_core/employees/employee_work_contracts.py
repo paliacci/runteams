@@ -80,18 +80,18 @@ def verify_frozen(value,scope):
         from runteams_core.pipelines.source_pipeline_work import verify_context
         verify_context(value['pipeline_work'], package, scope)
         if type(value.get('pipeline_generation')) is not int or value['pipeline_generation']<1:
-            raise ContractError('流水线工作应用代际无效。')
+            raise ContractError('智能体团队工作应用代际无效。')
         history=value.get('pipeline_history',[])
-        if not isinstance(history,list):raise ContractError('流水线工作历史无效。')
-        if type(value.get('pipeline_visit')) is not int or value['pipeline_visit']<1:raise ContractError('流水线岗位访问记录无效。')
+        if not isinstance(history,list):raise ContractError('智能体团队工作历史无效。')
+        if type(value.get('pipeline_visit')) is not int or value['pipeline_visit']<1:raise ContractError('智能体团队岗位访问记录无效。')
         last=0;generation=0
         for item in history:
-            if not isinstance(item,dict) or set(item)!={'snapshot'}:raise ContractError('流水线工作历史无效。')
+            if not isinstance(item,dict) or set(item)!={'snapshot'}:raise ContractError('智能体团队工作历史无效。')
             old=item['snapshot']
             if old.get('pipeline_history') or old.get('pipeline_work',{}).get('reference')!=value['pipeline_work']['reference']:
-                raise ContractError('流水线历史归属无效。')
+                raise ContractError('智能体团队历史归属无效。')
             verify_frozen(old,scope)
-            if not generation<=old['pipeline_generation']<=value['pipeline_generation'] or not last<old['pipeline_visit']<value['pipeline_visit']:raise ContractError('流水线历史代际无效。')
+            if not generation<=old['pipeline_generation']<=value['pipeline_generation'] or not last<old['pipeline_visit']<value['pipeline_visit']:raise ContractError('智能体团队历史代际无效。')
             last=old['pipeline_visit'];generation=old['pipeline_generation']
     preparation=value.get('pipeline_setup_required')
     if preparation is not None:
