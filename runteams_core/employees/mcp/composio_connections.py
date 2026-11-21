@@ -108,6 +108,10 @@ def tool(row):
 # Map provider tools to the operations an asset can declare. Keep names and
 # account display attributes out of the matching logic.
 _APPLICATION_OPERATIONS = {
+    'google_search_console': {
+        'search.sites.read': 'GOOGLE_SEARCH_CONSOLE_LIST_SITES',
+        'search.performance.read': 'GOOGLE_SEARCH_CONSOLE_SEARCH_ANALYTICS_QUERY',
+    },
     'gmail': {'mail.read': 'GMAIL_FETCH_EMAILS', 'mail.draft': 'GMAIL_CREATE_EMAIL_DRAFT'},
     'outlook': {'mail.read': 'OUTLOOK_LIST_MESSAGES', 'mail.draft': 'OUTLOOK_CREATE_DRAFT'},
 }

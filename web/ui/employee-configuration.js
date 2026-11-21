@@ -303,9 +303,10 @@ function embeddedSettings(){
  return '<section class="creator-asset-settings employee-configuration-drawer" aria-label="员工设置" data-app-i18n-aria-label="employeeSettings.title"'+(s.loading?' aria-busy="true"':'')+'><div class="right-detail-scroll" tabindex="-1"><div class="detail-drawer-summary">'+intro+'</div><div class="employee-configuration-body settings-section-stack">'+content+footer+'</div></div></section>';
 }
 // Device connections are shared. This list stores only the employee's selections.
-const hasApplications=s=>!!employeeApplicationReference(s.entry)&&!!s.entry.key&&!s.entry.chat_id&&!s.entry.pipeline_reference&&!s.entry.pipeline_own&&
+const applicationOwner=entry=>entry.chat_id?RunTeamsEmployeeDirectory.entryFor(entry.reference):entry;
+const hasApplications=s=>!!employeeApplicationReference(applicationOwner(s.entry))&&!!applicationOwner(s.entry)?.key&&!s.entry.pipeline_reference&&!s.entry.pipeline_own&&
  !RunTeamsHost.session.workspace(S)&&!RunTeamsHost.session.readOnly(S);
-const applicationKey=s=>'runteams.employee.applications.'+s.entry.key;
+const applicationKey=s=>'runteams.employee.applications.'+applicationOwner(s.entry).key;
 const applicationId=row=>row.provider+':'+row.id;
 const employeeApplicationReference=entry=>entry?.source?.reference||entry?.reference||entry?.work?.native_asset?.employee_reference;
 const applicationMigrations=new Map();
@@ -335,8 +336,9 @@ async function prepareApplications(panel){
 }
 async function loadApplicationBindings(s){
  try{
-  const migrated=await migrateEmployeeApplications(s.entry);
-  const result=migrated||await accountMcpTestRequest({action:'employee-apps-read',employee:employeeApplicationReference(s.entry)});
+  const owner=applicationOwner(s.entry);
+  const migrated=await migrateEmployeeApplications(owner);
+  const result=migrated||await accountMcpTestRequest({action:'employee-apps-read',employee:employeeApplicationReference(owner)});
   if(!displayed(s))return;
   s.applications=result.applications;
   paintApplicationRows(s);
@@ -354,10 +356,11 @@ function applications(s){
 async function changeApplication(s,row,remove=false){
  if(!displayed(s)||!hasApplications(s))return;
  try{
-  await migrateEmployeeApplications(s.entry);
+  const owner=applicationOwner(s.entry);
+  await migrateEmployeeApplications(owner);
   if(!displayed(s))return;
   const result=await accountMcpTestRequest({action:'employee-apps-set',
-   employee:employeeApplicationReference(s.entry),row,remove});
+   employee:employeeApplicationReference(owner),row,remove});
   s.applications=result.applications;
  }catch{
   toast(copy('appsSaveFailed','无法保存应用配置。'),'err','employeeSettings.appsSaveFailed');
@@ -433,21 +436,30 @@ async function refreshEmployeeApplicationNames(s){
   apply(row,name);
  }
 }
+function listedApplications(s){
+ const saved=applications(s),items=new Map(saved.map(row=>[applicationId(row),row]));
+ for(const requirement of s.data?.definition.application_requirements||[]){
+  if(!requirement.toolkit)continue;
+  const row={provider:'composio',id:requirement.toolkit,name:requirement.label};
+  if(!items.has(applicationId(row)))items.set(applicationId(row),row);
+ }
+ return [...items.values()];
+}
 function applicationRows(s){
  const label=(key,fallback)=>messageMarkup(message(key,fallback));
- return applications(s).map(row=>{
+ return listedApplications(s).map(row=>{
   const pending=s.applicationConnections?.get(applicationId(row));
   const id=esc(applicationId(row)),name=esc(row.name),account=applicationAccount(s,row);
   return '<div class="employee-application-row">'+applicationMark(row)+
    '<strong class="employee-application-name" title="'+name+'">'+name+'</strong>'+
-   account+'<button type="button" class="btn ghost employee-application-more" data-menu-trigger="quiet" data-employee-app-menu="'+id+'" aria-haspopup="menu" aria-expanded="false"'+(pending?' disabled':'')+' aria-label="'+esc(copy('appsMore','更多操作')+' · '+row.name)+'">'+ICON('more')+'</button></div>';
+   account+(applications(s).some(saved=>applicationId(saved)===applicationId(row))?'<button type="button" class="btn ghost employee-application-more" data-menu-trigger="quiet" data-employee-app-menu="'+id+'" aria-haspopup="menu" aria-expanded="false"'+(pending?' disabled':'')+' aria-label="'+esc(copy('appsMore','更多操作')+' · '+row.name)+'">'+ICON('more')+'</button>':'')+'</div>';
  }).join('')+'<div class="employee-application-footer"><button type="button" class="btn" data-employee-app-add>'+label('appsAdd','添加应用')+'</button></div>';
 }
 function applicationSection(s){
  if(!hasApplications(s))return '';
  const id=formId(s)+'-applications';
  return RunTeamsEmployeeDrawerHeader.section({
-  id:id+'-section',title:messageMarkup(message('appsTitle','已添加的应用')),
+  id:id+'-section',title:messageMarkup(message('appsTitle','应用连接')),
   body:'<div id="'+id+'">'+applicationRows(s)+'</div>',
   collapsedSections:s.collapsedSections,action:'RunTeamsEmployeeConfiguration.toggleSection'
  });
@@ -681,7 +693,7 @@ function connectEmployeeComposio(s,row,reconnect,context=null){
  if(states.has(id))return;
  const state={label:message('appsConnecting','正在连接…')};
  states.set(id,state);
- const current=()=>available()&&states.get(id)===state&&(context||applications(s).some(item=>applicationId(item)===id));
+ const current=()=>available()&&states.get(id)===state&&(context||listedApplications(s).some(item=>applicationId(item)===id));
  const paintState=()=>{
   if(context){context.status(state);return;}
   const slot=document.getElementById(formId(s)+'-applications');
@@ -749,7 +761,7 @@ function applicationAction(s,button){
  if(!hasApplications(s))return;
  if(button.hasAttribute('data-employee-app-add'))return openApplicationPicker(s);
  const id=button.dataset.employeeAppMenu??button.dataset.employeeAppConnect;
- const row=applications(s).find(item=>applicationId(item)===id);
+ const row=listedApplications(s).find(item=>applicationId(item)===id);
  if(!row)return;
  const connect=reconnect=>row.provider==='mcp'?openApplicationMcp(s,row):connectEmployeeComposio(s,row,reconnect);
  if(button.hasAttribute('data-employee-app-connect'))return connect(false);

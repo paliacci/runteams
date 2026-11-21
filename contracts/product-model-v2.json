@@ -1315,7 +1315,7 @@
                 "minItems": 1,
                 "maxItems": 2,
                 "uniqueItems": true,
-                "items": {"enum": ["mail.read", "mail.draft"]}
+                "items": {"enum": ["mail.read", "mail.draft", "search.sites.read", "search.performance.read"]}
               }
             }
           }

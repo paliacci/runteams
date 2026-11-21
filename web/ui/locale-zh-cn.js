@@ -440,7 +440,7 @@ globalThis.RUNTEAMS_LOCALES = {
   "employeeSettings.fieldError.booleanRequired": "请选择「是」或「否」。",
   "employeeSettings.fieldError.invalidSelections": "请从可用选项中选择，每项只选一次。",
   "employeeSettings.fieldError.selectionRequired": "请至少选择一项。",
-  "employeeSettings.appsTitle": "已添加的应用",
+  "employeeSettings.appsTitle": "应用连接",
   "employeeSettings.appsAdd": "添加应用",
   "employeeSettings.appsConnecting": "正在连接…",
   "employeeSettings.appsWaitingAuth": "等待授权",

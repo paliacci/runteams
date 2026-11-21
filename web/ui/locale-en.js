@@ -439,7 +439,7 @@ globalThis.RUNTEAMS_LOCALES.en = {
   "employeeSettings.fieldError.booleanRequired": "Choose Yes or No.",
   "employeeSettings.fieldError.invalidSelections": "Choose from the available options. Select each option once.",
   "employeeSettings.fieldError.selectionRequired": "Choose at least one option.",
-  "employeeSettings.appsTitle": "Added Apps",
+  "employeeSettings.appsTitle": "App Connections",
   "employeeSettings.appsAdd": "Add App",
   "employeeSettings.appsConnecting": "Connecting…",
   "employeeSettings.appsWaitingAuth": "Waiting for authorization",

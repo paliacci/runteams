@@ -33,6 +33,20 @@ class AssetGuideTests(unittest.TestCase):
         steps = remaining_steps(definition, {'audience': 'missing', 'scope': 'configured', 'details': 'needs_review'})
         self.assertEqual([question['field'] for question in steps[1]['questions']], ['audience', 'scope', 'details'])
 
+    def test_search_console_settings_support_site_and_performance_reads_without_onboarding(self):
+        toolkit = 'google_search_console'
+        operations = ['search.sites.read', 'search.performance.read']
+        definition = {'schema': 'runteams.employee-configuration/1', 'groups': [],
+                      'application_requirements': [{'key': 'search-console', 'label': 'Google Search Console',
+                                                    'toolkit': toolkit, 'operations': operations}]}
+        self.assertEqual(validate_declaration(definition), definition)
+        def read_tool(slug):
+            return {'slug': slug, 'version': '1', 'toolkit': {'slug': toolkit}}
+        result = compatible_applications(operations, lambda slug: {'slug': slug}, read_tool, toolkit_required=toolkit)
+        self.assertEqual([row['slug'] for row in result], [toolkit])
+        self.assertEqual([item['name'] for item in result[0]['operations'].values()],
+                         ['GOOGLE_SEARCH_CONSOLE_LIST_SITES', 'GOOGLE_SEARCH_CONSOLE_SEARCH_ANALYTICS_QUERY'])
+
     def test_model_cannot_invent_fields_or_connections(self):
         for key in ('application', 'field'):
             with self.subTest(key=key):
