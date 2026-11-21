@@ -276,7 +276,7 @@ def _operate(core, arguments, binding, *, owner=nullcontext(), output_directory=
         row=c.execute('SELECT * FROM artifacts WHERE id=?',(doc['id'],)).fetchone()
         if core._read_document_body(row) != body:
             raise ContractError('保存的工作成果未能完整读回，请核对原文档。')
-        meta=json.loads(row[0]);root=int(meta.get('revision_of') or doc['id'])
+        meta=json.loads(row['meta_json']);root=int(meta.get('revision_of') or doc['id'])
         marker=copy.deepcopy(selected['binding'] if selected else binding)
         marker.setdefault('creation_title',title)
         if 'created_at' not in marker:
