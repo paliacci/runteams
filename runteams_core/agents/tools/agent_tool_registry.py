@@ -1156,7 +1156,10 @@ def _creator_source(arguments, context):
 
 def _audit_public_website(arguments, context):
     from runteams_core.agents.tools.public_site_audit import audit
-    result = audit(arguments)
+    try:
+        result = audit(arguments)
+    except ValueError as error:
+        raise AgentToolError(str(error)) from error
     return AgentToolResult('public_site_audit', '公开网页采样已结束，请根据逐页记录核对覆盖范围。', result)
 
 
