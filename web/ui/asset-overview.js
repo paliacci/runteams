@@ -656,10 +656,15 @@ const RunTeamsEnvironment = (() => {
    ${RunTeamsEmployeeAutomation.overviewSection()}${pipeline()?knowledgeSection(knowledge):''}${configuration}${extras}`;
   return `<aside class="drawer right-detail-drawer asset-overview employee-configuration-drawer ${pipeline()?'source-pipeline-settings-drawer':''}"><div class="right-detail-scroll overview-scroll"><div class="right-detail-body overview-body">${body}</div></div>${footer(version,modeControl,actions,versionLoading)}</aside>`;
  }
- function openEmployeeSettings(){
-  if(!employee())return;
-  const entry=RunTeamsEmployeeDirectory.forPanel(S.conversationPanel);
-  if(entry)return RunTeamsEmployeeConfiguration.open(entry);
+ function employeeConfiguration(panel,entry){
+  if(!entry||entry.work?.history_only||panel.loading||panel.error||panel.employee_error||panel.context?.pipeline_work||panel.context?.source_pipeline_workspace)return '';
+  const selection=S.sel,settings=RunTeamsEmployeeConfiguration;
+  const target=settings.workTarget(panel)||entry;
+  requestAnimationFrame(()=>{
+   if(S.sel===selection&&S.conversationPanel===panel)void settings.mountInline(target,selection);
+  });
+  const parts=settings.inlineParts(target.key);
+  return parts?'<div class="settings-section-stack">'+parts.body+'</div>':'';
  }
  function employeeDrawer(){
   const panel=S.conversationPanel,entry=RunTeamsEmployeeDirectory.forPanel(panel),record=entry?.record||{},binding=panel.employee_binding||{};
@@ -676,8 +681,8 @@ const RunTeamsEnvironment = (() => {
    environment:[{name:name||'当前员工',tools:binding.environment_tools??entry?.source?.environment_tools}],
    avatar:`<span class="overview-avatar">${workerAvatarMarkup({...record,...binding})}</span>`,description,runtime,
    examples:chips?`<div class="overview-examples">${chips}</div>`:'',versionLoading:directoryLoading,
-   pending:conversationQuestionDock('panel'),version,actions:(entry?textButton('<span data-app-i18n="employeeSettings.title">员工设置</span>','RunTeamsAssetOverview.openEmployeeSettings()',false,'btn ghost sm'):'')+(RunTeamsHost.assets.employeeVersionControl?.(panel,entry)||'')+publication});
+   configuration:employeeConfiguration(panel,entry),pending:conversationQuestionDock('panel'),version,actions:(RunTeamsHost.assets.employeeVersionControl?.(panel,entry)||'')+publication});
  }
  function example(i){if(!employee())return;const item=conversationEmployeeExamples(S.conversationPanel)[i];if(item)conversationPanelWorkExample(JSON.stringify(item));}
- window.RunTeamsAssetOverview={active,employee,pipeline,employeeEligible,pendingPage,prepare,closed,takeManualMotion,trigger,toggle,section,sectionAction,loadingSection,textButton,labels,shell,employeeDrawer,openEmployeeSettings,back,backMarkup,openKnowledge,toggleKnowledge,retryKnowledge,uploadKnowledge,exportKnowledge,openDelivery,openRow,toggleActivity,openEmployeeActivity,toggleDeliveries,load,example};
+ window.RunTeamsAssetOverview={active,employee,pipeline,employeeEligible,pendingPage,prepare,closed,takeManualMotion,trigger,toggle,section,sectionAction,loadingSection,textButton,labels,shell,employeeDrawer,back,backMarkup,openKnowledge,toggleKnowledge,retryKnowledge,uploadKnowledge,exportKnowledge,openDelivery,openRow,toggleActivity,openEmployeeActivity,toggleDeliveries,load,example};
 })();

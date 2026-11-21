@@ -7766,10 +7766,10 @@ function detailWorkspaceController(){
     read:()=>S.sel,write:value=>{S.sel=value;},context:detailWorkspaceContext,resolve:detailWorkspaceView,
     guard:()=>false,
     capture:selection=>{
-      if(!['core-results','creator-assets','employee-configuration'].includes(selection?.type)||!detailWorkspaceDomCurrent())return;
+      if(!['core-results','creator-assets','employee-configuration','employee-overview'].includes(selection?.type)||!detailWorkspaceDomCurrent())return;
       if(selection?.type==='core-results')globalThis.RunTeamsWorkRecords?.capture();
       if(selection?.type==='creator-assets')globalThis.RunTeamsCreatorAuthor?.capture();
-      if(selection?.type==='employee-configuration')globalThis.RunTeamsEmployeeConfiguration?.capture();
+      if(['employee-configuration','employee-overview'].includes(selection?.type))globalThis.RunTeamsEmployeeConfiguration?.capture();
     },
     returnTo:selection=>selection?.overviewReturn||(selection?.type==='core-employee-editor'?_coreEmployeeEditorReturn:null),
     changed:()=>{++_detailOpenSequence;},
@@ -7789,7 +7789,7 @@ function detailWorkspaceController(){
         }
       }
       if(reason!=='context'&&detailWorkspaceDomCurrent()){
-        if(previous?.type==='employee-configuration'||previous?.type==='source-pipeline'&&['position','settings','work'].includes(previous.id))globalThis.RunTeamsEmployeeConfiguration?.leave?.();
+        if(['employee-configuration','employee-overview'].includes(previous?.type)||previous?.type==='source-pipeline'&&['position','settings','work'].includes(previous.id))globalThis.RunTeamsEmployeeConfiguration?.leave?.();
         if(previous?.type==='source-pipeline'&&previous.id==='work')globalThis.RunTeamsSourcePipelinePanels?.leaveTaskConfiguration();
       }
       if(previous?.type==='creator-assets')globalThis.RunTeamsCreatorAuthor?.leave?.();

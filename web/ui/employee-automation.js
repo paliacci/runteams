@@ -395,7 +395,7 @@
 
  function settingsOpen(panel=S.conversationPanel){
   const configuration=window.RunTeamsEmployeeConfiguration?.current();
-  if(configuration&&configuration.entry.key===(window.RunTeamsEmployeeConfiguration?.workTarget?.(panel)||target(panel))?.key)return true;
+  if(configuration&&S.sel?.type!=='employee-overview'&&configuration.entry.key===(window.RunTeamsEmployeeConfiguration?.workTarget?.(panel)||target(panel))?.key)return true;
   const t=target(panel),s=typeof RunTeamsCreatorAuthor==='undefined'?null:RunTeamsCreatorAuthor.current();
   return !!s&&!!t?.source&&(s.session===panel.id||(s.sourceId===t.source.id||s.localDraft?.id===t.source.id)&&(!s.employeeSource||s.employeeSource===t.source.path));
  }
