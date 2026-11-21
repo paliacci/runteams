@@ -18,7 +18,11 @@
 .work-deliverable,.overview-delivery-skeleton{display:grid;box-sizing:border-box;grid-template-columns:14px minmax(0,1fr) auto;align-items:center;column-gap:6px;min-height:38px;padding:8px 10px 8px 8px}
 .work-deliverable{position:relative;width:100%;border:0;background:transparent;color:var(--text-primary);font:inherit;text-align:start;cursor:pointer}
 @media(pointer:coarse){.work-deliverable,.overview-delivery-skeleton{min-height:44px}}
-.work-deliverable:focus-visible{outline:2px solid var(--text-secondary);outline-offset:-2px}
+.work-delivery-with-download{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:stretch}
+.work-delivery-download{display:grid;place-items:center;min-width:32px;border:0;background:transparent;color:var(--text-secondary);cursor:pointer}
+.work-delivery-download .i{width:14px;height:14px}
+.work-delivery-download:hover{color:var(--text-primary);background:var(--surface-hover)}
+.work-delivery-download:focus-visible,.work-deliverable:focus-visible{outline:2px solid var(--text-secondary);outline-offset:-2px}
 .work-deliverable-icon,.work-deliverable-icon>.i{display:block;width:14px;height:14px;color:var(--text-muted)}
 .work-deliverable-title{font-feature-settings:"halt";min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:calc(13px * var(--interface-font-scale,1));line-height:20px;font-weight:500}
 .work-deliverable-action{white-space:nowrap;color:var(--text-secondary);font-size:calc(11px * var(--interface-font-scale,1));line-height:18px;font-weight:400}

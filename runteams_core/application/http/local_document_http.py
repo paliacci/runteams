@@ -46,7 +46,11 @@ def dispatch(core, method, path, data):
             from runteams_core.documents.document_export import export_document
             item=core.document_detail(identifier)
             if not item:return DocumentResponse({'error':'文档不存在'},404)
-            raw,name,mime=export_document(core,item)
+            if data.get('format') == 'markdown':
+                from runteams_core.documents.handoff_export import export_handoff
+                raw,name,mime=export_handoff(core,item)
+            else:
+                raw,name,mime=export_document(core,item)
             return DocumentResponse(raw,200,name,mime)
         if action in ('assets','templates'):
             key=parts[3] if len(parts)>3 else None

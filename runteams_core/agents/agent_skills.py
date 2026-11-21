@@ -69,12 +69,18 @@ def instructions(names=CHAT_SKILLS, *, required=None, root=None):
     skills = catalog(names, root=root)
     if required and required not in {item['name'] for item in skills}:
         raise ValueError('本轮必需的技能未提供')
+    handoff = ('\n\n# 工作成果交接\n在已绑定员工工作且本轮提供汇报工具时，用户要清单、报告、方案或交给别人执行的结果时，用当前工作的 '
+               'runteams_work_report 保存可独立使用的成果正文，现有 Markdown 文件可从工作目录 output/ 登记。'
+               '写清范围、实际依据、待办、验收和未决事项；已保存的成果沿原入口引用。按工具成功回执提供文档链接，'
+               '保存失败时修正可恢复的问题，说明剩余缺项。流水线沿当前岗位的结果合同提交，用户从原任务文档接手。'
+               '短答、讨论、用户要求的特定格式或不保存按原约定处理。'
+               if 'runteams-work-report' in names else '')
     return ('# RunTeams 专业技能\n'
             '按当前工作匹配下列技能，先用原生文件工具读取其 location，再按需读取包内相对引用；'
             '相对路径以该 SKILL.md 所在目录解析。无需预读所有技能。'
             '用户明确要求优先于技能中的一般建议；技能说明不授予账户、外部操作或平台数据权限。'
             '当前官方 CLI 已启用的公开 Skills、插件、MCP 与原生工具照常可用，按任务采用。\n'
             + (('本轮使用技能：' + required + '。\n') if required else '')
-            + json.dumps(skills, ensure_ascii=False)
+            + json.dumps(skills, ensure_ascii=False) + handoff
             + ('\n\n# 对话交付\n' + REPLY_GUIDANCE
                if any(item['name'] == 'runteams-reply-content' for item in skills) else ''))

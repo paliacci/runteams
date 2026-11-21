@@ -111,6 +111,9 @@
    if(scope===documentsBinding())toast('无法导出文件。请重试。','err','fileBrowser.exportFailed');
   }
  }
+ function downloadDelivery(id){
+  return downloadSaved(deviceWorkPath(`/api/core/documents/${id}/download`)+'?format=markdown');
+ }
  function exportSaved(id){return downloadSaved(`/api/device/work/documents/${id}/download`);}
  function exportSelection(ids){return downloadSaved('/api/device/work/documents/export?'+new URLSearchParams({ids:ids.join(',')}));}
  function retrySave(){editorAction('retry-save');}
@@ -233,5 +236,5 @@
  });
  window.addEventListener('beforeunload',event=>{if(S.docReader?.richDirty){event.preventDefault();event.returnValue='';}});
  window.addEventListener('runteams:business-scope-will-change',()=>{creation=null;syncCreateButton();reports.clear();for(const item of pending.values())item.done(false);pending.clear();});
- window.RunTeamsRichDocuments=Object.freeze({supported,main,reportMarkup,flush,create,createMenuItem,loaded,retry,exportCurrent,exportSaved,exportSelection,retrySave,toggleOutline,jumpOutline});
+ window.RunTeamsRichDocuments=Object.freeze({supported,main,reportMarkup,flush,create,createMenuItem,loaded,retry,exportCurrent,exportSaved,downloadDelivery,exportSelection,retrySave,toggleOutline,jumpOutline});
 })();

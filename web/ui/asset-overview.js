@@ -371,8 +371,8 @@ const RunTeamsEnvironment = (() => {
   document.querySelector('.overview-delivery-section .settings-section-action')?.focus({preventScroll:true});
  }
  function deliveryRows(items){
-  const rows=items.map(({key,file})=>RunTeamsWorkRecords.deliveryRowMarkup(file,{
-   key,action:'RunTeamsAssetOverview.openDelivery(this.dataset.resultKey)'
+  const rows=items.map(({key,file,id,document})=>RunTeamsWorkRecords.deliveryRowMarkup(file,{
+   key,downloadId:document?id:null,action:'RunTeamsAssetOverview.openDelivery(this.dataset.resultKey)'
   })).join('');
   return `<div class="work-deliverable-list" id="overview-delivery-files" role="list">${rows}</div>`;
  }

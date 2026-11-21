@@ -106,6 +106,8 @@ test('overview lists finalized documents and files directly, with overflow only 
   assert.match(sections()[0],/Final document.*final.pdf/s);
   assert.match(sections()[0],/class="work-deliverable-title".*Final document.*>文档<.*>打开<.*final.pdf.*>PDF<.*>预览</s);
   assert.doesNotMatch(sections()[0],/Progress only|Draft|Evidence|assetOverview.all/);
+  assert.match(sections()[0],/downloadDelivery\(10\)/);
+  assert.doesNotMatch(sections()[0],/downloadDelivery\(33\)/);
   assert.match(sections()[1],/assetOverview.activity/);
   assert.match(sections()[1],/assetOverview.all/);
   assert.match(sections()[0],/class="sr-only"><span[^>]+>文档</);

@@ -8,9 +8,11 @@ import copy
 import hashlib
 from io import BytesIO
 import json
+import os
+import stat
 from pathlib import Path, PurePosixPath
 import re
-from contextlib import nullcontext
+from contextlib import ExitStack, nullcontext
 
 from runteams_core.foundation.contracts import ContractError
 from runteams_core.documents import reply_visualizations
@@ -27,7 +29,7 @@ INPUT_SCHEMA = {'type':'object','properties':{
     'workflow_id':{'type':'integer','minimum':1}, 'revision':{'type':'integer','minimum':1},
     'cursor':{'type':'integer','minimum':0}, 'observed_at':{'type':'string'}, 'source_url':{'type':'string'},
     'metrics':{'type':'object'}, 'visualization':reply_visualizations.INPUT,
-    'path':{'type':'string','description':'For attachments, use their relative path under the current work folder’s output/ directory.'},
+    'path':{'type':'string','description':'Relative output/ path for a prepared Markdown deliverable (write instead of content), or a media attachment.'},
     'base_revision':{'type':'integer','minimum':0}},
     'required':['operation'],'additionalProperties':False}
 
@@ -126,27 +128,36 @@ def _key(binding,title):
     return 'work-report-chat-'+str(binding['chat_id'])+'-'+str(binding['message_id'])+'-'+token
 
 
+def _output_bytes(directory, relative, limit):
+    if not isinstance(relative, str):
+        raise ContractError('请提供工作文件的相对路径。')
+    path = PurePosixPath(relative)
+    if (len(relative) > 240 or '\\' in relative or '\x00' in relative
+            or len(path.parts) < 2 or path.parts[0] != 'output' or '..' in path.parts):
+        raise ContractError('请选择当前工作 output 文件夹中的文件。')
+    try:
+        with ExitStack() as opened:
+            parent = os.open(directory, os.O_RDONLY | os.O_DIRECTORY)
+            opened.callback(os.close, parent)
+            for part in path.parts[:-1]:
+                parent = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=parent)
+                opened.callback(os.close, parent)
+            fd = os.open(path.name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=parent)
+            with os.fdopen(fd, 'rb') as stream:
+                if not stat.S_ISREG(os.fstat(fd).st_mode):
+                    raise ContractError('请选择普通文件。')
+                raw = stream.read(limit + 1)
+    except OSError as error:
+        raise ContractError('工作文件不存在、打不开或为链接。') from error
+    if not raw or len(raw) > limit:
+        raise ContractError(f'请选择不超过 {limit // 1024**2} MB 的非空文件。')
+    return path, raw
+
+
 def _work_attachment(directory, relative, kind):
     from runteams_core.documents.rich_document_assets import MAX_FILE
 
-    path = PurePosixPath(relative)
-    if (len(relative)>240 or '\\' in relative or '\x00' in relative
-            or len(path.parts)<2 or path.parts[0]!='output' or '..' in path.parts):
-        raise ContractError('请选择当前工作 output 文件夹中的文件。')
-    current = directory
-    for part in path.parts:
-        current /= part
-        if current.is_symlink():
-            raise ContractError('附件不能是链接。')
-    try:
-        if not current.is_file():
-            raise ContractError('附件不存在。')
-        with current.open('rb') as stream:
-            raw = stream.read(MAX_FILE + 1)
-        if not raw or len(raw)>MAX_FILE:
-            raise ContractError('请选择不超过 20 MB 的非空文件。')
-    except OSError as error:
-        raise ContractError('附件打不开。') from error
+    path, raw = _output_bytes(directory, relative, MAX_FILE)
     evidence = {'sha256':hashlib.sha256(raw).hexdigest(), 'size':len(raw)}
     if kind == 'audio':
         # The producer checks full decoding and timing before it attaches the MP3.
@@ -175,6 +186,19 @@ def _work_attachment(directory, relative, kind):
 
 
 def _operate(core, arguments, binding, *, owner=nullcontext(), output_directory=None):
+    if arguments.get('operation') == 'write' and 'path' in arguments:
+        if output_directory is None:
+            raise ContractError('当前工作没有文件入口，请直接提交 Markdown 正文。')
+        if 'content' in arguments or 'document' in arguments:
+            raise ContractError('请在文件路径与正文之间选择一项。')
+        arguments = dict(arguments)
+        path, raw = _output_bytes(output_directory, arguments.pop('path'), 2 * 1024**2)
+        if path.suffix.lower() != '.md':
+            raise ContractError('工作成果正文需要 Markdown (.md) 文件。')
+        try:
+            arguments['content'] = raw.decode('utf-8-sig')
+        except UnicodeDecodeError as error:
+            raise ContractError('工作成果需要 UTF-8 编码的 Markdown。') from error
     args=_arguments(arguments)
     # This lock/transaction is the same serialization boundary as document edits.
     # It also makes a first-save retry resolve the same document key.
@@ -249,7 +273,9 @@ def _operate(core, arguments, binding, *, owner=nullcontext(), output_directory=
             document_key=key,base_revision=args['base_revision'],author='agent')
         if doc.get('conflict'):return doc
 
-        row=c.execute('SELECT meta_json FROM artifacts WHERE id=?',(doc['id'],)).fetchone()
+        row=c.execute('SELECT * FROM artifacts WHERE id=?',(doc['id'],)).fetchone()
+        if core._read_document_body(row) != body:
+            raise ContractError('保存的工作成果未能完整读回，请核对原文档。')
         meta=json.loads(row[0]);root=int(meta.get('revision_of') or doc['id'])
         marker=copy.deepcopy(selected['binding'] if selected else binding)
         marker.setdefault('creation_title',title)
@@ -305,12 +331,13 @@ def employee_call(arguments, context):
             check_chat_operation(session['id'])
             if arguments.get('operation') in ('write',*ATTACHMENTS) and frozen.get('pipeline_submission'):
                 raise ContractError('岗位结果已经提交，汇报版本已固定；请先完成本次交接。')
-            if arguments.get('operation') in ATTACHMENTS:
-                from runteams_core.conversations.conversation_folders import runtime
-                from runteams_core.employees.employee_workspaces import workspace
-                output_directory=Path(runtime(session['id'],workspace(session['id'])))
             binding['employee_run_id']=frozen['employee_run_id']
             binding['kind']='pipeline_stage'
+    if ((arguments.get('operation') == 'write' and 'path' in arguments)
+            or (binding.get('kind') == 'pipeline_stage' and arguments.get('operation') in ATTACHMENTS)):
+        from runteams_core.conversations.conversation_folders import runtime
+        from runteams_core.employees.employee_workspaces import workspace
+        output_directory = Path(runtime(session['id'], workspace(session['id'])))
     with work.repository.audit_context(actor_id=principal(expected),source='agent_tool'):
         work._actor()
         result=_operate(work,arguments,binding,owner=employee_host.document_owner(session),

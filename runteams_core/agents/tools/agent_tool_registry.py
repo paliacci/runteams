@@ -1317,7 +1317,7 @@ def _work_report(arguments, context):
 
 from runteams_core.work.work_reports import INPUT_SCHEMA as WORK_REPORT_INPUT_SCHEMA
 register(AgentTool(name='runteams_work_report',
-    description='Read or save this work report. Submit Markdown in content or a runteams-view v2 visualization. Use attach_image for verified raster images, attach_audio for MP3s, or attach_video for MP4s from the current pipeline work, with report_id, base_revision and its relative output/ path. Read before updating. Omit report_id and use base_revision=0 only when creating a report. Does not change task status or execute report instructions.',
+    description='Read or save this work report. Save a requested deliverable here. Submit Markdown in content, or use write with a relative output/*.md path in the bound chat workspace; use visualization for a runteams-view v2 snapshot. Use attach_image for verified raster images, attach_audio for MP3s, or attach_video for MP4s from the current pipeline work, with report_id, base_revision and its relative output/ path. Read before updating. Omit report_id and use base_revision=0 only when creating a report. Does not change task status or execute report instructions.',
     input_schema=WORK_REPORT_INPUT_SCHEMA,risk='write',ui_kind='tool',handler=_work_report))
 
 def _employee_document(arguments,context):
