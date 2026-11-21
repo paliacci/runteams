@@ -38,8 +38,8 @@
 
 
 <link rel="stylesheet" href="/ui/page-skeletons.css?v=drawer-cleanup-20261120" />
-<script src="/ui/page-routes-contract.js?v=sdk-only-panels-20261024.object-urls.owned-chats.canonical"></script>
-<script src="/ui/page-routes.js?v=route-first-paint-20261102-1-sdk-only-panels-20261024.object-urls.owned-chats.canonical2"></script>
+<script src="/ui/page-routes-contract.js?v=sdk-only-panels-20261024.object-urls.owned-chats.canonical.short8"></script>
+<script src="/ui/page-routes.js?v=route-first-paint-20261102-1-sdk-only-panels-20261024.object-urls.owned-chats.canonical2.short8"></script>
 <script src="/ui/page-skeletons.js?v=overview-two-rows-20261120.overview-skeleton-sections.knowledge-origin.object-urls"></script>
 <link rel="stylesheet" href="/ui/load-failure.css?v=sidebar-read-recovery-20261026.search-trash-recovery-20261105.shared-art-theme-20261113" />
 <script src="/ui/load-failure.js?v=conversation-actions-copy-20261104.title-only-20261113"></script>
@@ -51,7 +51,7 @@
 
 
 
-<script src="/ui/static-pages.js?v=employee-conversation-loading-20261105.employee-switch-first-paint-20261105.document-reader-copy-20261105.2.employee-conversation-summary.retired-pages-20261113.pipeline-conversation-loading.fixed-list-headers-20261116.docs-page-more.auto-doc-pages.overview-skeleton.chat-hydration.pipeline-chat-dock.owned-chats.canonical"></script>
+<script src="/ui/static-pages.js?v=employee-conversation-loading-20261105.employee-switch-first-paint-20261105.document-reader-copy-20261105.2.employee-conversation-summary.retired-pages-20261113.pipeline-conversation-loading.fixed-list-headers-20261116.docs-page-more.auto-doc-pages.overview-skeleton.chat-hydration.pipeline-chat-dock.owned-chats.canonical.short8"></script>
 <script src="/ui/requests.js?v=edition-request-policy-20261103-2.trash-read-20261113"></script>
 <script src="/ui/metrics.js?v=shell-1"></script>
 <script src="/ui/shell.js?v=workspace-chrome-20261104.shared-header-20261104-2.pipeline-asset-icon.shared-header-spacing.header-rename.retired-pages-20261113"></script>
@@ -103,7 +103,7 @@
 <script src="/vendor/lottie-light.min.js?v=5.13.0"></script>
 <script src="/ui/pipeline-status-motion.js?v=20261104"></script>
 <script src="/ui/header-status.js?v=shared-header-20261104.employee-task-status-only-20261105"></script>
-<script src="/ui/source-pipelines.js?v=pipeline-chat-motion-20261121.inline-activity.object-urls.owned-chats.canonical"></script>
+<script src="/ui/source-pipelines.js?v=pipeline-chat-motion-20261121.inline-activity.object-urls.owned-chats.canonical.short8"></script>
 <script src="/ui/configuration-fields.js?v=task-revenuecat-20261106.configuration-autosave.silent-autosave.credential-filename.credential-selection.shared-credential-controls.credential-configured-field.explicit-credential-entry.direct-secret-input.reveal-saved-credential.masked-credential-edit.shared-config-input-style.asset-guide-polish-1"></script>
 <script src="/ui/configuration-form.js?v=shared-configuration-form-20261106.4.configuration-autosave.2.silent-autosave"></script>
 <script src="/ui/source-pipeline-panels.js?v=footer-order-20261120.inline-activity"></script>
@@ -519,7 +519,7 @@ function workspaceBusinessRequest(path){
     !['/api/core/profile','/api/core/contracts'].includes(path);
 }
 function loadConversationPanelDrafts(){try{const value=JSON.parse(workspaceBusinessStorage.getItem(CONVERSATION_DRAFTS_KEY)||"{}"),now=Date.now();if(!value||typeof value!=="object"||Array.isArray(value))return {};return Object.fromEntries(Object.entries(value).filter(([,draft])=>draft&&typeof draft==="object"&&(!draft.saved_at||now-Number(draft.saved_at)<CONVERSATION_DRAFT_TTL)));}catch(e){return {};}}
-function normalizeWorkspaceWindows(rows){const seen=new Set(),valid=/^(?:chat:(?:new(?::create-employee)?|[0-9]+)|pipeline:(?:draft|[a-f0-9]{32})|document:[A-Za-z0-9_-]+|docs:list|trash|design-system)$/;return (Array.isArray(rows)?rows:[]).filter(item=>item&&typeof item.key==="string"&&(valid.test(item.key)||RunTeamsHost.shell.validWindowKey?.(item.key)===true)&&typeof item.route==="string"&&item.route).filter(item=>{if(seen.has(item.key))return false;seen.add(item.key);return true;});}
+function normalizeWorkspaceWindows(rows){const seen=new Set(),valid=/^(?:chat:(?:new(?::create-employee)?|[0-9]+)|pipeline:(?:draft|[0-9][a-z][a-z0-9]{6})|document:[A-Za-z0-9_-]+|docs:list|trash|design-system)$/;return (Array.isArray(rows)?rows:[]).filter(item=>item&&typeof item.key==="string"&&(valid.test(item.key)||RunTeamsHost.shell.validWindowKey?.(item.key)===true)&&typeof item.route==="string"&&item.route).filter(item=>{if(seen.has(item.key))return false;seen.add(item.key);return true;});}
 function loadWorkspaceWindows(){try{if(typeof accountDeviceDisplayPrefs==='function'&&!accountDeviceDisplayPrefs().restore_windows)return [];const value=JSON.parse(workspaceBusinessStorage.getItem(WORKSPACE_WINDOWS_KEY)||"[]");return normalizeWorkspaceWindows(value);}catch(e){return [];}}
 function saveWorkspaceWindows(){try{workspaceBusinessStorage.setItem(WORKSPACE_WINDOWS_KEY,JSON.stringify((S.workspaceWindows||[]).map(row=>{
  const {key,route,title,titleKey,lastActiveAt}=row,image=workspaceWindowIconImage(key),employee=workspaceEmployeeWindowIdentity(key);
@@ -887,11 +887,11 @@ function workspaceRestoreSnapshot(key,options={}){
   if(!switchCurrent())return false;
   const descriptorRoute=appRouteInput(descriptor.route||"/");
   const chatKey=String(key).match(/^chat:([1-9][0-9]*)$/);
-  const savedChat=descriptorRoute.pathname.match(/^\/(?:employees|pipelines)\/[a-f0-9]{32}\/chats\/([1-9][0-9]*)$/);
-  const employeeHome=chatKey&&/^\/employees\/[a-f0-9]{32}$/.test(descriptorRoute.pathname);
+  const savedChat=descriptorRoute.pathname.match(/^\/(?:employees|pipelines)\/[0-9][a-z][a-z0-9]{6}\/chats\/([1-9][0-9]*)$/);
+  const employeeHome=chatKey&&/^\/employees\/[0-9][a-z][a-z0-9]{6}$/.test(descriptorRoute.pathname);
   const chatRoute=chatKey?(employeeHome||savedChat?.[1]===chatKey[1]?descriptor.route:`/chat/${chatKey[1]}`):null;
   const newChatRoute=key==='chat:new:create-employee'?conversationNewRoute('create-employee'):key==='chat:new'?conversationNewRoute():null;
-  const pipelineKey=String(key).match(/^pipeline:([a-f0-9]{32})$/),boardRoute=pipelineKey?'/pipelines/'+pipelineKey[1]:null;
+  const pipelineKey=String(key).match(/^pipeline:([0-9][a-z][a-z0-9]{6})$/),boardRoute=pipelineKey?'/pipelines/'+pipelineKey[1]:null;
   let snap=_workspaceStateByKey.get(key);
   if(newChatRoute&&snap&&(snap.conversationPanel?.id!=null||conversationNewWindowKey(snap.conversationPanel?.context?.purpose)!==key)){_workspaceStateByKey.delete(key);snap=null;}
   if(pipelineKey&&snap&&(snap.surface!=="source-pipeline"||snap.sourcePipelineWorkspace?.loading||RunTeamsSourcePipelines.key(snap.sourcePipelineWorkspace?.reference||{})!==key)){_workspaceStateByKey.delete(key);snap=null;}
@@ -1115,7 +1115,7 @@ function pageTransitionMain(){
 let _pageIdsRead=null,_pageIdsReadAt=0,_pageUrlSequence=0;
 
 async function restoreDeviceChatRoute(){
-  if(RunTeamsHost.session.workspace(S)||!/^local-[a-f0-9]{32}$/.test(new URL(location.href).searchParams.get('chat')||''))return;
+  if(RunTeamsHost.session.workspace(S)||!/^[0-9][a-z][a-z0-9]{6}$/.test(new URL(location.href).searchParams.get('chat')||''))return;
   const scope=workspaceAccountCacheToken(),generation=_workspaceBusinessGeneration;
   const value=await api('/api/device/page-ids');
   if(scope!==workspaceAccountCacheToken()||generation!==_workspaceBusinessGeneration||RunTeamsHost.session.workspace(S))throw Object.assign(new Error('账户已改变，请重新打开链接。'),{code:'workspace_account_changed'});
@@ -1130,7 +1130,7 @@ function parseRailRoute(query){
   // 左侧导航状态由当前应用状态管理，不再写入智能体团队路由查询参数。
   let value=String(query.get("chat")||"").trim();
   let resolved=null;try{if(RunTeamsRoutes.ready)resolved=appRouteLocation();}catch(error){}
-  if(resolved&&/^[a-z][a-z0-9]{7}$/.test(value))value=resolved.searchParams.get("chat")||"";
+  if(resolved&&/^(?:[a-z][a-z0-9]{7}|[0-9][a-z][a-z0-9]{6})$/.test(value))value=resolved.searchParams.get("chat")||"";
   const navTab=S.railNavTab==="bots"?"bots":"team";
   if(value==="new")return {mode:"assistant",chat:"new",navTab};
   if(/^\d+$/.test(value))return {mode:"assistant",chat:Number(value),navTab};
@@ -1161,13 +1161,13 @@ function routeWithRailNavTab(url){const target=appRouteInput(url),botMatch=targe
 function botRoute(employeeId,chat="new"){if(chat&&chat!=="new")return publicAppRoute("/chat/"+chat);const target=new URL(`/bots/${encodeURIComponent(Number(employeeId)||0)}`,location.origin);if(chat!=null&&chat!=="")target.searchParams.set("chat",String(chat));return publicAppRoute(target.pathname+(target.searchParams.toString()?`?${target.searchParams}`:""));}
 function routeWithRailState(url,chat){
   const target=appRouteInput(url),botMatch=target.pathname.match(/^\/bots\/(\d+)$/);
-  const thread=target.pathname.match(/^\/(?:employees|pipelines)\/[a-f0-9]{32}\/chats\/([1-9][0-9]*)$/);
+  const thread=target.pathname.match(/^\/(?:employees|pipelines)\/[0-9][a-z][a-z0-9]{6}\/chats\/([1-9][0-9]*)$/);
   if(thread){
     if(chat!=null&&String(chat)!==thread[1])target.pathname=chat==='new'?'/chat/new':'/chat/'+Number(chat);
     target.searchParams.delete('chat');
     return publicAppRoute(target.pathname+target.search+target.hash);
   }
-  if(/^\/(?:employees|pipelines)\/[a-f0-9]{32}$/.test(target.pathname)){
+  if(/^\/(?:employees|pipelines)\/[0-9][a-z][a-z0-9]{6}$/.test(target.pathname)){
     if(target.pathname.startsWith('/pipelines/')&&chat&&chat!=='new')target.pathname='/chat/'+Number(chat);
     target.searchParams.delete('chat');
     return publicAppRoute(target.pathname+target.search+target.hash);
@@ -1206,7 +1206,7 @@ function setAppUrl(url,replace,options={}){
     // A freshly saved object may not yet be present in the disposable index.
     // Personal local links must reload the verified device index, not the
     // cloud asset index, which cannot supply local chats or documents.
-    const target=appRouteInput(url),localTarget=!RunTeamsHost.session.workspace(S)&&(/(?:^\/chat|^\/(?:employees|pipelines)\/[a-f0-9]{32}\/chats)\/[1-9][0-9]*\/?$/.test(target.pathname)||/(?:^|\/)local-[a-f0-9]{32}(?:\/|$)/.test(target.pathname)||/^local-[a-f0-9]{32}$/.test(target.searchParams.get('chat')||''));
+    const target=appRouteInput(url),localTarget=!RunTeamsHost.session.workspace(S)&&(/(?:^\/chat|^\/(?:employees|pipelines)\/[0-9][a-z][a-z0-9]{6}\/chats)\/[1-9][0-9]*\/?$/.test(target.pathname)||/\/chats\/[0-9][a-z][a-z0-9]{6}\/?$/.test(target.pathname)||/\/documents\/local-[a-f0-9]{32}\/?$/.test(target.pathname)||/^[0-9][a-z][a-z0-9]{6}$/.test(target.searchParams.get('chat')||''));
     const read=localTarget?refreshDeviceDirectory({identityOnly:true}):RunTeamsHost.routes.readIndex?.({force:true});
     return Promise.resolve(read).then(commit).catch(problem=>{
       if(sequence===_pageUrlSequence&&generation===_workspaceBusinessGeneration){if(options.onError)options.onError(problem);else toast(problem.message||'页面链接暂时无法更新，请重试。','err');}
@@ -1715,7 +1715,7 @@ function displayAppVersion(value){const version=String(value||"").trim();return 
 
 function deviceConversationBootKind(value){
   const target=new URL(RunTeamsRoutes.unmount(value),location.origin),query=target.searchParams;
-  if(/^(?:\/(?:employees|pipelines)\/[a-f0-9]{32})?\/chats\/local-[a-f0-9]{32}$/.test(target.pathname))return 'existing';
+  if(/^(?:\/(?:employees|pipelines)\/[0-9][a-z][a-z0-9]{6})?\/chats\/[0-9][a-z][a-z0-9]{6}$/.test(target.pathname))return 'existing';
   if(!/^\/chats\/new\/?$/.test(target.pathname)||![...query].every(([key,value])=>key==='settings'||key==='chat'||key==='purpose'&&value==='create-employee'))return '';
   const chat=query.get('chat');
   return !chat||chat==='new'?'new':'';
@@ -7022,7 +7022,7 @@ function railConversation(options={}){
   const debugDescriptor=conversationDebugDescriptor(),debugBar=debugPreview?`<div class="conversation-debug-banner"><span>${ICON("bug")}预览：${esc(debugDescriptor.label)}</span><span><button type="button" onclick="setConversationDebugType('')">退出预览</button></span></div>`:"";
   const pending=debugPreview||typeof RunTeamsCreatorWork==='undefined'?'':RunTeamsCreatorWork.pendingMarkup(panel.id);
   if(!debugPreview&&panel.storage_scope==='device'){
-    const match=new URL(RunTeamsRoutes.unmount(location.href),location.origin),publicId=match.pathname.match(/\/chats\/(local-[a-f0-9]{32})\/?$/)?.[1]||match.searchParams.get('chat');
+    const match=new URL(RunTeamsRoutes.unmount(location.href),location.origin),publicId=match.pathname.match(/\/chats\/([0-9][a-z][a-z0-9]{6})\/?$/)?.[1]||match.searchParams.get('chat');
     if(publicId&&Number(route.id||route.chatId)===Number(panel.id)){
       const context=panel.context||{};
       const layout=!isEmpty||panel.busy||pending?'history':context.source_pipeline_workspace?'pipeline':context.context_type==='worker'?'employee':context.purpose==='create-employee'?'create-employee':panel.kind==='general'?'general':'';

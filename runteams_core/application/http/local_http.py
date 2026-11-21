@@ -153,8 +153,9 @@ class LocalHandler(BaseHTTPRequestHandler):
             return self._json(400, {'error': 'invalid_request_target'})
         if self.command == 'GET' and (
                 parsed.path in ('/documents', '/trash')
-                or re.fullmatch(r'/(?:chats|documents)/local-[a-f0-9]{32}', parsed.path)
-                or re.fullmatch(r'/(?:employees|pipelines)/[a-f0-9]{32}(?:/chats/local-[a-f0-9]{32})?', parsed.path)):
+                or re.fullmatch(r'/documents/local-[a-f0-9]{32}', parsed.path)
+                or re.fullmatch(r'/chats/[0-9][a-z][a-z0-9]{6}', parsed.path)
+                or re.fullmatch(r'/(?:employees|pipelines)/[0-9][a-z][a-z0-9]{6}(?:/chats/[0-9][a-z][a-z0-9]{6})?', parsed.path)):
             return self._static('/')
         if self.command == 'GET' and parsed.path in ASSETS and (not parsed.query or
                 ASSETS[parsed.path][0] == 'web/index.html' or set(parse_qs(parsed.query)) <= {'v'}):

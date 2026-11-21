@@ -12,9 +12,16 @@ def verify(directory, library_id, names=('library-assets.sqlite3','interaction-s
     from runteams_core.configuration.library_settings import SCHEMA as settings_schema
     from runteams_core.configuration.interaction_settings import validate
     scope=scope_for(library_id)
+    if (directory/'page-ids.sqlite3').exists() and 'page-ids.sqlite3' not in names:
+        names = (*names, 'page-ids.sqlite3')
     for name in names:
         with closing(disk.readonly_database(directory/name)) as connection:
-            if name=='library-assets.sqlite3':
+            if name=='page-ids.sqlite3':
+                from runteams_core.storage.page_id_store import SCHEMA
+                schema_verify(connection, SCHEMA)
+                if connection.execute('PRAGMA integrity_check').fetchone()[0] != 'ok':
+                    raise ValueError('页面索引损坏。')
+            elif name=='library-assets.sqlite3':
                 schema_verify(connection,asset_schema)
                 if connection.execute('PRAGMA user_version').fetchone()[0]!=1 or connection.execute('SELECT library_id FROM library_meta').fetchall()!=[(scope['library_id'],)]:raise ValueError('资产与资料库身份不一致。')
                 if connection.execute('SELECT 1 FROM revisions WHERE length(CAST(source_json AS BLOB))>33554432 LIMIT 1').fetchone():raise ValueError('本机资产源码过大。')

@@ -11,11 +11,11 @@ test('employee and pipeline links identify their objects on cold load and after 
   };
   vm.runInNewContext(fs.readFileSync('web/ui/page-routes.js', 'utf8'), {window: host, URL});
   const routes = host.RunTeamsRoutes;
-  const id = '1234567890abcdef'.repeat(2);
+  const id = '4a7v9bn2';
   const employee = '/employees/' + id, pipeline = '/pipelines/' + id;
   const owners = ['', employee, pipeline];
   const chats = owners.map((owner_path, i) => ({
-    resource: 'chats', id: String(42 + i), owner_path, public_id: 'local-' + String(i).repeat(32),
+    resource: 'chats', id: String(42 + i), owner_path, public_id: '8c' + String(i).repeat(6),
   }));
   for (const row of chats) {
     const path = row.owner_path + '/chats/' + row.public_id;
@@ -50,7 +50,7 @@ test('opening an employee keeps the employee URL, selecting a conversation opens
   const source = fs.readFileSync('web/index.html', 'utf8');
   const start = source.indexOf('async function openRailConversationSession(');
   const end = source.indexOf('function openConversationSession(', start);
-  const employee = '/employees/' + 'a'.repeat(32);
+  const employee = '/employees/' + '4a7v9bn2';
   const panel = {id: 42, owner_path: employee};
   const locations = [];
   const context = {

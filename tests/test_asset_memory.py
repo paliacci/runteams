@@ -266,7 +266,7 @@ class AssetMemoryTests(TestCase):
     def test_history_pages_quotes_and_isolation(self):
         from runteams_core.conversations import asset_history
         from runteams_core.storage import device_data
-        from runteams_core.authoring.creator_contracts import digest
+        from runteams_core.conversations.page_paths import page_id
         earlier, fresh = self.chat(self.team), self.chat(self.team)
         other = self.chat(pipeline_references.reference('2' * 64, 'pipelines/team.json'))
         memory.turn(fresh)
@@ -287,7 +287,7 @@ class AssetMemoryTests(TestCase):
         self.assertEqual([m['message'] for m in last['messages']], [identifier])
         m = last['messages'][0]
         self.assertEqual((m['role'], m['chat'], m['conversation_url']),
-                         ('user', earlier['chat_id'], '/pipelines/' + digest(self.team)[:32] + '/chats/' + device_data.public_id(earlier['chat_id'])))
+                         ('user', earlier['chat_id'], '/pipelines/' + page_id(self.team) + '/chats/' + device_data.public_id(earlier['chat_id'])))
         text = m['text']
         while m['next_offset'] is not None:
             m = query(action='history_message', message=identifier, offset=m['next_offset'])

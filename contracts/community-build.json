@@ -298,6 +298,7 @@
     "runteams_core/storage/backups/local_creator_backup.py",
     "runteams_core/storage/business_storage.py",
     "runteams_core/storage/device_data.py",
+    "runteams_core/storage/page_id_store.py",
     "runteams_core/storage/device_files.py",
     "runteams_core/storage/device_runtime_links.py",
     "runteams_core/storage/device_schema.py",

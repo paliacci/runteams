@@ -3,8 +3,24 @@ from runteams_core.assets import source_links
 from runteams_core.authoring.creator_contracts import digest
 
 
+def asset_key(identity):
+    return 'asset:' + digest(identity)[:32]
+
+
+def chat_key(identity):
+    return 'chat:' + identity.replace('-', '')
+
+
+def short_ids(keys):
+    from runteams_core.storage import device_data
+    from runteams_core.storage.page_id_store import resolve
+    keys = set(keys)
+    return resolve(device_data.root(), keys) if keys else {}
+
+
 def page_id(identity):
-    return digest(identity)[:32]
+    key = asset_key(identity)
+    return short_ids([key])[key]
 
 
 def _owner_identity(context):
@@ -33,12 +49,10 @@ def chat_owner_paths(contexts):
         for key, source in source_links.linked_sources(store, assets).items():
             source_keys[key] = source_links.source_key(*source)
 
-    paths = []
-    for kind, key in owners:
-        if kind == 'employees':
-            key = source_keys.get(key, key)
-        paths.append('/' + kind + '/' + page_id(key) if kind else '')
-    return paths
+    keys = [asset_key(source_keys.get(key, key) if kind == 'employees' else key) if kind else None
+            for kind, key in owners]
+    ids = short_ids(key for key in keys if key)
+    return ['/' + kind + '/' + ids[key] if key else '' for (kind, _), key in zip(owners, keys)]
 
 
 def chat_owner_path(context):

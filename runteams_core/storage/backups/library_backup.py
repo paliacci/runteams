@@ -13,7 +13,7 @@ from runteams_core.foundation.local_json import strict_json
 from runteams_core.storage.local_library import scope_for
 
 SCHEMA='runteams.library-backup/1'
-DATABASES=('personal.sqlite3','library-assets.sqlite3','interaction-settings.sqlite3')
+DATABASES=('personal.sqlite3','library-assets.sqlite3','interaction-settings.sqlite3','page-ids.sqlite3')
 SCHEDULES=('employee-schedules','pipeline-schedules')
 # Preserve release files already present in backups and existing libraries.
 TREES=('attachments','conversation-folders','workspaces','employee-workspaces','pipeline-workspaces','work-app-releases')

@@ -3,7 +3,7 @@
 Reading/opening this workspace never builds an employee, admits work, resumes a
 pipeline or mutates its source. The work ledger remains the board's only truth.
 """
-from runteams_core.conversations.page_paths import page_id
+from runteams_core.conversations.page_paths import asset_key, short_ids
 from runteams_core.pipelines import pipeline_references
 import copy
 import json
@@ -73,8 +73,9 @@ def catalog(core):
             break
     from runteams_core.pipelines.pipeline_context import current
     rows.extend(current().rented_catalog())
+    ids = short_ids(asset_key(row['reference']) for row in rows)
     for row in rows:
-        row['page_id'] = page_id(row['reference'])
+        row['page_id'] = ids[asset_key(row['reference'])]
     store.check_scope()
     return {'items': rows, 'errors': errors, 'storage_scope': 'device'}
 

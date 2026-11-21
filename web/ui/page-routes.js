@@ -8,7 +8,8 @@ const byId=new Map(),byPublic=new Map(),deviceIds=new Map(),devicePublic=new Map
 let scope='',deviceScope='',loaded=false;
 const failure=()=>Object.assign(new Error('链接无效，或当前账户无法访问这个内容。'),{code:'page_route_unavailable'});
 const missing=()=>Object.assign(new Error('页面链接尚未载入，请重试。'),{code:'page_ids_missing'});
-const publicPattern=resource=>['chats','workflows','artifacts','documents'].includes(resource)?'(?:'+contract.device_chat_id_pattern+'|'+contract.id_pattern+')':contract.id_pattern;
+const devicePattern=resource=>resource==='chats'?contract.device_page_id_pattern:contract.device_resource_id_pattern;
+const publicPattern=resource=>['chats','workflows','artifacts','documents'].includes(resource)?'(?:'+devicePattern(resource)+'|'+contract.id_pattern+')':contract.id_pattern;
 const key=(resource,id)=>resource+':'+String(id);
 const url=value=>new URL(value,global.location.origin);
 // Only the optional local entry injects this metadata. Standalone builds keep
@@ -162,7 +163,7 @@ function installDevice(items,nextScope){
  if(nextScope&&nextScope!==deviceScope){deviceIds.clear();devicePublic.clear();deviceScope=nextScope;}
  const ids=new Map(),publics=new Map();
  for(const item of items){
-  if(!['chats','workflows','artifacts','documents'].includes(item?.resource)||!/^[1-9][0-9]*$/.test(item.id)||!/^local-[a-f0-9]{32}$/.test(item.public_id)||ids.has(key(item.resource,item.id))||publics.has(key(item.resource,item.public_id)))throw failure();
+  if(!['chats','workflows','artifacts','documents'].includes(item?.resource)||!/^[1-9][0-9]*$/.test(item.id)||!new RegExp('^'+devicePattern(item.resource)+'$').test(item.public_id)||ids.has(key(item.resource,item.id))||publics.has(key(item.resource,item.public_id)))throw failure();
   const id=key(item.resource,item.id),previous=deviceIds.get(id);
   const registered=previous?.public_id===item.public_id?{...previous,...item}:item;
   ids.set(id,registered);publics.set(key(item.resource,item.public_id),registered);

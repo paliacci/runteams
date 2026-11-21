@@ -1,7 +1,8 @@
 {
   "version": 1,
   "id_pattern": "[a-z][a-z0-9]{7}",
-  "device_chat_id_pattern": "local-[a-f0-9]{32}",
+  "device_page_id_pattern": "[0-9][a-z][a-z0-9]{6}",
+  "device_resource_id_pattern": "local-[a-f0-9]{32}",
   "routes": [
     {
       "internal": "/",
@@ -70,7 +71,7 @@
       "public": "/employees/{employeePage}",
       "kind": "employee-work",
       "keys": {
-        "employeePage": "[a-f0-9]{32}"
+        "employeePage": "[0-9][a-z][a-z0-9]{6}"
       }
     },
     {
@@ -78,7 +79,7 @@
       "public": "/pipelines/{pipeline}",
       "kind": "source-pipeline",
       "keys": {
-        "pipeline": "[a-f0-9]{32}"
+        "pipeline": "[0-9][a-z][a-z0-9]{6}"
       }
     },
     {
@@ -86,7 +87,7 @@
       "public": "/employees/{employeePage}/chats/{chat}",
       "kind": "chat",
       "keys": {
-        "employeePage": "[a-f0-9]{32}"
+        "employeePage": "[0-9][a-z][a-z0-9]{6}"
       },
       "refs": {
         "chat": "chats"
@@ -97,7 +98,7 @@
       "public": "/pipelines/{pipeline}/chats/{chat}",
       "kind": "chat",
       "keys": {
-        "pipeline": "[a-f0-9]{32}"
+        "pipeline": "[0-9][a-z][a-z0-9]{6}"
       },
       "refs": {
         "chat": "chats"

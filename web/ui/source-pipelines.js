@@ -54,7 +54,7 @@
   if(token!==scope())throw Error('工作区已改变，请重新打开智能体团队。');
   if(reply?.error)throw Object.assign(Error(reply.error),{code:reply.code,fields:reply.fields,reason:reply.reason,status:reply.status??(reply.code==='employee_configuration_invalid'?422:409),
    confirmedReply:!(control||edit||flow)||reply.status>=400&&reply.status<500});
-  if(action==='catalog'&&(!Array.isArray(reply.items)||!Array.isArray(reply.errors)||reply.items.some(row=>!/^[a-f0-9]{32}$/.test(row.page_id)||!referenceKey(row.reference)||typeof row.name!=='string'||S.localLibrary&&(row.reference.schema!=='runteams.local-pipeline-reference/1'||row.reference.storage_kind!=='local'||row.reference.library_id!==S.localLibrary.library_id))))throw Error('智能体团队目录回执无效。');
+  if(action==='catalog'&&(!Array.isArray(reply.items)||!Array.isArray(reply.errors)||reply.items.some(row=>!/^[0-9][a-z][a-z0-9]{6}$/.test(row.page_id)||!referenceKey(row.reference)||typeof row.name!=='string'||S.localLibrary&&(row.reference.schema!=='runteams.local-pipeline-reference/1'||row.reference.storage_kind!=='local'||row.reference.library_id!==S.localLibrary.library_id))))throw Error('智能体团队目录回执无效。');
   return reply;
  }
  async function readCatalog({readPriority}={}){

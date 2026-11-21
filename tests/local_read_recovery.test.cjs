@@ -83,7 +83,7 @@ test('a late result does not add a device link to the next workspace',async()=>{
 async function sidebarFixture(){
  const {LocalClient}=await import('../frontend/community/client.js');
  const c=fixture(),attempts=new Map(),delays=[];
- const pipeline={page_id:'a'.repeat(32),name:'Saved pipeline',reference:{schema:'runteams.local-pipeline-reference/1',storage_kind:'local',library_id:'library',source_id:'sample',pipeline_source:'sample'}};
+ const pipeline={page_id:'4a7v9bn2',name:'Saved pipeline',reference:{schema:'runteams.local-pipeline-reference/1',storage_kind:'local',library_id:'library',source_id:'sample',pipeline_source:'sample'}};
  Object.assign(c,{URL,AbortController,Event,clearTimeout,setInterval(){},document:{addEventListener(){}},
   setTimeout(callback,ms){if(ms===2000){delays.push(callback);return;}return setTimeout(callback,ms);},
   workspaceDeviceStorageScope:()=> 'library',S:{booting:true,localLibrary:{library_id:'library'}}});

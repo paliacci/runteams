@@ -7,7 +7,7 @@ from runteams_core.storage.local_library import _read, SCHEMA
 
 MARKER='.library.json'
 ORIGIN='.library-origin.json'
-STORES=('library-assets.sqlite3','interaction-settings.sqlite3')
+STORES=('library-assets.sqlite3','interaction-settings.sqlite3','page-ids.sqlite3')
 
 
 def identity(root, initial):

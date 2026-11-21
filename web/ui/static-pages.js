@@ -82,8 +82,8 @@ function conversationAwaitingLocal(header='',{label='对话',labelKey='conversat
 }
 function localConversationId(value=global.location.href){
  const url=new URL(global.RunTeamsRoutes.unmount(value),global.location.origin);
- const id=url.pathname.match(/^(?:\/(?:employees|pipelines)\/[a-f0-9]{32})?\/chats\/(local-[a-f0-9]{32})\/?$/)?.[1]||url.searchParams.get('chat')||'';
- return /^local-[a-f0-9]{32}$/.test(id)?id:'';
+ const id=url.pathname.match(/^(?:\/(?:employees|pipelines)\/[0-9][a-z][a-z0-9]{6})?\/chats\/([0-9][a-z][a-z0-9]{6})\/?$/)?.[1]||url.searchParams.get('chat')||'';
+ return /^[0-9][a-z][a-z0-9]{6}$/.test(id)?id:'';
 }
 function localConversationRoute(value){return !!localConversationId(value);}
 function conversationPendingHeader({route,layout='',failed=false}={}){
@@ -106,7 +106,7 @@ function localLayoutStorageKey(id){
 }
 function rememberConversationLayouts(receipt){
  for(const [id,layout] of Object.entries(receipt?.conversation_layouts||{})){
-  if(!/^local-[a-f0-9]{32}$/.test(id)||!validConversationLayout(layout))continue;
+  if(!/^[0-9][a-z][a-z0-9]{6}$/.test(id)||!validConversationLayout(layout))continue;
   localLayouts.set(id,layout);
   const key=localLayoutStorageKey(id);
   try{if(key&&global.sessionStorage.getItem(key)!==layout)global.sessionStorage.setItem(key,layout);}catch{}

@@ -9,6 +9,7 @@ from contextvars import ContextVar
 import json
 from pathlib import Path
 import sqlite3
+from runteams_core.conversations.page_paths import chat_key, short_ids
 import stat
 import secrets
 import threading
@@ -191,9 +192,10 @@ def page_ids():
         ).fetchall()
     from runteams_core.conversations.page_paths import chat_owner_paths
     contexts = [json.loads(row['context_json'] or '{}') for row in rows]
+    ids = short_ids(chat_key(row['identity']) for row in rows)
     items, layouts = [], {}
     for row, context, owner in zip(rows, contexts, chat_owner_paths(contexts), strict=True):
-        public_id = 'local-'+row['identity'].replace('-','')
+        public_id = ids[chat_key(row['identity'])]
         items.append({'resource':'chats','id':str(row['chat_id']),'public_id':public_id,
                       'owner_path':owner})
         if row['has_messages']:
@@ -221,7 +223,8 @@ def employee_conversations(connection, employee_id=None):
     if employee_id is not None:
         query += ' AND c.employee_id=?'
     rows = connection.execute(query + ' ORDER BY last_message_id IS NOT NULL DESC,c.updated_at DESC,c.id DESC',
-                              () if employee_id is None else (employee_id,))
+                              () if employee_id is None else (employee_id,)).fetchall()
+    ids = short_ids(chat_key(row['identity']) for row in rows)
     for row in rows:
         try:
             context = json.loads(row['context_json'] or '{}')
@@ -231,12 +234,13 @@ def employee_conversations(connection, employee_id=None):
                 or context.get('pipeline_work') or context.get('source_pipeline_workspace')):
             continue
         yield {'id': row['id'], 'employee_id': row['employee_id'], 'updated_at': row['updated_at'],
-               'public_id': 'local-' + row['identity'].replace('-', ''), 'last_message_id': row['last_message_id'],
+               'public_id': ids[chat_key(row['identity'])], 'last_message_id': row['last_message_id'],
                'employee_reference': context.get('employee_reference'), 'storage_scope': 'device'}
 
 
 def public_id(chat_id):
-    return 'local-'+epoch(chat_id).replace('-','')
+    key = chat_key(epoch(chat_id))
+    return short_ids([key])[key]
 
 
 def eligible(record):

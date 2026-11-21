@@ -12,7 +12,7 @@ import sqlite3
 
 from runteams_core.storage import device_data
 from runteams_core.assets import source_links
-from runteams_core.conversations.page_paths import page_id
+from runteams_core.conversations.page_paths import asset_key, short_ids, page_id
 from runteams_core.authoring.creator_contracts import canonical, strict_json
 from runteams_core.authoring.source.creator_local_source import current_store, _read
 from runteams_core.authoring.source.creator_source_revisions import Revisions
@@ -166,7 +166,7 @@ def local_entries(*,errors=None):
 
 
 def assemble(sources,assets,works):
-    """Pure identity join used by every caller; no UI-specific side lists."""
+    """Join sources and installed employees under their stable page identities."""
     rows={};by_ref={}
     for source in sources:
         key=source['key']
@@ -192,8 +192,9 @@ def assemble(sources,assets,works):
             display={**work,**({key:row['record'].get(key) for key in ('name','avatar','avatar_src')} if row.get('source') else {})}
             row.update(record=display,updated_at=work.get('updated_at',''))
         by_ref[identity]=key
+    ids = short_ids(asset_key(row['key']) for row in rows.values())
     for row in rows.values():
-        row['page_id'] = page_id(row['key'])
+        row['page_id'] = ids[asset_key(row['key'])]
     return sorted(rows.values(),key=lambda row:(str(row.get('updated_at','')),row['key']),reverse=True)
 
 

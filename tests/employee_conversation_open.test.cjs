@@ -7,7 +7,7 @@ test('employee click paints the chosen conversation layout before opening it', a
   const reference = {schema:'runteams.business-reference/v1', deployment_id:'device',
     workspace_id:'owner', data_epoch:'employee', resource:'employees', id:7};
   const empty = {id:12, updated_at:'2026-11-13', storage_scope:'device', last_message_id:null};
-  const entry = {key:'employee', page_id:'a'.repeat(32), record:{name:'Employee'}, reference,
+  const entry = {key:'employee', page_id:'4a7v9bn2', record:{name:'Employee'}, reference,
     work:{id:7}, conversation:empty, open:{employee_id:7}};
   const state = {chats:[], localLibrary:{library_id:'fixture'}};
   const layouts = [];

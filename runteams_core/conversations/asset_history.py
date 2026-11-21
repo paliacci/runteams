@@ -86,12 +86,14 @@ def query(args, binding, caller):
             (offset + 1, size, *params, 1 if detail else PAGE + 1)).fetchall()
     if detail and (not rows or rows[0]['length'] < offset):
         raise ValueError('当前资产内无此消息或原文位置无效。')
-    from runteams_core.conversations.page_paths import chat_owner_paths
+    from runteams_core.conversations.page_paths import chat_owner_paths, chat_key, short_ids
     messages = [dict(row) for row in rows[:PAGE]]
     owners = chat_owner_paths(json.loads(item.pop('context_json')) for item in messages)
-    for item, owner in zip(messages, owners, strict=True):
+    keys = [chat_key(item.pop('identity')) for item in messages]
+    ids = short_ids(keys)
+    for item, owner, key in zip(messages, owners, keys, strict=True):
         item['next_offset'] = offset + size if offset + size < item.pop('length') else None
-        item['conversation_url'] = owner + '/chats/local-' + item.pop('identity').replace('-', '')
+        item['conversation_url'] = owner + '/chats/' + ids[key]
     if detail:
         return messages[0]
     return {'messages': messages, 'next_before': messages[-1]['message'] if len(rows) > PAGE else None}
