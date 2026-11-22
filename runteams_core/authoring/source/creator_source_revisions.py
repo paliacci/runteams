@@ -101,14 +101,20 @@ class Revisions:
             return self._files(self._head())
 
     @contextmanager
-    def display_files(self):
+    def current_snapshot(self, *, display_only=False):
+        if not display_only:
+            with self.locked():
+                head = self._head()
+                files = self._files(head)
+            yield head, files
+            return
         # A writer publishes the immutable revision before atomically replacing
         # the head. The roster can read the captured head while a save runs.
         self.store.check_scope()
         head = self._head()
         directory, meta = (self.root, self.original) if head == self.identity else self._revision_metadata(head)
         with display_files(directory / 'source.zip', meta['source']) as files:
-            yield files
+            yield head, files
         self.store.check_scope()
 
     def files_at(self, revision):

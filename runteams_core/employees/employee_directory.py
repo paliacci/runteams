@@ -23,8 +23,8 @@ SCHEMA='runteams.employee-directory/v1'
 
 def source_entries(store,source_id,*,sessions=(),display_only=False,pipeline_memberships=None,include_background=False):
     revisions=Revisions(store,source_id,display_only=display_only)
-    with (revisions.display_files() if display_only else nullcontext(revisions.files())) as files:
-        return _source_entries(store,source_id,sessions,revisions.original['created_at'],files,pipeline_memberships,include_background)
+    with revisions.current_snapshot(display_only=display_only) as (revision, files):
+        return _source_entries(store,source_id,revision,sessions,revisions.original['created_at'],files,pipeline_memberships,include_background)
 
 
 def _overview_capabilities(files, directories):
@@ -56,7 +56,7 @@ def _overview_capabilities(files, directories):
     return capabilities
 
 
-def _source_entries(store,source_id,sessions,created_at,files,pipeline_memberships,include_background=False):
+def _source_entries(store,source_id,revision,sessions,created_at,files,pipeline_memberships,include_background=False):
     project=strict_json(files.get('project.json',b'null'))
     if (not isinstance(project,dict) or project.get('schema')!='runteams.creator-project/2'
             or not isinstance(project.get('entrypoints'),dict) or not isinstance(project['entrypoints'].get('employees'),list)
@@ -87,7 +87,7 @@ def _source_entries(store,source_id,sessions,created_at,files,pipeline_membershi
         environment = sorted({tool for directory in directories or [] if isinstance(directory, str)
                               for tool in declared_environment(files.get(directory + '/SKILL.md', b''))})
         entries.append({'key':source_links.source_key(source_id,path),'record':record,'asset':None,'work':None,
-            'source':{'id':source_id,'path':path,'version':project.get('version'),'description':employee.get('description',''),
+            'source':{'id':source_id,'path':path,'revision':revision,'version':project.get('version'),'description':employee.get('description',''),
                       **({'environment_tools': environment} if environment else {}),
                       'capabilities':_overview_capabilities(files,directories),'reference':source_reference(source_id,path),'chat_id':session['id'] if session else None,'target':(session or {}).get('context',{}).get('creator_source_target')},
             'reference':bound.get(path),'open':{'action':'source-work'},

@@ -62,7 +62,7 @@ def team_catalog(reference):
         if not store._directory(reference['source_id']).exists():
             return {}
         revisions = Revisions(store, reference['source_id'], display_only=True)
-        with revisions.display_files() as snapshot:
+        with revisions.current_snapshot(display_only=True) as (_, snapshot):
             project = snapshot.get('project.json')
             if owner not in strict_json(project)['entrypoints'].get('pipelines', []):
                 raise ValueError('当前工程不包含此智能体团队。')
