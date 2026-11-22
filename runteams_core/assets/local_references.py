@@ -14,6 +14,7 @@ from runteams_core.assets import local_assets
 _picks = {}
 _lock = threading.Lock()
 _ttl = 15 * 60
+_UNSPECIFIED = object()
 
 
 def reference(grant_id):
@@ -78,6 +79,20 @@ def prepare(paths):
             _picks[token] = dict(info, created_at=time.time())
             pending.append(dict(info, token=token))
     return {'references': ready, 'pending': pending}
+
+
+def prepare_clipboard(*, expected_paths=_UNSPECIFIED):
+    """Read native paste input, keeping directories as text and preparing files as references."""
+    from runteams_core.conversations import chat_attachments
+    paths = chat_attachments.native_reference_paths('paste')
+    if expected_paths is not _UNSPECIFIED and paths != expected_paths:
+        raise ValueError('剪贴板内容已变化，请重新粘贴。')
+    folders, files = chat_attachments.split_native_clipboard_folders(paths)
+    result = prepare(files) if files else {'references': [], 'pending': []}
+    result['folder_paths'] = folders
+    if not paths:
+        result['empty'] = True
+    return result
 
 
 def confirm(tokens):

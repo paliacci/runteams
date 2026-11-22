@@ -121,7 +121,7 @@ def _folder_files(root):
     return result
 
 
-def _stage_native_paths(paths):
+def _stage_native_paths(paths, *, allow_folders=True):
     """把原生面板返回的路径复制成一次性快照；绝不把绝对路径返回给前端。"""
     _cleanup_selections()
     selection_scope = _selection_scope()
@@ -173,7 +173,7 @@ def _stage_native_paths(paths):
                 record = {"token": token, "kind": "image" if os.path.splitext(name)[1] in IMAGE_EXTENSIONS else "file",
                           "name": name, "size": size, "file_count": 1, "path": target,
                           "stage_dir": stage_dir, "created_at": time.time(), 'storage_scope':selection_scope}
-            elif os.path.isdir(source):
+            elif allow_folders and os.path.isdir(source):
                 name = os.path.basename(source.rstrip(os.sep)) or "文件夹"
                 if name.startswith(".") or name in _IGNORED_DIRECTORIES:
                     raise ValueError("不能添加隐藏目录或依赖目录「{}」".format(name))
@@ -293,15 +293,26 @@ def native_reference_paths(source):
         raise ValueError('无法读取本地路径，请重试或从＋添加')
 
 
+def split_native_clipboard_folders(paths):
+    """Split native file URLs without walking or reading a directory."""
+    if not isinstance(paths, list) or any(
+        not isinstance(path, str) or not os.path.isabs(path) or '\x00' in path for path in paths
+    ):
+        raise ValueError('本地路径返回结果无效')
+    folders, files = [], []
+    for path in dict.fromkeys(paths):
+        (folders if os.path.isdir(path) else files).append(path)
+    return folders, files
+
+
 def paste_native_folders():
-    """Stage Finder selections containing a folder using the native picker rules."""
+    """Return Finder directory paths and stage only any accompanying files."""
     if not native_picker_available():
-        return []
-    paths = native_reference_paths('paste')
-    if not any(os.path.isdir(path) for path in paths):
-        return []
+        return {'folder_paths': [], 'items': []}
+    folders, files = split_native_clipboard_folders(native_reference_paths('paste'))
     try:
-        return _stage_native_paths(paths)
+        items = _stage_native_paths(files, allow_folders=False) if folders and files else []
+        return {'folder_paths': folders, 'items': items}
     except OSError:
         raise ValueError('无法读取所复制的内容，请重新复制或从＋添加') from None
 

@@ -93,7 +93,7 @@
 <script src="/ui/reply-spec.js?v=json-render-20261113-1.utf8-capacity"></script>
 <script src="/ui/reply-content.js?v=json-render-20261113-1.utf8-capacity"></script>
 <script src="/ui/reply-content-preview.js?v=20261029-3.locale-review"></script>
-<script src="/modules/conversation.js?v=pipeline-chat-copy-20261104.authoring-records-route.unified-employee-conversation.employee-apps-20261114.app-auth-card-20261114.app-operation-summary.sdk-workbench.asset-overview-20261120.section-ready.chat-hydration.skill-menu-20261120.employee-shortcuts-1120.example-icon-v1.default-spark.canonical.example-attachments.sent-attachments-above.reveal-sent-files.employee-runtime.locale-review.review-copy.localized-work-examples.clipboard-folders"></script>
+<script src="/modules/conversation.js?v=pipeline-chat-copy-20261104.authoring-records-route.unified-employee-conversation.employee-apps-20261114.app-auth-card-20261114.app-operation-summary.sdk-workbench.asset-overview-20261120.section-ready.chat-hydration.skill-menu-20261120.employee-shortcuts-1120.example-icon-v1.default-spark.canonical.example-attachments.sent-attachments-above.reveal-sent-files.employee-runtime.locale-review.review-copy.localized-work-examples.clipboard-folder-paths"></script>
 <script src="/ui/model-channels.js?v=runtime-copy-20261104.quota-coalescing.skill-menu-20261120"></script>
 <script src="/modules/skills.js?v=employee-resource-controls-20261104.retired-pages-20261113"></script>
 <script src="/modules/account.js?v=default-model-copy-20261104.wallet-copy-20261104.language-device-copy-20261105.mcp-tests.composio-sessions.model-catalog-notice.quota-coalescing.workspace-read.locale-review"></script>
@@ -6577,14 +6577,13 @@ async function prepareConversationLocalReferences(surface,out,panel){
   if(surface==="panel"&&(S.conversationPanel!==panel||panel?.busy))return;
   addConversationLocalReferences(surface,ready,panel);
 }
-async function readConversationLocalReferenceEvent(surface,source,fallback=null){
+async function readConversationLocalReferenceEvent(surface,source){
   const panel=S.conversationPanel;if(panel?.busy)return;
   try{
     const out=await api(`/api/local-references/${source}`,"POST",{});
     if(S.conversationPanel!==panel||panel?.busy)return;
     if(out.empty){
-      if(fallback?.files.length&&fallback.files.every(file=>String(file.type||"").startsWith("image/")))applyConversationPaste(surface,fallback.box,fallback.files,fallback.text);
-      else toast("找不到本地路径。请重新复制，或点按加号选择文件。","err","localReference.pathMissing");
+      toast("找不到本地路径。请重新复制，或点按加号选择文件。","err","localReference.pathMissing");
       return;
     }
     await prepareConversationLocalReferences(surface,out,panel);

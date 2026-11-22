@@ -469,7 +469,7 @@ class LocalRuntime:
                 from runteams_core.conversations import chat_attachments
                 if data:
                     raise ValueError('附件粘贴请求无效。')
-                return {'items': chat_attachments.paste_native_folders()}
+                return chat_attachments.paste_native_folders()
             if method == 'POST' and path == '/api/attachments/pick':
                 from runteams_core.conversations import chat_attachments
                 if data:

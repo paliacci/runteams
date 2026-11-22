@@ -49,8 +49,8 @@ function conversationExampleMaterialRows(panel=S.conversationPanel){
 }
 
 /* module-function:conversationMaterialHint */
-function conversationMaterialHint(item,kind){
-  return String(item.hint||`选择${kind}，也可以拖入或粘贴。`).trim().replace(/^请(?:先)?选择/u,'选择').replace(/项目根目录/gu,'项目文件夹').replace(/也可(?!以)/gu,'也可以');
+function conversationMaterialHint(item){
+  return String(item.hint||'').trim().replace(/^请(?:先)?选择/u,'选择').replace(/项目根目录/gu,'项目文件夹').replace(/也可(?!以)/gu,'也可以');
 }
 
 /* module-function:conversationExampleMaterialMenuItems */
@@ -65,7 +65,7 @@ function conversationExampleMaterialMenuItems(panel){
       label:row.selected?'更换':folder?'选择文件夹':'选择文件',
       labelKey:'employeeMaterial.'+(row.selected?'replace':choose),
       icon:folder?'folder':'paperclip',disabled:panel.busy||panel.example_materials_picking,
-      description:row.selected?.name||(row.hint?conversationMaterialHint(row,folder?'文件夹':'文件'):''),
+      description:row.selected?.name||conversationMaterialHint(row),
       fn:()=>pickConversationExampleMaterial(row.index)
     });
     if(!row.selected)for(const ref of row.candidates){
@@ -1268,47 +1268,77 @@ async function conversationPaste(event,surface){
   const hasDirectory=Array.from(clipboard?.items||[]).some(item=>item.kind==="file"&&item.webkitGetAsEntry?.()?.isDirectory);
   const hasLocalFiles=hasDirectory||files.length>0||types.includes("Files")||types.includes("public.file-url");
   const local=conversationSupportsLocalReferences(surface),panel=S.conversationPanel;
-  if(local&&panel?.busy){event.preventDefault();return;}
-  const native=local&&event.isTrusted&&window.webkit?.messageHandlers?.runteamsLocalReferencePaste;
-  if(native){
-    event.preventDefault();
-    const selected=conversationSelectionOffsets(box),draft=conversationInputValue(box);
-    try{
-      const paths=await native.postMessage({});
-      if(S.conversationPanel!==panel||panel?.busy)return;
-      if(paths.length){await prepareConversationLocalReferences(surface,await api("/api/local-references/prepare","POST",{paths}),panel);return;}
-      // Keep the captured selection for normal paste, but never overwrite edits
-      // or steal focus if the user moved on while the native bridge replied.
-      if(!box.isConnected||document.activeElement!==box||conversationInputValue(box)!==draft)return;
-      if(hasDirectory){toast("找不到本地路径。请重新复制，或点按加号选择文件。","err","localReference.pathMissing");return;}
-      if(selected)restoreConversationSelection(surface,selected.start,selected.end);
+  if(local&&(panel?.busy||(!event.isTrusted&&hasLocalFiles))){event.preventDefault();return;}
+  const native=event.isTrusted&&(local||!hasLocalFiles)&&window.webkit?.messageHandlers?.runteamsLocalReferencePaste;
+  if(!native&&!(event.isTrusted&&hasLocalFiles)){
+    if(hasDirectory){
+      event.preventDefault();
+      toast("请在这台电脑上的 RunTeams 桌面端选择本地文件。","info","localReference.desktopOnly");
+    }else if(files.length||box?.isContentEditable){
+      event.preventDefault();
       applyConversationPaste(surface,box,files,text);
-    }catch(error){if(S.conversationPanel===panel)toast("无法粘贴。请重试，或点按加号添加本地引用。","err","localReference.pasteFailed");}
+    }
     return;
   }
-  if(local&&hasLocalFiles){
-    event.preventDefault();if(event.isTrusted)await readConversationLocalReferenceEvent(surface,"paste",hasDirectory?null:{box,files,text});return;
-  }
-  if(hasLocalFiles&&event.isTrusted){
-    event.preventDefault();
-    const owner=surface==="panel"?panel:S.chatId;
-    const isCurrent=()=>box.isConnected&&(surface==="panel"?S.conversationPanel:S.chatId)===owner;
-    try{
-      const result=await api("/api/attachments/paste","POST",{});
+
+  event.preventDefault();
+  const owner=surface==="panel"?panel:S.chatId;
+  const isCurrent=()=>box.isConnected&&(surface==="panel"?S.conversationPanel:S.chatId)===owner&&(!local||!panel?.busy);
+  const selected=conversationSelectionOffsets(box),draft=conversationInputValue(box);
+  const canInsert=()=>{
+    if(!box.isContentEditable||document.activeElement!==box||conversationInputValue(box)!==draft)return false;
+    const current=conversationSelectionOffsets(box);
+    return !!selected&&current?.start===selected.start&&current.end===selected.end;
+  };
+  try{
+    let result;
+    if(native&&local){
+      const paths=await native.postMessage({});
       if(!isCurrent())return;
-      if(result.error){toast(result.error,"err");return;}
-      if(result.items?.length){addConversationPickedAttachments(surface,result.items);return;}
-    }catch(error){if(isCurrent())toast("无法粘贴。请重试，或点按加号选择文件。","err","localReference.pasteFailed");return;}
-    if(files.length&&!hasDirectory){addConversationFiles(surface,files);return;}
+      result=paths.length?await api("/api/local-references/prepare","POST",{paths,paste:true}):{empty:true};
+    }else if(native){
+      try{
+        result={folder_paths:await native.postMessage({folderPathsOnly:true})};
+      }catch{
+        // Older desktop shells have the bridge, but only allow worker composers.
+        if(!isCurrent()||!canInsert())return;
+        const fallback=await api("/api/attachments/paste","POST",{}).catch(()=>null);
+        result=fallback&&!fallback.error?fallback:{};
+      }
+    }else{
+      result=await api(local?"/api/local-references/paste":"/api/attachments/paste","POST",{});
+    }
+    if(!isCurrent())return;
+    if(result.error){
+      if(local)await prepareConversationLocalReferences(surface,result,panel);
+      else toast(result.error,"err");
+      return;
+    }
+    const folders=result.folder_paths||[];
+    if(folders.length&&canInsert())applyConversationPaste(surface,box,[],folders.join("\n"));
+    if(local&&(result.references?.length||result.pending?.length)){
+      await prepareConversationLocalReferences(surface,result,panel);
+      return;
+    }
+    if(!local&&result.items?.length){
+      addConversationPickedAttachments(surface,result.items);
+      return;
+    }
+    if(folders.length)return;
+    if(!hasDirectory){
+      if(native){
+        if(canInsert())applyConversationPaste(surface,box,files,text);
+        return;
+      }
+      if(files.length&&(!local||files.every(file=>String(file.type||"").startsWith("image/")))){
+        addConversationFiles(surface,files);
+        return;
+      }
+    }
     toast("找不到本地路径。请重新复制，或点按加号选择文件。","err","localReference.pathMissing");
-    return;
+  }catch(error){
+    if(isCurrent())toast("无法粘贴。请重试，或点按加号添加本地引用。","err","localReference.pasteFailed");
   }
-  if(hasDirectory){
-    event.preventDefault();
-    toast("请在这台电脑上的 RunTeams 桌面端选择本地文件。","info","localReference.desktopOnly");
-    return;
-  }
-  if(files.length||box?.isContentEditable){event.preventDefault();applyConversationPaste(surface,box,files,text);}
 }
 
 /* module-function:readChatFile */

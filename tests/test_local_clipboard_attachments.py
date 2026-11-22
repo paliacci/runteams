@@ -1,9 +1,12 @@
-"""Clipboard folders follow the native picker snapshot and reference rules."""
+"""Finder folders are inserted as original directory paths."""
 from contextlib import ExitStack
 from pathlib import Path
 from tempfile import TemporaryDirectory
+import json
+import sys
 import unittest
 from unittest.mock import patch
+import uuid
 
 from runteams_core.application.local_application import LocalApplication
 from runteams_core.conversations import chat_attachments
@@ -11,38 +14,129 @@ from runteams_core.storage import local_database
 
 
 class LocalClipboardAttachmentsTests(unittest.TestCase):
-    def test_local_routes_stage_only_native_folder_selections(self):
+    def test_paste_routes_reference_folders_without_opening_them(self):
         with ExitStack() as stack:
             root = Path(stack.enter_context(TemporaryDirectory()))
             library = root / 'library'
             stack.enter_context(patch.object(local_database, 'DB_PATH', str(library / 'runteams.db')))
             app = LocalApplication(library)
             stack.callback(app.close)
-            folder = root / '项目.txt'
+            folder = root / '项目 folder.txt'
             folder.mkdir()
-            (folder / '说明.txt').write_text('folder content', encoding='utf-8')
-            (folder / '.env').write_text('excluded', encoding='utf-8')
+            for i in range(101):
+                (folder / f'{i}.txt').write_text('original', encoding='utf-8')
             file = root / '补充.txt'
             file.write_text('separate file', encoding='utf-8')
 
             with patch.object(chat_attachments, 'native_picker_path', return_value=''):
-                self.assertEqual(app.dispatch('POST', '/api/attachments/paste', {}), {'items': []})
+                self.assertEqual(app.dispatch('POST', '/api/attachments/paste', {}),
+                                 {'items': [], 'folder_paths': []})
             with patch.object(chat_attachments, 'native_picker_path', return_value='/picker'), \
-                 patch.object(chat_attachments, 'native_reference_paths', return_value=[str(file)]) as read:
+                 patch.object(chat_attachments, 'native_reference_paths', return_value=[str(file)]) as read, \
+                 patch.object(chat_attachments, '_folder_files', side_effect=AssertionError('enumerated')):
                 with self.assertRaisesRegex(ValueError, '附件粘贴请求无效'):
                     app.dispatch('POST', '/api/attachments/paste', {'paths': [str(folder)]})
                 read.assert_not_called()
-                self.assertEqual(app.dispatch('POST', '/api/attachments/paste', {}), {'items': []})
+                self.assertEqual(app.dispatch('POST', '/api/attachments/paste', {}),
+                                 {'items': [], 'folder_paths': []})
+                read.return_value = [str(folder)]
+                with patch.object(chat_attachments, '_selection_root', side_effect=AssertionError('staged')):
+                    self.assertEqual(app.dispatch('POST', '/api/attachments/paste', {}),
+                                     {'items': [], 'folder_paths': [str(folder)]})
+                for action, body in [('paste', {}), ('prepare', {'paste': True, 'paths': [str(folder)]})]:
+                    result = app.dispatch('POST', '/api/local-references/' + action, body)
+                    self.assertEqual(result, {'references': [], 'pending': [], 'folder_paths': [str(folder)]})
+                    read.assert_called_with('paste')
+                with self.assertRaisesRegex(ValueError, '剪贴板内容已变化'):
+                    app.dispatch('POST', '/api/local-references/prepare', {'paste': True, 'paths': [str(file)]})
+
                 read.return_value = [str(folder), str(file)]
-                items = app.dispatch('POST', '/api/attachments/paste', {})['items']
-                self.assertEqual([(item['kind'], item['name'], item['file_count']) for item in items],
-                                 [('folder', folder.name, 1), ('file', file.name, 1)])
-                self.assertTrue(all('path' not in item for item in items))
-                snapshot = Path(chat_attachments._SELECTIONS[items[0]['token']]['path'])
-                self.assertEqual((snapshot / '说明.txt').read_text(), 'folder content')
-                self.assertFalse((snapshot / '.env').exists())
-                for action in ('paste', 'drop'):
-                    read.return_value = [str(folder)]
-                    result = app.dispatch('POST', '/api/local-references/' + action, {})
-                    read.assert_called_with(action)
-                    self.assertEqual(result['pending'][0]['path'], str(folder.resolve()))
+                result = app.dispatch('POST', '/api/attachments/paste', {})
+                self.assertEqual(result['folder_paths'], [str(folder)])
+                self.assertEqual([(item['kind'], item['name']) for item in result['items']], [('file', file.name)])
+                result = app.dispatch('POST', '/api/local-references/paste', {})
+                self.assertEqual(result['folder_paths'], [str(folder)])
+                self.assertEqual([item['path'] for item in result['pending']], [str(file.resolve())])
+
+                read.return_value = [str(folder)]
+                result = app.dispatch('POST', '/api/local-references/drop', {})
+                read.assert_called_with('drop')
+                self.assertEqual(result['pending'][0]['path'], str(folder.resolve()))
+
+    def test_original_path_text_arrives_in_native_cli_processes(self):
+        from runteams_core.agents.adapters.adapter_claude import ClaudeCodeAdapter
+        from runteams_core.agents.environment.cli_compatibility import required_options
+        from runteams_core.agents.models import model_channels
+        with ExitStack() as stack:
+            root = Path(stack.enter_context(TemporaryDirectory())).resolve()
+            library = root / 'library'
+            stack.enter_context(patch.object(local_database, 'DB_PATH', str(library / 'runteams.db')))
+            app = LocalApplication(library)
+            stack.callback(app.close)
+            folder = root / '本机项目 with spaces'
+            folder.mkdir()
+            second_folder = root / 'empty'
+            second_folder.mkdir()
+            received = root / 'received.txt'
+            claude = root / 'claude'
+            claude.write_text(
+                f'#!{sys.executable}\n'
+                'from pathlib import Path\n'
+                'import sys\n'
+                'if "--help" in sys.argv:\n'
+                f'    print({" ".join(required_options("claude-code"))!r})\n'
+                '    sys.exit()\n'
+                f'Path({str(received)!r}).write_text(sys.argv[sys.argv.index("-p") + 1], encoding="utf-8")\n'
+                'print(\'{"type":"result","subtype":"success","result":"received"}\')\n',
+                encoding='utf-8',
+            )
+            claude.chmod(0o700)
+            codex = root / 'codex'
+            codex.write_text(
+                f'#!{sys.executable}\n'
+                'from pathlib import Path\n'
+                'import json, sys\n'
+                'def send(message):\n'
+                '    print(json.dumps(message), flush=True)\n'
+                'turn = {"id": "turn-test", "status": "completed", "items": [\n'
+                '    {"type": "agentMessage", "phase": "final_answer", "text": "received"}]}\n'
+                'for line in sys.stdin:\n'
+                '    request = json.loads(line)\n'
+                '    if "id" not in request:\n'
+                '        continue\n'
+                '    method = request["method"]\n'
+                '    result = {}\n'
+                '    if method == "thread/start":\n'
+                '        result = {"thread": {"id": "thread-test"}}\n'
+                '    elif method == "turn/start":\n'
+                f'        Path({str(received)!r}).write_text(json.dumps(request["params"]["input"]), encoding="utf-8")\n'
+                '        result = {"turn": turn}\n'
+                '    send({"id": request["id"], "result": result})\n'
+                '    if method == "turn/start":\n'
+                '        send({"method": "turn/completed", "params": {"turn": turn}})\n',
+                encoding='utf-8',
+            )
+            codex.chmod(0o700)
+            stack.enter_context(patch.object(model_channels, 'adapter_for', return_value=ClaudeCodeAdapter(executable=str(claude))))
+            stack.enter_context(patch.object(model_channels, 'resolve_channel_executable', return_value=str(codex)))
+            with patch.object(chat_attachments, 'native_picker_available', return_value=True), \
+                 patch.object(chat_attachments, 'native_reference_paths', return_value=[str(folder), str(second_folder)]):
+                pasted = app.dispatch('POST', '/api/attachments/paste', {})
+            message = '请检查\n' + '\n'.join(pasted['folder_paths'])
+            self.assertEqual(message, f'请检查\n{folder}\n{second_folder}')
+            for provider in ('claude', 'codex'):
+                with self.subTest(provider=provider), patch.object(
+                        app.runtime, 'config', return_value=({'id': 1, 'provider': provider}, 'test', '', {})):
+                    chat = app.dispatch('POST', '/api/conversations', {})['session']['id']
+                    _, operation = app.runtime.start(chat, {'message': message, 'operation_id': str(uuid.uuid4())})
+                    events = list(app.runtime.observe(chat, operation))
+                    self.assertTrue(received.exists(), events)
+                    payload = received.read_text(encoding='utf-8')
+                    received.unlink()
+                    if provider == 'codex':
+                        self.assertEqual(json.loads(payload), [{'type': 'text', 'text': message}])
+                    else:
+                        self.assertTrue(payload.endswith('# 当前消息\n' + message))
+                    saved = app.dispatch('GET', f'/api/chat/{chat}', {})['messages'][0]
+                    self.assertEqual(saved['text'], message)
+                    self.assertEqual(saved['attachments'], [])
