@@ -398,7 +398,7 @@ function applicationAccount(s,row){
   '<span class="sr-only">'+messageMarkup(message('appsLoading','正在读取…'))+'</span></span>';
  if(row.account){
   const name=gmail&&!mailboxName(accountName)?toolsText('connected','已连接'):accountName;
-  return '<span class="employee-application-account" title="'+esc(name)+'">'+esc(name)+'</span>';
+  return applicationAccountLabel(name);
  }
  return '<button type="button" class="btn" data-employee-app-connect="'+esc(id)+'">'+messageMarkup(message('appsConnect','连接'))+'</button>';
 }
@@ -445,14 +445,20 @@ function listedApplications(s){
  }
  return [...items.values()];
 }
+function applicationRow(row,actions){
+ const name=esc(row.name);
+ return '<div class="employee-application-row">'+applicationMark(row)+
+  '<strong class="employee-application-name" title="'+name+'">'+name+'</strong>'+actions+'</div>';
+}
+function applicationAccountLabel(name){
+ return '<span class="employee-application-account" title="'+esc(name)+'">'+esc(name)+'</span>';
+}
 function applicationRows(s){
  const label=(key,fallback)=>messageMarkup(message(key,fallback));
  return listedApplications(s).map(row=>{
   const pending=s.applicationConnections?.get(applicationId(row));
-  const id=esc(applicationId(row)),name=esc(row.name),account=applicationAccount(s,row);
-  return '<div class="employee-application-row">'+applicationMark(row)+
-   '<strong class="employee-application-name" title="'+name+'">'+name+'</strong>'+
-   account+(applications(s).some(saved=>applicationId(saved)===applicationId(row))?'<button type="button" class="btn ghost employee-application-more" data-menu-trigger="quiet" data-employee-app-menu="'+id+'" aria-haspopup="menu" aria-expanded="false"'+(pending?' disabled':'')+' aria-label="'+esc(copy('appsMore','更多操作')+' · '+row.name)+'">'+ICON('more')+'</button>':'')+'</div>';
+  const id=esc(applicationId(row)),account=applicationAccount(s,row);
+  return applicationRow(row,account+(applications(s).some(saved=>applicationId(saved)===applicationId(row))?'<button type="button" class="btn ghost employee-application-more" data-menu-trigger="quiet" data-employee-app-menu="'+id+'" aria-haspopup="menu" aria-expanded="false"'+(pending?' disabled':'')+' aria-label="'+esc(copy('appsMore','更多操作')+' · '+row.name)+'">'+ICON('more')+'</button>':''));
  }).join('')+'<div class="employee-application-footer"><button type="button" class="btn" data-employee-app-add>'+label('appsAdd','添加应用')+'</button></div>';
 }
 function applicationSection(s){
@@ -1231,8 +1237,9 @@ async function showOnboarding(panel){
    body:'<div class="employee-onboarding-intro"><h2 id="employee-onboarding-title">'+esc(step.title)+'</h2>'+
     (step.description?'<p id="employee-onboarding-description">'+esc(step.description)+'</p>':'')+'</div>'+
     fields().map(field=>controls.field({...field,disabled:busy},values[field.key],errors[field.key])).join('')+
-    (application?'<div class="employee-onboarding-connection">'+(connection?'<span>'+esc(connection.account.name)+'</span>':'')+
-     '<button type="button" class="btn" data-guide-application>'+esc(connection?t('changeApp','更换连接'):application.label)+'</button></div>':'')+
+    (application?applicationRow(connection||{name:application.label},
+     (connection?applicationAccountLabel(connection.account.name):'')+
+     '<button type="button" class="btn" data-guide-application>'+esc(connection?t('changeApp','更换连接'):t('connectApp','连接'))+'</button>'):'')+
     (errors._form?'<p role="alert" class="error">'+esc(errors._form)+'</p>':''),footer:progress+'<div class="employee-onboarding-actions">'+buttons+'</div>'};
   if(host?.isConnected)replaceChildDialog(options);
   else{

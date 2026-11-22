@@ -18,7 +18,7 @@
 .employee-application-row:has(>.employee-application-account,>.employee-application-placeholder)>.employee-application-mark{grid-area:mark}
 .employee-application-row:has(>.employee-application-account,>.employee-application-placeholder)>.employee-application-name{grid-area:name}
 .employee-application-row>.employee-application-account,.employee-application-row>.employee-application-placeholder{grid-area:account;max-width:100%}
-.employee-application-row:has(>.employee-application-account,>.employee-application-placeholder)>.employee-application-more{grid-area:menu}
+.employee-application-row:has(>.employee-application-account,>.employee-application-placeholder)>button{grid-area:menu}
 .btn.employee-application-more{display:grid;place-items:center;width:28px;height:28px;padding:0}
 .employee-application-more .i{width:14px;height:14px}
 .employee-application-footer{display:flex;justify-content:flex-end;padding-top:12px}
@@ -95,7 +95,6 @@
 .employee-onboarding-dialog > .mf { padding: 16px var(--guide-padding) 20px; border: 0; background: transparent; gap: 6px; align-items: center; flex-wrap: nowrap; }
 .employee-onboarding-actions { margin-inline-start: auto; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
 .employee-onboarding-dialog .mf .btn { min-height: 34px; }
-.employee-onboarding-connection { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; overflow-wrap: anywhere; }
 .modal.employee-guide-app-picker { height: auto; max-height: 88dvh; }
 .modal.employee-guide-app-picker > .mh { grid-template-columns: minmax(0, 1fr) auto; }
 .modal.employee-guide-app-picker > .mb { overflow: auto; }
