@@ -18,9 +18,29 @@ def request_digest(data):
     relevant = {key: data.get(key) or ([] if key != 'message' else '') for key in
                 ('message', 'attachments', 'attachment_tokens', 'reuse_attachment_ids', 'capabilities')}
     if 'language_policy' in data:relevant['language_policy'] = data['language_policy']
+    if data.get('folder_refs'):
+        relevant['folder_refs'] = data['folder_refs']
     relevant['rewind_message_id'] = data.get('rewind_message_id') or None
     return hashlib.sha256(json.dumps(relevant, ensure_ascii=False, sort_keys=True,
                          separators=(',', ':'), allow_nan=False).encode()).hexdigest()
+
+
+def normalize_folder_refs(text, refs):
+    if refs is None:
+        return []
+    if not isinstance(refs, list):
+        raise ValueError('文件夹引用无效。')
+    previous_end = 0
+    for ref in refs:
+        if not isinstance(ref, dict) or ref.keys() != {'start', 'end'}:
+            raise ValueError('文件夹引用无效。')
+        start, end = ref['start'], ref['end']
+        if (type(start) is not int or type(end) is not int
+                or not previous_end <= start < end <= len(text)
+                or text[start] != '/' or '\x00' in text[start:end]):
+            raise ValueError('文件夹引用无效。')
+        previous_end = end
+    return refs
 
 
 def prepare(runtime, chat, data, operation, digest, *, capabilities=None, rewind_source=None, employee_configuration=None, language_policy=None):
@@ -31,6 +51,7 @@ def prepare(runtime, chat, data, operation, digest, *, capabilities=None, rewind
         raise ValueError('附件列表无效。')
     if any(not isinstance(item, dict) for item in uploads) or any(not isinstance(v, str) for v in tokens + reuse):
         raise ValueError('附件内容或引用无效。')
+    folder_refs = normalize_folder_refs(data.get('message') or '', data.get('folder_refs'))
     source_messages = [rewind_source] if rewind_source else chat['messages']
     known = {item['id']: item for m in source_messages for item in m.get('attachments') or []}
     if len(set(reuse)) != len(reuse) or set(reuse) - known.keys():
@@ -66,6 +87,7 @@ def prepare(runtime, chat, data, operation, digest, *, capabilities=None, rewind
                 message_id = runtime.store.add_chat_message(chat['id'], 'user', data.get('message') or '',
                     attachments=items, capabilities=capabilities or [],
                     metadata={**({'language_policy': language_policy} if language_policy is not None else {}), 'local_turn_id': operation, 'local_turn_request_sha256': digest,
+                        **({'folder_refs': folder_refs} if folder_refs else {}),
                         **({'employee_configuration':employee_configuration} if employee_configuration is not None else {}),
                         **({'superseded_local_turns': superseded} if rewind_source else {})})
         except Exception as error:

@@ -619,7 +619,7 @@ class LocalRuntime:
         work_activity = current_turn(chat_id) if work_id is not None else None
         from runteams_core.agents.models import model_channels
         supported = {'operation_id','message','attachments','attachment_tokens','reuse_attachment_ids',
-                     'local_asset_ids','local_asset_bindings','capabilities','view_context','rewind_message_id','language_policy'}
+                     'local_asset_ids','local_asset_bindings','capabilities','view_context','rewind_message_id','language_policy','folder_refs'}
         if not isinstance(data, dict) or data.keys() - supported:
             raise ValueError('对话请求字段无效。')
         with self.lock, self.scope():

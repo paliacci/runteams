@@ -122,13 +122,19 @@ class LocalClipboardAttachmentsTests(unittest.TestCase):
             with patch.object(chat_attachments, 'native_picker_available', return_value=True), \
                  patch.object(chat_attachments, 'native_reference_paths', return_value=[str(folder), str(second_folder)]):
                 pasted = app.dispatch('POST', '/api/attachments/paste', {})
-            message = '请检查\n' + '\n'.join(pasted['folder_paths'])
-            self.assertEqual(message, f'请检查\n{folder}\n{second_folder}')
+            prefix = f'📁 普通文字 {folder}\n请检查\n'
+            message = prefix + '\n'.join(pasted['folder_paths'])
+            self.assertEqual(message, f'{prefix}{folder}\n{second_folder}')
+            folder_refs = [
+                {'start': len(prefix), 'end': len(prefix) + len(str(folder))},
+                {'start': len(message) - len(str(second_folder)), 'end': len(message)},
+            ]
             for provider in ('claude', 'codex'):
                 with self.subTest(provider=provider), patch.object(
                         app.runtime, 'config', return_value=({'id': 1, 'provider': provider}, 'test', '', {})):
                     chat = app.dispatch('POST', '/api/conversations', {})['session']['id']
-                    _, operation = app.runtime.start(chat, {'message': message, 'operation_id': str(uuid.uuid4())})
+                    request = {'message': message, 'operation_id': str(uuid.uuid4()), 'folder_refs': folder_refs}
+                    mid, operation = app.runtime.start(chat, request)
                     events = list(app.runtime.observe(chat, operation))
                     self.assertTrue(received.exists(), events)
                     payload = received.read_text(encoding='utf-8')
@@ -138,5 +144,10 @@ class LocalClipboardAttachmentsTests(unittest.TestCase):
                     else:
                         self.assertTrue(payload.endswith('# 当前消息\n' + message))
                     saved = app.dispatch('GET', f'/api/chat/{chat}', {})['messages'][0]
+                    self.assertEqual(saved['id'], mid)
                     self.assertEqual(saved['text'], message)
                     self.assertEqual(saved['attachments'], [])
+                    self.assertEqual(saved['metadata']['folder_refs'], folder_refs)
+                    self.assertEqual(app.runtime.start(chat, request), (mid, operation))
+                    with self.assertRaisesRegex(ValueError, '原操作内容不能改变'):
+                        app.runtime.start(chat, {**request, 'folder_refs': folder_refs[1:]})

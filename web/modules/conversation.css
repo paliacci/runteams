@@ -229,8 +229,9 @@
 .conversation-queue-actions button{width:28px;padding:6px}
 .conversation-queue-actions svg{width:16px;height:16px}
 .conversation-queue-edit{min-width:0;flex:1}
-.conversation-queue-edit textarea{display:block;width:100%;box-sizing:border-box;min-height:72px;max-height:160px;resize:vertical;padding:8px;border:1px solid var(--line2);border-radius:8px;background:var(--panel);color:var(--text-primary);font:inherit;line-height:20px}
-.conversation-queue-edit>div{display:flex;justify-content:flex-end;gap:4px;margin-top:4px}
+.conversation-queue-edit [data-queue-editor]{display:block;width:100%;box-sizing:border-box;min-height:72px;max-height:160px;resize:vertical;overflow:auto;padding:8px;border:1px solid var(--line2);border-radius:8px;background:var(--panel);color:var(--text-primary);font:inherit;line-height:20px}
+.conversation-queue-edit [data-queue-editor]:focus-visible{outline:auto}
+.conversation-queue-edit>div:last-child{display:flex;justify-content:flex-end;gap:4px;margin-top:4px}
 .ccomposer{position:relative;background:var(--panel);border:1px solid var(--line2);border-radius:16px;padding:5px;box-shadow:0 1px 2px var(--effect-shadow-soft),0 8px 24px var(--effect-shadow-soft);transition:border-color .14s,box-shadow .14s,background .14s}/* module-rule:145 */
 
 /* module-rule:146 */
@@ -1494,15 +1495,17 @@
 }
 .ccomposer .cfoot-left>.cattachments .cattachment>button:hover { background:var(--surface-hover); color:var(--text-primary); }
 .ccomposer .cfoot-left>.cattachments .cattachment>button .i { width:10px; height:10px; }
-/* Capability references read as text with an icon, using the editor's type size. */
-.ccomposer .cinline-capability {
+/* Inline references use the surrounding text size. */
+.cinline-folder,.ccomposer .cinline-capability {
   box-sizing:border-box; display:inline-flex; align-items:center; max-width:calc(100% - .4em); gap:.25em; margin:0 .2em; padding:0;
-  border:0; border-radius:0; background:transparent; color:var(--editor-palette-blue);
+  border:0; border-radius:0; background:transparent; color:inherit;
   font:inherit; line-height:inherit; vertical-align:bottom; white-space:nowrap;
   cursor:text; user-select:all; -webkit-user-select:all;
 }
-.ccomposer .cinline-capability b { min-width:0; overflow:hidden; text-overflow:ellipsis; font:inherit; color:inherit; }
-.ccomposer .cinline-capability>:is(img,svg) { flex:0 0 1.1em; width:1.1em; height:1.1em; object-fit:contain; color:inherit; }
+.ccomposer .cinline-capability { color:var(--editor-palette-blue); }
+.cinline-folder { padding:0 .25em; border-radius:4px; background:var(--surface-hover); }
+.cinline-folder b,.ccomposer .cinline-capability b { min-width:0; overflow:hidden; text-overflow:ellipsis; font:inherit; color:inherit; }
+.cinline-folder>.i,.ccomposer .cinline-capability>:is(img,svg) { flex:0 0 1.1em; width:1.1em; height:1.1em; object-fit:contain; color:inherit; }
 .menu.chat-add-menu {
   align-items:flex-start; min-width:0; width:max-content; max-width:min(360px,calc(100vw - 16px));
   gap:0; padding:2px 2px 7px; border:1px solid var(--border-default); border-radius:11px;
@@ -1531,7 +1534,7 @@
 .menu.chat-add-menu .menu-empty { align-self:stretch; }
 
 .ccomposer .cattachments,.ccomposer .cinline-capability,.menu.chat-add-menu { letter-spacing:0; }
-.ccomposer .cfoot-left>.cattachments :is(b,span)[lang="zh"],.ccomposer .cinline-capability b[lang="zh"],.menu.chat-add-menu .menu-copy [lang="zh"],.menu.chat-add-menu .menuhead[lang="zh"] { font-family:"PingFang SC",var(--ui); }
+.cinline-folder b[lang="zh"],.ccomposer .cfoot-left>.cattachments :is(b,span)[lang="zh"],.ccomposer .cinline-capability b[lang="zh"],.menu.chat-add-menu .menu-copy [lang="zh"],.menu.chat-add-menu .menuhead[lang="zh"] { font-family:"PingFang SC",var(--ui); }
 
 /* One welcome layout for every empty conversation context. */
 .conversation-main .conversation-new-state {
