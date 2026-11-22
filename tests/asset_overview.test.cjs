@@ -106,6 +106,13 @@ test('overview lists finalized documents and files directly, with overflow only 
   assert.match(sections()[0],/Final document.*final.pdf/s);
   assert.match(sections()[0],/class="work-deliverable-title".*Final document.*>文档<.*>打开<.*final.pdf.*>PDF<.*>预览</s);
   assert.doesNotMatch(sections()[0],/Progress only|Draft|Evidence|assetOverview.all/);
+  const actionRows=[...sections()[0].matchAll(/<div role="listitem" class="work-deliverable work-deliverable-static">([\s\S]*?)<\/div><\/div>/g)];
+  assert.equal(actionRows.length,2);
+  for(const [,row] of actionRows){
+    const [details,actions]=row.split('<div class="work-deliverable-actions">');
+    assert.doesNotMatch(details,/<button|onclick|tabindex/);
+    assert.match(actions,/<button[^>]+onclick="RunTeamsAssetOverview.openDelivery/);
+  }
   assert.match(sections()[0],/downloadDelivery\(10\)/);
   assert.doesNotMatch(sections()[0],/downloadDelivery\(33\)/);
   assert.match(sections()[1],/assetOverview.activity/);

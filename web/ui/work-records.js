@@ -95,7 +95,7 @@
   doc:['text','文本'],image:['image','图片'],'file-pdf':['pdf','PDF'],'file-table':['table','表格'],
   'file-code':['code','代码'],package:['archive','压缩包'],audio:['audio','音频'],video:['video','视频'],file:['binary','文件']
  };
- function deliveryRowMarkup(file,{key,action,downloadId}){
+ function deliveryRowMarkup(file,{key,action,downloadId,actionOnly=false}){
   const document=file.purpose==='document';
   const icon=document?'doc':resultEvidenceIcon(file);
   const [kind,kindLabel]=document?['rich','文档']:deliveryKinds[icon]||deliveryKinds.file;
@@ -103,13 +103,17 @@
    ['pipelineSettings.view','查看']:['employeeResource.preview','预览'];
   const label=(id,fallback)=>`<span data-app-i18n="${id}">${esc(window.RunTeamsLocale?.t(id,{},fallback)??fallback)}</span>`;
   const name=file.name||file.filename||window.RunTeamsLocale?.t('pipelineWork.deliveryUntitled',{},'未命名交付物')||'未命名交付物';
-  const download=document&&Number.isSafeInteger(downloadId)&&downloadId>0?
-   `<button type="button" class="work-delivery-download" aria-label="${esc(window.RunTeamsLocale?.t('documentReader.downloadDeliveryNamed',{name})??('下载交付文件：'+name))}" title="${esc(window.RunTeamsLocale?.t('documentReader.download')??'下载')}" onclick="RunTeamsRichDocuments.downloadDelivery(${downloadId})">${ICON('download')}</button>`:'';
-  return `<div role="listitem"${download?' class="work-delivery-with-download"':''}><button type="button" class="work-deliverable" data-result-key="${esc(key)}" onclick="${action}">
-   <span class="work-deliverable-icon" aria-hidden="true">${ICON(icon)}</span>
+  const details=`<span class="work-deliverable-icon" aria-hidden="true">${ICON(icon)}</span>
    <b class="work-deliverable-title" title="${esc(name)}">${esc(name)}</b>
-   <span class="sr-only">${label('fileBrowser.kind.'+kind,kindLabel)}</span>
-   <span class="work-deliverable-action">${label(verbKey,verb)}</span></button>${download}</div>`;
+   <span class="sr-only">${label('fileBrowser.kind.'+kind,kindLabel)}</span>`;
+  const trigger=`type="button" data-result-key="${esc(key)}" onclick="${action}"`;
+  const verbLabel=label(verbKey,verb);
+  const download=document&&Number.isSafeInteger(downloadId)&&downloadId>0?
+   `<button type="button" class="${actionOnly?'btn ghost sm ':''}work-delivery-download" aria-label="${esc(window.RunTeamsLocale?.t('documentReader.downloadDeliveryNamed',{name})??('下载交付文件：'+name))}" title="${esc(window.RunTeamsLocale?.t('documentReader.download')??'下载')}" onclick="RunTeamsRichDocuments.downloadDelivery(${downloadId})">${ICON('download')}</button>`:'';
+  if(actionOnly)return `<div role="listitem" class="work-deliverable work-deliverable-static">${details}
+   <div class="work-deliverable-actions"><button class="btn ghost sm" ${trigger}>${verbLabel}<span class="sr-only"> ${esc(name)}</span></button>${download}</div></div>`;
+  return `<div role="listitem"${download?' class="work-delivery-with-download"':''}><button class="work-deliverable" ${trigger}>${details}
+   <span class="work-deliverable-action">${verbLabel}</span></button>${download}</div>`;
  }
  function taskRowMarkup(result){
   const output=result.outputs?.[0],run=result.contributions?.find(item=>Number(item.id)===Number(output?.run_id));

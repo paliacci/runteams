@@ -23,6 +23,11 @@
 .work-delivery-download .i{width:14px;height:14px}
 .work-delivery-download:hover{color:var(--text-primary);background:var(--surface-hover)}
 .work-delivery-download:focus-visible,.work-deliverable:focus-visible{outline:2px solid var(--text-secondary);outline-offset:-2px}
+.work-deliverable-static{cursor:auto;padding-block:2px;padding-inline-end:0}
+.work-deliverable-actions{display:flex;align-items:center;gap:2px}
+.work-deliverable-actions>.btn{min-height:32px;white-space:nowrap}
+.work-deliverable-actions>.work-delivery-download{width:32px;padding:0}
+.work-deliverable-actions>.btn:focus-visible{outline:2px solid var(--text-secondary);outline-offset:-2px}
 .work-deliverable-icon,.work-deliverable-icon>.i{display:block;width:14px;height:14px;color:var(--text-muted)}
 .work-deliverable-title{font-feature-settings:"halt";min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:calc(13px * var(--interface-font-scale,1));line-height:20px;font-weight:500}
 .work-deliverable-action{white-space:nowrap;color:var(--text-secondary);font-size:calc(11px * var(--interface-font-scale,1));line-height:18px;font-weight:400}

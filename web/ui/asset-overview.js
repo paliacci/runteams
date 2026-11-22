@@ -372,7 +372,7 @@ const RunTeamsEnvironment = (() => {
  }
  function deliveryRows(items){
   const rows=items.map(({key,file,id,document})=>RunTeamsWorkRecords.deliveryRowMarkup(file,{
-   key,downloadId:document?id:null,action:'RunTeamsAssetOverview.openDelivery(this.dataset.resultKey)'
+   key,actionOnly:true,downloadId:document?id:null,action:'RunTeamsAssetOverview.openDelivery(this.dataset.resultKey)'
   })).join('');
   return `<div class="work-deliverable-list" id="overview-delivery-files" role="list">${rows}</div>`;
  }
