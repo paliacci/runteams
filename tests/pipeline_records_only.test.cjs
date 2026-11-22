@@ -54,6 +54,20 @@ test('ordinary completions remain visible and the setting is reversible', () => 
   assert.equal(env.boardWorkflows(state).length, 4);
 });
 
+test('header status retains work from a position removed in a newer release', () => {
+  const source = fs.readFileSync('web/ui/source-pipelines.js', 'utf8');
+  const context = {referenceKey: () => 'team', RunTeamsHeaderStatus: {
+    phases: {running: [3, '正在处理']}, markup: (_owner, items) => items,
+  }};
+  vm.createContext(context);
+  vm.runInContext(source.slice(source.indexOf(' function statusMarkup('), source.indexOf(' function editName(')), context);
+  const state = {reference: {}, data: {runtime: {status: 'running'}, pipeline: {positions: [], states: []},
+    workflows: [{id: 1, cursor_key: 'old-position', state: 'running', title: 'Original work'}]}};
+  assert.equal(context.statusMarkup(state)[0].id, 1);
+  state.data.runtime.status = 'paused';
+  assert.equal(context.statusMarkup(state), '');
+});
+
 test('paused and failed records show their own execution previews', async () => {
   const reference = {source_id: 'pipeline'};
   const workspace = {reference, data: {workflows: [

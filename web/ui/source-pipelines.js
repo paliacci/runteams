@@ -324,7 +324,8 @@
   const {markup,phases}=RunTeamsHeaderStatus,owner='pipeline:'+referenceKey(s.reference);
   if(s.data.runtime.status==='paused')return '';
   if(s.errorKey||s.error)return '';
-  const eligible=boardWorkflows(s).filter(row=>Object.hasOwn(phases,row.state));
+  // Earlier releases can still run work in a position absent from the current board.
+  const eligible=s.data.workflows.filter(row=>Object.hasOwn(phases,row.state));
   if(!eligible.length)return '';
   const priority=eligible.reduce((best,row)=>Math.min(best,phases[row.state][0]),Infinity);
   return markup(owner,eligible.filter(row=>phases[row.state][0]===priority).map(row=>({
