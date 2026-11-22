@@ -6406,7 +6406,16 @@ function preferredModelChannel(preferredId){
 function normalizeConversationModelConfig(panel){
   if(!panel||panel.model||S.settingsPreferencesState!=='ready')return false;
   const originalChannelId=panel.channel_id,originalEffort=panel.reasoning_effort||'';
-  if(panel.kind==='employee_design'){
+  // A downloaded employee chat can have a storage-assigned channel before any model is chosen.
+  const unconfiguredEmployee=panel.kind==='general'&&panel.subject_type==='employee'&&
+    (panel.work_storage_scope==='device'||panel.storage_scope==='device')&&!panel.context?.local_employee_package;
+  if(unconfiguredEmployee){
+    if(panel.busy||panel.loading||!S.modelCatalogReady)return false;
+    const preferredId=String(accountSettingsPrefs().default_model||'').split('::')[0];
+    const preferred=S.channels.find(channel=>String(channel.id)===preferredId);
+    if(preferred?.enabled&&channelCatalog(preferred).status==='unknown')return false;
+  }
+  if(panel.kind==='employee_design'||unconfiguredEmployee){
     const config=defaultChatConfig(panel.scope_pipeline_id??null);
     if(!config.model)return false;
     const selected=S.channels.find(c=>String(c.id)===String(config.channel_id));

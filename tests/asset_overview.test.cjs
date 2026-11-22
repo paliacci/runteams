@@ -364,3 +364,34 @@ test('a pending model leaves the bound employee identity and examples visible', 
   assert.match(drawer, /data-skeleton-region="overview-runtime"/);
   assert.doesNotMatch(drawer, /data-skeleton-region="overview-name"/);
 });
+
+test('an unconfigured downloaded employee uses the verified conversation default, independent of its storage channel', () => {
+  const state = {
+    channels: [{id: 1, enabled: true}, {id: 2, enabled: true}],
+    modelCatalogReady: true, settingsPreferencesState: 'ready',
+  };
+  const catalogs = {
+    1: {status: 'ready', models: [{value: 'first'}], automatic_model: 'first'},
+    2: {status: 'unknown', models: []},
+  };
+  const context = vm.createContext({
+    S: state, accountSettingsPrefs: () => ({default_model: '2::chosen', default_effort: 'high'}),
+    channelCatalog: channel => catalogs[channel.id],
+    modelChannelAvailable: channel => catalogs[channel.id].status === 'ready',
+    normalizedEffort: (_channel, _model, effort) => effort,
+  });
+  const shell = fs.readFileSync('web/index.html', 'utf8');
+  for (const name of ['defaultChatConfig', 'normalizeConversationModelConfig']) {
+    vm.runInContext(shell.match(new RegExp('function '+name+'\\([^]*?\\n}'))[0], context);
+  }
+  const employee = {id: 3, kind: 'general', subject_type: 'employee', storage_scope: 'device',
+    channel_id: 1, model: '', context: {}};
+  assert.equal(context.normalizeConversationModelConfig(employee), false);
+  catalogs[2] = {status: 'ready', models: [{value: 'chosen'}]};
+  assert.equal(context.normalizeConversationModelConfig({...employee, busy: true}), false);
+  assert.equal(context.normalizeConversationModelConfig(employee), true);
+  assert.deepEqual([employee.channel_id, employee.model, employee.reasoning_effort], [2, 'chosen', 'high']);
+  const saved = {...employee, channel_id: 1, model: 'first'};
+  assert.equal(context.normalizeConversationModelConfig(saved), false);
+  assert.equal(saved.model, 'first');
+});
