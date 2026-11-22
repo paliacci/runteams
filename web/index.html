@@ -7929,10 +7929,15 @@ let _deliveryFilterTimer=0;
 // 编辑控件保留原始 Markdown；事件流、状态和短参数值保持纯文本。
 // 文档正文中的内部链接使用 runteams://document/<id>，
 // 最终转换为当前应用内的 /docs?document=<id>，在应用窗口中打开。
-function markdownLinkTarget(value){
+function markdownLinkTarget(value,replyFiles=false){
   const raw=String(value||'').trim();
   if(/^runteams:\/\/document\/[1-9][0-9]*(?:#[a-zA-Z0-9._:-]+)?$/.test(raw))return {kind:'document',href:raw};
   try{
+    if(replyFiles && !/^(?:[a-z][a-z0-9+.-]*:|[/?#])/i.test(raw) && !raw.includes('?')){
+      const path=decodeURIComponent(raw.split('#')[0]);
+      if(!/[\\\u0000]/.test(path) && !path.startsWith('/') && !path.split('/').includes('..') && /\.[\w-]+(?::[\d:-]+)?$/.test(path))
+        return {kind:'file',path,href:raw};
+    }
     const url=new URL(raw,location.origin);
     if(url.username||url.password)return null;
     const file=url.protocol==='file:'&&(!url.hostname||url.hostname==='localhost');
@@ -7947,8 +7952,8 @@ function markdownLinkTarget(value){
   }catch(error){}
   return null;
 }
-function prepareMarkdownLink(link){
-  const href=link.getAttribute('href')||'',target=markdownLinkTarget(href);
+function prepareMarkdownLink(link,replyFiles=false){
+  const href=link.getAttribute('href')||'',target=markdownLinkTarget(href,replyFiles);
   if(target){
     if(target.kind==='file')link.setAttribute('href',target.href);
     link.removeAttribute('target');link.removeAttribute('rel');
@@ -7957,13 +7962,13 @@ function prepareMarkdownLink(link){
   }else if(!href.startsWith('#')){link.target='_blank';link.rel='noopener noreferrer';}
 }
 async function openMarkdownLink(value,options={}){
-  const target=markdownLinkTarget(value);if(!target)return false;
+  const target=markdownLinkTarget(value,!!options.replyChatId);if(!target)return false;
   const sequence=++_markdownLinkSequence,generation=_workspaceBusinessGeneration,scope=workspaceAccountCacheToken(),routeSequence=_routeSequence,switchSequence=_workspaceSwitchSequence,source=location.href;
   const currentRoute=()=>sequence===_markdownLinkSequence&&generation===_workspaceBusinessGeneration&&scope===workspaceAccountCacheToken()&&routeSequence===_routeSequence&&switchSequence===_workspaceSwitchSequence;
   const current=()=>currentRoute()&&(!options.isCurrent||options.isCurrent());
   try{
     if(target.kind==='file'){
-      const result=await api('/api/local-files/reveal','POST',{path:target.path,chat_id:S.conversationPanel?.id??(S.chatId==='new'?null:S.chatId)});
+      const result=await api('/api/local-files/reveal','POST',{path:target.path,chat_id:options.replyChatId??S.conversationPanel?.id??(S.chatId==='new'?null:S.chatId)});
       if(result.error)throw new Error(result.error);
       return true;
     }
@@ -7991,9 +7996,10 @@ function markdownLinkClick(event){
   if(event.defaultPrevented||event.button>1)return;
   const link=event.target.closest?.('a[href]');
   if(!link||!link.closest('[data-runteams-link],.cmessage-markdown,.agent-work-text,.doc-reader-prose,.markdown-compact'))return;
-  const href=link.getAttribute('href');if(!markdownLinkTarget(href))return;
+  const replyChatId=Number(link.closest('.cmsg.bot[data-reply-chat]')?.dataset?.replyChat)||null;
+  const href=link.getAttribute('href');if(!markdownLinkTarget(href,!!replyChatId))return;
   event.preventDefault();event.stopPropagation();
-  void openMarkdownLink(href);
+  void openMarkdownLink(href,{replyChatId});
 }
 let _markdownLinkSequence=0;
 document.addEventListener('click',markdownLinkClick,true);
@@ -8046,7 +8052,7 @@ function renderMarkdown(value,options={}){
         link.classList.add("doc-internal-link");
         if(!link.getAttribute("title"))link.setAttribute("title","打开 RunTeams 文档");
       }
-      prepareMarkdownLink(link);
+      prepareMarkdownLink(link,options.replyFiles);
     });
     return template.innerHTML;
   }catch(error){return `<pre class="md-fallback">${esc(source)}</pre>`;}

@@ -876,7 +876,7 @@ function conversationMessages(messages,options={}){
     }
     const waiting=!!m.streaming&&!m.text&&!agentTraceHasDetails(m.trace)&&!(m.trace?.requests||[]).some(item=>item.status==='pending'),identity=conversationMessageIdentity(surface,{waiting});
     if(m.ephemeral){const unconfirmed=typeof m.retryAccepted==='boolean';return `<div class="cmsg bot" ${unconfirmed?'data-reply-unknown="true"':''} role="article" aria-label="${unconfirmed?'回复结果待确认':'回复失败'}" data-app-i18n-aria-label="conversationDetail.${unconfirmed?'replyUnknown':'replyFailed'}">${identity}<div class="cmessage-stack"><div class="cbubble">${m.systemNotice&&m.text?`<div class="cmessage-markdown">${conversationMarkdown(m.text)}</div>`:''}${failure}${agentTraceMarkup(m.trace,false)}</div></div></div>`;}
-    return `<div class="cmsg bot${m.streaming?' streaming':''}${waiting?' is-waiting':''}" role="article" aria-label="${m.systemNotice&&!m.text?'系统提示':'助手消息'}" data-app-i18n-aria-label="conversationDetail.${m.systemNotice&&!m.text?'systemNotice':'assistantMessage'}" ${m.localId?`data-live-agent="${esc(m.localId)}"`:''}>${identity}<div class="cmessage-stack"><div class="cbubble">${botConversationBody(m,index,surface,chatId)}</div>${showActions?conversationMessageActions(m,index,surface):''}</div></div>`;
+    return `<div data-reply-chat="${Number(chatId||conversationChatId(surface))||''}" class="cmsg bot${m.streaming?' streaming':''}${waiting?' is-waiting':''}" role="article" aria-label="${m.systemNotice&&!m.text?'系统提示':'助手消息'}" data-app-i18n-aria-label="conversationDetail.${m.systemNotice&&!m.text?'systemNotice':'assistantMessage'}" ${m.localId?`data-live-agent="${esc(m.localId)}"`:''}>${identity}<div class="cmessage-stack"><div class="cbubble">${botConversationBody(m,index,surface,chatId)}</div>${showActions?conversationMessageActions(m,index,surface):''}</div></div>`;
   }).join("");
 }
 
@@ -2099,7 +2099,7 @@ async function conversationSubmit(surface,send){
 
 /* module-function:conversationMarkdown */
 function conversationMarkdown(value){
-  const html=renderMarkdown(value);if(!document.createElement)return html;
+  const html=renderMarkdown(value,{replyFiles:true});if(!document.createElement)return html;
   const template=document.createElement('template');template.innerHTML=html;
   template.content.querySelectorAll('pre>code').forEach(code=>{
     const pre=code.parentElement,block=document.createElement('div'),bar=document.createElement('div');block.className='conversation-code-block';bar.className='conversation-code-toolbar';
