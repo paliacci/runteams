@@ -266,7 +266,9 @@
   const active=()=>ownsTask(s)&&s.refreshSequence===requestId;
   s.refreshReading=true;let repaint=!silent;
   try{
-   const backgroundRevision=s.data?.source_revision;
+   // A post-change read needs a full snapshot, including the background. It
+   // must not join a conditional read that began before the change committed.
+   const backgroundRevision=afterEdit?undefined:s.data?.source_revision;
    const data=await request('workspace',{reference:s.reference,...(backgroundRevision?{background_revision:backgroundRevision}:{})});if(!active())return false;
    if(data.source_revision===backgroundRevision && s.data?.workspace_background_src && !Object.hasOwn(data,'workspace_background_src')){
     data.workspace_background_src=s.data.workspace_background_src;
