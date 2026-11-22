@@ -789,7 +789,7 @@ function botConversationBody(m,index,surface,chatId=null){
 async function copyConversationMessage(surface,index,button){const message=_conversationMsg(surface,index),text=String(message?.text||'');if(!text)return;try{await navigator.clipboard.writeText(message.role==='bot'&&typeof RunTeamsReplyContent!=='undefined'?RunTeamsReplyContent.plainText(text):text);conversationCopied(button);}catch(error){toast('无法复制。请手动选择要复制的文字。','err','conversationDetail.copyFailed');}}
 
 /* module-function:editConversationMessage */
-function editConversationMessage(surface,index){const message=_conversationMsg(surface,index);if(!message)return;const panel=surface==="panel"?S.conversationPanel:null;if(surface==="chat"?S.chatBusy:panel?.busy)return toast("请等助手完成当前工作后再编辑。","info","conversationDetail.editBusy");if(!message.id)return toast("这条消息尚未保存，暂时无法从这里重新开始。","info","conversationDetail.editUnsaved");confirmModal("从这条消息重新开始？","重新发送时，这条消息及后续对话会被替换。已执行的任务和智能体团队，以及文件改动都会保留。",()=>{const capabilities=(message.capabilities||[]).map(item=>({...item})),draft=conversationDraftFromMessage(message.text||"",capabilities,message.metadata?.folder_refs),attachments=(message.attachments||[]).map(item=>({...item,localId:`rewind-${surface}-${item.id}`,reuseId:item.id}));clearConversationAttachments(surface);setConversationAttachments(surface,attachments);setConversationCapabilities(surface,capabilities);setConversationDraftValue(surface,draft);if(surface==="panel"){panel.messages=panel.messages.slice(0,index);panel.editRewind={messageId:message.id};}else{S.chatMsgs=S.chatMsgs.slice(0,index);S.chatRewind={messageId:message.id};}render();toast("修改消息，然后重新发送。","info","conversationDetail.editReady");requestAnimationFrame(()=>{const box=conversationInputElement(surface);if(box){setConversationInputValue(box,draft,capabilities);box.focus();restoreConversationSelection(surface,draft.length);}});},false,{
+function editConversationMessage(surface,index){const message=_conversationMsg(surface,index);if(!message)return;const panel=surface==="panel"?S.conversationPanel:null;if(surface==="chat"?S.chatBusy:panel?.busy)return toast("请等助手完成当前工作后再编辑。","info","conversationDetail.editBusy");if(!message.id)return toast("这条消息尚未保存，暂时无法从这里重新开始。","info","conversationDetail.editUnsaved");confirmModal("从这条消息重新开始？","重新发送时，这条消息及后续对话会被替换。已执行的任务和智能体团队，以及文件改动都会保留。",()=>{const capabilities=(message.capabilities||[]).map(item=>({...item})),restored=conversationDraftFromMessage(message.text,capabilities,message.metadata?.folder_refs),draft=restored.text,attachments=[...(message.attachments||[]).map(item=>({...item,localId:`rewind-${surface}-${item.id}`,reuseId:item.id})),...restored.folders];clearConversationAttachments(surface);setConversationAttachments(surface,attachments);setConversationCapabilities(surface,capabilities);setConversationDraftValue(surface,draft);if(surface==="panel"){panel.messages=panel.messages.slice(0,index);panel.editRewind={messageId:message.id};}else{S.chatMsgs=S.chatMsgs.slice(0,index);S.chatRewind={messageId:message.id};}render();toast("修改消息，然后重新发送。","info","conversationDetail.editReady");requestAnimationFrame(()=>{const box=conversationInputElement(surface);if(box){setConversationInputValue(box,draft,capabilities);box.focus();restoreConversationSelection(surface,draft.length);}});},false,{
   titleKey:"conversationDetail.rewindTitle",messageKey:"conversationDetail.rewindMessage",
   action:"编辑消息",actionKey:"conversationDetail.editMessage",cancelKey:"trash.cancel",closeKey:"conversationDetail.close"
 });}
@@ -892,7 +892,7 @@ function retryFailedConversationMessage(surface,index){
   if(!failed.retryAccepted&&!failed.ts&&(surface==="panel"?panel?.input:S.chatDraft)){messages.splice(index,1);render();requestAnimationFrame(()=>conversationSubmit(surface,()=>(surface==="panel"?sendConversationPanel():sendChat())));return;}
   let userIndex=index-1;while(userIndex>=0&&messages[userIndex]?.role!=="user")userIndex--;
   if(userIndex<0){messages.splice(index,1);render();requestAnimationFrame(()=>conversationSubmit(surface,()=>(surface==="panel"?sendConversationPanel():sendChat())));return;}
-  const message=messages[userIndex],capabilities=(message.capabilities||[]).map(item=>({...item})),draft=conversationDraftFromMessage(message.text||"",capabilities,message.metadata?.folder_refs),attachments=(message.attachments||[]).map(item=>({...item,localId:`retry-${surface}-${item.id||userIndex}`,reuseId:item.id}));
+  const message=messages[userIndex],capabilities=(message.capabilities||[]).map(item=>({...item})),restored=conversationDraftFromMessage(message.text,capabilities,message.metadata?.folder_refs),draft=restored.text,attachments=[...(message.attachments||[]).map(item=>({...item,localId:`retry-${surface}-${item.id||userIndex}`,reuseId:item.id})),...restored.folders];
   clearConversationAttachments(surface);setConversationAttachments(surface,attachments);setConversationCapabilities(surface,capabilities);setConversationDraftValue(surface,draft);
   if(surface==="panel"){panel.messages=panel.messages.slice(0,userIndex);panel.editRewind=message.id?{messageId:message.id}:null;panel.input=draft;}
   else{S.chatMsgs=S.chatMsgs.slice(0,userIndex);S.chatRewind=message.id?{messageId:message.id}:null;S.chatDraft=draft;}
@@ -909,11 +909,12 @@ function conversationMessages(messages,options={}){
     const date=conversationMessageDate(m,hasUser?previous:null);if(m.role==="user")hasUser=true;if(!m.transientQuestionSegment&&!['debug','debug-draft'].includes(m.role))previous=m;
     if(m.role==="debug")return `<div class="conversation-debug-state-label" role="separator"><span>${esc(m.text)}</span></div>`;
     if(m.role==="user"){
-      const capabilities=m.capabilities||[],files=chatMessageAttachments(m.attachments||[],chatId);
+      const capabilities=m.capabilities||[],{text,paths}=conversationSplitFolders(m.text,m.metadata?.folder_refs);
+      const files=chatMessageAttachments([...(m.attachments||[]),...paths.map(path=>({kind:"folder_path",path,name:conversationFolderName(path)}))],chatId);
       const extensions=chatMessageCapabilities(capabilities),summary=m.metadata?.question_summary;
       const content=[
         summary?`<div class="cmessage-question-summary" title="${esc(summary)}">${esc(summary)}</div>`:"",
-        m.text?`<div class="cmessage-text">${chatMessageText(m.text,capabilities,m.metadata?.folder_refs)}</div>`:"",
+        text?`<div class="cmessage-text">${chatMessageText(text,capabilities)}</div>`:"",
         extensions?`<div class="cmessage-context">${extensions}</div>`:""
       ].join("");
       const bubble=content?`<div class="cbubble ${extensions?"has-context":"text-only"}">${content}</div>`:"";
@@ -1023,6 +1024,7 @@ function chatFileCard(item,chatId,body,extraClass=""){
 function chatMessageAttachments(items,chatId=S.chatId){
   if(!items.length)return "";
   const markup=items.map(item=>{
+    if(item.kind==="folder_path")return `<span class="cmessage-file folder" title="${esc(item.path)}">${ICON("folder")}<span><b>${esc(item.name)}</b></span></span>`;
     if(item.kind==="local_asset"){
       const folder=item.local_kind==="folder";
       return chatFileCard(item,chatId,`${ICON(folder?"folder":"doc")}<span><b lang="${/[\u3400-\u9fff]/.test(item.name)?"zh":"en"}">${esc(item.name)}</b><small data-app-i18n="localReference.${folder?"folderDetail":"fileDetail"}">${folder?"文件夹":"文件"} · 仅在这台电脑使用</small></span>`,"local-reference");
@@ -1041,26 +1043,33 @@ function chatMessageAttachments(items,chatId=S.chatId){
 function chatMessageCapabilities(items){const global=(items||[]).filter(item=>!item.mention_token&&!item.mention_id);if(!global.length)return "";return `<div class="cmessage-capabilities">${global.map(item=>`<span>${conversationCapabilityIcon(item)}<b>${esc(item.label||item.id)}</b></span>`).join("")}</div>`;}
 
 /* module-function:chatMessageText */
-function chatMessageText(text,items,folderRefs){
-  return conversationFolderText(text,folderRefs,part=>{
-    let html=esc(part);
-    (items||[]).filter(item=>item.mention_token).forEach(item=>{const token=esc(item.mention_token),chip=`<span class="cmessage-capability-ref">${conversationCapabilityIcon(item)}<b lang="${/[\u3400-\u9fff]/.test(item.label||item.id)?"zh":"en"}">${esc(item.label||item.id)}</b></span>`;html=html.split(token).join(chip);});
-    return html;
-  },path=>conversationFolderChipHtml(path));
+function chatMessageText(text,items){
+  let html=esc(text);
+  (items||[]).filter(item=>item.mention_token).forEach(item=>{const token=esc(item.mention_token),chip=`<span class="cmessage-capability-ref">${conversationCapabilityIcon(item)}<b lang="${/[\u3400-\u9fff]/.test(item.label||item.id)?"zh":"en"}">${esc(item.label||item.id)}</b></span>`;html=html.split(token).join(chip);});
+  return html;
 }
 
-function conversationFolderText(text,refs,plain,folder){
+function conversationSplitFolders(text,refs){
   const value=String(text||"");
-  if(!Array.isArray(refs)||!refs.length)return plain(value);
-  const characters=Array.from(value);
-  let result="",at=0;
+  if(!Array.isArray(refs)||!refs.length)return {text:value,paths:[]};
+  const characters=Array.from(value),paths=[];
+  let body="",at=0;
   for(const ref of refs){
     const {start,end}=ref||{};
     if(!Number.isInteger(start)||!Number.isInteger(end)||start<at||start>=end||end>characters.length||characters[start]!=="/")continue;
-    result+=plain(characters.slice(at,start).join(""))+folder(characters.slice(start,end).join(""));
+    const gap=characters.slice(at,start).join("");
+    if(!paths.length||gap!=="\n")body+=gap;
+    paths.push(characters.slice(start,end).join(""));
     at=end;
   }
-  return result+plain(characters.slice(at).join(""));
+  if(!paths.length)return {text:value,paths};
+  body+=characters.slice(at).join("");
+  if(at===characters.length&&body.endsWith("\n"))body=body.slice(0,-1);
+  return {text:body,paths};
+}
+
+function conversationFolderAttachments(items){
+  return (items||[]).filter(item=>item.kind==="folder_path");
 }
 
 function conversationFolderSendFields(refs,prefixLength=0){
@@ -1100,7 +1109,6 @@ function conversationCapabilityMarker(id){return CAPABILITY_MARKER_OPEN+id+CAPAB
 
 const CONVERSATION_FOLDER_MARKER_RE=/\uE002([^\uE002\uE003]+)\uE003/g;
 
-function conversationFolderMarker(path){return "\uE002"+encodeURIComponent(path)+"\uE003";}
 function conversationFolderPath(encodedPath){
   try{
     const path=decodeURIComponent(encodedPath);
@@ -1109,15 +1117,15 @@ function conversationFolderPath(encodedPath){
   catch{return "";}
 }
 
-function conversationFolderChipHtml(path,locked=true){
-  const label=path.replace(/\/+$/,"").split("/").pop()||path;
-  return `<span${locked?' class="cinline-folder" contenteditable="false"':""} data-folder-path="${esc(encodeURIComponent(path))}" title="${esc(path)}">${ICON("folder")}<b lang="${/[\u3400-\u9fff]/.test(label)?"zh":"en"}">${esc(label)}</b></span>`;
+function conversationFolderName(path){return path.replace(/\/+$/,"").split("/").pop()||path;}
+
+function conversationFolderDraftAttachment(path){
+  return {kind:"folder_path",path,name:conversationFolderName(path),localId:`folder-${Date.now()}-${Math.random().toString(36).slice(2)}`};
 }
 
 function conversationInlineMarker(node){
   const data=node.dataset;
   if(data?.capabilityMention)return conversationCapabilityMarker(data.capabilityMention);
-  if(data?.folderPath)return "\uE002"+data.folderPath+"\uE003";
   return "";
 }
 
@@ -1138,19 +1146,13 @@ function conversationCapabilityMentionHtml(item){const label=String(item.label||
 /* module-function:conversationEditorHtml */
 function conversationEditorHtml(value,items){
   const text=String(value||""),byId=new Map((items||[]).filter(item=>item.mention_id).map(item=>[item.mention_id,item]));
-  const markers=new RegExp(CAPABILITY_MARKER_RE.source+"|"+CONVERSATION_FOLDER_MARKER_RE.source,"g");
   const plain=part=>esc(part).replace(/\n/g,"<br>");
   let at=0,out="";
-  for(const match of text.matchAll(markers)){
-    const [marker,id,encodedPath]=match;
+  for(const match of text.matchAll(CAPABILITY_MARKER_RE)){
+    const [marker,id]=match;
+    const item=byId.get(id);
     out+=plain(text.slice(at,match.index));
-    if(id){
-      const item=byId.get(id);
-      if(item)out+=conversationCapabilityMentionHtml(item);
-    }else{
-      const path=conversationFolderPath(encodedPath);
-      out+=path?conversationFolderChipHtml(path):plain(marker);
-    }
+    if(item)out+=conversationCapabilityMentionHtml(item);
     at=match.index+marker.length;
   }
   return out+plain(text.slice(at));
@@ -1199,35 +1201,51 @@ function conversationSelectionOffsets(box){
 function conversationDomPoint(box,target){let remaining=Math.max(0,target),found=null;const visit=parent=>{for(let index=0;index<parent.childNodes.length&&!found;index++){const node=parent.childNodes[index];if(node.nodeType===Node.TEXT_NODE){const length=(node.nodeValue||"").length;if(remaining<=length){found={node,offset:remaining};return;}remaining-=length;continue;}if(node.nodeType!==Node.ELEMENT_NODE)continue;const marker=conversationInlineMarker(node);if(marker){const length=marker.length;if(remaining===0){found={node:parent,offset:index};return;}if(remaining<=length){found={node:parent,offset:index+1};return;}remaining-=length;continue;}if(node.tagName==="BR"){if(remaining===0){found={node:parent,offset:index};return;}if(remaining===1){found={node:parent,offset:index+1};return;}remaining-=1;continue;}visit(node);}};visit(box);return found||{node:box,offset:box.childNodes.length};}
 
 /* module-function:conversationMessageFromDraft */
-function conversationMessageFromDraft(value,items,folderRefs){
+function conversationMessageFromDraft(value,items,folderRefs,folders=[]){
   let text=String(value||"");
   (items||[]).filter(item=>item.mention_id).forEach(item=>{text=text.split(conversationCapabilityMarker(item.mention_id)).join(`[[capability:${item.mention_id}]]`);});
-  let previousEnd=0,offset=0;
-  return text.replace(CONVERSATION_FOLDER_MARKER_RE,(marker,encodedPath,index)=>{
-    const path=conversationFolderPath(encodedPath);
-    if(!path)return marker;
-    if(folderRefs){
-      const start=offset+[...text.slice(previousEnd,index)].length,end=start+[...path].length;
-      folderRefs.push({start,end});
-      previousEnd=index+marker.length;
-      offset=end;
-    }
-    return path;
-  });
+  let offset=Array.from(text).length;
+  for(const {path} of folders){
+    if(text){text+="\n";offset++;}
+    const start=offset;
+    text+=path;
+    offset+=Array.from(path).length;
+    folderRefs.push({start,end:offset});
+  }
+  return text;
 }
 
 /* module-function:conversationDraftFromMessage */
-function conversationDraftFromMessage(text,items,folderRefs){let value=conversationFolderText(text,folderRefs,part=>part,path=>conversationFolderMarker(path));(items||[]).filter(item=>item.mention_id).forEach(item=>{const token=item.mention_token||`[[capability:${item.mention_id}]]`;value=value.split(token).join(conversationCapabilityMarker(item.mention_id));});return value;}
+function conversationDraftFromMessage(text,items,folderRefs){
+  const {text:body,paths}=conversationSplitFolders(text,folderRefs);
+  let value=body;
+  (items||[]).filter(item=>item.mention_id).forEach(item=>{
+    const token=item.mention_token||`[[capability:${item.mention_id}]]`;
+    value=value.split(token).join(conversationCapabilityMarker(item.mention_id));
+  });
+  return {text:value,folders:paths.map(conversationFolderDraftAttachment)};
+}
+
+function conversationRestoreLegacyFolders(value){
+  const folders=[];
+  const text=String(value||"").replace(CONVERSATION_FOLDER_MARKER_RE,(marker,encodedPath)=>{
+    const path=conversationFolderPath(encodedPath);
+    if(!path)return marker;
+    folders.push(conversationFolderDraftAttachment(path));
+    return "";
+  });
+  return {text,folders};
+}
 
 /* module-function:conversationCapabilitiesForSend */
 function conversationCapabilitiesForSend(surface,value){return conversationCapabilities(surface).filter(item=>!item.mention_id||String(value).includes(conversationCapabilityMarker(item.mention_id))).map(item=>item.mention_id?{...item,mention_token:`[[capability:${item.mention_id}]]`}:item);}
 
 /* module-function:conversationDraftAttachment */
 function conversationDraftAttachment(surface,item){
-  const url=chatAttachmentUrl(item,conversationChatId(surface)),local=item.kind==="local_asset",folder=item.local_kind==="folder";
+  const url=chatAttachmentUrl(item,conversationChatId(surface)),local=item.kind==="local_asset",folderPath=item.kind==="folder_path",folder=item.local_kind==="folder"||folderPath;
   const thumb=item.kind==="image"&&url?`<img src="${url}" alt="">`:ICON(item.kind==="folder"||folder?"folder":"doc");
   const copy=item.kind==="folder"?conversationAttachmentFolderCopy(item):null;
-  const detail=local?`${folder?"文件夹":"文件"} · 仅在这台电脑使用`:copy?.text||formatFileSize(item.size);
+  const detail=local?`${folder?"文件夹":"文件"} · 仅在这台电脑使用`:folderPath?"":copy?.text||formatFileSize(item.size);
   const path=item.path||item.name||"",title=[path,detail].filter(Boolean).join(" ");
   const titleMarkers=local?` data-app-i18n-title="localReference.${folder?"folderTitle":"fileTitle"}" data-app-i18n-vars="${esc(JSON.stringify({path}))}"`:copy?` data-app-i18n-title="${copy.key}Title" data-app-i18n-vars="${esc(JSON.stringify({...copy.vars,path}))}"`:"";
   return `<div class="cattachment draft" title="${esc(title)}"${titleMarkers}>${thumb}<span><b lang="${/[\u3400-\u9fff]/.test(item.name||"")?"zh":"en"}">${esc(item.name)}</b><small${local?` data-app-i18n="localReference.${folder?"folderDetail":"fileDetail"}"`:copy?` data-app-i18n="${copy.key}" data-app-i18n-vars="${esc(JSON.stringify(copy.vars))}"`:""}>${esc(detail)}</small></span><button title="移除" aria-label="移除 ${esc(item.name)}" data-app-i18n-title="localReference.remove" data-app-i18n-aria-label="localReference.removeNamed" data-app-i18n-vars="${esc(JSON.stringify({name:item.name||""}))}" onclick="removeConversationAttachment('${surface}','${item.localId}');conversationSyncSendState('${surface}')">${ICON("x")}</button></div>`;
@@ -1302,7 +1320,7 @@ function conversationComposer(options){
   const promptKey=options.placeholderCopy?.key||(placeholder==="说说你想做什么…"?"composer.prompt":placeholder==="描述员工要负责的工作…"?"employeeCreate.prompt":"");
   const promptMarkers=promptKey?` data-app-i18n-aria-label="${promptKey}" data-app-i18n-data-placeholder="${promptKey}"${options.placeholderCopy?.vars?` data-app-i18n-vars="${esc(JSON.stringify(options.placeholderCopy.vars))}"`:""}`:"";
   const runtimeControls=options.runtimeControl!=null?`<div class="copt runtime" ${options.busy?'inert aria-disabled="true"':''}>${options.runtimeControl}</div>`:`<div class="copt route" ${options.busy?'inert aria-disabled="true"':''}>${options.modelControl}</div><div class="copt effort" ${options.busy?'inert aria-disabled="true"':''}><span class="copt-label" data-app-i18n="composer.thinking">思考</span>${options.effortControl}</div>`;
-  const content=`${options.scopeControl||""}${options.contextControl||""}<div class="ccomposer-editor" id="${options.inputId}" role="textbox" aria-multiline="true" aria-label="${esc(placeholder)}" data-placeholder="${esc(placeholder)}" ${promptMarkers} data-empty="${String(!String(value).trim())}" contenteditable="true" oninput="conversationInputChanged(this,'${surface}',event)" onbeforeinput="conversationBeforeInput(event)" onpaste="conversationPaste(event,'${surface}')" onkeydown="${keydown}(event)" onkeyup="conversationComposerSelectionChanged('${surface}')" onmouseup="conversationComposerSelectionChanged('${surface}')" onfocus="conversationComposerFocused(this,'${surface}')">${conversationEditorHtml(value,conversationCapabilities(surface))}</div><div class="cfoot"><div class="cfoot-left"><input id="${options.fileInputId}" class="cfile-input" type="file" multiple accept="${CHAT_FILE_ACCEPT}" onchange="conversationFilesPicked('${surface}',this.files);this.value=''"><button class="cattach-btn" type="button" data-menu-trigger="quiet" aria-haspopup="menu" aria-expanded="false" title="添加内容" aria-label="添加内容" data-app-i18n-title="composer.add" data-app-i18n-aria-label="composer.add" onpointerdown="event.preventDefault();captureConversationSelection('${surface}')" onclick="conversationAddMenu(event,'${surface}')" ${options.busy||connecting?"disabled":""}>${ICON("plus")}</button>${typeof RunTeamsWorkFolders!=="undefined"?RunTeamsWorkFolders.markup(surface,!!options.busy):""}${draftItems?`<div class="cattachments" aria-label="已添加资料" data-app-i18n-aria-label="composer.attachments">${draftItems}</div>`:""}${runtimeControls}</div><div class="cfoot-right">${options.busy?`<button type="button" class="conversation-composer-stop" aria-label="${stopping?'正在停止…':'停止回复'}" data-app-i18n-aria-label="composer.${stopping?'stopping':'stop'}" ${stopping?'disabled':''} onclick="${stopAction}()">${ICON('stop')}</button>`:''}<button class="sendbtn" title="${esc(title)}" aria-label="${esc(title)}" data-app-i18n-title="${sendKey}" data-app-i18n-aria-label="${sendKey}" ${connecting&&S.workspaceStartup?.profilePending?'aria-busy="true"':""} onclick="conversationSubmit('${surface}',()=>${action}())" ${conversationSendDisabled(surface,!!options.busy,value)?"disabled":""}>${ICON("arrow")}</button></div></div>${connecting?workspaceStartupNotice():""}`;
+  const content=`${options.scopeControl||""}${options.contextControl||""}<div class="ccomposer-editor" id="${options.inputId}" role="textbox" aria-multiline="true" aria-label="${esc(placeholder)}" data-placeholder="${esc(placeholder)}" ${promptMarkers} data-empty="${String(!String(value).trim())}" contenteditable="true" oninput="conversationInputChanged(this,'${surface}')" onbeforeinput="conversationBeforeInput(event)" onpaste="conversationPaste(event,'${surface}')" onkeydown="${keydown}(event)" onkeyup="conversationComposerSelectionChanged('${surface}')" onmouseup="conversationComposerSelectionChanged('${surface}')" onfocus="conversationComposerFocused(this,'${surface}')">${conversationEditorHtml(value,conversationCapabilities(surface))}</div><div class="cfoot"><div class="cfoot-left"><input id="${options.fileInputId}" class="cfile-input" type="file" multiple accept="${CHAT_FILE_ACCEPT}" onchange="conversationFilesPicked('${surface}',this.files);this.value=''"><button class="cattach-btn" type="button" data-menu-trigger="quiet" aria-haspopup="menu" aria-expanded="false" title="添加内容" aria-label="添加内容" data-app-i18n-title="composer.add" data-app-i18n-aria-label="composer.add" onpointerdown="event.preventDefault();captureConversationSelection('${surface}')" onclick="conversationAddMenu(event,'${surface}')" ${options.busy||connecting?"disabled":""}>${ICON("plus")}</button>${typeof RunTeamsWorkFolders!=="undefined"?RunTeamsWorkFolders.markup(surface,!!options.busy):""}<div class="cattachments" aria-label="已添加资料" data-app-i18n-aria-label="composer.attachments">${draftItems}</div>${runtimeControls}</div><div class="cfoot-right">${options.busy?`<button type="button" class="conversation-composer-stop" aria-label="${stopping?'正在停止…':'停止回复'}" data-app-i18n-aria-label="composer.${stopping?'stopping':'stop'}" ${stopping?'disabled':''} onclick="${stopAction}()">${ICON('stop')}</button>`:''}<button class="sendbtn" title="${esc(title)}" aria-label="${esc(title)}" data-app-i18n-title="${sendKey}" data-app-i18n-aria-label="${sendKey}" ${connecting&&S.workspaceStartup?.profilePending?'aria-busy="true"':""} onclick="conversationSubmit('${surface}',()=>${action}())" ${conversationSendDisabled(surface,!!options.busy,value)?"disabled":""}>${ICON("arrow")}</button></div></div>${connecting?workspaceStartupNotice():""}`;
   return `${conversationProviderBanner(surface)}<div data-conversation-queue="${surface}">${conversationQueueMarkup(surface)}</div>${surface==='panel'&&window.RunTeamsAssetOverview?.employee()?'':conversationQuestionDock(surface)}${RunTeamsStaticPages.composer(content,{surface,busy:options.busy,attributes:`data-local-references="${conversationSupportsLocalReferences(surface)}" ondragover="conversationDragOver(event)" ondragleave="this.classList.remove('dragging')" ondrop="conversationDrop(event,'${surface}')"`})}`;
 }
 
@@ -1319,7 +1337,7 @@ function conversationPanelKeydown(event){conversationComposerKeydown(event,"pane
 function conversationBeforeInput(event){if(event.inputType==="insertParagraph"){event.preventDefault();document.execCommand("insertLineBreak",false,null);}}
 
 /* module-function:conversationInputChanged */
-function conversationInputChanged(box,surface,event){conversationRestoreFolderChips(box,event);const value=conversationInputValue(box),visibleValue=value.replace(CAPABILITY_MARKER_RE,"");box.dataset.empty=String(!value.trim());autoSizeChatInput(box);conversationSyncSendState(surface);captureConversationSelection(surface);const filtering=updateConversationCapabilitySearch(box,surface);if(filtering)return;setConversationDraftValue(surface,value);if(surface==="panel"&&!visibleValue.trim())clearConversationExampleMaterials();refreshConversationDraftItems(surface);if(surface==="chat")syncChatEmptyState(box);conversationOpenMentionSearch(box,surface);}
+function conversationInputChanged(box,surface){const value=conversationInputValue(box),visibleValue=value.replace(CAPABILITY_MARKER_RE,"");box.dataset.empty=String(!value.trim());autoSizeChatInput(box);conversationSyncSendState(surface);captureConversationSelection(surface);const filtering=updateConversationCapabilitySearch(box,surface);if(filtering)return;setConversationDraftValue(surface,value);if(surface==="panel"&&!visibleValue.trim())clearConversationExampleMaterials();refreshConversationDraftItems(surface);if(surface==="chat")syncChatEmptyState(box);conversationOpenMentionSearch(box,surface);}
 
 /* module-function:conversationMentionQuery */
 function conversationMentionQuery(value,selection){
@@ -1373,38 +1391,15 @@ async function conversationNativeLocalDrop(paths,x,y){
   try{await prepareConversationLocalReferences(surface,await api("/api/local-references/prepare","POST",{paths}),panel);}catch(error){toast(error.message||"无法添加本地引用。请重试。","err",error.message?undefined:"localReference.addFailed");}
 }
 
-function conversationLockFolderChips(box){
-  for(const chip of box.querySelectorAll('[data-folder-path]:not([contenteditable="false"])')){
-    chip.classList.add("cinline-folder");
-    chip.contentEditable="false";
+function addConversationFolderDraftAttachments(surface,paths){
+  const items=conversationAttachments(surface).slice(),existing=new Set(items.filter(item=>item.kind==="folder_path").map(item=>item.path));
+  for(const path of paths){
+    if(existing.has(path))continue;
+    items.push(conversationFolderDraftAttachment(path));
+    existing.add(path);
   }
-}
-
-function conversationMoveCaretAfterFolderChip(box){
-  const selection=window.getSelection(),focus=selection?.focusNode;
-  if(!selection?.isCollapsed||!focus)return false;
-  const chip=(focus.nodeType===Node.ELEMENT_NODE?focus:focus.parentElement)?.closest("[data-folder-path]");
-  if(!chip||!box.contains(chip))return false;
-  const range=document.createRange();
-  range.setStartAfter(chip);
-  range.collapse(true);
-  selection.removeAllRanges();
-  selection.addRange(range);
-  return true;
-}
-
-function conversationRestoreFolderChips(box,event){
-  if(event?.inputType!=="historyUndo"&&event?.inputType!=="historyRedo")return;
-  conversationLockFolderChips(box);
-  conversationMoveCaretAfterFolderChip(box);
-}
-
-function insertConversationFolderChips(surface,box,folders){
-  // WebKit can strip contenteditable and corrupt Undo when inserting styled chips.
-  // Insert ordinary spans in one native transaction, then lock the same nodes.
-  if(!document.execCommand("insertHTML",false,folders.map(path=>conversationFolderChipHtml(path,false)).join("<br>")))return;
-  conversationLockFolderChips(box);
-  if(conversationMoveCaretAfterFolderChip(box))captureConversationSelection(surface);
+  setConversationAttachments(surface,items);
+  refreshConversationDraftItems(surface);
 }
 
 /* module-function:conversationPaste */
@@ -1448,7 +1443,7 @@ async function conversationPaste(event,surface){
         result={folder_paths:await native.postMessage({folderPathsOnly:true})};
       }catch{
         // Older desktop shells have the bridge, but only allow worker composers.
-        if(!isCurrent()||!canInsert())return;
+        if(!isCurrent())return;
         const fallback=await api("/api/attachments/paste","POST",{}).catch(()=>null);
         result=fallback&&!fallback.error?fallback:{};
       }
@@ -1462,7 +1457,7 @@ async function conversationPaste(event,surface){
       return;
     }
     const folders=result.folder_paths||[];
-    if(folders.length&&canInsert())insertConversationFolderChips(surface,box,folders);
+    if(folders.length)addConversationFolderDraftAttachments(surface,folders);
     if(local&&(result.references?.length||result.pending?.length)){
       await prepareConversationLocalReferences(surface,result,panel);
       return;
@@ -1615,21 +1610,21 @@ function chatMenu(e,cid){ openMenu(e.currentTarget,[
 /* module-function:sendChat */
 async function sendChat(options={}){
   const queued=options.queued,queueOwner=conversationQueueOwner("chat"),box=document.getElementById("cbox");if(!box||S.chatId==null)return;const rawDraft=queued?queued.text:conversationInputValue(box),hasUserText=!!rawDraft.replace(CAPABILITY_MARKER_RE,"").trim();
-  if((!hasUserText&&!S.chatAttachments.length)||S.chatBusy){rerenderChatKeepingDraft();return;}
+  if((!hasUserText&&!(queued?queued.folders?.length:S.chatAttachments.length))||S.chatBusy){rerenderChatKeepingDraft();return;}
   if(!conversationRuntimeReady("chat")){conversationSyncSendState("chat");return;}
   const folderAtSend=typeof RunTeamsWorkFolders==="undefined"?null:await RunTeamsWorkFolders.prepare("chat");if(folderAtSend===false)return;
   const folderRefs=[];
-  const pending=queued?[]:S.chatAttachments.slice(),pendingCapabilities=queued?[]:conversationCapabilitiesForSend("chat",rawDraft),annotatedMessage=conversationMessageFromDraft(rawDraft,pendingCapabilities,folderRefs),firstPipelineRequest=S.chatMode==="pipeline-create"&&S.chatId==="new"&&hasUserText,msg=firstPipelineRequest&&!/^\s*(?:请)?(?:帮我)?创(?:建|造)(?:一个|一支)?智能体团队/.test(annotatedMessage)?`创建智能体团队：${annotatedMessage}`:annotatedMessage,attachmentTokens=pending.filter(x=>x.pickToken).map(x=>x.pickToken),startedAsNew=S.chatId==="new",activityContextAtSend=typeof RunTeamsChatActivity==='undefined'?'':RunTeamsChatActivity.context(S);let uploads,accepted=false,out=null,createdSession=false,attempted=false,completed=false,configurationRequired=false;
-  try{uploads=(typeof RunTeamsCreatorWork==='undefined'?null:RunTeamsCreatorWork.pendingInput(S.chatId)?.attachments)||await Promise.all(pending.filter(x=>x.file).map(readChatFile));}catch(e){toast(e.message||"无法读取附件。请重新添加。","err",e.messageKey||(!e.message?"composer.attachmentRead":undefined),e.messageVars);return;}
+  const pending=queued?(queued.folders||[]):S.chatAttachments.slice(),files=pending.filter(x=>x.kind!=="folder_path"),pendingCapabilities=queued?[]:conversationCapabilitiesForSend("chat",rawDraft),annotatedMessage=conversationMessageFromDraft(rawDraft,pendingCapabilities,folderRefs,conversationFolderAttachments(pending)),firstPipelineRequest=S.chatMode==="pipeline-create"&&S.chatId==="new"&&hasUserText,msg=firstPipelineRequest&&!/^\s*(?:请)?(?:帮我)?创(?:建|造)(?:一个|一支)?智能体团队/.test(annotatedMessage)?`创建智能体团队：${annotatedMessage}`:annotatedMessage,attachmentTokens=files.filter(x=>x.pickToken).map(x=>x.pickToken),startedAsNew=S.chatId==="new",activityContextAtSend=typeof RunTeamsChatActivity==='undefined'?'':RunTeamsChatActivity.context(S);let uploads,accepted=false,out=null,createdSession=false,attempted=false,completed=false,configurationRequired=false;
+  try{uploads=(typeof RunTeamsCreatorWork==='undefined'?null:RunTeamsCreatorWork.pendingInput(S.chatId)?.attachments)||await Promise.all(files.filter(x=>x.file).map(readChatFile));}catch(e){toast(e.message||"无法读取附件。请重新添加。","err",e.messageKey||(!e.message?"composer.attachmentRead":undefined),e.messageVars);return;}
   if(!conversationRuntimeReady("chat")){conversationSyncSendState("chat");return;}
-  const sent={role:"user",ts:new Date().toISOString(),text:annotatedMessage,metadata:conversationFolderSendFields(folderRefs),state:"sending",localId:"m"+Date.now()+Math.random().toString(16).slice(2),capabilities:pendingCapabilities,attachments:pending.map(x=>({id:x.localId,name:x.name,size:x.size,mime_type:x.mime_type,kind:x.kind,local_kind:x.local_kind,grant_id:x.grant_id,preview:x.preview}))},live=newLiveAgentMessage("chat-live-");
+  const sent={role:"user",ts:new Date().toISOString(),text:annotatedMessage,metadata:conversationFolderSendFields(folderRefs),state:"sending",localId:"m"+Date.now()+Math.random().toString(16).slice(2),capabilities:pendingCapabilities,attachments:files.map(x=>({id:x.localId,name:x.name,size:x.size,mime_type:x.mime_type,kind:x.kind,local_kind:x.local_kind,grant_id:x.grant_id,preview:x.preview}))},live=newLiveAgentMessage("chat-live-");
   S.chatMsgs.push(sent,live);if(!queued){S.chatAttachments=[];S.chatCapabilities=[];S.chatDraft="";}S.chatBusy=true;S.chatCanSteer=false;S.chatStopping=false;S.chatStopRequested=false;S.chatActivity="";render();requestAnimationFrame(scrollChat);let cancelled=false;
   try{
     if(S.chatId==="new"){ const r=await api("/api/conversations","POST",{kind:"general",...S.chatCfg}); if(r.error)throw new Error(r.error); S.chatId=r.session.id;if(queueOwner.id!==S.chatId){const oldQueueKey=String(queueOwner.id);delete S.chatMessageQueues[oldQueueKey];queueOwner.id=S.chatId;S.chatMessageQueues[String(S.chatId)]=queueOwner;if(queueOwner.messageQueue?.items.length){const saved=S.conversationPanelDrafts[`chat:${oldQueueKey}`];if(saved?.queue)delete saved.queue;conversationQueueSave("chat",queueOwner);}}createdSession=true; }
     else if((typeof RunTeamsCreatorWork==='undefined'||!RunTeamsCreatorWork.hasPending(S.chatId))){const configResult=await api("/api/chat/"+S.chatId+"/config","POST",S.chatCfg);if(configResult.error)throw new Error(configResult.error);}
     if(folderAtSend)await RunTeamsWorkFolders.bind(S.chatId,folderAtSend);
-    const rewind=queued?null:S.chatRewind,reuseAttachmentIds=pending.filter(x=>x.reuseId).map(x=>x.reuseId);
-    attempted=true;await (typeof RunTeamsCreatorWork==='undefined'?streamApi:RunTeamsCreatorWork.send)("/api/chat/"+S.chatId+"/stream",{message:msg,...conversationFolderSendFields(folderRefs,msg.length-annotatedMessage.length),attachments:uploads,attachment_tokens:attachmentTokens,local_asset_ids:pending.filter(x=>x.kind==="local_asset"&&!x.reuseId).map(x=>x.grant_id),capabilities:pendingCapabilities,rewind_message_id:rewind&&rewind.messageId,reuse_attachment_ids:reuseAttachmentIds},event=>{
+    const rewind=queued?null:S.chatRewind,reuseAttachmentIds=files.filter(x=>x.reuseId).map(x=>x.reuseId);
+    attempted=true;await (typeof RunTeamsCreatorWork==='undefined'?streamApi:RunTeamsCreatorWork.send)("/api/chat/"+S.chatId+"/stream",{message:msg,...conversationFolderSendFields(folderRefs,msg.length-annotatedMessage.length),attachments:uploads,attachment_tokens:attachmentTokens,local_asset_ids:files.filter(x=>x.kind==="local_asset"&&!x.reuseId).map(x=>x.grant_id),capabilities:pendingCapabilities,rewind_message_id:rewind&&rewind.messageId,reuse_attachment_ids:reuseAttachmentIds},event=>{
       if(event.type==="accepted"){accepted=true;if(typeof RunTeamsChatActivity!=='undefined')RunTeamsChatActivity.started(S,queueOwner.id,activityContextAtSend);if(queued)conversationQueueAccepted("chat",queueOwner,queued.id);if(!queued)S.chatRewind=null;sent.id=event.message_id;sent.state="sent";sent.attachments=(event.attachments||[]).map(x=>({...x}));sent.capabilities=event.capabilities||pendingCapabilities;pending.forEach(x=>{if(x.preview)URL.revokeObjectURL(x.preview);});if(startedAsNew)activateCreatedChat();else updatePendingChatMessage(sent.localId,"sent");if(S.chatStopRequested)api(`/api/chat/${S.chatId}/cancel`,"POST",{}).catch(()=>{});}
       else if(event.type==="steer_accepted"){conversationSteerAccepted("chat",event);}else if(event.type==="agent_event"){if(S.chatStopRequested)return;if(event.event?.kind==="turn_control"){S.chatCanSteer=!!event.event.can_steer;conversationSyncSendState("chat");return;}applyAgentStreamEvent(live,event.event);if(event.event?.message)conversationQuestionAnswerMessage("chat",event.event.message,null,event.event.prefix_message);refreshLiveAgentMessage(live,"chat");}
       else if(event.type==="result")out=event;
@@ -2130,11 +2125,16 @@ function conversationQueueState(surface,owner=conversationQueueOwner(surface)){
   return owner?(owner.messageQueue||(owner.messageQueue={items:[],paused:false,generation:conversationQueueGeneration()})):null;
 }
 function conversationQueueSnapshot(owner){
-  const q=owner?.messageQueue;return q?.items?.length?{items:q.items.map(item=>({id:item.id,text:item.text,uncertain:!!(item.uncertain||q.sending===item.id)}))}:null;
+  const q=owner?.messageQueue;return q?.items?.length?{items:q.items.map(item=>({id:item.id,text:item.text,folders:item.folders,uncertain:!!(item.uncertain||q.sending===item.id)}))}:null;
 }
 function conversationQueueRestore(owner,saved){
   if(!owner||!Array.isArray(saved?.items))return;
-  owner.messageQueue={items:saved.items.filter(item=>typeof item.id==='string'&&/^queue-[A-Za-z0-9_-]+$/.test(item.id)&&typeof item.text==='string'&&item.text.trim()).map(item=>({id:item.id,text:item.text,uncertain:!!item.uncertain})),paused:true,generation:conversationQueueGeneration()};
+  const items=saved.items.filter(item=>typeof item.id==='string'&&/^queue-[A-Za-z0-9_-]+$/.test(item.id)&&typeof item.text==='string').map(item=>{
+    const restored=conversationRestoreLegacyFolders(item.text);
+    const folders=Array.isArray(item.folders)?item.folders.map(serializableConversationDraftAttachment).filter(Boolean):[];
+    return {id:item.id,text:restored.text,folders:[...conversationFolderAttachments(folders),...restored.folders],uncertain:!!item.uncertain};
+  }).filter(item=>item.text.trim()||item.folders.length);
+  owner.messageQueue={items,paused:true,generation:conversationQueueGeneration()};
 }
 function conversationQueueSave(surface,owner=conversationQueueOwner(surface)){
   if(!owner||owner.messageQueue?.generation!==conversationQueueGeneration())return;
@@ -2151,14 +2151,12 @@ function conversationQueueMarkup(surface){
   const items=q.items.map((item,index)=>{
     const sending=q.sending===item.id,vars=esc(JSON.stringify({index:index+1}));
     const editText=q.editText??item.text;
-    const folderRefs=[],text=conversationMessageFromDraft(conversationQueuePreviewText(item.text),[],folderRefs);
-    const editorLabel='aria-label="编辑排队消息" data-app-i18n-aria-label="conversationQueue.editQueued"';
-    const input=folderRefs.length
-      ?`<div><div data-queue-editor class="ccomposer-editor" role="textbox" aria-multiline="true" contenteditable="true" ${editorLabel} oninput="conversationRestoreFolderChips(this,event);conversationQueueEditInput('${surface}',conversationInputValue(this))" onpaste="conversationQueuePaste(event)">${conversationEditorHtml(editText,[])}</div></div>`
-      :`<textarea data-queue-editor ${editorLabel} oninput="conversationQueueEditInput('${surface}',this.value)">${esc(editText)}</textarea>`;
-    const editor=`<div class="conversation-queue-edit">${input}<div><button type="button" data-queue-save data-queue-action="save" ${editText.trim()?'':'disabled'} onclick="conversationQueueEditSave('${surface}')" data-app-i18n="conversationQueue.save">保存</button><button type="button" data-queue-action="cancel" onclick="conversationQueueEditCancel('${surface}')" data-app-i18n="conversationQueue.cancel">取消</button></div></div>`;
+    const folders=item.folders||[],text=conversationQueuePreviewText(item.text);
+    const folderLabels=chatMessageAttachments(folders);
+    const input=`<textarea data-queue-editor aria-label="编辑排队消息" data-app-i18n-aria-label="conversationQueue.editQueued" oninput="conversationQueueEditInput('${surface}',this.value)">${esc(editText)}</textarea>`;
+    const editor=`<div class="conversation-queue-edit">${input}${folderLabels}<div><button type="button" data-queue-save data-queue-action="save" ${editText.trim()||folders.length?'':'disabled'} onclick="conversationQueueEditSave('${surface}')" data-app-i18n="conversationQueue.save">保存</button><button type="button" data-queue-action="cancel" onclick="conversationQueueEditCancel('${surface}')" data-app-i18n="conversationQueue.cancel">取消</button></div></div>`;
     const status=item.uncertain?'<small role="status" data-app-i18n="conversationQueue.sendUnknown">发送结果待确认，请先查看对话。</small>':sending?'<small role="status" data-app-i18n="conversationQueue.sending">正在发送…</small>':'';
-    const preview=`<div class="conversation-queue-copy"><div class="conversation-queue-text">${chatMessageText(text,[],folderRefs)}</div>${status}</div><div class="conversation-queue-actions"><button type="button" data-queue-action="edit" aria-label="编辑第 ${index+1} 条排队消息" data-app-i18n-aria-label="conversationQueue.editNth" data-app-i18n-vars="${vars}" title="编辑" data-app-i18n-title="conversationQueue.edit" onclick="conversationQueueEdit('${surface}','${item.id}')" ${sending||item.uncertain?'disabled':''}>${ICON('edit')}</button><button type="button" data-queue-action="remove" aria-label="从队列移除第 ${index+1} 条消息" data-app-i18n-aria-label="conversationQueue.removeNth" data-app-i18n-vars="${vars}" title="从队列移除" data-app-i18n-title="conversationQueue.remove" onclick="conversationQueueDelete('${surface}','${item.id}')" ${sending?'disabled':''}>${ICON('trash')}</button></div>`;
+    const preview=`<div class="conversation-queue-copy"><div class="conversation-queue-text">${esc(text)}</div>${folderLabels}${status}</div><div class="conversation-queue-actions"><button type="button" data-queue-action="edit" aria-label="编辑第 ${index+1} 条排队消息" data-app-i18n-aria-label="conversationQueue.editNth" data-app-i18n-vars="${vars}" title="编辑" data-app-i18n-title="conversationQueue.edit" onclick="conversationQueueEdit('${surface}','${item.id}')" ${sending||item.uncertain?'disabled':''}>${ICON('edit')}</button><button type="button" data-queue-action="remove" aria-label="从队列移除第 ${index+1} 条消息" data-app-i18n-aria-label="conversationQueue.removeNth" data-app-i18n-vars="${vars}" title="从队列移除" data-app-i18n-title="conversationQueue.remove" onclick="conversationQueueDelete('${surface}','${item.id}')" ${sending?'disabled':''}>${ICON('trash')}</button></div>`;
     return `<div class="conversation-queue-item" data-queue-id="${esc(item.id)}">${q.editing===item.id?editor:preview}</div>`;
   }).join('');
   const resume=!busy&&q.paused?`<div class="conversation-queue-resume">${blocked?'':'<small role="status" data-app-i18n="conversationQueue.paused">发送已暂停。</small>'}<button type="button" data-queue-action="resume" onclick="conversationQueueResume('${surface}')" ${blocked?'disabled':''} data-app-i18n="conversationQueue.resume">继续发送</button></div>`:'';
@@ -2169,7 +2167,7 @@ function conversationQueuePaint(surface){
   if(host){
     const active=document.activeElement,focused=host.contains(active);
     const row=focused?active.closest('[data-queue-id]'):null,action=focused?active.dataset.queueAction:'';
-    const editing=focused&&active.matches('[data-queue-editor]'),selection=editing?(active.isContentEditable?conversationSelectionOffsets(active):[active.selectionStart,active.selectionEnd,active.selectionDirection]):null;
+    const editing=focused&&active.matches('[data-queue-editor]'),selection=editing?[active.selectionStart,active.selectionEnd,active.selectionDirection]:null;
     const list=host.querySelector('.conversation-queue-list'),scroll=list?.scrollTop??0;
     const index=row?[...list.children].indexOf(row):0;
     host.innerHTML=conversationQueueMarkup(surface);globalThis.RunTeamsLocale?.apply(host);
@@ -2180,37 +2178,37 @@ function conversationQueuePaint(surface){
       const nearby=row?(same||updated?.children[Math.min(index,updated.children.length-1)]):null;
       const next=target||nearby?.querySelector('button:not(:disabled)')||host.querySelector('[data-queue-action="resume"]:not(:disabled)')||conversationInputElement(surface);
       next?.focus({preventScroll:true});
-      if(target&&selection){
-        if(target.isContentEditable){const range=document.createRange(),start=conversationDomPoint(target,selection.start),end=conversationDomPoint(target,selection.end);range.setStart(start.node,start.offset);range.setEnd(end.node,end.offset);const current=window.getSelection();current.removeAllRanges();current.addRange(range);}
-        else target.setSelectionRange(...selection);
-      }
+      if(target&&selection)target.setSelectionRange(...selection);
     }
   }
   conversationSyncSendState(surface);
 }
 function conversationQueueHasAttachments(surface,value){
-  return !!(conversationAttachments(surface).length||conversationCapabilitiesForSend(surface,value).length);
+  return !!(conversationAttachments(surface).some(item=>item.kind!=="folder_path")||conversationCapabilitiesForSend(surface,value).length);
 }
 function conversationQueueEnqueue(surface){
   const owner=conversationQueueOwner(surface),q=conversationQueueState(surface),box=conversationInputElement(surface),value=conversationInputValue(box);
-  if(!q||!value.trim()||owner.steerSending||(surface==='panel'?owner.stopping:S.chatStopping))return;
+  const folders=conversationFolderAttachments(conversationAttachments(surface));
+  if(!q||(!value.trim()&&!folders.length)||owner.steerSending||(surface==='panel'?owner.stopping:S.chatStopping))return;
   if(conversationQueueHasAttachments(surface,value))return toast('排队消息仅支持文字。请先移除附件和技能。','err','conversationQueue.textOnly');
-  q.items.push({id:`queue-${Date.now()}-${Math.random().toString(36).slice(2)}`,text:value});
+  q.items.push({id:`queue-${Date.now()}-${Math.random().toString(36).slice(2)}`,text:value,folders});
+  if(folders.length)setConversationAttachments(surface,[]);
   setConversationDraftValue(surface,'');setConversationInputValue(box,'',[]);
   if(surface==='panel')captureConversationPanelDraft({fromState:true});
-  conversationQueueSave(surface,owner);conversationQueuePaint(surface);return true;
+  conversationQueueSave(surface,owner);if(folders.length)refreshConversationDraftItems(surface);conversationQueuePaint(surface);return true;
 }
 function conversationQueueEdit(surface,id){
   const q=conversationQueueState(surface),item=q?.items.find(item=>item.id===id);if(!item||item.uncertain||q.sending===id)return;
   q.editing=id;q.editText=item.text;conversationQueuePaint(surface);document.querySelector?.(`[data-conversation-queue="${surface}"] [data-queue-editor]`)?.focus();
 }
-function conversationQueuePaste(event){
-  event.preventDefault();
-  document.execCommand("insertText",false,event.clipboardData.getData("text/plain"));
+function conversationQueueEditInput(surface,value){
+  const q=conversationQueueState(surface);if(!q)return;
+  q.editText=value;
+  const save=document.querySelector?.(`[data-conversation-queue="${surface}"] [data-queue-save]`);
+  if(save)save.disabled=!value.trim()&&!q.items.find(item=>item.id===q.editing)?.folders?.length;
 }
-function conversationQueueEditInput(surface,value){const q=conversationQueueState(surface);if(q)q.editText=value;const save=document.querySelector?.(`[data-conversation-queue="${surface}"] [data-queue-save]`);if(save)save.disabled=!value.trim();}
 function conversationQueueEditSave(surface){
-  const q=conversationQueueState(surface),item=q?.items.find(item=>item.id===q.editing);if(!item||!q.editText?.trim())return;
+  const q=conversationQueueState(surface),item=q?.items.find(item=>item.id===q.editing);if(!item||(!q.editText?.trim()&&!item.folders?.length))return;
   item.text=q.editText;delete q.editing;delete q.editText;conversationQueueSave(surface);conversationQueuePaint(surface);
   if(!q.paused)void conversationQueueDrain(surface);
 }
@@ -2262,16 +2260,30 @@ function conversationSendDisabled(surface,busy,value){
   if(!busy&&surface==='panel'&&conversationEmployeeGuidance(owner)?.unconfirmed)return true;
   if(!busy&&surface==='panel'&&typeof conversationEmployeeAssetMissing==='function'&&conversationEmployeeAssetMissing(owner))return true;
   if(!busy&&!conversationRuntimeReady(surface))return true;
-  if(busy)return (!conversationQueueEnabled()&&!conversationCanSteer(surface))||!!(surface==='panel'?owner?.stopping:S.chatStopping)||!hasText||conversationQueueHasAttachments(surface,value);
+  if(busy)return (!conversationQueueEnabled()&&!conversationCanSteer(surface))||!!(surface==='panel'?owner?.stopping:S.chatStopping)||(!hasText&&!conversationFolderAttachments(conversationAttachments(surface)).length)||conversationQueueHasAttachments(surface,value);
   return !hasText&&!conversationAttachments(surface).length;
+}
+function conversationSteerMatchesDraft(request,text,attachments){
+  if(!request||request.text!==text)return false;
+  const folderIds=conversationFolderAttachments(attachments).map(item=>item.localId);
+  return JSON.stringify(folderIds)===JSON.stringify(request.folderIds||[]);
 }
 function conversationSteerAccepted(surface,event,panel=null){
   const owner=(surface==="panel"?(panel||S.conversationPanel):S),messages=surface!=="chat"?owner?.messages:S.chatMsgs;
   if(event.request_id&&owner?.steerRequest?.key===event.request_id){
     owner.steerAcknowledged=event.request_id;
     const visible=(surface!=="panel"||S.conversationPanel===owner),box=visible?conversationInputElement(surface):null;
-    if(visible&&conversationInputValue(box).trim()===owner.steerRequest.text){setConversationDraftValue(surface,"");setConversationInputValue(box,"",[]);}
-    else if(!visible&&owner.input?.trim()===owner.steerRequest.text)owner.input="";
+    const request=owner.steerRequest,draft=visible?conversationInputValue(box):owner.input;
+    const attachments=visible?conversationAttachments(surface):owner.attachments;
+    if(conversationSteerMatchesDraft(request,String(draft||"").trim(),attachments)){
+      if(visible){setConversationDraftValue(surface,"");setConversationInputValue(box,"",[]);}
+      else owner.input="";
+    }
+    if(request.folderIds?.length){
+      const remaining=(attachments||[]).filter(item=>!request.folderIds.includes(item.localId));
+      if(visible){setConversationAttachments(surface,remaining);if(remaining.length!==attachments.length)refreshConversationDraftItems(surface);}
+      else owner.attachments=remaining;
+    }
     if(surface==="panel"&&visible)captureConversationPanelDraft({fromState:true});
   }
   if(!messages||messages.some(message=>Number(message.id)===Number(event.message_id)))return;
@@ -2290,8 +2302,11 @@ function conversationSteerAccepted(surface,event,panel=null){
 async function conversationSteer(surface,recovering=false){
   const owner=(surface==="panel"?S.conversationPanel:S),box=conversationInputElement(surface),text=conversationInputValue(box).trim(),id=conversationChatId(surface);
   if((!recovering&&conversationSendDisabled(surface,true,text))||owner.steerSending||!id)return;
-  const request=owner.steerRequest?.text===text?owner.steerRequest:{text,key:`steer-${Date.now()}-${Math.random().toString(36).slice(2)}`};
-  const folderRefs=[],message=conversationMessageFromDraft(text,[],folderRefs);
+  const attachments=conversationAttachments(surface),folders=conversationFolderAttachments(attachments);
+  const folderRefs=[],message=conversationMessageFromDraft(text,[],folderRefs,folders);
+  const request=conversationSteerMatchesDraft(owner.steerRequest,text,attachments)?owner.steerRequest:{
+    text,folderIds:folders.map(item=>item.localId),key:`steer-${Date.now()}-${Math.random().toString(36).slice(2)}`
+  };
   owner.steerRequest=request;owner.steerSending=true;conversationSyncSendState(surface);
   try{
     let result;
@@ -2301,11 +2316,7 @@ async function conversationSteer(surface,recovering=false){
       if(result.pending)await new Promise(resolve=>setTimeout(resolve,300));
     }while(result.pending);
     if(!result.accepted||!result.message_id)throw Object.assign(new Error("暂时无法确认是否已接收。输入已保留，请先刷新对话。"),{messageKey:"conversationDetail.steerUnknown"});
-    conversationSteerAccepted(surface,result,surface!=="chat"?owner:null);delete owner.steerRequest;
-    const current=(surface!=="panel"||S.conversationPanel===owner);
-    if(current&&conversationInputValue(conversationInputElement(surface)).trim()===text){setConversationDraftValue(surface,"");setConversationInputValue(conversationInputElement(surface),"",[]);}
-    else if(!current&&owner.input?.trim()===text)owner.input="";
-    if(surface==="panel"&&current)captureConversationPanelDraft({fromState:true});
+    conversationSteerAccepted(surface,{...result,request_id:request.key},surface!=="chat"?owner:null);delete owner.steerRequest;
   }catch(error){if(owner.steerAcknowledged===request.key)delete owner.steerRequest;else toast(error.message||"暂时无法确认是否已接收。输入已保留，请先刷新对话。","err",error.messageKey||(!error.message?"conversationDetail.steerUnknown":undefined));}
   finally{owner.steerSending=false;if((surface!=="panel"||S.conversationPanel===owner))conversationSyncSendState(surface);}
 }
@@ -2336,7 +2347,7 @@ async function conversationSubmit(surface,send){
   const panel=(surface==="panel"?S.conversationPanel:null),busy=panel?panel.busy:S.chatBusy;
   if(!send||S.workspaceStartup?.pending)return;
   const owner=panel||S;
-  if(owner?.steerRequest?.text===conversationInputValue(conversationInputElement(surface)).trim()){if(conversationCanSteer(surface))return conversationSteer(surface,true);return;}
+  if(conversationSteerMatchesDraft(owner?.steerRequest,conversationInputValue(conversationInputElement(surface)).trim(),conversationAttachments(surface))){if(conversationCanSteer(surface))return conversationSteer(surface,true);return;}
   if(conversationSendDisabled(surface,!!busy,conversationInputValue(conversationInputElement(surface)))){conversationSyncSendState(surface);return;}
   if(busy){if(conversationQueueEnabled())return conversationQueueEnqueue(surface);if(conversationCanSteer(surface))return conversationSteer(surface);return;}
   const queue=conversationQueueState(surface);if(queue?.items.length){if(!conversationQueueEnqueue(surface))return;return conversationQueueResume(surface);}

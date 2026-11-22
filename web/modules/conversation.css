@@ -1495,17 +1495,26 @@
 }
 .ccomposer .cfoot-left>.cattachments .cattachment>button:hover { background:var(--surface-hover); color:var(--text-primary); }
 .ccomposer .cfoot-left>.cattachments .cattachment>button .i { width:10px; height:10px; }
+/* Give attachments a full row when the composer tools leave too little room. */
+.ccomposer:has(.cfoot-left>.cattachments:not(:empty)) { container:attachment-tray / inline-size; }
+@container attachment-tray (max-width:540px) {
+  .ccomposer .cfoot:has(.cattachments:not(:empty)) {
+    flex-wrap:wrap; height:auto!important; gap:4px 5px!important;
+  }
+  .ccomposer .cfoot .cfoot-left:has(>.cattachments:not(:empty)) { display:contents; }
+  .ccomposer .cfoot .cfoot-left>.cattachments:not(:empty) { order:-1; flex:0 0 100%; }
+}
+
 /* Inline references use the surrounding text size. */
-.cinline-folder,.ccomposer .cinline-capability {
+.ccomposer .cinline-capability {
   box-sizing:border-box; display:inline-flex; align-items:center; max-width:calc(100% - .4em); gap:.25em; margin:0 .2em; padding:0;
   border:0; border-radius:0; background:transparent; color:inherit;
   font:inherit; line-height:inherit; vertical-align:bottom; white-space:nowrap;
   cursor:text; user-select:all; -webkit-user-select:all;
 }
 .ccomposer .cinline-capability { color:var(--editor-palette-blue); }
-.cinline-folder { padding:0 .25em; border-radius:4px; background:var(--surface-hover); }
-.cinline-folder b,.ccomposer .cinline-capability b { min-width:0; overflow:hidden; text-overflow:ellipsis; font:inherit; color:inherit; }
-.cinline-folder>.i,.ccomposer .cinline-capability>:is(img,svg) { flex:0 0 1.1em; width:1.1em; height:1.1em; object-fit:contain; color:inherit; }
+.ccomposer .cinline-capability b { min-width:0; overflow:hidden; text-overflow:ellipsis; font:inherit; color:inherit; }
+.ccomposer .cinline-capability>:is(img,svg) { flex:0 0 1.1em; width:1.1em; height:1.1em; object-fit:contain; color:inherit; }
 .menu.chat-add-menu {
   align-items:flex-start; min-width:0; width:max-content; max-width:min(360px,calc(100vw - 16px));
   gap:0; padding:2px 2px 7px; border:1px solid var(--border-default); border-radius:11px;
@@ -1534,7 +1543,7 @@
 .menu.chat-add-menu .menu-empty { align-self:stretch; }
 
 .ccomposer .cattachments,.ccomposer .cinline-capability,.menu.chat-add-menu { letter-spacing:0; }
-.cinline-folder b[lang="zh"],.ccomposer .cfoot-left>.cattachments :is(b,span)[lang="zh"],.ccomposer .cinline-capability b[lang="zh"],.menu.chat-add-menu .menu-copy [lang="zh"],.menu.chat-add-menu .menuhead[lang="zh"] { font-family:"PingFang SC",var(--ui); }
+.ccomposer .cfoot-left>.cattachments :is(b,span)[lang="zh"],.ccomposer .cinline-capability b[lang="zh"],.menu.chat-add-menu .menu-copy [lang="zh"],.menu.chat-add-menu .menuhead[lang="zh"] { font-family:"PingFang SC",var(--ui); }
 
 /* One welcome layout for every empty conversation context. */
 .conversation-main .conversation-new-state {

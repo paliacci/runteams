@@ -27,7 +27,7 @@
 <link rel="stylesheet" href="/modules/employee.css?v=employee-mcp-work-20261024.work-authorization-20261105" />
 <link rel="stylesheet" href="/ui/document-reader.css?v=20261031-1" />
     <link rel="stylesheet" href="/vendor/resource-viewer.css?v=13" />
-<link rel="stylesheet" href="/modules/conversation.css?v=conversation-startup-audit-20261104.app-auth-card-20261114.history-native-title.history-hover-color.history-menu-rest-state.compact-tool-calls.chat-hydration.example-attachments.sent-attachments-above.reveal-sent-files.inline-folder-chip" />
+<link rel="stylesheet" href="/modules/conversation.css?v=conversation-startup-audit-20261104.app-auth-card-20261114.history-native-title.history-hover-color.history-menu-rest-state.compact-tool-calls.chat-hydration.example-attachments.sent-attachments-above.reveal-sent-files.folder-tray" />
 <link rel="stylesheet" href="/modules/skills.css?v=retired-pages-20261022" />
 <link rel="stylesheet" href="/modules/account.css?v=model-channel-copy-20261104.mcp-tests.composio-sessions" />
 
@@ -93,7 +93,7 @@
 <script src="/ui/reply-spec.js?v=json-render-20261113-1.utf8-capacity"></script>
 <script src="/ui/reply-content.js?v=json-render-20261113-1.utf8-capacity"></script>
 <script src="/ui/reply-content-preview.js?v=20261029-3.locale-review"></script>
-<script src="/modules/conversation.js?v=pipeline-chat-copy-20261104.authoring-records-route.unified-employee-conversation.employee-apps-20261114.app-auth-card-20261114.app-operation-summary.sdk-workbench.asset-overview-20261120.section-ready.chat-hydration.skill-menu-20261120.employee-shortcuts-1120.example-icon-v1.default-spark.canonical.example-attachments.sent-attachments-above.reveal-sent-files.employee-runtime.locale-review.review-copy.localized-work-examples.clipboard-folder-paths.inline-folder-chip"></script>
+<script src="/modules/conversation.js?v=pipeline-chat-copy-20261104.authoring-records-route.unified-employee-conversation.employee-apps-20261114.app-auth-card-20261114.app-operation-summary.sdk-workbench.asset-overview-20261120.section-ready.chat-hydration.skill-menu-20261120.employee-shortcuts-1120.example-icon-v1.default-spark.canonical.example-attachments.sent-attachments-above.reveal-sent-files.employee-runtime.locale-review.review-copy.localized-work-examples.clipboard-folder-tray"></script>
 <script src="/ui/model-channels.js?v=runtime-copy-20261104.quota-coalescing.skill-menu-20261120"></script>
 <script src="/modules/skills.js?v=employee-resource-controls-20261104.retired-pages-20261113"></script>
 <script src="/modules/account.js?v=default-model-copy-20261104.wallet-copy-20261104.language-device-copy-20261105.mcp-tests.composio-sessions.model-catalog-notice.quota-coalescing.workspace-read.locale-review"></script>
@@ -6506,9 +6506,8 @@ function captureConversationSelection(surface){const box=conversationInputElemen
 /* module:conversation:conversationDraftItemsHtml */
 function refreshConversationDraftItems(surface){
   const box=conversationInputElement(surface),composer=box&&box.closest(".ccomposer");if(!composer)return;
-  const content=conversationDraftItemsHtml(surface),current=composer.querySelector(".cfoot-left > .cattachments");
-  if(!content){current?.remove();conversationSyncSendState(surface);return;}
-  if(current)current.innerHTML=content;else composer.querySelector(".cfoot-left .cattach-btn")?.insertAdjacentHTML("afterend",`<div class="cattachments">${content}</div>`);
+  const items=composer.querySelector(".cfoot-left > .cattachments");
+  if(items)items.innerHTML=conversationDraftItemsHtml(surface);
   conversationSyncSendState(surface);
 }
 /* module:conversation:conversationComposer */
@@ -6523,14 +6522,14 @@ function addConversationCapability(surface,item){
 }
 function clearConversationCapabilities(surface){const value=conversationDraftValue(surface).replace(CAPABILITY_MARKER_RE,"");setConversationCapabilities(surface,[]);setConversationDraftValue(surface,value);const box=conversationInputElement(surface);if(box)setConversationInputValue(box,value,[]);}
 function addConversationFiles(surface,files){
-  const next=[...conversationAttachments(surface)];let total=next.reduce((n,x)=>n+x.size,0);
+  const next=[...conversationAttachments(surface)],uploads=next.filter(item=>item.kind!=="folder_path");let total=uploads.reduce((n,x)=>n+x.size,0),count=uploads.length;
   for(const file of Array.from(files||[])){
-    if(next.length>=10){toast("最多可添加 10 个附件。","err","composer.attachmentCount");break;}
+    if(count>=10){toast("最多可添加 10 个附件。","err","composer.attachmentCount");break;}
     if(!acceptedChatFile(file)){toast("不支持「"+file.name+"」的格式。","err","composer.fileFormat",{name:file.name});continue;}
     if(file.size>10*1024*1024){toast("「"+file.name+"」超过 10 MB。","err","composer.fileSize",{name:file.name});continue;}
     if(total+file.size>25*1024*1024){toast("附件总大小不能超过 25 MB。","err","composer.attachmentSize");break;}
     const kind=/^image\//.test(file.type)||/\.(png|jpe?g|webp)$/i.test(file.name)?"image":"file";
-    next.push({localId:(surface==="panel"?"pf":"f")+Date.now()+Math.random().toString(16).slice(2),name:file.name,size:file.size,mime_type:file.type||"application/octet-stream",kind,file,preview:kind==="image"?URL.createObjectURL(file):""});total+=file.size;
+    next.push({localId:(surface==="panel"?"pf":"f")+Date.now()+Math.random().toString(16).slice(2),name:file.name,size:file.size,mime_type:file.type||"application/octet-stream",kind,file,preview:kind==="image"?URL.createObjectURL(file):""});total+=file.size;count++;
   }
   setConversationAttachments(surface,next);rerenderConversation(surface);
 }
@@ -6548,7 +6547,7 @@ function addConversationPickedAttachments(surface,items){
   const additions=items.map(item=>({localId:(surface==="panel"?"pp":"p")+item.token,pickToken:item.token,name:item.name,size:item.size,kind:item.kind,file_count:item.file_count||1,mime_type:item.kind==="folder"?"inode/directory":"application/octet-stream"}));
   if(additions.length){setConversationAttachments(surface,[...conversationAttachments(surface),...additions]);rerenderConversation(surface);}
 }
-function removeConversationAttachment(surface,id){const items=conversationAttachments(surface),item=items.find(x=>x.localId===id);if(item&&item.preview)URL.revokeObjectURL(item.preview);setConversationAttachments(surface,items.filter(x=>x.localId!==id));rerenderConversation(surface);}
+function removeConversationAttachment(surface,id){const items=conversationAttachments(surface),item=items.find(x=>x.localId===id);if(item&&item.preview)URL.revokeObjectURL(item.preview);setConversationAttachments(surface,items.filter(x=>x.localId!==id));if(item?.kind==="folder_path")refreshConversationDraftItems(surface);else rerenderConversation(surface);}
 function clearConversationAttachments(surface){conversationAttachments(surface).forEach(x=>{if(x.preview)URL.revokeObjectURL(x.preview);});setConversationAttachments(surface,[]);}
 /* module:conversation:conversationDragOver */
 /* module:conversation:conversationSupportsLocalReferences */
@@ -6557,7 +6556,7 @@ function addConversationLocalReferences(surface,items,panel=S.conversationPanel)
   if(surface==="panel"&&S.conversationPanel!==panel)return;
   const next=conversationAttachments(surface).slice();
   for(const item of items){if(!next.some(x=>x.kind==="local_asset"&&x.grant_id===item.grant_id))next.push({...item,localId:`ref-${item.grant_id}`});}
-  if(next.length>10){toast("每次最多添加 10 项内容。","err","localReference.limit");return;}
+  if(next.filter(item=>item.kind!=="folder_path").length>10){toast("每次最多添加 10 项内容。","err","localReference.limit");return;}
   setConversationAttachments(surface,next);refreshConversationDraftItems(surface);
 }
 async function prepareConversationLocalReferences(surface,out,panel){
@@ -6565,7 +6564,7 @@ async function prepareConversationLocalReferences(surface,out,panel){
   if(out.error){toast(out.error,"err",out.error==="无法读取本地路径，请从＋选择文件或文件夹"?"localReference.pathMissing":undefined);return;}
   const ready=out.references||[],pending=out.pending||[];
   const current=conversationAttachments(surface);
-  if(current.length+ready.filter(ref=>!current.some(item=>item.grant_id===ref.grant_id)).length+pending.length>10){toast("每次最多添加 10 项内容。","err","localReference.limit");return;}
+  if(current.filter(item=>item.kind!=="folder_path").length+ready.filter(ref=>!current.some(item=>item.grant_id===ref.grant_id)).length+pending.length>10){toast("每次最多添加 10 项内容。","err","localReference.limit");return;}
   if(pending.length){
     // Choosing, dropping or pasting is the user's explicit selection.
     // Register only identities here; task confirmation still gates content use.
@@ -6841,13 +6840,28 @@ function railConversationIsVisible(panel=S.conversationPanel){return !!(panel&&c
 
 /* module:conversation:conversationPanelDraftKey */
 function serializableConversationDraftValue(value,fallback){try{return JSON.parse(JSON.stringify(value));}catch(e){return fallback;}}
-function serializableConversationDraftAttachment(item){if(!item||item.file||(!item.pickToken&&!item.reuseId&&item.kind!=="local_asset"))return null;return serializableConversationDraftValue(item,null);}
+function serializableConversationDraftAttachment(item){if(!item||item.file||(!item.pickToken&&!item.reuseId&&item.kind!=="local_asset"&&item.kind!=="folder_path"))return null;return serializableConversationDraftValue(item,null);}
 function saveConversationPanelDrafts(){try{const entries=Object.entries(S.conversationPanelDrafts||{}).sort((a,b)=>Number(b[1]?.saved_at||0)-Number(a[1]?.saved_at||0)).slice(0,30);S.conversationPanelDrafts=Object.fromEntries(entries);workspaceBusinessStorage.setItem(CONVERSATION_DRAFTS_KEY,JSON.stringify(S.conversationPanelDrafts));}catch(e){}}
 let _conversationPanelDraftSaveTimer=null;
 function scheduleConversationPanelDraftSave(){clearTimeout(_conversationPanelDraftSaveTimer);_conversationPanelDraftSaveTimer=setTimeout(()=>captureConversationPanelDraft(),180);}
 function captureConversationPanelDraft(options={}){const panel=S.conversationPanel;if(!panel||panel.loading||panel.error||S.workspaceStartup?.pending&&!S.workspaceStartup.contentReady&&!S.workspaceStartup.navigationDetached||S.workspaceStartup?.existing&&S.workspaceStartup.panel===panel)return;const key=conversationPanelDraftKey(panel),box=document.getElementById("conversation_box");if(box&&!options.fromState)panel.input=conversationInputValue(box);const input=panel.input||"",attachments=(panel.attachments||[]).map(serializableConversationDraftAttachment).filter(Boolean),capabilities=serializableConversationDraftValue(panel.capabilities||[],[]);const queue=conversationQueueSnapshot(panel);if(!input&&!attachments.length&&!capabilities.length&&!queue)delete S.conversationPanelDrafts[key];else S.conversationPanelDrafts[key]={input,attachments,capabilities,queue,example_materials:serializableConversationDraftValue(panel.example_materials,null),saved_at:Date.now()};saveConversationPanelDrafts();}
 function clearConversationPanelDraft(panel=S.conversationPanel,key=conversationPanelDraftKey(panel)){if(!key)return;delete S.conversationPanelDrafts[key];saveConversationPanelDrafts();}
-function restoreConversationPanelDraft(panel=S.conversationPanel){if(!panel)return false;const saved=S.conversationPanelDrafts[conversationPanelDraftKey(panel)];if(!saved)return false;conversationQueueRestore(panel,saved.queue);panel.input=saved.input||"";panel.attachments=(saved.attachments||[]).slice();panel.capabilities=(saved.capabilities||[]).slice();panel.example_materials=serializableConversationDraftValue(saved.example_materials,null);panel.draft_restored=true;return !!(panel.input||panel.attachments.length||panel.capabilities.length );}
+function restoreConversationPanelDraft(panel=S.conversationPanel){
+  if(!panel)return false;
+  const saved=S.conversationPanelDrafts[conversationPanelDraftKey(panel)];
+  if(!saved)return false;
+  conversationQueueRestore(panel,saved.queue);
+  panel.attachments=(saved.attachments||[]).slice();
+  const restored=conversationRestoreLegacyFolders(saved.input);
+  panel.input=restored.text;
+  for(const folder of restored.folders){
+    if(!panel.attachments.some(item=>item.kind==="folder_path"&&item.path===folder.path))panel.attachments.push(folder);
+  }
+  panel.capabilities=(saved.capabilities||[]).slice();
+  panel.example_materials=serializableConversationDraftValue(saved.example_materials,null);
+  panel.draft_restored=true;
+  return !!(panel.input||panel.attachments.length||panel.capabilities.length);
+}
 /* module:conversation:conversationModeTitle */
 /* module:conversation:conversationPanelTitle */
 /* module:conversation:conversationHeaderTitle */
@@ -7100,7 +7114,7 @@ async function sendConversationPanel(options={}){
   if(conversationEmployeeAssetMissing(options.panel||S.conversationPanel))return toast("请先恢复这名员工，再交办新工作。","err","employeeChat.restoreWork");
   if(!conversationRuntimeReady('panel',options.panel||S.conversationPanel)){if(!options.panel||options.panel===S.conversationPanel)conversationSyncSendState('panel');return;}
   const folderRefs=[];
-  const panel=options.panel||S.conversationPanel,queued=options.queued,box=S.conversationPanel===panel?document.getElementById("conversation_box"):null;if(!panel||panel.busy)return;const rawDraft=String(queued?queued.text:box?conversationInputValue(box):panel.input||"").trim(),hasUserText=!!rawDraft.replace(CAPABILITY_MARKER_RE,"").trim(),creatingPipeline=panel.id==null&&conversationIs(panel,"pipeline","create"),pending=queued?[]:(panel.attachments||[]).slice(),pendingCapabilities=queued?[]:conversationCapabilitiesForSend("panel",rawDraft),annotatedMessage=conversationMessageFromDraft(rawDraft,pendingCapabilities,folderRefs),message=creatingPipeline&&hasUserText&&!/^\s*(?:请)?(?:帮我)?创(?:建|造)(?:一个|一支)?智能体团队/.test(annotatedMessage)?`创建智能体团队：${annotatedMessage}`:annotatedMessage,tokens=pending.filter(x=>x.pickToken).map(x=>x.pickToken),pageContextAtSend=creatingPipeline?{surface:"pipeline-create",label:"创建智能体团队"}:conversationViewContext(panel),businessGenerationAtSend=_workspaceBusinessGeneration,windowKeyAtSend=S.activeWorkspaceKey;if(!hasUserText&&!pending.length)return;
+  const panel=options.panel||S.conversationPanel,queued=options.queued,box=S.conversationPanel===panel?document.getElementById("conversation_box"):null;if(!panel||panel.busy)return;const rawDraft=String(queued?queued.text:box?conversationInputValue(box):panel.input||"").trim(),hasUserText=!!rawDraft.replace(CAPABILITY_MARKER_RE,"").trim(),creatingPipeline=panel.id==null&&conversationIs(panel,"pipeline","create"),pending=queued?(queued.folders||[]):(panel.attachments||[]).slice(),files=pending.filter(x=>x.kind!=="folder_path"),pendingCapabilities=queued?[]:conversationCapabilitiesForSend("panel",rawDraft),annotatedMessage=conversationMessageFromDraft(rawDraft,pendingCapabilities,folderRefs,conversationFolderAttachments(pending)),message=creatingPipeline&&hasUserText&&!/^\s*(?:请)?(?:帮我)?创(?:建|造)(?:一个|一支)?智能体团队/.test(annotatedMessage)?`创建智能体团队：${annotatedMessage}`:annotatedMessage,tokens=files.filter(x=>x.pickToken).map(x=>x.pickToken),pageContextAtSend=creatingPipeline?{surface:"pipeline-create",label:"创建智能体团队"}:conversationViewContext(panel),businessGenerationAtSend=_workspaceBusinessGeneration,windowKeyAtSend=S.activeWorkspaceKey;if(!hasUserText&&!pending.length)return;
   if(conversationEmployeeGuidance(panel)?.unconfirmed)return;
   if(typeof RunTeamsCreatorWork!=='undefined'&&!await RunTeamsCreatorWork.beforeSend(panel.id))return;
   if(queued&&businessGenerationAtSend!==_workspaceBusinessGeneration)return;
@@ -7110,9 +7124,9 @@ async function sendConversationPanel(options={}){
   const folderAtSend=typeof RunTeamsWorkFolders==="undefined"?null:await RunTeamsWorkFolders.prepare("panel");if(folderAtSend===false)return;
   clearTimeout(_conversationPanelDraftSaveTimer);if(S.conversationPanel===panel)captureConversationPanelDraft();const draftKeyAtSend=conversationPanelDraftKey(panel);
   if(!conversationRuntimeReady('panel',panel)){if(S.conversationPanel===panel)conversationSyncSendState('panel');return;}
-  let uploads=[];try{uploads=(typeof RunTeamsCreatorWork==='undefined'?null:RunTeamsCreatorWork.pendingInput(panel.id)?.attachments)||await Promise.all(pending.filter(x=>x.file).map(readChatFile));}catch(e){toast(e.message||"无法读取附件。请重新添加。","err",e.messageKey||(!e.message?"composer.attachmentRead":undefined),e.messageVars);return;}
+  let uploads=[];try{uploads=(typeof RunTeamsCreatorWork==='undefined'?null:RunTeamsCreatorWork.pendingInput(panel.id)?.attachments)||await Promise.all(files.filter(x=>x.file).map(readChatFile));}catch(e){toast(e.message||"无法读取附件。请重新添加。","err",e.messageKey||(!e.message?"composer.attachmentRead":undefined),e.messageVars);return;}
   if(!conversationRuntimeReady('panel',panel)){if(S.conversationPanel===panel)conversationSyncSendState('panel');return;}
-  const sent={role:"user",ts:new Date().toISOString(),text:annotatedMessage,metadata:conversationFolderSendFields(folderRefs),state:"sending",localId:"pm"+Date.now(),capabilities:pendingCapabilities,attachments:pending.map(x=>({id:x.localId,name:x.name,size:x.size,mime_type:x.mime_type,kind:x.kind,local_kind:x.local_kind,grant_id:x.grant_id,preview:x.preview}))},live=newLiveAgentMessage("panel-live-");if(!queued){panel.input="";panel.example_materials=null;panel.attachments=[];panel.capabilities=[];}panel.messages.push(sent,live);panel.busy=true;panel.canSteer=false;panel.stopping=false;panel.stopRequested=false;render();requestAnimationFrame(scrollConversationPanel);let accepted=false,result=null,succeeded=false,cancelled=false,attempted=false,configurationRequired=false;
+  const sent={role:"user",ts:new Date().toISOString(),text:annotatedMessage,metadata:conversationFolderSendFields(folderRefs),state:"sending",localId:"pm"+Date.now(),capabilities:pendingCapabilities,attachments:files.map(x=>({id:x.localId,name:x.name,size:x.size,mime_type:x.mime_type,kind:x.kind,local_kind:x.local_kind,grant_id:x.grant_id,preview:x.preview}))},live=newLiveAgentMessage("panel-live-");if(!queued){panel.input="";panel.example_materials=null;panel.attachments=[];panel.capabilities=[];}panel.messages.push(sent,live);panel.busy=true;panel.canSteer=false;panel.stopping=false;panel.stopRequested=false;render();requestAnimationFrame(scrollConversationPanel);let accepted=false,result=null,succeeded=false,cancelled=false,attempted=false,configurationRequired=false;
   const wasEmployeeAuthoring=panel.kind==='employee_design',activityContextAtSend=typeof RunTeamsChatActivity==='undefined'?'':RunTeamsChatActivity.context(S);
   let createdSession=false,createdWindowKey=null;
   try{
@@ -7122,8 +7136,8 @@ async function sendConversationPanel(options={}){
     else if((typeof RunTeamsCreatorWork==='undefined'||!RunTeamsCreatorWork.hasPending(panel.id))){const configured=await api(`/api/chat/${panel.id}/config`,"POST",sendConfig);if(configured.error)throw new Error(configured.error);if(sendConfig.context)panel.context=sendConfig.context;}
     if(folderAtSend)await RunTeamsWorkFolders.bind(panel.id,folderAtSend);
     if(queued&&businessGenerationAtSend!==_workspaceBusinessGeneration){panel.messages=panel.messages.filter(m=>m!==sent&&m!==live);panel.busy=false;return {completed:false,attempted:false};}
-    const rewind=queued?null:panel.editRewind,reuseAttachmentIds=pending.filter(x=>x.reuseId).map(x=>x.reuseId);
-    attempted=true;await (typeof RunTeamsCreatorWork==='undefined'?streamApi:RunTeamsCreatorWork.send)(`/api/chat/${panel.id}/stream`,{message,...conversationFolderSendFields(folderRefs,message.length-annotatedMessage.length),attachments:uploads,attachment_tokens:tokens,local_asset_ids:pending.filter(x=>x.kind==="local_asset"&&!x.reuseId).map(x=>x.grant_id),local_asset_bindings:exampleBindings,capabilities:pendingCapabilities,view_context:pageContextAtSend,rewind_message_id:rewind&&rewind.messageId,reuse_attachment_ids:reuseAttachmentIds},event=>{if(event.type==="accepted"){if(!accepted)window.RunTeamsAnalytics?.capture("work_request_accepted");accepted=true;if(typeof RunTeamsChatActivity!=='undefined')RunTeamsChatActivity.started(S,panel.id,activityContextAtSend);if(queued)conversationQueueAccepted("panel",panel,queued.id);if(!queued){clearConversationPanelDraft(panel,draftKeyAtSend);}if(S.conversationPanel===panel)captureConversationPanelDraft({fromState:true});conversationQueueSave("panel",panel);if(!queued)panel.editRewind=null;sent.id=event.message_id;sent.state="sent";sent.attachments=event.attachments||[];sent.capabilities=event.capabilities||pendingCapabilities;pending.forEach(x=>{if(x.preview)URL.revokeObjectURL(x.preview);});if(panel.stopRequested)api(`/api/chat/${panel.id}/cancel`,"POST",{}).catch(()=>{});}else if(event.type==="steer_accepted"){conversationSteerAccepted("panel",event,panel);}else if(event.type==="agent_event"){if(panel.stopRequested)return;if(event.event?.kind==="turn_control"){panel.canSteer=!!event.event.can_steer;if(S.conversationPanel===panel)conversationSyncSendState("panel");return;}applyAgentStreamEvent(live,event.event);if(event.event?.message)conversationQuestionAnswerMessage("panel",event.event.message,panel,event.event.prefix_message);refreshLiveAgentMessage(live,"panel",panel);}else if(event.type==="result")result=event;else if(event.type==="cancelled")cancelled=true;else if(event.type==="error")throw event.message?new Error(event.message):Object.assign(new Error("模型没有响应。确认模型渠道已连接后再试"),{messageKey:"conversationDetail.modelNoResponse"});});
+    const rewind=queued?null:panel.editRewind,reuseAttachmentIds=files.filter(x=>x.reuseId).map(x=>x.reuseId);
+    attempted=true;await (typeof RunTeamsCreatorWork==='undefined'?streamApi:RunTeamsCreatorWork.send)(`/api/chat/${panel.id}/stream`,{message,...conversationFolderSendFields(folderRefs,message.length-annotatedMessage.length),attachments:uploads,attachment_tokens:tokens,local_asset_ids:files.filter(x=>x.kind==="local_asset"&&!x.reuseId).map(x=>x.grant_id),local_asset_bindings:exampleBindings,capabilities:pendingCapabilities,view_context:pageContextAtSend,rewind_message_id:rewind&&rewind.messageId,reuse_attachment_ids:reuseAttachmentIds},event=>{if(event.type==="accepted"){if(!accepted)window.RunTeamsAnalytics?.capture("work_request_accepted");accepted=true;if(typeof RunTeamsChatActivity!=='undefined')RunTeamsChatActivity.started(S,panel.id,activityContextAtSend);if(queued)conversationQueueAccepted("panel",panel,queued.id);if(!queued){clearConversationPanelDraft(panel,draftKeyAtSend);}if(S.conversationPanel===panel)captureConversationPanelDraft({fromState:true});conversationQueueSave("panel",panel);if(!queued)panel.editRewind=null;sent.id=event.message_id;sent.state="sent";sent.attachments=event.attachments||[];sent.capabilities=event.capabilities||pendingCapabilities;pending.forEach(x=>{if(x.preview)URL.revokeObjectURL(x.preview);});if(panel.stopRequested)api(`/api/chat/${panel.id}/cancel`,"POST",{}).catch(()=>{});}else if(event.type==="steer_accepted"){conversationSteerAccepted("panel",event,panel);}else if(event.type==="agent_event"){if(panel.stopRequested)return;if(event.event?.kind==="turn_control"){panel.canSteer=!!event.event.can_steer;if(S.conversationPanel===panel)conversationSyncSendState("panel");return;}applyAgentStreamEvent(live,event.event);if(event.event?.message)conversationQuestionAnswerMessage("panel",event.event.message,panel,event.event.prefix_message);refreshLiveAgentMessage(live,"panel",panel);}else if(event.type==="result")result=event;else if(event.type==="cancelled")cancelled=true;else if(event.type==="error")throw event.message?new Error(event.message):Object.assign(new Error("模型没有响应。确认模型渠道已连接后再试"),{messageKey:"conversationDetail.modelNoResponse"});});
     if(cancelled){delete sent.state;finalizeStoppedAgentMessage(live);refreshLiveAgentMessage(live,"panel",panel);}
     else{
     if(!result)throw Object.assign(new Error("模型没有返回最终回复"),{messageKey:"conversationDetail.modelNoFinal"});delete sent.state;

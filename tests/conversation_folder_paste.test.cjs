@@ -9,12 +9,9 @@ const capabilityMarkers = shell.match(/^const CAPABILITY_MARKER_OPEN=.*$/m)[0];
 
 function setup({surface = 'chat', worker = false, native, result = {folder_paths: []}} = {}) {
   const calls = [];
-  let attachments = [];
   let selection = {start: 0, end: 0};
-  const chips = [];
   const box = {
     isConnected: true, isContentEditable: true, value: '',
-    querySelectorAll: () => chips.filter(chip => chip.contentEditable !== 'false'),
   };
   const host = vm.createContext({
     esc: text => String(text).replace(/[&<>"']/g, char => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[char])),
@@ -27,17 +24,9 @@ function setup({surface = 'chat', worker = false, native, result = {folder_paths
       },
     }}}} : {getSelection: () => null},
     document: {activeElement: box, execCommand: (command, _ui, content) => {
-      let text = content;
-      if (command === 'insertHTML') {
-        const folders = Array.from(content.matchAll(/data-folder-path="([^"]+)"/g), match => decodeURIComponent(match[1]));
-        assert.doesNotMatch(content, /contenteditable|cinline-folder/);
-        chips.push(...folders.map(() => ({classList: new Set(), contentEditable: 'inherit'})));
-        calls.push({folders});
-        text = folders.map(path => host.conversationFolderMarker(path)).join('\n');
-      } else {
-        assert.equal(command, 'insertText');
-        calls.push({text});
-      }
+      assert.equal(command, 'insertText');
+      const text = content;
+      calls.push({text});
       box.value = box.value.slice(0, selection.start) + text + box.value.slice(selection.end);
       const end = selection.start + text.length;
       selection = {start: end, end};
@@ -50,7 +39,11 @@ function setup({surface = 'chat', worker = false, native, result = {folder_paths
     normalizedConversationContext: () => worker
       ? {context_type: 'worker', intent: 'work'}
       : {context_type: 'employee', intent: 'create'},
-    setConversationAttachments: (_surface, value) => { attachments = JSON.parse(JSON.stringify(value)); },
+    setConversationAttachments: (surface, value) => {
+      if (surface === 'panel') host.S.conversationPanel.attachments = value;
+      else host.S.chatAttachments = value;
+    },
+    refreshConversationDraftItems: () => {},
     rerenderConversation: () => {},
     addConversationFiles: (_surface, files) => calls.push({uploads: Array.from(files, file => file.name)}),
     toast: (_message, _level, key) => calls.push({error: key}),
@@ -72,7 +65,8 @@ function setup({surface = 'chat', worker = false, native, result = {folder_paths
       getData: type => type === 'text/plain' ? text : uri,
     },
   }, surface);
-  return {paste, calls, chips, box, host, select: (start, end) => { selection = {start, end}; }, attachments: () => attachments};
+  const attachments = () => JSON.parse(JSON.stringify(host.conversationAttachments(surface)));
+  return {paste, calls, box, host, select: (start, end) => { selection = {start, end}; }, selection: () => selection, attachments};
 }
 
 const folderFile = {name: 'project.txt', size: 0, type: 'text/plain'};
@@ -87,11 +81,11 @@ for (const [name, options, request] of [
   ['create', {surface: 'panel'}, fileRequest],
   ['employee work', {surface: 'panel', worker: true}, referenceRequest],
 ]) {
-  test(`pasted directories become inline draft labels in the ${name} composer`, async () => {
+  test(`pasted directories become attachment row labels in the ${name} composer`, async () => {
     const page = setup({...options, result: {folder_paths: folderPaths}});
     await page.paste({files: [folderFile], directory: true});
-    assert.deepEqual(page.calls, [request, {folders: folderPaths}]);
-    assert.deepEqual(page.attachments(), []);
+    assert.deepEqual(page.calls, [request]);
+    assert.deepEqual(page.attachments().map(item => item.path), folderPaths);
   });
 }
 
@@ -104,16 +98,16 @@ test('worker desktop paste reads paths once and asks the server to handle pasted
   assert.deepEqual(page.calls, [
     {bridge: {}},
     {url: '/api/local-references/prepare', method: 'POST', body: {paths: folderPaths, paste: true}},
-    {folders: folderPaths},
   ]);
-  assert.deepEqual(page.attachments(), []);
+  assert.deepEqual(page.attachments().map(item => item.path), folderPaths);
 });
 
 for (const surface of ['chat', 'panel']) {
   test(`desktop ${surface} handles a directory paste without HTML file types`, async () => {
     const page = setup({surface, native: folderPaths});
     await page.paste({text: '项目目录'});
-    assert.deepEqual(page.calls, [{bridge: {folderPathsOnly: true}}, {folders: folderPaths}]);
+    assert.deepEqual(page.calls, [{bridge: {folderPathsOnly: true}}]);
+    assert.deepEqual(page.attachments().map(item => item.path), folderPaths);
   });
 }
 
@@ -149,7 +143,8 @@ for (const surface of ['chat', 'panel']) {
   test(`older desktop shells let ${surface} paste folders through the local API`, async () => {
     const page = setup({surface, native: () => { throw new Error('Unavailable'); }, result: {folder_paths: folderPaths}});
     await page.paste({text: '项目目录'});
-    assert.deepEqual(page.calls, [{bridge: {folderPathsOnly: true}}, fileRequest, {folders: folderPaths}]);
+    assert.deepEqual(page.calls, [{bridge: {folderPathsOnly: true}}, fileRequest]);
+    assert.deepEqual(page.attachments().map(item => item.path), folderPaths);
   });
 }
 
@@ -160,43 +155,53 @@ test('desktop ordinary text still pastes if the folder-only bridge and API are u
   assert.deepEqual(page.calls, [{bridge: {folderPathsOnly: true}}, fileRequest, {text: 'ordinary text'}]);
 });
 
-test('a folder label replaces the selection, preserves surrounding text, and sends the exact path', async () => {
+test('a folder label preserves the draft selection and shows its exact path on hover', async () => {
   const path = '/Users/example/<项目 📁>&\u00a0资料';
   const page = setup({result: {folder_paths: [path]}});
   page.box.value = '🔍查看占位符里的文档';
   page.select(4, 7);
   await page.paste({files: [folderFile], directory: true});
-  const [chip] = page.chips;
-  assert.equal(chip.contentEditable, 'false');
-  assert.ok(chip.classList.has('cinline-folder'));
-  chip.contentEditable = 'inherit';
-  page.host.conversationRestoreFolderChips(page.box, {inputType: 'historyRedo'});
-  assert.equal(chip.contentEditable, 'false');
-  const marker = page.host.conversationFolderMarker(path);
-  assert.equal(page.box.value, `🔍查看${marker}里的文档`);
-  const html = page.host.conversationEditorHtml(page.box.value, []);
-  assert.match(html, /^🔍查看<span class="cinline-folder" contenteditable="false"/);
-  assert.match(html, /data-icon="folder"><\/svg><b lang="zh">&lt;项目 📁&gt;&amp;\u00a0资料<\/b><\/span>里的文档$/);
-  const folderRefs = [];
-  assert.equal(page.host.conversationMessageFromDraft(page.box.value, [], folderRefs), `🔍查看${path}里的文档`);
-  assert.deepEqual(JSON.parse(JSON.stringify(folderRefs)), [{start: 3, end: 3 + [...path].length}]);
-  assert.deepEqual(page.attachments(), []);
+  assert.equal(page.box.value, '🔍查看占位符里的文档');
+  assert.deepEqual(page.selection(), {start: 4, end: 7});
+  assert.equal(page.host.conversationEditorHtml(page.box.value, []), page.box.value);
+  const [item] = page.attachments();
+  assert.equal(item.kind, 'folder_path');
+  assert.equal(item.path, path);
+  assert.equal(item.name, '<项目 📁>&\u00a0资料');
+  const html = page.host.conversationDraftItemsHtml('chat');
+  assert.match(html, /^<div class="cattachment draft" title="\/Users\/example\/&lt;项目 📁&gt;&amp;\u00a0资料"/);
+  assert.match(html, /data-icon="folder"><\/svg><span><b lang="zh">&lt;项目 📁&gt;&amp;\u00a0资料<\/b>/);
+  assert.ok(html.includes(`removeConversationAttachment('chat','${item.localId}')`));
 });
 
-test('folder labels round-trip beside capability labels and a manually entered path', () => {
-  const path = '/Users/example/资料\uE000名';
-  const {host} = setup();
-  const items = [{id: 'example', label: 'Example', mention_id: 'test'}];
-  const capability = host.conversationCapabilityMarker('test');
-  const label = host.conversationFolderMarker(path);
-  const html = host.conversationEditorHtml(`${capability} ${label}\n${path}`, items);
-  assert.equal((html.match(/class="cinline-folder"/g) || []).length, 1);
-  assert.match(html, /data-capability-mention="test"/);
-  assert.ok(html.endsWith('<br>' + path));
-  const folderRefs = [];
-  const prefix = '[[capability:test]] ';
-  assert.equal(host.conversationMessageFromDraft(`${capability} ${label}\n${path}`, items, folderRefs), `${prefix}${path}\n${path}`);
-  assert.deepEqual(JSON.parse(JSON.stringify(folderRefs)), [{start: prefix.length, end: prefix.length + [...path].length}]);
+test('folder labels persist with other draft attachments and can be removed independently', async () => {
+  const page = setup({surface: 'panel', result: {folder_paths: folderPaths}});
+  const {host} = page;
+  vm.runInContext(shell.match(/^function removeConversationAttachment.*$/m)[0], host);
+  vm.runInContext(shell.match(/^function serializableConversationDraft(?:Value|Attachment).*$/gm).join('\n'), host);
+  const file = {name: 'notes.txt', kind: 'file', size: 10, localId: 'file-1', pickToken: 'file-token'};
+  host.setConversationAttachments('panel', [file]);
+  await page.paste({files: [folderFile], directory: true});
+  const items = page.attachments();
+  assert.deepEqual(JSON.parse(JSON.stringify(items.map(host.serializableConversationDraftAttachment))), items);
+  host.removeConversationAttachment('panel', items[1].localId);
+  assert.deepEqual(page.attachments(), [file, items[2]]);
+});
+
+test('a restored panel draft moves old directory markers into the attachment row', () => {
+  const {host} = setup({surface: 'panel'});
+  const [path] = folderPaths;
+  const pathText = '查看 ' + path;
+  host.S.conversationPanel.id = 'saved';
+  host.S.conversationPanelDrafts = {
+    'chat:saved': {input: pathText + `\uE002${encodeURIComponent(path)}\uE003`, attachments: []},
+  };
+  host.conversationPanelDraftKey = panel => 'chat:' + panel.id;
+  vm.runInContext(shell.match(/^function serializableConversationDraftValue.*$/m)[0], host);
+  vm.runInContext(shell.match(/^function restoreConversationPanelDraft[^]*?^}/m)[0], host);
+  assert.equal(host.restoreConversationPanelDraft(), true);
+  assert.equal(host.S.conversationPanel.input, pathText);
+  assert.match(host.conversationDraftItemsHtml('panel'), /cattachment draft[^>]*title="\/Users\/example\/项目目录"/);
 });
 
 test('worker screenshot still uploads if there is no native path', async () => {
@@ -213,15 +218,16 @@ test('ordinary files in a mixed paste still use attachment tokens in chat', asyn
     result: {folder_paths: folderPaths, items: [{token: 'file-token', name: 'notes.txt', kind: 'file', size: 10}]},
   });
   await page.paste({files: [folderFile, browserFile], directory: true});
-  assert.deepEqual(page.calls, [fileRequest, {folders: folderPaths}]);
-  assert.deepEqual(page.attachments().map(item => item.pickToken), ['file-token']);
+  assert.deepEqual(page.calls, [fileRequest]);
+  assert.deepEqual(page.attachments().map(item => item.path || item.pickToken), [...folderPaths, 'file-token']);
 });
 
 test('ordinary files in a mixed worker paste still use local references', async () => {
   const references = [{name: 'notes.txt', kind: 'local_asset', local_kind: 'file', grant_id: 1}];
   const page = setup({surface: 'panel', worker: true, result: {folder_paths: folderPaths, references}});
   await page.paste({files: [folderFile, browserFile], directory: true});
-  assert.deepEqual(page.calls, [referenceRequest, {folders: folderPaths}, {refs: references}]);
+  assert.deepEqual(page.calls, [referenceRequest, {refs: references}]);
+  assert.deepEqual(page.attachments().map(item => item.path), folderPaths);
 });
 
 test('a synthetic folder paste does not read the system clipboard', async () => {
@@ -233,14 +239,14 @@ test('a synthetic folder paste does not read the system clipboard', async () => 
   }
 });
 
-for (const [name, moveOn] of [
-  ['composer removal', page => { page.box.isConnected = false; }],
-  ['conversation change', page => { page.host.S.chatId = 'existing'; }],
-  ['focus change', page => { page.host.document.activeElement = null; }],
-  ['draft edits', page => { page.box.value = 'typing'; }],
-  ['selection change', page => { page.select(1, 3); }],
+for (const [name, moveOn, added] of [
+  ['composer removal', page => { page.box.isConnected = false; }, false],
+  ['conversation change', page => { page.host.S.chatId = 'existing'; }, false],
+  ['focus change', page => { page.host.document.activeElement = null; }, true],
+  ['draft edits', page => { page.box.value = 'typing'; }, true],
+  ['selection change', page => { page.select(1, 3); }, true],
 ]) {
-  test(`a pending directory paste cannot insert a path after ${name}`, async () => {
+  test(`a pending directory paste ${added ? "completes" : "is discarded"} after ${name}`, async () => {
     let finish;
     const page = setup({result: () => new Promise(resolve => { finish = resolve; })});
     const pasted = page.paste({files: [folderFile], directory: true});
@@ -248,13 +254,14 @@ for (const [name, moveOn] of [
     finish({folder_paths: folderPaths});
     await pasted;
     assert.deepEqual(page.calls, [fileRequest]);
-    assert.deepEqual(page.attachments(), []);
+    assert.deepEqual(page.attachments().map(item => item.path), added ? folderPaths : []);
   });
 }
 
 function setupFolderMessage() {
   const {host} = setup();
   host.restoredAgentTrace = () => null;
+  host.formatFileSize = size => String(size);
   host.ICON = name => `<svg aria-hidden="true" data-icon="${name}"></svg>`;
   host.esc = text => String(text).replace(/[&<>"']/g, char => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
@@ -262,55 +269,158 @@ function setupFolderMessage() {
   return host;
 }
 
-test('folder ranges preserve exact paths in sent text and restore only original chips', () => {
+test('send appends folder paths with exact ranges and history restores only those paths as labels', () => {
   const host = setupFolderMessage();
   const path = '/path/带空格 📁 <样例>';
-  const folder = host.conversationFolderMarker(path);
-  const prefix = `📂 普通文字 ${path}\n已粘贴：`;
-  const draft = `${prefix}${folder} 及 ${folder}`;
+  const otherPath = '/second/项目';
+  const draft = `📂 普通文字 ${path}`;
   const refs = [];
-  const text = host.conversationMessageFromDraft(draft, [], refs);
-  const start = Array.from(prefix).length;
+  const folders = [path, otherPath].map(host.conversationFolderDraftAttachment);
+  const text = host.conversationMessageFromDraft(draft, [], refs, folders);
+  const start = Array.from(draft).length + 1;
   const end = start + Array.from(path).length;
-  const next = end + Array.from(' 及 ').length;
-  assert.equal(text, `${prefix}${path} 及 ${path}`);
+  assert.equal(text, `${draft}\n${path}\n${otherPath}`);
   assert.deepEqual(JSON.parse(JSON.stringify(refs)), [
-    {start, end}, {start: next, end: next + Array.from(path).length},
+    {start, end}, {start: end + 1, end: end + 1 + Array.from(otherPath).length},
   ]);
 
   const metadata = JSON.parse(JSON.stringify(host.conversationFolderSendFields(refs)));
   const saved = host.storedConversationMessage({id: 23, role: 'user', text, metadata});
-  const html = host.chatMessageText(saved.text, saved.capabilities, saved.metadata.folder_refs);
-  assert.equal((html.match(/class="cinline-folder"/g) || []).length, 2);
-  assert.match(html, /普通文字 \/path\/带空格 📁 &lt;样例&gt;/);
-  assert.match(html, /<b lang="zh">带空格 📁 &lt;样例&gt;<\/b>/);
-  assert.equal(host.conversationDraftFromMessage(saved.text, saved.capabilities, saved.metadata.folder_refs), draft);
-  assert.equal(host.conversationDraftFromMessage(text, []), text);
-  assert.doesNotMatch(host.chatMessageText(text, []), /class="cinline-folder"/);
+  const restored = host.conversationDraftFromMessage(saved.text, saved.capabilities, saved.metadata.folder_refs);
+  assert.equal(restored.text, draft);
+  assert.deepEqual(Array.from(restored.folders, item => item.path), [path, otherPath]);
+  assert.equal(host.conversationDraftFromMessage(text, []).text, text);
+  const files = [{name: '说明.txt', kind: 'file', size: 42}, ...restored.folders];
+  const labels = host.chatMessageAttachments(files);
+  assert.equal((labels.match(/class="cmessage-files"/g) || []).length, 1);
+  assert.match(labels, /说明\.txt/);
+  assert.match(labels, /<b>带空格 📁 &lt;样例&gt;<\/b>/);
 
   const generatedPrefix = '创建智能体团队：';
   const generated = host.conversationFolderSendFields(refs, generatedPrefix.length);
-  assert.equal(host.conversationDraftFromMessage(generatedPrefix + text, [], generated.folder_refs), generatedPrefix + draft);
+  assert.equal(host.conversationDraftFromMessage(generatedPrefix + text, [], generated.folder_refs).text, generatedPrefix + draft);
+
+  const legacy = `查看 ${path}，继续处理 ${path}`;
+  const legacyStart = Array.from('查看 ').length;
+  const legacyDraft = host.conversationDraftFromMessage(legacy, [], [{start: legacyStart, end: legacyStart + Array.from(path).length}]);
+  assert.equal(legacyDraft.text, `查看 ，继续处理 ${path}`);
+  assert.deepEqual(Array.from(legacyDraft.folders, item => item.path), [path]);
 });
 
-test('a restored queued message previews and edits with the original folder chip', () => {
+test('folder-only queue entries survive restoration and show the folder during editing', () => {
   const host = setupFolderMessage();
   const path = '/tmp/local folder';
-  const draft = `先查看 ${host.conversationFolderMarker(path)} 后处理 ${path}`;
   host.S.chatId = 34;
   host.S.chatBusy = true;
   const owner = host.conversationQueueOwner('chat');
-  host.conversationQueueRestore(owner, {items: [{id: 'queue-1', text: draft}]});
+  host.serializableConversationDraftAttachment = item => item;
+  const folder = host.conversationFolderDraftAttachment(path);
+  host.conversationQueueRestore(owner, {items: [
+    {id: 'queue-1', text: '', folders: [folder]},
+    {id: 'queue-2', text: `先查看 \uE002${encodeURIComponent(path)}\uE003\n后处理 ${path}`},
+  ]});
 
   const preview = host.conversationQueueMarkup('chat');
-  assert.equal((preview.match(/class="cinline-folder"/g) || []).length, 1);
+  assert.equal((preview.match(/class="cmessage-file folder"/g) || []).length, 2);
   assert.match(preview, /后处理 \/tmp\/local folder/);
-  assert.equal(host.conversationQueueSnapshot(owner).items[0].text, draft);
+  const [queued, legacy] = host.conversationQueueSnapshot(owner).items;
+  assert.equal(queued.text, '');
+  assert.equal(queued.folders[0].path, path);
+  assert.equal(legacy.folders[0].path, path);
 
   const queue = host.conversationQueueState('chat');
   queue.editing = 'queue-1';
   const editor = host.conversationQueueMarkup('chat');
-  assert.match(editor, /data-queue-editor class="ccomposer-editor"/);
-  assert.equal((editor.match(/class="cinline-folder"/g) || []).length, 1);
-  assert.match(editor, /后处理 \/tmp\/local folder/);
+  assert.match(editor, /<textarea data-queue-editor/);
+  assert.match(editor, /data-queue-action="save" +onclick/);
+  assert.equal((editor.match(/class="cmessage-file folder"/g) || []).length, 2);
+  const refs = [];
+  assert.equal(host.conversationMessageFromDraft('', [], refs, queued.folders), path);
+  assert.deepEqual(JSON.parse(JSON.stringify(refs)), [{start: 0, end: path.length}]);
+});
+
+for (const surface of ['chat', 'panel']) {
+  test(`${surface} sends directories as text with file upload kept separate and restores both on failure`, async () => {
+    const host = setupFolderMessage();
+    const path = '/目录/Research 📂';
+    const folder = host.conversationFolderDraftAttachment(path);
+    const file = {kind: 'file', name: 'example.txt', file: {name: 'example.txt'}, localId: 'file-1'};
+    const uploads = [], requests = [];
+    const panel = {id: 23, input: '', attachments: [folder, file], messages: []};
+    Object.assign(host.S, {chatId: 23, chatDraft: '', chatAttachments: [folder, file], chatMsgs: [], chatCfg: {}, conversationPanel: panel, conversationPanelDrafts: {}});
+    Object.assign(host, {
+      _workspaceBusinessGeneration: 1,
+      _conversationPanelDraftSaveTimer: null,
+      clearTimeout: () => {},
+      readChatFile: async item => { uploads.push(item); return {name: item.name}; },
+      streamApi: async (url, body) => { requests.push({url, body}); throw Error('rejected'); },
+      api: async () => ({}),
+      conversationChatDirectory: async () => ({chats: []}),
+      conversationEmployeeAssetMissing: () => false,
+      conversationEmployeeGuidance: () => null,
+      conversationExampleBindings: () => ({}),
+      validateConversationExampleMaterials: () => true,
+      conversationViewContext: () => ({}),
+      captureConversationPanelDraft: () => {},
+      conversationPanelDraftKey: () => 'test',
+      conversationPanelIsVisibleHere: () => true,
+      rememberConversationPanel: () => {},
+      saveConversationPanelDrafts: () => {},
+      serializableConversationDraftAttachment: item => item,
+      serializableConversationDraftValue: item => item,
+      RunTeamsEmployeeConfiguration: {prepareApplications: async () => {}},
+      conversationPanelSendConfig: () => ({}),
+      handleAgentChannelError: () => false,
+      render: () => {},
+      requestAnimationFrame: () => {},
+      scrollConversationPanel: () => {},
+      scrollChat: () => {},
+    });
+    host.conversationRuntimeReady = () => true;
+    host.conversationCapabilitiesForSend = () => [];
+    host.document.getElementById = () => ({});
+    host.conversationInputValue = () => '';
+    host.newLiveAgentMessage = () => ({role: 'bot'});
+    vm.runInContext(shell.match(/async function sendConversationPanel\(options=\{\}\)\{[^]*?\n\}/)[0], host);
+
+    const result = await (surface === 'panel' ? host.sendConversationPanel() : host.sendChat());
+    assert.equal(result.accepted, false);
+    assert.deepEqual(uploads, [file]);
+    assert.equal(requests.length, 1);
+    assert.equal(requests[0].body.message, path);
+    assert.deepEqual(JSON.parse(JSON.stringify(requests[0].body.folder_refs)), [{start: 0, end: Array.from(path).length}]);
+    assert.deepEqual(Array.from(requests[0].body.attachments, item => item.name), [file.name]);
+    assert.equal(requests[0].body.attachment_tokens.length, 0);
+    assert.deepEqual(Array.from(host.conversationAttachments(surface)), [folder, file]);
+  });
+}
+
+test('sending a folder as a supplement clears it only after a confirmed receipt', async () => {
+  const host = setupFolderMessage();
+  const path = '/目录/补充 📂';
+  const folder = host.conversationFolderDraftAttachment(path);
+  const requests = [];
+  Object.assign(host.S, {chatId: 23, chatAttachments: [folder], chatMsgs: [], chatCanSteer: true});
+  Object.assign(host, {
+    conversationInputElement: () => ({}),
+    conversationInputValue: () => '',
+    conversationCapabilitiesForSend: () => [],
+    setConversationDraftValue: () => {},
+    setConversationInputValue: () => {},
+    conversationSyncSendState: () => {},
+    render: () => {},
+    api: async (_url, _method, body) => {
+      requests.push(body);
+      if (requests.length === 1) return {error: 'rejected'};
+      return {accepted: true, message_id: 99, text: body.message, folder_refs: body.folder_refs};
+    },
+  });
+  await host.conversationSteer('chat');
+  assert.equal(host.S.chatAttachments[0], folder);
+  await host.conversationSteer('chat');
+  assert.equal(host.S.chatAttachments.length, 0);
+  assert.equal(requests.length, 2);
+  assert.equal(requests[1].message, path);
+  assert.deepEqual(JSON.parse(JSON.stringify(requests[1].folder_refs)), [{start: 0, end: Array.from(path).length}]);
+  assert.equal(host.S.chatMsgs[0].metadata.folder_refs, requests[1].folder_refs);
 });
