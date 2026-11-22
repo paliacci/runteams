@@ -150,8 +150,8 @@ async function activate(entry,inlineSelection){
  if(!inlineSelection)selectDetailWorkspace({type:'employee-configuration',id:entry.key});
  if(inlineSelection?.type==='creator-assets')embeddedSessions.set(inlineSelection,s);
  else{active=s;s.inlineSelection=inlineSelection;}
+ s.applicationLoadState=null;
  paint(s);if(!s.pending)await read(s);
- if(displayed(s)&&hasApplications(s))void loadApplicationBindings(s);
 }
 function mountGroup(entries,selection,snapshot,loading){
  const waiting=loading&&!snapshot;
@@ -319,7 +319,7 @@ async function migrateEmployeeApplications(entry){
  const key=scope()+'|'+deviceScope()+'|'+entry.key;
  if(!applicationMigrations.has(key)){
   const pending=(async()=>{
-   const rows=applications({entry});
+   const rows=legacyApplications({entry});
    const result=await accountMcpTestRequest({action:'employee-apps-import',employee,rows});
    if(key===scope()+'|'+deviceScope()+'|'+entry.key&&RunTeamsBusinessStorage.getItem(storage)===previous)
     RunTeamsBusinessStorage.removeItem(storage);
@@ -334,19 +334,46 @@ async function prepareApplications(panel){
  const entry=RunTeamsEmployeeDirectory.forPanel(panel);
  if(entry)await migrateEmployeeApplications(entry);
 }
-async function loadApplicationBindings(s){
+function bindingsState(s){
+ const owner=applicationOwner(s.entry);
+ return owner?.key?sessionFor(owner):null;
+}
+function publishApplicationBindings(state,rows){
+ if(!owned(state))return;
+ state.applicationReadFailed=false;
+ state.applications=rows;
+ for(const session of sessions.values()){
+  if(displayed(session)&&hasApplications(session)&&bindingsState(session)===state)paintApplicationRows(session);
+ }
+}
+async function readApplicationBindings(state){
+ if(state.applicationRead)return state.applicationRead;
+ const previous=state.applications;
+ state.applicationRead=(async()=>{
+  const migrated=await migrateEmployeeApplications(state.entry);
+  const result=migrated||await accountMcpTestRequest({action:'employee-apps-read',employee:employeeApplicationReference(state.entry)});
+  if(state.applications===previous)publishApplicationBindings(state,result.applications);
+ })();
+ try{await state.applicationRead;}finally{state.applicationRead=null;}
+}
+async function loadApplicationBindings(s,state){
  try{
-  const owner=applicationOwner(s.entry);
-  const migrated=await migrateEmployeeApplications(owner);
-  const result=migrated||await accountMcpTestRequest({action:'employee-apps-read',employee:employeeApplicationReference(owner)});
-  if(!displayed(s))return;
-  s.applications=result.applications;
-  paintApplicationRows(s);
-  await refreshEmployeeApplicationNames(s);
- }catch(error){if(displayed(s))toast(error.message,'err');}
+  await readApplicationBindings(state);
+  if(displayed(s))await refreshEmployeeApplicationNames(s);
+ }catch(error){
+  if(displayed(s)){
+   state.applicationReadFailed=true;
+   paintApplicationRows(s);
+   toast(error.message,'err');
+  }
+ }
 }
 function applications(s){
- if(s.applications)return s.applications;
+ const rows=bindingsState(s)?.applications;
+ if(rows)return rows;
+ return legacyApplications(s);
+}
+function legacyApplications(s){
  try{
   const rows=JSON.parse(RunTeamsBusinessStorage.getItem(applicationKey(s))||'[]');
   return Array.isArray(rows)?rows.filter(row=>row&&['mcp','composio'].includes(row.provider)&&
@@ -356,17 +383,16 @@ function applications(s){
 async function changeApplication(s,row,remove=false){
  if(!displayed(s)||!hasApplications(s))return;
  try{
-  const owner=applicationOwner(s.entry);
+  const state=bindingsState(s),owner=state.entry;
   await migrateEmployeeApplications(owner);
   if(!displayed(s))return;
   const result=await accountMcpTestRequest({action:'employee-apps-set',
    employee:employeeApplicationReference(owner),row,remove});
-  s.applications=result.applications;
+  publishApplicationBindings(state,result.applications);
  }catch{
   toast(copy('appsSaveFailed','无法保存应用配置。'),'err','employeeSettings.appsSaveFailed');
   return false;
  }
- if(displayed(s))paintApplicationRows(s);
  return true;
 }
 function paintApplicationRows(s){
@@ -378,7 +404,7 @@ function paintApplicationRows(s){
  }
 }
 function applicationMark(row){
- const logo=row.logo;
+ const logo=row.logo||(row.provider==='composio'&&/^[A-Za-z0-9_-]+$/.test(row.id||'')?'https://logos.composio.dev/api/'+row.id:'');
  const trusted=typeof logo==='string'&&/^https:\/\/(?:logos\.composio\.dev\/api\/[A-Za-z0-9_-]+|(?:assets\.composio\.dev\/logos\/|cdn\.jsdelivr\.net\/gh\/ComposioHQ\/open-logos@[A-Za-z0-9_-]+\/)[A-Za-z0-9_.-]+\.(?:png|svg|webp|jpe?g))$/.test(logo);
  const image=trusted?'<img src="'+esc(logo)+'" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" onload="this.classList.add(\'is-loaded\')" onerror="this.remove()">':'';
  return '<span class="employee-application-mark" aria-hidden="true">'+esc(Array.from(row.name)[0]||'•')+image+'</span>';
@@ -455,6 +481,11 @@ function applicationAccountLabel(name){
 }
 function applicationRows(s){
  const label=(key,fallback)=>messageMarkup(message(key,fallback));
+ const state=bindingsState(s);
+ if(!state?.applications){
+  if(state?.applicationReadFailed)return '<button type="button" class="btn" data-employee-app-retry data-app-i18n="employeeHistory.retry">重试</button>';
+  return RunTeamsSkeletons.region('detail',1,'employeeSettings.loading');
+ }
  return listedApplications(s).map(row=>{
   const pending=s.applicationConnections?.get(applicationId(row));
   const id=esc(applicationId(row)),account=applicationAccount(s,row);
@@ -463,6 +494,11 @@ function applicationRows(s){
 }
 function applicationSection(s){
  if(!hasApplications(s))return '';
+ const state=bindingsState(s);
+ if(s.applicationLoadState!==state){
+  s.applicationLoadState=state;
+  void loadApplicationBindings(s,state);
+ }
  const id=formId(s)+'-applications';
  return RunTeamsEmployeeDrawerHeader.section({
   id:id+'-section',title:messageMarkup(message('appsTitle','应用连接')),
@@ -765,6 +801,7 @@ function connectEmployeeComposio(s,row,reconnect,context=null){
 }
 function applicationAction(s,button){
  if(!hasApplications(s))return;
+ if(button.hasAttribute('data-employee-app-retry'))return loadApplicationBindings(s,bindingsState(s));
  if(button.hasAttribute('data-employee-app-add'))return openApplicationPicker(s);
  const id=button.dataset.employeeAppMenu??button.dataset.employeeAppConnect;
  const row=listedApplications(s).find(item=>applicationId(item)===id);
@@ -1049,7 +1086,7 @@ document.addEventListener('scroll',event=>{if(event.target?.matches?.('.employee
 document.addEventListener('click',event=>{const s=current(event.target),button=event.target.closest('button');
  if(s&&button?.matches('[data-location-pick]')){void editLocation(s,button);return;}
  if(!s||!button||!button.closest('.employee-configuration-drawer,[data-signing-configuration]'))return;
- if(button.matches('[data-employee-app-add],[data-employee-app-connect],[data-employee-app-menu]'))return applicationAction(s,button);
+ if(button.matches('[data-employee-app-retry],[data-employee-app-add],[data-employee-app-connect],[data-employee-app-menu]'))return applicationAction(s,button);
  if(button.dataset.expand||button.dataset.reconnect)void pick(s,button.dataset.expand||button.dataset.reconnect);
  if(button.dataset.resourceRetry)void pickResource(s,button.dataset.resourceRetry,true);
  if(button.dataset.collectionCreate)void createCollection(s,button.dataset.collectionCreate);
@@ -1079,7 +1116,12 @@ async function showOnboarding(panel){
  const s=sessionFor(entry),selected=S.sel;
  const currentPanel=()=>owned(s)&&S.conversationPanel===panel&&S.sel===selected&&!panel.messages?.length&&!panel.busy;
  const seenKey='runteams.employee.onboarding:'+JSON.stringify([RunTeamsEmployeeDirectory.referenceKey(entry.reference),entry.definition_revision]);
- const seen=()=>{try{return RunTeamsBusinessStorage.getItem(seenKey)==='1';}catch{return false;}};
+ const deviceSeenKey=(S.localLibrary?.library_id||deviceScope())&&JSON.stringify([RunTeamsHost.session.storageScope(S),seenKey]);
+ const seen=()=>{try{return (deviceSeenKey&&localStorage.getItem(deviceSeenKey)==='1')||RunTeamsBusinessStorage.getItem(seenKey)==='1';}catch{return false;}};
+ function remember(){
+  if(!currentPanel())return;
+  try{if(deviceSeenKey)localStorage.setItem(deviceSeenKey,'1');else RunTeamsBusinessStorage.setItem(seenKey,'1');}catch{}
+ }
  let model;
  try{
   if(seen())return;
@@ -1105,14 +1147,14 @@ async function showOnboarding(panel){
   }));
  }
  if(appSession&&all.some(step=>step.application)){
+  try{await readApplicationBindings(appSession);}catch{panel.onboardingChecked=false;return;}
+  if(!currentPanel())return;
   try{
-   const migrated=await migrateEmployeeApplications(appEntry);
-   const result=migrated||await accountMcpTestRequest({action:'employee-apps-read',employee:employeeApplicationReference(appEntry)});
-   appSession.applications=result.applications;
    for(const step of all.filter(item=>item.application)){
     const requirement=requirements.get(step.application);
     const bound=applications(appSession).filter(row=>row.provider==='composio'&&row.account?.id&&(!requirement.toolkit||requirement.toolkit===row.id));
     if(!bound.length)continue;
+    if(requirement.toolkit){connections.set(step.application,bound[0]);continue;}
     const compatible=await readCandidates(requirement);candidates.set(step.application,compatible);
     const chosen=bound.find(row=>compatible.some(candidate=>candidate.row.id===row.id&&candidate.accounts.some(account=>account.id===row.account.id)));
     if(chosen)connections.set(step.application,chosen);
@@ -1136,7 +1178,7 @@ async function showOnboarding(panel){
  if(!steps.length)return;
  const t=(key,text,vars={})=>window.RunTeamsLocale?.t('employeeOnboarding.'+key,vars,text)??text;
  function finish(){
-  try{RunTeamsBusinessStorage.setItem(seenKey,'1');}catch{}
+  remember();
   if(host?.isConnected)closeChildDialog();
  }
  function fields(){
@@ -1168,12 +1210,13 @@ async function showOnboarding(panel){
    const next={...row,account:{id:account.id,name:account.name}};
    try{
     const result=await accountMcpTestRequest({action:'employee-apps-set',employee:employeeApplicationReference(appEntry),row:next,remove:false});
+    publishApplicationBindings(appSession,result.applications);
     if(!current())return;
-    appSession.applications=result.applications;
    }finally{
     for(const button of controls)button.disabled=false;
    }
    connections.set(requirement.key,next);
+   if(position===steps.length-1&&steps.every(step=>!step.questions.length&&(!step.application||connections.has(step.application))))remember();
    errors={};
    paint();
   }
@@ -1249,7 +1292,7 @@ async function showOnboarding(panel){
    body:'<div class="employee-onboarding-intro"><h2 id="employee-onboarding-title">'+esc(step.title)+'</h2>'+
     (step.description?'<p id="employee-onboarding-description">'+esc(step.description)+'</p>':'')+'</div>'+
     fields().map(field=>controls.field({...field,disabled:busy},values[field.key],errors[field.key])).join('')+
-    (application?applicationRow(connection||{name:application.label},
+    (application?applicationRow(connection||{provider:'composio',id:application.toolkit,name:application.label},
      (connection?applicationAccountLabel(connection.account.name):'')+
      '<button type="button" class="btn" data-guide-application>'+esc(connection?t('changeApp','更换连接'):t('connectApp','连接'))+'</button>'):'')+
     (application?.toolkit?'<p class="employee-guide-auth-status" data-guide-auth-status role="status"></p>':'')+
