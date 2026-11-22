@@ -736,6 +736,36 @@ def path_for(chat_id, item):
     return _contained_path(chat_id, item.get("stored_name"))
 
 
+def reveal_file(chat_id, attachment_id):
+    item = product_store.find_chat_attachment(chat_id, attachment_id)
+    if not item:
+        raise ValueError("附件不存在。")
+    if item.get("kind") == "local_asset" and item.get("local_kind") == "file":
+        from runteams_core.assets import local_assets
+        grant = product_store.get_local_asset_grant(item["grant_id"])
+        available, reason = local_assets.preflight(grant, item["name"])
+        if not available:
+            raise ValueError(reason)
+        path = grant["path"]
+    elif item.get("kind") == "file":
+        path = path_for(chat_id, item)
+    else:
+        raise ValueError("请选择文件附件。")
+    if not os.path.isfile(path):
+        raise ValueError("附件文件已移动或不存在。")
+    if sys.platform == "darwin":
+        command = ["/usr/bin/open", "-R", path]
+    elif sys.platform == "win32":
+        command = ["explorer", "/select,", path]
+    else:
+        command = ["xdg-open", os.path.dirname(path)]
+    try:
+        subprocess.run(command, check=True, capture_output=True, timeout=10)
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise ValueError("无法在文件管理器中定位附件。") from exc
+    return {"revealed": True}
+
+
 def _normalized_inputs(chat_id, item, *, restore=True):
     if restore:
         _storage().restore(chat_id, item)

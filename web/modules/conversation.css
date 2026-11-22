@@ -1297,7 +1297,7 @@
 .cmsg.user .cmessage-files { display:flex; flex-wrap:wrap; justify-content:flex-end; align-items:flex-end; max-width:100%; gap:8px; margin:0; }
 .cmsg.user .cmessage-files + .cbubble { margin-top:8px; }
 .cmsg.user .cmessage-file,.cmsg.user .cmessage-image { box-sizing:border-box; max-width:100%; background:var(--surface); border:1px solid var(--border-default); border-radius:10px; }
-.cmsg.user .cmessage-file { min-width:0; height:auto; min-height:44px; padding:5px 10px; gap:8px; color:var(--text-secondary); }
+.cmsg.user .cmessage-file { text-align:start; min-width:0; height:auto; min-height:44px; padding:5px 10px; gap:8px; color:var(--text-secondary); }
 .cmsg.user .cmessage-file>.i { flex-shrink:0; }
 .cmsg.user .cmessage-file>span { min-width:0; }
 .cmsg.user .cmessage-file :is(b,small) { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }

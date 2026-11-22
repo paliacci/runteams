@@ -13,9 +13,13 @@ import threading
 import uuid
 
 
+ATTACHMENT_REVEAL = re.compile(r'/api/chat/([1-9][0-9]*)/attachment/([a-f0-9]{24}|asset-[1-9][0-9]*)/reveal')
+
+
 def handles(path):
     return path in {'/api/channels', '/api/model-catalog', '/api/channel-usage',
                     '/api/environment', '/api/environment/capabilities', '/api/mcp-connections', '/api/app-info', '/api/attachments/pick', '/api/work-folders', '/api/chats', '/api/conversations', '/api/device/page-ids'} or bool(
+        ATTACHMENT_REVEAL.fullmatch(path) or
         re.fullmatch(r'/api/work-folders/(?:pick|clear|bind|open)', path) or
         re.fullmatch(r'/api/chat/[1-9][0-9]*/attachment/[a-f0-9]{24}', path) or
         re.fullmatch(r'/api/channel/[1-9][0-9]*/(?:probe|connect|remove)', path) or
@@ -473,6 +477,14 @@ class LocalRuntime:
                     return {'items': chat_attachments.pick_native(cancel_event=self.picker_cancel)}
                 finally:
                     self.picker_lock.release()
+            reveal = ATTACHMENT_REVEAL.fullmatch(path)
+            if method == 'POST' and reveal:
+                if data:
+                    raise ValueError('附件定位不接受其他参数。')
+                from runteams_core.conversations import chat_attachments
+                chat_id = int(reveal[1])
+                self.chat(chat_id, include_live=False)
+                return chat_attachments.reveal_file(chat_id, reveal[2])
             attachment = re.fullmatch(r'/api/chat/([1-9][0-9]*)/attachment/([a-f0-9]{24})', path)
             if method == 'GET' and attachment:
                 if data:

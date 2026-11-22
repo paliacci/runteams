@@ -958,20 +958,36 @@ function conversationAttachmentFolderCopy(item){
   return {key:count===1?"conversationAttachment.folderFile":"conversationAttachment.folderFiles",vars:{count,size},text:`${count} 个文件 ${size}`};
 }
 
+async function revealChatAttachment(button){
+  button.disabled=true;
+  try {
+    const result=await api(button.dataset.revealAttachment,"POST",{});
+    if(!result?.revealed)throw new Error(result?.error||"无法定位附件，请重试。");
+  } catch(error){toast(error.message||"无法定位附件，请重试。","err");}
+  finally{button.disabled=false;}
+}
+
+function chatFileCard(item,chatId,body,extraClass=""){
+  const classes="cmessage-file"+(extraClass?" "+extraClass:"");
+  const saved=/^[1-9]\d*$/.test(chatId)&&/^(?:[a-f0-9]{24}|asset-[1-9]\d*)$/.test(item.id);
+  if(!saved||item.kind==="folder"||item.local_kind==="folder")return `<span class="${classes}">${body}</span>`;
+  return `<button type="button" class="${classes}" data-reveal-attachment="/api/chat/${chatId}/attachment/${item.id}/reveal" onclick="revealChatAttachment(this)">${body}</button>`;
+}
+
 /* module-function:chatMessageAttachments */
 function chatMessageAttachments(items,chatId=S.chatId){
   if(!items.length)return "";
   const markup=items.map(item=>{
     if(item.kind==="local_asset"){
       const folder=item.local_kind==="folder";
-      return `<span class="cmessage-file local-reference">${ICON(folder?"folder":"doc")}<span><b lang="${/[\u3400-\u9fff]/.test(item.name)?"zh":"en"}">${esc(item.name)}</b><small data-app-i18n="localReference.${folder?"folderDetail":"fileDetail"}">${folder?"文件夹":"文件"} · 仅在这台电脑使用</small></span></span>`;
+      return chatFileCard(item,chatId,`${ICON(folder?"folder":"doc")}<span><b lang="${/[\u3400-\u9fff]/.test(item.name)?"zh":"en"}">${esc(item.name)}</b><small data-app-i18n="localReference.${folder?"folderDetail":"fileDetail"}">${folder?"文件夹":"文件"} · 仅在这台电脑使用</small></span>`,"local-reference");
     }
     const url=chatAttachmentUrl(item,chatId);
     if(item.kind==="image"&&url)return `<a class="cmessage-image" href="${url}" target="_blank" rel="noopener noreferrer"><img src="${url}" alt="${esc(item.name)}"></a>`;
     const folder=item.kind==="folder",copy=folder?conversationAttachmentFolderCopy(item):null;
     const detail=copy?`<small data-app-i18n="${copy.key}" data-app-i18n-vars="${esc(JSON.stringify(copy.vars))}">${esc(copy.text)}</small>`:url?`<small>${esc(formatFileSize(item.size))}</small>` :`<small data-app-i18n="conversationAttachment.unavailable" data-app-i18n-vars="${esc(JSON.stringify({size:formatFileSize(item.size)}))}">附件不可用 · ${esc(formatFileSize(item.size))}</small>`;
     const body=`${ICON(folder?"folder":"doc")}<span><b>${esc(item.name)}</b>${detail}</span>`;
-    return folder||!url?`<span class="cmessage-file ${folder?"folder":"unavailable"}">${body}</span>`:`<a class="cmessage-file" href="${url}" target="_blank" rel="noopener noreferrer">${body}</a>`;
+    return chatFileCard(item,chatId,body,folder?"folder":url?"":"unavailable");
   }).join("");
   return `<div class="cmessage-files">${markup}</div>`;
 }
