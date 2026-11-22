@@ -100,3 +100,7 @@
 .modal.employee-guide-app-picker > .mb { overflow: auto; }
 .employee-guide-app-picker .employee-app-picker-row + .employee-app-picker-row { border-top: 1px solid var(--line); }
 .employee-guide-app-picker [data-guide-app-status]:empty { display: none; }
+
+.employee-guide-auth-status { margin: 0; color: var(--text-secondary); }
+.employee-guide-auth-status:empty { display: none; }
+.employee-guide-auth-status a { text-decoration: underline; }

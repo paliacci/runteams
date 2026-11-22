@@ -1157,6 +1157,47 @@ async function showOnboarding(panel){
  async function applicationPicker(requirement){
   capture();
   if(!currentPanel()||!host?.isConnected)return;
+  let status,list;
+  const current=()=>currentPanel()&&!!status?.isConnected;
+  const buttons=()=>list?list.querySelectorAll('button'):[host.querySelector('[data-guide-application]')];
+  function showError(error){status.textContent=error;status.setAttribute('role','alert');}
+  async function bind(row,account){
+   const controls=buttons();
+   if(!current())return;
+   for(const button of controls)button.disabled=true;
+   const next={...row,account:{id:account.id,name:account.name}};
+   try{
+    const result=await accountMcpTestRequest({action:'employee-apps-set',employee:employeeApplicationReference(appEntry),row:next,remove:false});
+    if(!current())return;
+    appSession.applications=result.applications;
+   }finally{
+    for(const button of controls)button.disabled=false;
+   }
+   connections.set(requirement.key,next);
+   errors={};
+   paint();
+  }
+  function authorize(row){
+   connectEmployeeComposio(appSession,row,true,{
+    current,complete:account=>bind(row,account),error:showError,
+    status:state=>{
+     if(!current())return;
+     for(const button of buttons())button.disabled=!!state;
+     if(!state)return;
+     status.setAttribute('role','status');
+     status.textContent=copy(state.label.key,state.label.fallback);
+     if(state.url){
+      const link=document.createElement('a');link.href=state.url;link.target='_blank';link.rel='noopener noreferrer';
+      link.textContent=toolsText('composioAuthorize','前往授权');status.append(' ',link);
+     }
+    }
+   });
+  }
+  if(requirement.toolkit){
+   status=host.querySelector('[data-guide-auth-status]');
+   authorize({provider:'composio',id:requirement.toolkit,name:requirement.label});
+   return;
+  }
   const title=t('chooseApp','选择应用');
   const guide=host;
   const options={className:'employee-app-picker employee-guide-app-picker',title,showClose:false,scrimHandler:'void 0',scrimClass:'employee-onboarding-scrim',
@@ -1165,26 +1206,9 @@ async function showOnboarding(panel){
     '<button type="button" class="x modal-x" data-guide-picker-back aria-label="'+esc(t('back','上一步'))+'">'+ICON('x')+'</button>',
    body:'<div class="employee-app-picker-scroll" data-guide-app-list></div><p data-guide-app-status role="status"></p>'};
   replaceChildDialog(options);
-  const list=guide.querySelector('[data-guide-app-list]'),status=guide.querySelector('[data-guide-app-status]');
-  const current=()=>currentPanel()&&guide.isConnected&&list.isConnected;
+  list=guide.querySelector('[data-guide-app-list]');status=guide.querySelector('[data-guide-app-status]');
   const back=guide.querySelector('[data-guide-picker-back]');
   back.onclick=paint;back.focus();
-  function showError(error){status.textContent=error;status.setAttribute('role','alert');}
-  async function bind(row,account){
-   if(!current())return;
-   for(const button of list.querySelectorAll('button'))button.disabled=true;
-   const next={...row,account:{id:account.id,name:account.name}};
-   try{
-    const result=await accountMcpTestRequest({action:'employee-apps-set',employee:employeeApplicationReference(appEntry),row:next,remove:false});
-    if(!current())return;
-    appSession.applications=result.applications;
-   }finally{
-    for(const button of list.querySelectorAll('button'))button.disabled=false;
-   }
-   connections.set(requirement.key,next);
-   errors={};
-   paint();
-  }
   function rowMarkup(row,detail,action){
    return '<div class="employee-app-picker-row">'+applicationMark(row)+'<span class="employee-application-name"><strong>'+esc(row.name)+'</strong><small>'+
     esc(detail)+'</small></span><div class="employee-app-picker-action"><button type="button" class="btn">'+esc(action)+'</button></div></div>';
@@ -1204,19 +1228,7 @@ async function showOnboarding(panel){
     }
     if(accounts.length)continue;
     markup.push(rowMarkup(row,t('newAccount','连接新账号'),t('connectApp','连接')));
-    actions.push(()=>connectEmployeeComposio(appSession,row,true,{
-     current,complete:account=>bind(row,account),error:showError,
-     status:state=>{
-      if(!current())return;
-      for(const button of list.querySelectorAll('button'))button.disabled=!!state;
-      if(!state)return;
-      status.textContent=copy(state.label.key,state.label.fallback);
-      if(state.url){
-       const link=document.createElement('a');link.href=state.url;link.target='_blank';link.rel='noopener noreferrer';
-       link.textContent=toolsText('composioAuthorize','前往授权');status.append(' ',link);
-      }
-     }
-    }));
+    actions.push(()=>authorize(row));
    }
    list.innerHTML=markup.join('');
    [...list.querySelectorAll('button')].forEach((button,i)=>button.onclick=actions[i]);
@@ -1240,6 +1252,7 @@ async function showOnboarding(panel){
     (application?applicationRow(connection||{name:application.label},
      (connection?applicationAccountLabel(connection.account.name):'')+
      '<button type="button" class="btn" data-guide-application>'+esc(connection?t('changeApp','更换连接'):t('connectApp','连接'))+'</button>'):'')+
+    (application?.toolkit?'<p class="employee-guide-auth-status" data-guide-auth-status role="status"></p>':'')+
     (errors._form?'<p role="alert" class="error">'+esc(errors._form)+'</p>':''),footer:progress+'<div class="employee-onboarding-actions">'+buttons+'</div>'};
   if(host?.isConnected)replaceChildDialog(options);
   else{
