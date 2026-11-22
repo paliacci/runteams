@@ -625,13 +625,16 @@ const RunTeamsEnvironment = (() => {
  }
  function versionToolbar({version,modeControl,publication,loading}){
   if(!loading&&!modeControl&&!version&&!publication)return '';
+  version=publication?.version||version;
   const number=version?esc(/^\d/.test(version)?'v'+version:version):'';
   const versionLabel=number?`<span class="overview-version-number">${number}</span>`:loading?placeholder('version','skeleton.loading'):'';
   let button='';
   if(publication){
-   const {labelKey,label,action,id,disabled,popup,expanded}=publication;
+   const {labelKey,label,vars,action,id,disabled,popup,expanded,passive}=publication;
+   const caption=`<span data-app-i18n="${esc(labelKey)}"${vars?' data-app-i18n-vars="'+esc(JSON.stringify(vars))+'"':''}>${esc(label)}</span>`;
    button=loading&&!number?placeholder('version-action','skeleton.loading'):
-    `<button type="button"${id?' id="'+esc(id)+'"':''} class="btn pri sm" onclick="${esc(action)}"${disabled?' disabled':''}${popup?' aria-haspopup="'+esc(popup)+'" aria-expanded="'+!!expanded+'"':''}><span data-app-i18n="${esc(labelKey)}">${esc(label)}</span></button>`;
+    passive?`<span class="overview-version-status" role="status">${caption}</span>`:
+    `<button type="button"${id?' id="'+esc(id)+'"':''} class="btn pri sm" onclick="${esc(action)}"${disabled?' disabled':''}${popup?' aria-haspopup="'+esc(popup)+'" aria-expanded="'+!!expanded+'"':''}>${caption}</button>`;
   }
   return `<footer class="overview-footer">${modeControl}<div class="overview-version-actions">${versionLabel}${button}</div></footer>`;
  }

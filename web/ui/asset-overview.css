@@ -80,7 +80,7 @@
 .overview-activity-rows .work-record-state{padding:0;background:transparent;color:var(--text-secondary)}
 .overview-footer{box-sizing:border-box;flex:none;justify-content:space-between;gap:8px;padding:10px var(--overview-inline-padding);min-height:58px;border-top:1px solid var(--border-default);background:var(--panel);flex-wrap:wrap}
 .overview-footer>.source-pipeline-creation-control{padding-inline-start:0}
-.overview-version-number{font-size:13px;white-space:nowrap;color:var(--text-secondary);font-variant-numeric:tabular-nums}
+.overview-version-number,.overview-version-status{font-size:13px;white-space:nowrap;color:var(--text-secondary);font-variant-numeric:tabular-nums}
 .overview-version-actions{flex-wrap:wrap;margin-inline-start:auto}
 .overview-footer .btn{min-width:80px}
 .overview-footer .i{width:14px;height:14px}
