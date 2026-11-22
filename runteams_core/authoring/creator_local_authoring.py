@@ -259,7 +259,7 @@ def recovery_available(session):
 
 
 def instructions(session):
-    from runteams_core.agents.agent_guidance import EMPLOYEE_STARTER_INSTRUCTION
+    from runteams_core.agents.agent_guidance import ASSET_NAMING_INSTRUCTION, EMPLOYEE_STARTER_INSTRUCTION
     revisions=source(session)
     return ('# 当前本机作品\n员工源码目录：' + str(session.get('_creator_workspace') or _work_root(revisions,session['id'])/'source') + '\n'
         '这是文件编辑器绑定作品的源码工作区，可能与终端当前工作目录不同；读取与修改员工必须使用上述源码目录。'
@@ -271,7 +271,7 @@ def instructions(session):
         '背景图支持 5 MB 以内、最长边 4096 像素以内的静态 PNG、JPEG、WebP。优先使用本次图片附件的原件路径。图片不明确时先问；恢复默认背景时删除该字段。'
         '如需为符合限制而缩小图片，只写工程内的副本。图片与配置一起保存；回复说明本次设置的目标和结果。'
         '图片和员工JSON须在同一轮一起完成，不直接写数据库，不用员工名字推断头像，不改key、身份引用、历史工作或正在使用的冻结版本。'
-        + EMPLOYEE_STARTER_INSTRUCTION
+        + ASSET_NAMING_INSTRUCTION + EMPLOYEE_STARTER_INSTRUCTION
         + '回复结束时平台将实际文件原子保存为这份作品的新修订；原导入版保留。'
         '不要访问或修改原云作品，不调用云作品创建、编译、安装或发布。'
         '所有员工须遵守 SDK。纯技能员工不需要程序或界面；不得为了通过检查添加空壳程序、UI 或虚构工作。若实际工作需要程序，project/2 使用技能 mcp/ 下 Node JavaScript、MCPB manifest 与可选 Apps 页面；依赖完整随包并精确锁定。'

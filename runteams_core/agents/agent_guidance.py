@@ -56,6 +56,12 @@ from runteams_core.assets.resource_discovery import GUIDANCE as RESOURCE_DISCOVE
 BASE_AGENT_INSTRUCTION += '\n\n' + RESOURCE_DISCOVERY_GUIDANCE
 
 
+ASSET_NAMING_INSTRUCTION = (
+    '给员工或智能体团队命名时，沿用用户最近明确指定的全名；区分“照这个思路起名”和“就叫这个名字”。'
+    '需要代拟时，用用户熟悉的词说明员工的工作领域与岗位，或团队共同完成的工作。'
+    '保存前核对资产显示名和介绍中的自称；单个用例的标题只用于那项工作。')
+
+
 EMPLOYEE_STARTER_INSTRUCTION = (
     '创建或编辑员工快捷问题时，从这名员工确实能交付的工作里，选出用户会单独来交办的 2–3 件典型任务，跨可见技能合计计数。'
     '可以按工作对象或使用场景区分。标题用简短的动宾短语，让初次见到员工的人一眼看出能交办什么。'
@@ -83,6 +89,6 @@ def conversation_purpose(context):
         return ''
     return ('# 本会话用途\n当前会话用于创建 AI 员工。优先将用户需求理解为员工职责，'
             '明确工作方式和交付结果；信息足够时沿现有创建流程完成。'
-            + EMPLOYEE_STARTER_INSTRUCTION
+            + ASSET_NAMING_INSTRUCTION + EMPLOYEE_STARTER_INSTRUCTION
             + '用户明确改变目标时，遵循最新要求。此用途不授予额外权限，'
             '没有实际工具回执不能声称已经创建员工。')
