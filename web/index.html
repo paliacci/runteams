@@ -85,7 +85,7 @@
 <script src="/ui/creator-author.js?v=pipeline-version-copy-20261104.employee-resource-default-20261105.resource-settings-back-20261105.creator-draft-receipt-20261105.work-authorization-20261105.drawer-inline-actions.cloud-asset-history-20261112.hide-empty-history.resource-folders-collapsed.consolidated.no-build-action.unified-kb.2.canonical.locale-review"></script>
 <link rel="stylesheet" href="/ui/employee-automation.css?v=drawer-cleanup-20261120">
 <script src="/ui/work-state.js?v=right-click-card-restart-20261110.pipeline-recovery-retry-20261104.consolidated.current-read"></script>
-<script src="/ui/asset-overview.js?v=footer-order-20261120.knowledge-section.empty-add.unified-kb.2.inline-three.kb-actions.kb-row-view.open-file.knowledge-origin.csv-preview.row-numbers.chunk-import.office-reader.inline-deliveries.inline-activity.shared-toolbar.market-states.version-check.delivery-buttons.employee-runtime.stable-footer"></script>
+<script src="/ui/asset-overview.js?v=footer-order-20261120.knowledge-section.empty-add.unified-kb.2.inline-three.kb-actions.kb-row-view.open-file.knowledge-origin.csv-preview.row-numbers.chunk-import.office-reader.inline-deliveries.inline-activity.shared-toolbar.market-states.version-check.delivery-buttons.employee-runtime.stable-footer.localized-work-examples"></script>
 <script src="/ui/employee-automation.js?v=overview-row-skeleton-20261120.locale-review"></script>
 <script src="/ui/work-folder.js?v=work-folder-copy-20261104"></script>
 <script src="/ui/reply-content-bundle.js?v=reply-table-20261122"></script>
@@ -93,7 +93,7 @@
 <script src="/ui/reply-spec.js?v=json-render-20261113-1.utf8-capacity"></script>
 <script src="/ui/reply-content.js?v=json-render-20261113-1.utf8-capacity"></script>
 <script src="/ui/reply-content-preview.js?v=20261029-3.locale-review"></script>
-<script src="/modules/conversation.js?v=pipeline-chat-copy-20261104.authoring-records-route.unified-employee-conversation.employee-apps-20261114.app-auth-card-20261114.app-operation-summary.sdk-workbench.asset-overview-20261120.section-ready.chat-hydration.skill-menu-20261120.employee-shortcuts-1120.example-icon-v1.default-spark.canonical.example-attachments.sent-attachments-above.reveal-sent-files.employee-runtime.locale-review.review-copy"></script>
+<script src="/modules/conversation.js?v=pipeline-chat-copy-20261104.authoring-records-route.unified-employee-conversation.employee-apps-20261114.app-auth-card-20261114.app-operation-summary.sdk-workbench.asset-overview-20261120.section-ready.chat-hydration.skill-menu-20261120.employee-shortcuts-1120.example-icon-v1.default-spark.canonical.example-attachments.sent-attachments-above.reveal-sent-files.employee-runtime.locale-review.review-copy.localized-work-examples"></script>
 <script src="/ui/model-channels.js?v=runtime-copy-20261104.quota-coalescing.skill-menu-20261120"></script>
 <script src="/modules/skills.js?v=employee-resource-controls-20261104.retired-pages-20261113"></script>
 <script src="/modules/account.js?v=default-model-copy-20261104.wallet-copy-20261104.language-device-copy-20261105.mcp-tests.composio-sessions.model-catalog-notice.quota-coalescing.workspace-read.locale-review"></script>
@@ -6195,11 +6195,9 @@ function coreShortText(text,limit=14){const value=String(text||"").trim();return
 // Work-level guidance has no owner, task state, execution action or access grant.
 function workExampleItems(works){
   const examples=[];
-  const choices=works.filter(work=>work.show_in_overview!==false).map(work=>{
-    const configured=(work.examples||[]).filter(item=>item?.title&&item?.prompt);
-    const prompt=work.objective||work.summary;
-    return {work,items:configured.length?configured:work.name&&prompt?[{title:work.name,prompt}]:[]};
-  });
+  const choices=works.filter(work=>work.show_in_overview!==false).map(work=>({
+    work,items:(work.examples||[]).filter(item=>item?.title&&item?.prompt),
+  }));
   for(let n=0;n<6;n++)for(const {work,items} of choices){
     const example=items[n];if(!example||examples.some(item=>item.prompt===example.prompt))continue;
     const requirements=(work.assets||[]).map(item=>({name:item.name,label:item.label||item.name,type:item.type||'folder',required:item.required!==false,hint:item.selection_hint||''}));

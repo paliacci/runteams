@@ -140,6 +140,12 @@ def tool(arguments, context):
             if (strict_json(files['project.json'])['schema'] != 'runteams.creator-project/2'
                     or report['employees'] != 1 or report['pipelines']):
                 raise CreatorContractError('invalid_employee_bundle', '员工须提交一份完整的当前 SDK 源码。')
+            if action == 'submit' and not saved.get('creator_local_source_id'):
+                from runteams_core.authoring.source.employee_starters import validate_submission
+                try:
+                    validate_submission(files)
+                except ValueError as exc:
+                    raise CreatorContractError('invalid_employee_starters', str(exc)) from exc
         except CreatorContractError as exc:
             raise AgentToolError('SDK 源码校验未通过（{}）：{} 本次未保存或绑定，请修正源码后重新提交。'
                 .format(exc.code, str(exc))) from exc

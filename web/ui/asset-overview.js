@@ -678,7 +678,7 @@ const RunTeamsEnvironment = (() => {
  function employeeDrawer(){
   const panel=S.conversationPanel,entry=RunTeamsEmployeeDirectory.forPanel(panel),record=entry?.record||{},binding=panel.employee_binding||{};
   const examples=conversationEmployeeExamples(panel);
-  const chips=examples.map((item,i)=>`<button type="button" onclick="RunTeamsAssetOverview.example(${i})">${esc(item.title)}</button>`).join('');
+  const chips=examples.map(item=>`<button type="button" onclick="conversationPanelWorkExample(this)"${conversationWorkExampleAttribute(item)}>${esc(conversationWorkExampleText(item).title)}</button>`).join('');
   const version=entry?.source?.version||entry?.work?.origin?.listing_version||record.active_release?.version||entry?.asset?.version||'';
   const publication=RunTeamsHost.assets.employeePublicationAction?.(panel,entry);
   const directoryLoading=!entry&&RunTeamsEmployeeDirectory.isLoading();
@@ -693,6 +693,5 @@ const RunTeamsEnvironment = (() => {
    configuration:employeeConfiguration(panel,entry),pending:conversationQuestionDock('panel'),version,publication,
    modeControl:RunTeamsHost.assets.employeeVersionControl?.(panel,entry)||''});
  }
- function example(i){if(!employee())return;const item=conversationEmployeeExamples(S.conversationPanel)[i];if(item)conversationPanelWorkExample(JSON.stringify(item));}
- window.RunTeamsAssetOverview={active,employee,pipeline,employeeEligible,pendingPage,prepare,closed,takeManualMotion,trigger,toggle,section,sectionAction,loadingSection,textButton,labels,shell,employeeDrawer,back,backMarkup,openKnowledge,toggleKnowledge,retryKnowledge,uploadKnowledge,exportKnowledge,openDelivery,openRow,toggleActivity,openEmployeeActivity,toggleDeliveries,load,example};
+ window.RunTeamsAssetOverview={active,employee,pipeline,employeeEligible,pendingPage,prepare,closed,takeManualMotion,trigger,toggle,section,sectionAction,loadingSection,textButton,labels,shell,employeeDrawer,back,backMarkup,openKnowledge,toggleKnowledge,retryKnowledge,uploadKnowledge,exportKnowledge,openDelivery,openRow,toggleActivity,openEmployeeActivity,toggleDeliveries,load};
 })();

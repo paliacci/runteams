@@ -349,13 +349,15 @@ test('a pending model leaves the bound employee identity and examples visible', 
     window: {}, S: {conversationPanel: panel, sel: {type: 'employee-overview', overviewRecords: []}},
     RunTeamsHost: {assets: {}, session: {workspace: () => true}},
     RunTeamsEmployeeDirectory: {forPanel: () => null, isLoading: () => true},
-    conversationEmployeeExamples: () => [{title: '检查页面'}],
-    conversationRuntimeControl: (_surface, _disabled, pending) => pending,
     RunTeamsSkeletons: {statusAttrs: () => 'role="status"'},
     RunTeamsEmptyStates: {markup: () => ''},
     RunTeamsEmployeeAutomation: {overviewSection: () => ''},
-    workerAvatarMarkup: () => '<img>', conversationQuestionDock: () => '', esc: String,
+    workerAvatarMarkup: () => '<img>', esc: String,
   });
+  vm.runInContext(fs.readFileSync('web/modules/conversation.js', 'utf8'), context);
+  context.conversationEmployeeExamples = () => [{title: '检查页面', prompt: '请检查这个页面。'}];
+  context.conversationRuntimeControl = (_surface, _disabled, pending) => pending;
+  context.conversationQuestionDock = () => '';
   vm.runInContext(fs.readFileSync('web/ui/asset-overview.js', 'utf8'), context);
   const drawer = context.window.RunTeamsAssetOverview.employeeDrawer();
   assert.match(drawer, /<h2[^>]*>SEO 助理<\/h2>/);

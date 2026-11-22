@@ -295,6 +295,38 @@
       ],
       "additionalProperties": false
     },
+    "work_example_text": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "pattern": "\\S"
+        },
+        "prompt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000,
+          "pattern": "\\S"
+        }
+      },
+      "required": ["title", "prompt"],
+      "additionalProperties": false
+    },
+    "work_example_translations": {
+      "type": "object",
+      "properties": {
+        "en": {
+          "$ref": "#/$defs/work_example_text"
+        },
+        "zh-CN": {
+          "$ref": "#/$defs/work_example_text"
+        }
+      },
+      "minProperties": 1,
+      "additionalProperties": false
+    },
     "work_example": {
       "type": "object",
       "properties": {
@@ -313,6 +345,9 @@
           "minLength": 1,
           "maxLength": 2000,
           "pattern": "\\S"
+        },
+        "translations": {
+          "$ref": "#/$defs/work_example_translations"
         }
       },
       "required": [

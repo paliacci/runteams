@@ -3,10 +3,38 @@
  * Do not run initialization here; do not redeclare S, api, ICON, esc, render or shared controls. */
 
 /* module-function:conversationPanelWorkExample */
-function conversationPanelWorkExample(value){
-  let example;try{example=JSON.parse(value);}catch(error){return;}
-  conversationPanelStarter(example.prompt,example.general?null:{skill_key:example.skill_key,requirements:example.requirements||[],bindings:{}});
+function conversationPanelWorkExample(button){
+  const example=JSON.parse(button.dataset.workExample);
+  conversationPanelStarter(conversationWorkExampleText(example).prompt,example.general?null:{skill_key:example.skill_key,requirements:example.requirements||[],bindings:{}});
 }
+
+function conversationWorkExampleText(example){
+  const locale=globalThis.RunTeamsLocale;
+  if(example.copyKey){
+    const prompt=locale?.t(example.copyKey,{},example.prompt)??example.prompt;
+    return {title:prompt,prompt};
+  }
+  const copy=example.translations?.[locale?.language];
+  if(typeof copy?.title==='string'&&typeof copy?.prompt==='string'&&copy.title.trim()&&copy.prompt.trim()){
+    return {title:copy.title.trim(),prompt:copy.prompt.trim()};
+  }
+  return {title:example.title,prompt:example.prompt};
+}
+
+function conversationWorkExampleAttribute(example){
+  return ` data-work-example="${esc(JSON.stringify(example))}"`;
+}
+
+globalThis.RunTeamsLocale?.onChange(({language,previousLanguage})=>{
+  if(language===previousLanguage)return;
+  for(const button of document.querySelectorAll('button[data-work-example]')){
+    const {title,prompt}=conversationWorkExampleText(JSON.parse(button.dataset.workExample));
+    const label=button.querySelector('.conversation-new-action-heading b')||button;
+    label.textContent=title;
+    const preview=button.querySelector('.conversation-new-action-description');
+    if(preview)preview.textContent=workExamplePreview(prompt);
+  }
+});
 
 /* module-function:conversationExampleMaterialRows */
 function conversationExampleMaterialRows(panel=S.conversationPanel){
@@ -74,11 +102,9 @@ function conversationEmployeeExamples(panel,guidance=conversationEmployeeGuidanc
    add(item);
    if(items.length===3)break;
  }
- const local=(key,text)=>globalThis.RunTeamsLocale?.t('employeeChat.'+key,{},text)??text;
  for(const [key,text,icon] of [['canHelp','你能帮我做什么？','briefcase'],['whatToSend','我需要先准备哪些资料？','doc'],['firstStep','我该从哪一步开始？','message-circle-more']]){
    if(items.length>=2)break;
-   const prompt=local(key,text);
-   add({title:prompt,prompt,icon,general:true});
+   add({title:text,prompt:text,icon,general:true,copyKey:'employeeChat.'+key});
  }
  return items;
 }
@@ -93,7 +119,7 @@ function conversationNewAction(label,action,icon,description,id,copy={}){
   const tooltipId=description?`conversation_starter_${id}`:'';
   const heading=`<span class="conversation-new-action-heading"><span class="conversation-new-action-icon" aria-hidden="true">${ICON(icon)}</span><b${copy.title?` data-app-i18n="${esc(copy.title)}"`:''}>${esc(label)}</b></span>`;
   const tooltip=description?`<span class="conversation-new-action-description" id="${tooltipId}" role="tooltip"${copy.detail?` data-app-i18n="${esc(copy.detail)}"`:''}>${esc(description)}</span>`:'';
-  return `<button type="button" class="conversation-new-action" onclick="${esc(action)}"${tooltipId?` aria-describedby="${tooltipId}"`:''}>${heading}${tooltip}</button>`;
+  return `<button type="button" class="conversation-new-action" onclick="${esc(action)}"${copy.workExample?conversationWorkExampleAttribute(copy.workExample):''}${tooltipId?` aria-describedby="${tooltipId}"`:''}>${heading}${tooltip}</button>`;
 }
 
 /* module-function:conversationNewEmpty */
@@ -118,7 +144,10 @@ function conversationEmployeeEmpty(panel,guidance,composer){
     return conversationNewEmpty({title:'想交办什么工作？',titleKey:'employeeChat.emptyTitle',extra:RunTeamsStaticPages.conversationWelcomeOptions('employee'),composer});
   }
   const examples=conversationEmployeeExamples(panel,guidance);
-  const row=(example,index)=>conversationNewAction(example.title,`conversationPanelWorkExample(decodeURIComponent('${encodeURIComponent(JSON.stringify(example)).replace(/'/g,'%27')}'))`,conversationExampleIcon(example.icon),workExamplePreview(example.prompt),index);
+  const row=(example,index)=>{
+    const {title,prompt}=conversationWorkExampleText(example);
+    return conversationNewAction(title,'conversationPanelWorkExample(this)',conversationExampleIcon(example.icon),workExamplePreview(prompt),index,{workExample:example});
+  };
   return conversationNewEmpty({title:'想交办什么工作？',titleKey:'employeeChat.emptyTitle',actions:examples.map(row).join(''),composer});
 }
 

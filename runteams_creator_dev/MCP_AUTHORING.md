@@ -20,6 +20,8 @@
 
 快捷问题写在技能目录 `runteams.json` 的 `work.examples`，数量按每名员工的所有可见技能合计。每项填写 `title` 和 `prompt`，按工作用途从技能 schema 选择 `icon`，例如查找资料用 `search`、撰写用 `edit`。省略时显示星光（`spark`）。
 
+创建或修改快捷问题时，为简体中文和英文各写一组标题与完整提问。原文放在 `title`、`prompt`；另一种语言放在 `translations.en` 或 `translations["zh-CN"]`，也含 `title` 和 `prompt`。两种语言表达同一项委托，保留交付要求和变量。例如，中文按钮「检查上线前的界面翻译」对应英文按钮 “Review UI translations before release”。点击后填入当前界面语言的完整提问，切换语言不会改写用户已输入的草稿。
+
 `source/` 是作者可编辑源码。`skills/<技能>/mcp/manifest.json` 是 MCPB 0.3 清单，
 `server.cjs` 是可直接运行的 Node 程序，`ui/` 是可选的 MCP Apps 页面。
 `vendor/` 提供精确锁定的官方 MCP／Apps 库与原 UI Kit；修改依赖时须更新完整字节与锁，
