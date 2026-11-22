@@ -57,7 +57,12 @@ for (const organization of [false, true]) {
 
 test('employee link waits for the existing cloud directory read', async () => {
  let releaseCloud, fullReads = 0;
- const employee = {key: 'employee:51', record: {name: 'Target employee'}, asset: {id: 51}, open: {employee_id: 51}};
+ const reference = (id, workspace_id = 'example-workspace') => ({
+  schema: 'runteams.business-reference/v1', deployment_id: 'https://example.invalid/auth/v1',
+  workspace_id, data_epoch: 'example-epoch', resource: 'employees', id,
+ });
+ const employee = {key: 'employee:51', record: {name: 'Target employee'}, asset: {id: 51, reference: reference(51)}, open: {employee_id: 51}};
+ const local = {key: 'work:51', record: {name: 'Different employee'}, work: {id: 51}, open: {employee_id: 51}};
  const receipt = (items, errors = {}) => ({
   schema: 'runteams.employee-directory/v1', items, errors, activity: {chats: [], workflows: []},
  });
@@ -77,26 +82,26 @@ test('employee link waits for the existing cloud directory read', async () => {
 
  await directory.refresh({localFirst: true});
  let resolved = false;
- const route = directory.resolveAsset(51).then(entry => { resolved = true; return entry; });
+ const route = directory.resolveAsset(reference(51)).then(entry => { resolved = true; return entry; });
  await new Promise(setImmediate);
  assert.equal(resolved, false);
  assert.equal(fullReads, 1);
- releaseCloud(receipt([employee]));
+ releaseCloud(receipt([local, employee]));
  assert.equal(await route, employee);
- assert.equal(await directory.resolveAsset(51), employee);
+ assert.equal(await directory.resolveAsset(reference(51)), employee);
  assert.equal(fullReads, 1);
 
- const unavailable = directory.resolveAsset(52);
+ const unavailable = directory.resolveAsset(reference(52));
  releaseCloud(receipt([employee], {assets: {error: 'offline'}}));
  await assert.rejects(unavailable, /offline/);
- const retry = directory.resolveAsset(52);
+ const retry = directory.resolveAsset(reference(51, 'different-workspace'));
  releaseCloud(receipt([employee]));
  assert.equal(await retry, null);
 
- const previousAccount = directory.resolveAsset(52);
+ const previousAccount = directory.resolveAsset(reference(52));
  context._workspaceBusinessGeneration++;
  directory.reset();
- releaseCloud(receipt([{...employee, asset: {id: 52}}]));
+ releaseCloud(receipt([{...employee, asset: {id: 52, reference: reference(52)}}]));
  assert.equal(await previousAccount, null);
  assert.equal(directory.current().length, 0);
 });

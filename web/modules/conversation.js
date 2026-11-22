@@ -1818,8 +1818,12 @@ function conversationMessageDate(message,previous){
   if(message.role!=="user")return "";
   const date=docParseTime(message.ts),prior=docParseTime(previous?.ts);if(!date)return "";
   if(previous&&prior&&date.toDateString()===prior.toDateString()&&date-prior<30*60*1000)return "";
-  const now=new Date(),clock=`${date.getHours()}:${String(date.getMinutes()).padStart(2,"0")}`,label=date.toDateString()===now.toDateString()?`今天 ${clock}`:`${date.getFullYear()}年${date.getMonth()+1}月${date.getDate()}日 ${clock}`;
-  return `<div class="conversation-date-divider" role="separator">${esc(label)}</div>`;
+  const today=date.toDateString()===new Date().toDateString();
+  const key=today?'conversationDetail.timelineToday':'conversationDetail.messageDate';
+  const vars=today?{timeZh:conversationMessageTimeFormats.timeZh.format(date),timeEn:conversationMessageTimeFormats.timeEn.format(date)}:
+    {dateZh:conversationMessageTimeFormats.dateZh.format(date),dateEn:conversationMessageTimeFormats.dateEn.format(date)};
+  const fallback=today?`今天 ${vars.timeZh}`:vars.dateZh;
+  return `<div class="conversation-date-divider" role="separator" data-app-i18n="${key}" data-app-i18n-vars="${esc(JSON.stringify(vars))}">${esc(globalThis.RunTeamsLocale?.t(key,vars,fallback)??fallback)}</div>`;
 }
 function conversationMessageIdentity(surface,options={}){return '';}
 /* module-function:conversationProgressLabel */

@@ -131,7 +131,10 @@ function resolve(value){
  if(!found)throw failure();
  const kind=found.route.kind,p=found.params,q=target.searchParams;
  const chatId=q.get('chat')&&q.get('chat')!=='new'?Number(q.get('chat')):'new';
- if(kind==='bot'||kind==='bot-settings')return {kind:'bot',employeeId:Number(p.employee),settings:kind==='bot-settings',chatId};
+ if(kind==='bot'||kind==='bot-settings'){
+  const reference=row('employees',p.employee,'internal').reference;
+  return {kind:'bot',employeeId:Number(p.employee),settings:kind==='bot-settings',chatId,...(reference?{reference}:{})};
+ }
  if(kind==='chat')return {kind,id:Number(p.chat),ownerPath:chatOwner(p)};
  if(kind==='chat-new')return {kind,...(q.get('purpose')==='create-employee'?{purpose:'create-employee'}:{})};
  if(kind==='employee-work')return {kind,pageId:p.employeePage};

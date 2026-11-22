@@ -110,10 +110,11 @@ async function openLocal(id){
  finally{if(valid(s)){if(directoryAccepted&&current()===s)s.treeSource=id;s.loading=false;extension()?.afterRead(s);repaint();}}
 }
 // Open only real, validated SDK source. Missing source is an explicit error.
-async function openEmployee(id,{onBack=null,settings=null}={}){
- if(S.sel?.type==='core-pipeline-parameters'&&requestDetailWorkspaceLeave(()=>openEmployee(id,{onBack,settings})))return;
+async function openEmployee(id,{onBack=null,settings=null,entry=null}={}){
+ if(S.sel?.type==='core-pipeline-parameters'&&requestDetailWorkspaceLeave(()=>openEmployee(id,{onBack,settings,entry})))return;
  capture();
- id=Number(id);const local=RunTeamsEmployeeDirectory.sourceFor(id);if(!id||!local&&!employeeCanEdit(employeeSummary(id))||current()?.editing||current()&&busy(current()))return;
+ id=Number(id);const local=entry?entry.source:RunTeamsEmployeeDirectory.sourceFor(id);
+ if(!id||entry&&(!entry.asset||Number(entry.asset.id)!==id)||!local&&!employeeCanEdit(entry?.asset||employeeSummary(id))||current()?.editing||current()&&busy(current()))return;
  const selection='employee:'+id;
  state={standalone:true,assetRecordId:id,employeeSource:local?.path,session:selection,scope:scope(),deviceScope:deviceScope(),library:S.localLibrary?{library_id:S.localLibrary.library_id,generation:S.localLibrary.generation}:null,files:[],resourceFolders:[],activeFile:'',file:null,error:'',loading:true,localSession:true,configurationReturn:onBack,settingsEntry:settings};
  const s=state,configuration=selectResources(s);

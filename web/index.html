@@ -15,8 +15,8 @@
 <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=20261021-contrast" />
 <!-- runteams-support-config -->
 
-<script src="/ui/locale-zh-cn.js?v=drawer-cleanup-20261120.2.activity-nav.activity-nav.delivery-type-actions.media-checks.2.pipeline-chat-toggle.knowledge-section.empty-add.unified-kb.2.kb-row-view.open-file.knowledge-origin.row-numbers.chunk-import.office-reader.example-attachments.locale-review"></script>
-<script src="/ui/locale-en.js?v=drawer-cleanup-20261120.2.activity-nav.activity-nav.delivery-type-actions.media-checks.2.pipeline-chat-toggle.knowledge-section.empty-add.unified-kb.2.kb-row-view.open-file.knowledge-origin.row-numbers.chunk-import.office-reader.example-attachments.locale-review"></script>
+<script src="/ui/locale-zh-cn.js?v=drawer-cleanup-20261120.2.activity-nav.activity-nav.delivery-type-actions.media-checks.2.pipeline-chat-toggle.knowledge-section.empty-add.unified-kb.2.kb-row-view.open-file.knowledge-origin.row-numbers.chunk-import.office-reader.example-attachments.locale-review.review-copy"></script>
+<script src="/ui/locale-en.js?v=drawer-cleanup-20261120.2.activity-nav.activity-nav.delivery-type-actions.media-checks.2.pipeline-chat-toggle.knowledge-section.empty-add.unified-kb.2.kb-row-view.open-file.knowledge-origin.row-numbers.chunk-import.office-reader.example-attachments.locale-review.review-copy"></script>
 <script src="/ui/locale.js?v=workspace-chrome-20261104.locale-review"></script>
 <script data-runteams-appearance>
 // Device appearance setting: apply before styles and the first rendered frame.
@@ -93,7 +93,7 @@
 <script src="/ui/reply-spec.js?v=json-render-20261113-1.utf8-capacity"></script>
 <script src="/ui/reply-content.js?v=json-render-20261113-1.utf8-capacity"></script>
 <script src="/ui/reply-content-preview.js?v=20261029-3.locale-review"></script>
-<script src="/modules/conversation.js?v=pipeline-chat-copy-20261104.authoring-records-route.unified-employee-conversation.employee-apps-20261114.app-auth-card-20261114.app-operation-summary.sdk-workbench.asset-overview-20261120.section-ready.chat-hydration.skill-menu-20261120.employee-shortcuts-1120.example-icon-v1.default-spark.canonical.example-attachments.sent-attachments-above.reveal-sent-files.employee-runtime.locale-review"></script>
+<script src="/modules/conversation.js?v=pipeline-chat-copy-20261104.authoring-records-route.unified-employee-conversation.employee-apps-20261114.app-auth-card-20261114.app-operation-summary.sdk-workbench.asset-overview-20261120.section-ready.chat-hydration.skill-menu-20261120.employee-shortcuts-1120.example-icon-v1.default-spark.canonical.example-attachments.sent-attachments-above.reveal-sent-files.employee-runtime.locale-review.review-copy"></script>
 <script src="/ui/model-channels.js?v=runtime-copy-20261104.quota-coalescing.skill-menu-20261120"></script>
 <script src="/modules/skills.js?v=employee-resource-controls-20261104.retired-pages-20261113"></script>
 <script src="/modules/account.js?v=default-model-copy-20261104.wallet-copy-20261104.language-device-copy-20261105.mcp-tests.composio-sessions.model-catalog-notice.quota-coalescing.workspace-read.locale-review"></script>
@@ -379,12 +379,18 @@ window.RunTeamsBoot=(()=>{
 function designSystemMain(){
   const theme=document.documentElement.dataset.theme||"system";
   return `<main class="design-system-page">
-    <header class="design-system-head"><div><span class="design-system-kicker" data-app-i18n="designSystem.internal">Internal UI reference</span><h1 data-app-i18n="designSystem.title">RunTeams 设计系统</h1><p data-app-i18n="designSystem.description">所有产品控件必须从这里继承颜色、边框、层级和交互状态。</p></div><div class="seg2 design-theme-switch"><button class="${theme==="light"?'on':''}" onclick="setDesignSystemTheme('light')" data-app-i18n="designSystem.light">浅色</button><button class="${theme==="dark"?'on':''}" onclick="setDesignSystemTheme('dark')" data-app-i18n="designSystem.dark">深色</button><button class="${theme==="system"?'on':''}" onclick="setDesignSystemTheme('system')" data-app-i18n="designSystem.system">跟随系统</button></div></header>
+    <header class="design-system-head"><div><span class="design-system-kicker" data-app-i18n="designSystem.internal">内部界面参考</span><h1 data-app-i18n="designSystem.title">RunTeams 设计系统</h1><p data-app-i18n="designSystem.description">所有产品控件必须从这里继承颜色、边框、层级和交互状态。</p></div><div class="seg2 design-theme-switch"><button class="${theme==="light"?'on':''}" onclick="setDesignSystemTheme('light')" data-app-i18n="designSystem.light">浅色</button><button class="${theme==="dark"?'on':''}" onclick="setDesignSystemTheme('dark')" data-app-i18n="designSystem.dark">深色</button><button class="${theme==="system"?'on':''}" onclick="setDesignSystemTheme('system')" data-app-i18n="designSystem.system">跟随系统</button></div></header>
     <section class="design-system-section"><div class="design-system-section-head"><h2 data-app-i18n="designSystem.buttons">按钮</h2><p data-app-i18n="designSystem.buttonHierarchy">层级由背景表达，不使用深色描边制造强调。</p></div><div class="design-system-grid"><article class="design-system-card"><h3 data-app-i18n="designSystem.levels">常规层级</h3><div class="design-control-row"><button class="btn" data-app-i18n="designSystem.defaultAction">普通操作</button><button class="btn soft" data-app-i18n="designSystem.subtleAction">柔和操作</button><button class="btn pri" data-app-i18n="designSystem.primaryAction">主要操作</button><button class="btn ghost" data-app-i18n="designSystem.textAction">纯文本操作</button><button class="btn danger" data-app-i18n="designSystem.destructiveAction">危险操作</button></div></article><article class="design-system-card"><h3 data-app-i18n="designSystem.sizes">尺寸与状态</h3><div class="design-control-row"><button class="btn sm" data-app-i18n="designSystem.small">小按钮</button><button class="btn" data-app-i18n="designSystem.regular">标准按钮</button><button class="btn lg" data-app-i18n="designSystem.large">大按钮</button><button class="btn soft">${RunTeamsStaticPages.icon("pause")}<span data-app-i18n="designSystem.pause">暂停</span></button><button class="btn" disabled data-app-i18n="designSystem.disabled">不可用</button></div></article></div></section>
-    <section class="design-system-section"><div class="design-system-section-head"><h2 data-app-i18n="designSystem.fields">输入与选择</h2><p data-app-i18n="designSystem.fieldStyle">默认边框保持低对比，只通过柔和背景和焦点环反馈。</p></div><div class="design-system-grid"><article class="design-system-card"><div class="field"><label data-app-i18n="designSystem.role">岗位名称</label><input class="inp" value="${esc(RunTeamsLocale.t('designSystem.analyst'))}"><span class="hint" data-app-i18n="designSystem.roleHint">用于智能体团队岗位和运行记录。</span></div><div class="field"><label data-app-i18n="designSystem.instructions">工作说明</label><textarea class="ta compact">${esc(RunTeamsLocale.t('designSystem.exampleInstructions'))}</textarea></div></article><article class="design-system-card"><div class="field"><label data-app-i18n="designSystem.channel">模型渠道</label><button class="csel"><span class="cv">Claude Opus</span>${RunTeamsStaticPages.icon("chev")}</button></div><div class="chips"><button class="chip on" data-app-i18n="designSystem.thinking">思考中</button><button class="chip" data-app-i18n="designSystem.highEffort">思考高</button><button class="chip add">${RunTeamsStaticPages.icon("plus")}<span data-app-i18n="designSystem.capability">添加能力</span></button></div><div class="seg2"><button class="on" data-app-i18n="designSystem.installed">已安装</button><button data-app-i18n="designSystem.discover">发现</button><button data-app-i18n="designSystem.custom">自定义</button></div></article></div></section>
+    <section class="design-system-section"><div class="design-system-section-head"><h2 data-app-i18n="designSystem.fields">输入与选择</h2><p data-app-i18n="designSystem.fieldStyle">默认边框保持低对比，只通过柔和背景和焦点环反馈。</p></div><div class="design-system-grid"><article class="design-system-card"><div class="field"><label for="design-role-example" data-app-i18n="designSystem.role">岗位名称</label><input id="design-role-example" class="inp" data-design-example="designSystem.analyst" value="${esc(RunTeamsLocale.t('designSystem.analyst'))}"><span class="hint" data-app-i18n="designSystem.roleHint">用于智能体团队岗位和运行记录。</span></div><div class="field"><label for="design-instructions-example" data-app-i18n="designSystem.instructions">工作说明</label><textarea id="design-instructions-example" class="ta compact" data-design-example="designSystem.exampleInstructions">${esc(RunTeamsLocale.t('designSystem.exampleInstructions'))}</textarea></div></article><article class="design-system-card"><div class="field"><label data-app-i18n="designSystem.channel">模型渠道</label><button class="csel"><span class="cv">Claude Opus</span>${RunTeamsStaticPages.icon("chev")}</button></div><div class="chips"><button class="chip on" data-app-i18n="designSystem.thinking">思考中</button><button class="chip" data-app-i18n="designSystem.highEffort">思考高</button><button class="chip add">${RunTeamsStaticPages.icon("plus")}<span data-app-i18n="designSystem.capability">添加能力</span></button></div><div class="seg2"><button class="on" data-app-i18n="designSystem.installed">已安装</button><button data-app-i18n="designSystem.discover">发现</button><button data-app-i18n="designSystem.custom">自定义</button></div></article></div></section>
 <section class="design-system-section"><div class="design-system-section-head"><h2 data-app-i18n="designSystem.lists">列表与反馈</h2><p data-app-i18n="designSystem.listStyle">列表依靠背景变化表达交互，边框只用于容器分组。</p></div><div class="design-system-grid"><article class="design-system-card design-list"><button><span class="design-list-icon">${RunTeamsStaticPages.icon("users")}</span><span><b data-app-i18n="designSystem.analyst">需求分析师</b><small data-app-i18n="designSystem.exampleState">Claude Opus 思考中</small></span><em class="ui-status ready"><i></i><span data-app-i18n="designSystem.ready">可用</span></em></button><button><span class="design-list-icon">${RunTeamsStaticPages.icon("package")}</span><span><b data-app-i18n="designSystem.skill">文档技能</b><small data-app-i18n="designSystem.skillHint">为岗位提供文档创建能力</small></span><em class="ui-status warning"><i></i><span data-app-i18n="designSystem.pending">待确认</span></em></button></article><article class="design-system-card"><div class="design-feedback ready">${RunTeamsStaticPages.icon("check")}<span data-app-i18n="designSystem.dependencies">运行依赖已经满足</span></div><div class="design-feedback warning">${RunTeamsStaticPages.icon("info")}<span data-app-i18n="designSystem.connectTool">需要连接本地工具</span></div><div class="design-feedback blocked">${RunTeamsStaticPages.icon("stop")}<span data-app-i18n="designSystem.connectAgent">请先连接 Claude Code 或 Codex</span></div></article></div></section>
   </main>`;
 }
+RunTeamsLocale.onChange(()=>{
+  for(const input of document.querySelectorAll('.design-system-page [data-design-example]')){
+    input.defaultValue=RunTeamsLocale.t(input.dataset.designExample);
+  }
+});
+
 
 RunTeamsHost.lifecycle.bootReady?.(RunTeamsBoot);
 const RIGHT_DETAIL_LAYOUT_KEY="runteams_right_detail_layout_v2";
@@ -529,7 +535,7 @@ function saveWorkspaceWindows(){try{workspaceBusinessStorage.setItem(WORKSPACE_W
 const RAIL_LAYOUT=loadRailLayout();
 let _rightDetailWidth=loadRightDetailWidth();
 const MODEL_CATALOG_SNAPSHOT=loadModelCatalogSnapshot();
-function accountInitial(){return String(RunTeamsHost.session.displayName(S)||'用').trim().slice(0,1)||"用";}
+function accountInitial(){return Array.from(String(RunTeamsHost.session.displayName(S)||'').trim())[0]||'';}
 
 const S = {booting:true,bootRoute:null,bootError:null,deviceWorkflows:[],deviceWorkScope:"",deviceWorkError:"",coreTeamLoaded:false,coreTeamLoading:false,coreTeamError:"",navigationLoading:false,navigationError:"",coreWorkflows:[],coreExecutor:null,corePackages:[],channels:[],providerCatalog:window.RunTeamsModelProviders||[],channelUsage:null,channelUsageLoading:false,channelUsageUpdatedAt:0,modelCatalog:MODEL_CATALOG_SNAPSHOT,modelCatalogReady:false,documents:[],documentsLoading:false,documentsPage:null,documentsAppendLoading:false,documentsAppendError:"",opportunities:[],opportunitiesLoading:false,workItems:[],workItemsLoading:false,workItemDetails:{},workItemSelected:"",workItemsShowClosed:false,workItemsError:"",docsMode:"documents",docsQuery:"",opportunityDetail:null,docReader:null,docReaderStack:[],docsSort:"created_at",docsSortDesc:true,docOutlineCollapsed:loadDocOutlineCollapsed(),docVersionsOpen:loadDocVersionsOpen(),docImageActual:loadDocImageScalePref(),surface:"team",pageTransition:null,sel:null,chats:[],chatId:null,chatMode:"",chatMsgs:[],chatBusy:false,chatStopping:false,chatStopRequested:false,chatActivity:"",chatDraft:"",chatCfg:null,chatModelPrefs:loadChatModelPrefs(),chatAttachments:[],chatCapabilities:[],chatRewind:null,conversationPanel:null,conversationDebugType:"",conversationFocus:false,conversationPanelsByWorkspace:{},conversationPanelsByChat:{},conversationPanelDrafts:loadConversationPanelDrafts(),workspaceWindows:loadWorkspaceWindows(),activeWorkspaceKey:"",activity:[],activityTotal:0,interventions:[],environment:loadEnvironmentSnapshot(),environmentLoading:false,account:loadAccountPrefs(),settingsTab:"general",appInfo:null,railSections:{pipelines:true,favorites:false,pending:false,recent:false},railRecentExpanded:false,chatDirectoryLoaded:false,railSearchOpen:false,railQuery:"",railSearchIndex:0,railSearchComposing:false,railPinnedChats:loadRailPinnedChats(),railMode:"navigation",railNavScrollTop:0,railNavTab:RAIL_LAYOUT.navTab,railCollapsed:RAIL_LAYOUT.collapsed,railRouteHydrating:false,_railLocatedKey:"",_selKey:"",_mainViewKey:"",_conversationViewKey:"",_renderedRailMode:"",...RunTeamsHost.lifecycle.initialState()};
 RunTeamsBoot.railTabChanged=tab=>{S.railNavTab=tab;};
@@ -992,10 +998,11 @@ function workspaceFinishSwitchPending(){
   if(document.getElementById("rgBody")?.hasAttribute("data-workspace-pane-held"))return;
   for(const id of ["rgMid","rgPipelineHead","rgDrawer"]){const node=document.getElementById(id);if(node)node.inert=false;}
 }
-function workspaceBeginEmployeeOpen(employeeKey,layout,employeeRoute){
+function workspaceBeginEmployeeOpen(employeeKey,layout,employeeRoute,{fromPage=false}={}){
   workspaceCaptureCurrent({beforeRoute:true});
   const token=++_workspaceSwitchSequence;
-  ++_routeSequence;++_pageUrlSequence;++_conversationPanelLoadSequence;
+  if(!fromPage)++_routeSequence;
+  ++_pageUrlSequence;++_conversationPanelLoadSequence;
   _workspaceSwitchTarget="";
   cancelPageTransition();closePop();
   const pending={key:"",token,route:employeeRoute||conversationNewRoute(),cold:true,employeeOpen:{employeeKey,layout,panel:S.conversationPanel,surface:S.surface,routeSequence:_routeSequence}};
@@ -1222,20 +1229,6 @@ async function applyRailRouteState(rail,options={}){
   const state=rail&&rail.mode==="assistant"?rail:{mode:"navigation",chat:null};
   syncRailWidthForMode(state.mode);S.railMode=state.mode;saveRailLayout();
   if(state.mode!=="assistant"){S.railRouteHydrating=false;render();if(switchToken&&switchCurrent()&&_workspaceSwitchTarget===workspaceCurrentKey())_workspaceSwitchTarget="";return;}
-  if(state.botId){
-    const generation=_workspaceBusinessGeneration,account=workspaceAccountCacheToken();
-    const current=()=>switchCurrent()&&routeCurrent()&&generation===_workspaceBusinessGeneration&&account===workspaceAccountCacheToken();
-    let entry=RunTeamsEmployeeDirectory.assetEntry(state.botId);
-    if(!entry){
-      const panel=S.conversationPanel,panelSequence=_conversationPanelLoadSequence;
-      entry=await RunTeamsEmployeeDirectory.resolveAsset(state.botId);
-      if(!current()||panel!==S.conversationPanel||panelSequence!==_conversationPanelLoadSequence)return;
-    }
-    if(!entry)throw Error('员工不在当前目录中。');
-    if(state.chat==='new')await RunTeamsEmployeeDirectory.newSession(entry.key);
-    else await openConversationSession(state.chat,'general',{focus:options.focus!==false});
-    if(!current())return;S.railRouteHydrating=false;render();if(switchToken)_workspaceSwitchTarget='';return;
-  }
   if(state.chat==="new"){
     if(S.conversationPanel?.loading)++_conversationPanelLoadSequence;
     captureConversationPanelDraft();const intent=new URLSearchParams(location.search).get("intent")||"",creatingPipeline=intent==="pipeline-create",pid=creatingPipeline?null:(null);S.conversationPanel=newRailConversationPanel(creatingPipeline?null:RunTeamsRoutes.preview(location.href).purpose);if(creatingPipeline)S.conversationPanel.context={context_type:"pipeline",intent:"create"};restoreConversationPanelDraft();hostConversationInRail(S.conversationPanel,{save:false});S.railRouteHydrating=false;render();if(switchToken&&switchCurrent()&&_workspaceSwitchTarget===workspaceCurrentKey())_workspaceSwitchTarget="";return;
@@ -1257,8 +1250,7 @@ async function applyAppRoute(options={}){
   try{
   try{if(!(['source-pipeline','employee-work'].includes(RunTeamsRoutes.preview(location.href).kind)||RunTeamsHost.routes.independent(location.href)||RunTeamsRoutes.ready&&(RunTeamsRoutes.isDeviceRoute?.(location.href)||!RunTeamsHost.session.workspace(S)&&(RunTeamsRoutes.preview(location.href).kind==='chat-new'||RunTeamsRoutes.preview(location.href).kind==='docs'&&!RunTeamsRoutes.preview(location.href).documentId))))await RunTeamsHost.routes.readIndex?.({loadedIndexScope:options.loadedIndexScope});if(!routeCurrent())return;await restoreDeviceChatRoute();if(!routeCurrent())return;appRouteLocation();}catch(error){if(!routeCurrent())return;if(S.workspaceSwitchPending){Object.assign(S.workspaceSwitchPending,{cold:true,painted:false,error});workspacePaintSwitch(S.workspaceSwitchPending);return;}const token=++_routeSequence;captureConversationPanelDraft();leaveConversationModeForPage();S.pageTransition={token,error:error.message};S.railRouteHydrating=false;render();return;}
   if(S.workspaceSwitchPending)workspaceFinishSwitchPending();
-  const route=parseAppRoute(),query=appRouteLocation().searchParams,rail=parseRailRoute(query);if(route.kind==="bot"){rail.mode="assistant";rail.chat=route.chatId;rail.botId=route.employeeId;}if(!routeCurrent())return;if(route.assistant&&rail.mode!=="assistant"){rail.mode="assistant";rail.chat="new";}const initialRailHydration=options.initial===true&&rail.mode==="assistant";S.railRouteHydrating=initialRailHydration;
-  if(route.kind==="bot")setAppUrl(route.settings?`/bots/${route.employeeId}/settings`:appRouteLocation().pathname+appRouteLocation().search,true);
+  const route=parseAppRoute(),query=appRouteLocation().searchParams,rail=parseRailRoute(query);if(!routeCurrent())return;if(route.assistant&&rail.mode!=="assistant"){rail.mode="assistant";rail.chat="new";}const initialRailHydration=options.initial===true&&rail.mode==="assistant";S.railRouteHydrating=initialRailHydration;
   const targetWorkspaceKey=workspaceKeyFromRoute(route);
   const folderMatches=targetWorkspaceKey!=='docs:list'||(query.get('folder')||'')===(_workspaceStateByKey.get(targetWorkspaceKey)?.docsFolder||'');
   if(!options.initial&&!options.pipelineVersion&&route.kind!=="chat"&&!query.has("results")&&targetWorkspaceKey&&targetWorkspaceKey!==S.activeWorkspaceKey&&folderMatches&&_workspaceStateByKey.has(targetWorkspaceKey)){
@@ -1301,15 +1293,6 @@ async function applyAppRoute(options={}){
   }
   if(route.kind==="trash"){
     await openTrash({route:false});if(routeCurrent())await applyRailRouteState(rail,{focus:false,initial:initialRailHydration,workspaceSwitchToken:switchToken,routeCurrent});if(!routeCurrent())return;return;
-  }
-  if(route.kind==="bot"){
-    await applyRailRouteState(rail,{focus:options.focus!==false,initial:initialRailHydration,workspaceSwitchToken:switchToken,routeCurrent});
-    if(!routeCurrent())return;
-    if(route.settings){await openCoreEmployeeEditor(route.employeeId);if(routeCurrent())setAppUrl(`/bots/${route.employeeId}/settings`,true);return;}
-    if(query.get('results')==='1'&&!query.get('workflow')&&!query.get('item')&&!query.get('delivery')&&
-       RunTeamsAssetOverview.employeeEligible(S.conversationPanel)&&Number(S.conversationPanel.employee_id)===Number(route.employeeId))RunTeamsAssetOverview.openEmployeeActivity();
-    else if(query.get('results')==='1')await openContextResults(Number(query.get('workflow'))?{workflow_id:Number(query.get('workflow'))}:{employee_id:route.employeeId},{item:query.get('item')||'',delivery:query.get('delivery')||''});
-    return;
   }
   if(route.kind==="chat"){
     const session=await readConversationSession(route.id);
@@ -2668,7 +2651,8 @@ function documentAuthorCopy(doc){
 function docsLastEditor(doc){
   if(String(doc.last_editor_kind||"")==="human"){
     const name=RunTeamsHost.session.displayName(S);
-    return `<span class="me docs-user-avatar" aria-hidden="true">${esc(accountInitial())}</span><span title="${esc(name||'你')}"${name?'':' data-app-i18n="documentList.you" data-app-i18n-title="documentList.you"'}>${esc(name||'你')}</span>`;
+    const initial=accountInitial();
+    return `<span class="me docs-user-avatar" aria-hidden="true">${initial?esc(initial):ICON("user")}</span><span title="${esc(name||'你')}"${name?'':' data-app-i18n="documentList.you" data-app-i18n-title="documentList.you"'}>${esc(name||'你')}</span>`;
   }
   const [name,key]=documentAuthorCopy(doc);
   const number=key==='documentList.agentChat'?0:Number(doc.run_sequence);
@@ -7228,7 +7212,8 @@ function openConversationSession(id,kind,options={}){
 async function openBotConversation(employeeId=0,options={}){
   const switchToken=Number(options.workspaceSwitchToken)||0,navigationSequence=_workspaceSwitchSequence,switchCurrent=()=>navigationSequence===_workspaceSwitchSequence&&(!switchToken||switchToken===_workspaceSwitchSequence)&&(!options.openCurrent||options.openCurrent());
   employeeId=Number(employeeId)||0;
-  const employee=employeeWorkIdentity(employeeId);
+  const entry=options.employeeKey?RunTeamsEmployeeDirectory.entryFor(options.employeeKey):null;
+  const employee=options.employeeKey?[entry?.work,entry?.asset].find(item=>Number(item?.id)===employeeId):employeeWorkIdentity(employeeId);
   if(!employee)return toast("这个员工已不存在","err","employeeSettings.missingEmployee");
   if(employee.schema==='runteams.native-employee-summary/v1'&&!RunTeamsHost.session.workspace(S)){
     try{
@@ -8587,7 +8572,7 @@ if(new URLSearchParams(location.search).get('preview')==='json-render'){
 }else if(new URLSearchParams(location.search).get('preview')==='ai-messages'){
   const previewStyle=document.createElement('link');previewStyle.rel='stylesheet';previewStyle.href='/ui/conversation-preview.css?v=message-gallery-status-only-20261026-1';document.head.appendChild(previewStyle);
   const previewScript=document.createElement('script');
-  previewScript.src='/ui/conversation-preview.js?v=legacy-three-removal-20261026.locale-review';
+  previewScript.src='/ui/conversation-preview.js?v=legacy-three-removal-20261026.locale-review.gallery-labels';
   previewScript.onload=()=>RunTeamsConversationPreview.boot();
   document.head.appendChild(previewScript);
 }else{

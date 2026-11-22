@@ -216,7 +216,7 @@ test('open drawers reserve description and employee shortcuts in both startup re
   for (const kind of ['employee', 'pipeline']) {
     const url = new URL('http://localhost/workspace');
     const context = vm.createContext({
-      window:{innerWidth:1440,RunTeamsHost:{pages:{}}}, location:url, URL, esc:String, S:{surface:'team'},
+      window:{innerWidth:1440,RunTeamsHost:{pages:{}}}, location:url, URL, S:{surface:'team'},
       appRouteLocation:()=>url, loadRightDetailWidth:()=>360,
       RunTeamsSourcePipelines:{current:()=>null},
       RunTeamsRoutes:{preview:()=>({kind:kind==='employee'?'bot':'source-pipeline'})},

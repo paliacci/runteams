@@ -152,7 +152,7 @@ class LocalHandler(BaseHTTPRequestHandler):
         if parsed.scheme or parsed.netloc or parsed.fragment:
             return self._json(400, {'error': 'invalid_request_target'})
         if self.command == 'GET' and (
-                parsed.path in ('/documents', '/trash')
+                parsed.path in ('/documents', '/trash', '/design-system')
                 or re.fullmatch(r'/documents/local-[a-f0-9]{32}', parsed.path)
                 or re.fullmatch(r'/chats/[0-9][a-z][a-z0-9]{6}', parsed.path)
                 or re.fullmatch(r'/(?:employees|pipelines)/[0-9][a-z][a-z0-9]{6}(?:/chats/[0-9][a-z][a-z0-9]{6})?', parsed.path)):

@@ -150,6 +150,7 @@ const RunTeamsEnvironment = (() => {
 /* Shared employee and pipeline drawer. The selected asset owns its reads and controls. */
 (()=>{
  'use strict';
+ const esc=value=>String(value??'').replace(/[&<>"]/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[char]));
  const labels=(key,fallback)=>`<span data-app-i18n="assetOverview.${key}">${esc(fallback)}</span>`;
  const employee=()=>S.sel?.type==='employee-overview';
  const pipeline=()=>S.sel?.type==='source-pipeline'&&S.sel.id==='settings';

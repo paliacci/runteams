@@ -84,17 +84,17 @@
   }
   return local;
  }
- async function resolveAsset(id){
-  const entry=assetEntry(id);
-  if(entry||S.localLibrary||!RunTeamsHost.session.ready(S))return entry;
+ async function resolveAsset(reference){
+  const identity=referenceKey(reference);
+  if(!identity||!RunTeamsHost.session.ready(S)||S.localLibrary)return null;
+  const find=()=>current().find(row=>referenceKey(row.asset?.reference)===identity)||null;
+  const existing=find();
+  if(existing)return existing;
   const expected=token(),own=sequence;
   const reply=await readDirectory(expected,{},false);
   if(expected!==token()||own!==sequence)return null;
-  const found=assetEntry(id);
-  if(found)return found;
-  const error=reply?.errors?.assets?.error;
-  if(error)throw Error(error);
-  return null;
+  if(reply?.errors?.assets?.error)throw Error(reply.errors.assets.error);
+  return find();
  }
  function accept(entry){
   if(!entry||(!S.localLibrary&&!RunTeamsHost.session.ready(S))||RunTeamsHost.session.workspace(S))return;
@@ -149,7 +149,7 @@
   const history=recent?.last_message_id||(!newSession&&entry.source&&(S.chats||[]).some(row=>
    row.storage_scope==='device'&&row.last_message_id&&String(row.id)===String(entry.source.chat_id)));
   const layout=history?'history':'employee';
-  const pending=workspaceBeginEmployeeOpen(key,layout,pageRoute(entry));
+  const pending=workspaceBeginEmployeeOpen(key,layout,pageRoute(entry),{fromPage});
   const sequence=++activationSequence,drawerSequence=_detailOpenSequence;
   const ownsOpen=()=>expected===token()&&sequence===activationSequence&&S.workspaceSwitchPending===pending&&
    S.conversationPanel===pending.employeeOpen.panel&&S.surface===pending.employeeOpen.surface&&
@@ -362,13 +362,14 @@
   if(!entry)throw Error('这名员工不在当前工作区中。');
   await activate(entry.key,{fromPage:true});
  }
- const open=key=>activate(key);
+ const open=(key,options)=>activate(key,options);
  function settings(key){
   const entry=entryFor(key);if(!entry)throw Error('员工目录已变化，请重新打开。');
   activationSequence++;
   if(activeRailMode()==='assistant'&&matches(entry,S.conversationPanel)){
    return RunTeamsEmployeeConfiguration.openConversation(entry);
   }
+  if(entry.asset?.editable===true&&!entry.source&&!entry.work)return RunTeamsCreatorAuthor.openEmployee(entry.asset.id,{entry});
   return RunTeamsEmployeeConfiguration.open(entry);
  }
  async function finishCreation(panel,session){
