@@ -56,8 +56,12 @@ from runteams_core.assets.resource_discovery import GUIDANCE as RESOURCE_DISCOVE
 BASE_AGENT_INSTRUCTION += '\n\n' + RESOURCE_DISCOVERY_GUIDANCE
 
 
-EMPLOYEE_EXAMPLE_ICON_INSTRUCTION = (
-    '创建或编辑员工快捷选项时，每名员工在可见技能中合计设置 2–3 个不同的问题，标题用用户会直接说的话。为每项工作在技能 runteams.json 的 work.examples[].icon 中选择与用途相符的图标。'
+EMPLOYEE_STARTER_INSTRUCTION = (
+    '创建或编辑员工快捷问题时，从这名员工确实能交付的工作里，选出用户会单独来交办的 2–3 件典型任务，跨可见技能合计计数。'
+    '可以按工作对象或使用场景区分。标题用简短的动宾短语，让初次见到员工的人一眼看出能交办什么。'
+    '点击后的提问写成自然的第一句话，说明想得到的结果；材料、语言方向和完成进度等细节按用户实际情况补充。'
+    '保存前把标题并排读一遍：每项是否都值得单独点开？合并目的相同的步骤或改写，换掉依赖某个样例才成立的细节。'
+    '选题示例见 SDK 的 authoring 参考。为每项工作在技能 runteams.json 的 work.examples[].icon 中选择与用途相符的图标。'
     '可选值见技能 schema，例如查找资料用 search，撰写用 edit。没有贴切图标时可省略，界面默认显示星光（spark）。')
 
 
@@ -79,6 +83,6 @@ def conversation_purpose(context):
         return ''
     return ('# 本会话用途\n当前会话用于创建 AI 员工。优先将用户需求理解为员工职责，'
             '明确工作方式和交付结果；信息足够时沿现有创建流程完成。'
-            + EMPLOYEE_EXAMPLE_ICON_INSTRUCTION
+            + EMPLOYEE_STARTER_INSTRUCTION
             + '用户明确改变目标时，遵循最新要求。此用途不授予额外权限，'
             '没有实际工具回执不能声称已经创建员工。')
