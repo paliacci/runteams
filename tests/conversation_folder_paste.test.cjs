@@ -11,21 +11,27 @@ function setup({surface = 'chat', worker = false, native, result = {folder_paths
   const calls = [];
   let attachments = [];
   let selection = {start: 0, end: 0};
-  const box = {isConnected: true, isContentEditable: true, value: ''};
+  const chips = [];
+  const box = {
+    isConnected: true, isContentEditable: true, value: '',
+    querySelectorAll: () => chips.filter(chip => chip.contentEditable !== 'false'),
+  };
   const host = vm.createContext({
     esc: text => String(text).replace(/[&<>"']/g, char => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[char])),
     ICON: name => `<svg class="i" data-icon="${name}"></svg>`,
     S: {chatId: 'new', chatAttachments: [], conversationPanel: {}},
-    window: native ? {webkit: {messageHandlers: {runteamsLocalReferencePaste: {
+    window: native ? {getSelection: () => null, webkit: {messageHandlers: {runteamsLocalReferencePaste: {
       postMessage: async request => {
         calls.push({bridge: {...request}});
         return typeof native === 'function' ? native() : native;
       },
-    }}}} : {},
+    }}}} : {getSelection: () => null},
     document: {activeElement: box, execCommand: (command, _ui, content) => {
       let text = content;
       if (command === 'insertHTML') {
         const folders = Array.from(content.matchAll(/data-folder-path="([^"]+)"/g), match => decodeURIComponent(match[1]));
+        assert.doesNotMatch(content, /contenteditable|cinline-folder/);
+        chips.push(...folders.map(() => ({classList: new Set(), contentEditable: 'inherit'})));
         calls.push({folders});
         text = folders.map(path => host.conversationFolderMarker(path)).join('\n');
       } else {
@@ -35,6 +41,7 @@ function setup({surface = 'chat', worker = false, native, result = {folder_paths
       box.value = box.value.slice(0, selection.start) + text + box.value.slice(selection.end);
       const end = selection.start + text.length;
       selection = {start: end, end};
+      return true;
     }},
     api: async (url, method, body) => {
       calls.push({url, method, body: JSON.parse(JSON.stringify(body))});
@@ -65,7 +72,7 @@ function setup({surface = 'chat', worker = false, native, result = {folder_paths
       getData: type => type === 'text/plain' ? text : uri,
     },
   }, surface);
-  return {paste, calls, box, host, select: (start, end) => { selection = {start, end}; }, attachments: () => attachments};
+  return {paste, calls, chips, box, host, select: (start, end) => { selection = {start, end}; }, attachments: () => attachments};
 }
 
 const folderFile = {name: 'project.txt', size: 0, type: 'text/plain'};
@@ -159,6 +166,12 @@ test('a folder label replaces the selection, preserves surrounding text, and sen
   page.box.value = '🔍查看占位符里的文档';
   page.select(4, 7);
   await page.paste({files: [folderFile], directory: true});
+  const [chip] = page.chips;
+  assert.equal(chip.contentEditable, 'false');
+  assert.ok(chip.classList.has('cinline-folder'));
+  chip.contentEditable = 'inherit';
+  page.host.conversationRestoreFolderChips(page.box, {inputType: 'historyRedo'});
+  assert.equal(chip.contentEditable, 'false');
   const marker = page.host.conversationFolderMarker(path);
   assert.equal(page.box.value, `🔍查看${marker}里的文档`);
   const html = page.host.conversationEditorHtml(page.box.value, []);
