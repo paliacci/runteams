@@ -82,19 +82,18 @@
 
 .employee-onboarding-scrim { background: color-mix(in srgb, var(--scrim) 74%, transparent); backdrop-filter: none; }
 .modal.employee-onboarding-dialog { --guide-padding: clamp(18px, 5vw, 26px); width: min(432px, calc(100vw - 28px)); max-height: calc(100dvh - 28px); border-radius: 18px; }
-.employee-onboarding-dialog > .mh { padding: 24px var(--guide-padding) 16px; border: 0; }
-.employee-onboarding-progress { display: flex; gap: 4px; }
-.employee-onboarding-progress > span { width: 9px; height: 3px; border-radius: 3px; background: var(--line2); }
+.employee-onboarding-progress { display: flex; align-items: center; gap: 4px; }
+.employee-onboarding-progress > span { width: 9px; min-width: 3px; height: 3px; border-radius: 3px; background: var(--line2); }
 .employee-onboarding-progress > .is-reached { background: var(--text-secondary); }
 .employee-onboarding-dialog > .mb { padding: 24px var(--guide-padding) 4px; gap: 18px; }
-.employee-onboarding-dialog > .mh + .mb { padding-top: 0; }
 .employee-onboarding-intro h2 { margin: 0; color: var(--ink); font-size: calc(22px * var(--interface-font-scale, 1)); font-weight: 650; line-height: 1.3; letter-spacing: -.02em; overflow-wrap: anywhere; }
 .employee-onboarding-intro p { margin: 8px 0 0; color: var(--text-secondary); font-size: calc(13px * var(--interface-font-scale, 1)); line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; text-wrap: pretty; }
 .employee-onboarding-dialog .mb > .field { margin: 0; min-width: 0; }
 .employee-onboarding-dialog .mb > .field > label { margin-bottom: 6px; }
 .employee-onboarding-dialog .field :is(.inp,.ta) { min-height: 38px; }
 .employee-onboarding-dialog .mb > .error { margin: 0; }
-.employee-onboarding-dialog > .mf { padding: 16px var(--guide-padding) 20px; border: 0; background: transparent; gap: 6px; flex-wrap: wrap; }
+.employee-onboarding-dialog > .mf { padding: 16px var(--guide-padding) 20px; border: 0; background: transparent; gap: 6px; align-items: center; flex-wrap: nowrap; }
+.employee-onboarding-actions { margin-inline-start: auto; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
 .employee-onboarding-dialog .mf .btn { min-height: 34px; }
 .employee-onboarding-connection { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; overflow-wrap: anywhere; }
 .modal.employee-guide-app-picker { height: auto; max-height: 88dvh; }

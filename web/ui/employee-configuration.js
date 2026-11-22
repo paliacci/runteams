@@ -1223,18 +1223,17 @@ async function showOnboarding(panel){
    esc(t('step','第 {current} 步，共 {total} 步',{current:position+1,total:steps.length}))+'" role="img">'+
    steps.map((_,i)=>'<span aria-hidden="true"'+(i<=position?' class="is-reached"':'')+'></span>').join('')+'</div>':'';
   const buttons=(position?'<button type="button" class="btn ghost" data-guide-back>'+esc(t('back','上一步'))+'</button>':'')+
-   '<div class="grow"></div>'+(step.questions.length||application||steps.length>1?'<button type="button" class="btn ghost" data-guide-skip>'+esc(t('later','稍后再说'))+'</button>':'')+
+   (step.questions.length||application||steps.length>1?'<button type="button" class="btn ghost" data-guide-skip>'+esc(t('later','稍后再说'))+'</button>':'')+
    '<button type="button" class="btn pri" data-guide-next>'+esc(busy?t('saving','保存中…'):errors._form?t('retry','重新保存'):!last?t('next','下一步'):steps.some(row=>row.questions.length)?t('start','开始使用'):application?t('finish','完成'):t('done','知道了'))+'</button>';
   const options={attrs:'role="dialog" aria-modal="true" aria-labelledby="employee-onboarding-title"'+
    (step.description?' aria-describedby="employee-onboarding-description"':''),showClose:false,
    scrimHandler:'void 0',closeOnScrim:false,className:'employee-onboarding-dialog',scrimClass:'employee-onboarding-scrim',
-   headerHtml:progress||null,
    body:'<div class="employee-onboarding-intro"><h2 id="employee-onboarding-title">'+esc(step.title)+'</h2>'+
     (step.description?'<p id="employee-onboarding-description">'+esc(step.description)+'</p>':'')+'</div>'+
     fields().map(field=>controls.field({...field,disabled:busy},values[field.key],errors[field.key])).join('')+
     (application?'<div class="employee-onboarding-connection">'+(connection?'<span>'+esc(connection.account.name)+'</span>':'')+
      '<button type="button" class="btn" data-guide-application>'+esc(connection?t('changeApp','更换连接'):application.label)+'</button></div>':'')+
-    (errors._form?'<p role="alert" class="error">'+esc(errors._form)+'</p>':''),footer:buttons};
+    (errors._form?'<p role="alert" class="error">'+esc(errors._form)+'</p>':''),footer:progress+'<div class="employee-onboarding-actions">'+buttons+'</div>'};
   if(host?.isConnected)replaceChildDialog(options);
   else{
    host=openChildDialog({...options,manageFocus:true});
