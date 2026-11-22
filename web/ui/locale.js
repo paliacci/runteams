@@ -31,7 +31,7 @@
   const locale=messageLocale(key),value=locale?catalogs[locale][key]:defaultText;
   return String(value).replace(/\{([A-Za-z][A-Za-z0-9_]*)\}/g,(token,name)=>has(parameters,name)&&['string','number'].includes(typeof parameters[name])?String(parameters[name]):token);
  }
- const targets={'data-app-i18n':null,'data-app-i18n-title':'title','data-app-i18n-alt':'alt','data-app-i18n-aria-label':'aria-label','data-app-i18n-aria-valuetext':'aria-valuetext','data-app-i18n-placeholder':'placeholder','data-app-i18n-data-placeholder':'data-placeholder'};
+ const targets={'data-app-i18n':null,'data-app-i18n-title':'title','data-app-i18n-alt':'alt','data-app-i18n-aria-label':'aria-label','data-app-i18n-aria-description':'aria-description','data-app-i18n-aria-valuetext':'aria-valuetext','data-app-i18n-placeholder':'placeholder','data-app-i18n-data-placeholder':'data-placeholder'};
  const selector=Object.keys(targets).map(key=>'['+key+']').join(',');
  function apply(root){
   if(!root)return;
@@ -53,11 +53,13 @@
    }
   }
  }
- function publish(previous,source){
+ function reflectLanguage(){
+  document.documentElement.lang=language;
   document.documentElement.dataset.appLanguage=language;
   document.documentElement.dataset.appLanguagePreference=preference;
-  // Most pages still use their approved Chinese source copy during rollout.
-  // Their document language stays truthful; opted-in labels declare their own.
+ }
+ function publish(previous,source){
+  reflectLanguage();
   apply(document);
   const detail=Object.freeze({preference,language,previousLanguage:previous,source});
   for(const listener of listeners)try{listener(detail);}catch(error){console.error('Language listener failed',error);}
@@ -80,8 +82,7 @@
  };
  window.RunTeamsLocale=Object.freeze(api);
  for(const [locale,messages]of Object.entries(globalThis.RUNTEAMS_LOCALES||{}))register(locale,messages);
- document.documentElement.dataset.appLanguage=language;
- document.documentElement.dataset.appLanguagePreference=preference;
+ reflectLanguage();
  // Localize the document title before the desktop host exposes its web area.
  apply(document.head);
  window.addEventListener('storage',event=>{if(event.key===storageKey||event.key===null)sync('storage');});

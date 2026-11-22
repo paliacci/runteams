@@ -13,16 +13,17 @@ const token=key=>scope()+'|'+key;
 const keyOf=o=>String(o.key||o.retry||o.title||'read');
 function button(options={}){
  const key=keyOf(options),busy=!!options.busy||active.has(token(key)),local=options.variant==='local',label=options.label||(local?'重试':'重新加载');
- const labelKey=busy?options.busyLabelKey:options.labelKey;
+ const idleKey=options.labelKey||(!options.label?local?"shell.retry":"shell.reload":"");
+ const busyKey=options.busyLabelKey||"shell.loading",labelKey=busy?busyKey:idleKey;
  const action=String(options.retry||'');if(!action)return '';
- return `<button type="button" class="rt-failure-retry${local?' rt-failure-retry--secondary':''}${label.length>(local?3:4)?' rt-failure-retry--wide':''}${options.compact?' rt-failure-retry--compact':''}${options.buttonClassName?' '+esc(options.buttonClassName):''}" data-read-scope="${esc(scope())}" data-read-retry="${esc(key)}" data-read-label="${esc(label)}"${options.labelKey?` data-read-label-key="${esc(options.labelKey)}" data-read-busy-label-key="${esc(options.busyLabelKey||"")}"`:""}${labelKey?` data-app-i18n-aria-label="${esc(labelKey)}"`:""}${options.focusFallback?` data-read-focus-fallback="${esc(options.focusFallback)}"`:""} data-read-aria-label="${esc(options.ariaLabel||label)}" aria-label="${esc(busy?'加载中':options.ariaLabel||label)}" ${busy?'disabled aria-busy="true"':''} onclick="RunTeamsLoadFailure.retry(this,event,() => (${esc(action)}))"><span class="rt-failure-retry-icon" aria-hidden="true">${busy?spinner:refresh}</span><span class="rt-failure-retry-label"${labelKey?` data-app-i18n="${esc(labelKey)}"`:""}>${esc(busy?'加载中':label)}</span></button>`;
+ return `<button type="button" class="rt-failure-retry${local?' rt-failure-retry--secondary':''}${label.length>(local?3:4)?' rt-failure-retry--wide':''}${options.compact?' rt-failure-retry--compact':''}${options.buttonClassName?' '+esc(options.buttonClassName):''}" data-read-scope="${esc(scope())}" data-read-retry="${esc(key)}" data-read-label="${esc(label)}"data-read-label-key="${esc(idleKey)}" data-read-busy-label-key="${esc(busyKey)}"${labelKey?` data-app-i18n-aria-label="${esc(labelKey)}"`:""}${options.focusFallback?` data-read-focus-fallback="${esc(options.focusFallback)}"`:""} data-read-aria-label="${esc(options.ariaLabel||label)}" aria-label="${esc(busy?'加载中':options.ariaLabel||label)}" ${busy?'disabled aria-busy="true"':''} onclick="RunTeamsLoadFailure.retry(this,event,() => (${esc(action)}))"><span class="rt-failure-retry-icon" aria-hidden="true">${busy?spinner:refresh}</span><span class="rt-failure-retry-label"${labelKey?` data-app-i18n="${esc(labelKey)}"`:""}>${esc(busy?'加载中':label)}</span></button>`;
 }
 function markup(options={}){
  const cacheKey=token(keyOf(options));if(!options.busy){last.set(cacheKey,{...options});if(last.size>200)last.delete(last.keys().next().value);}
- const variant=['page','modal','local'].includes(options.variant)?options.variant:'page',key=keyOf(options),title=String(options.title||'内容暂时无法加载');
+ const variant=['page','modal','local'].includes(options.variant)?options.variant:'page',key=keyOf(options),title=String(options.title||'内容暂时无法加载'),titleKey=options.titleKey||(!options.title?"shell.readFailed":"");
  const note=variant==='local'?options.note:'';
  const art=variant==='local'?`<span class="rt-failure-info">${info}</span>`:`<div class="rt-failure-art">${ART}</div>`;
- return `<div class="rt-load-failure rt-load-failure--${variant}${options.compact?' rt-load-failure--compact':''}${options.className?' '+esc(options.className):''}" data-load-failure="${variant}" data-read-state="${esc(key)}" role="alert">${art}<div class="rt-failure-copy"><b${options.titleKey?` data-app-i18n="${esc(options.titleKey)}"`:""}>${esc(title)}</b>${note?`<p${options.noteKey?` data-app-i18n="${esc(options.noteKey)}"`:""}>${esc(note)}</p>`:''}</div>${button({...options,key,variant})}</div>`;
+ return `<div class="rt-load-failure rt-load-failure--${variant}${options.compact?' rt-load-failure--compact':''}${options.className?' '+esc(options.className):''}" data-load-failure="${variant}" data-read-state="${esc(key)}" role="alert">${art}<div class="rt-failure-copy"><b${titleKey?` data-app-i18n="${esc(titleKey)}"`:""}>${esc(title)}</b>${note?`<p${options.noteKey?` data-app-i18n="${esc(options.noteKey)}"`:""}>${esc(note)}</p>`:''}</div>${button({...options,key,variant})}</div>`;
 }
 function showBusy(button,busy){
  if(!button?.isConnected)return;button.disabled=busy;button.setAttribute('aria-busy',String(busy));
@@ -34,6 +35,9 @@ function showBusy(button,busy){
   button.setAttribute('data-app-i18n-aria-label',labelKey);
   text?.setAttribute('data-app-i18n',labelKey);
   global.RunTeamsLocale?.apply(button);
+ }else{
+  button.removeAttribute('data-app-i18n-aria-label');
+  text?.removeAttribute('data-app-i18n');
  }
 
 }

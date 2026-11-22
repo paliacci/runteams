@@ -67,7 +67,7 @@ function accountLanguageControl(){return csel('accountLanguage',accountLanguageI
    if(result.nativeSave)void result.nativeSave.then(report);else report(result.persisted);
    return;
   }
-  try{localStorage.setItem('runteams_language_preference',value);}catch(error){updateCsel('accountLanguage',accountLanguageItems(),previous);toast('无法保存语言选项，请重试','err');}
+  try{localStorage.setItem('runteams_language_preference',value);}catch(error){updateCsel('accountLanguage',accountLanguageItems(),previous);toast('无法保存语言选项，请重试','err',"language.saveFailed");}
 },{menuVariant:'settingsSelect',menuAlign:'right'}).replace('data-menu-trigger="field"','data-menu-trigger="field" data-app-i18n-aria-label="language.title" aria-label="语言" aria-describedby="accountLanguageHint" onkeydown="accountLanguageKey(event)"').replace('onclick="cselOpen(', 'onclick="accountLanguageOpen(');}
 
 /* module-function:accountLanguageOpen */
@@ -289,8 +289,8 @@ function accountSettingsNotice(){
   }
   return '';
  }
- if(S.settingsPreferencesState==='error')return `<div class="settings-inline-error" role="alert"><span>设置暂时无法读取</span><button class="btn" onclick="accountSettingsReadPreferences(true)">重新加载</button></div>`;
- if(S.settingsPreferenceError){const unknown=!!S.settingsPreferenceRetry?.readOnly,message=esc(S.settingsPreferenceError);return `<div class="settings-inline-error" role="alert"><span>${message}</span><button class="btn" onclick="accountSettingsRetrySave()">${unknown?'重新加载':'重试'}</button></div>`;}
+ if(S.settingsPreferencesState==='error')return `<div class="settings-inline-error" role="alert"><span data-app-i18n="general.preferencesReadFailed">设置暂时无法读取。请重新加载。</span><button class="btn" onclick="accountSettingsReadPreferences(true)" data-app-i18n="general.reload">重新加载</button></div>`;
+ if(S.settingsPreferenceError){const unknown=!!S.settingsPreferenceRetry?.readOnly,message=esc(S.settingsPreferenceError);return `<div class="settings-inline-error" role="alert"><span data-app-i18n="general.${unknown?'preferencesSaveUnknown':'preferencesSaveFailed'}">${message}</span><button class="btn" onclick="accountSettingsRetrySave()" data-app-i18n="general.${unknown?'reload':'retry'}">${unknown?'重新加载':'重试'}</button></div>`;}
  if(S.settingsPreferencesState!=='ready')return '';
  // The disabled control communicates a pending save without moving the page.
  return '';

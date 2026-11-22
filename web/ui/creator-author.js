@@ -443,8 +443,15 @@ function mount(s,path,file){let host=document.getElementById('creator_asset_prev
  }
  const initialState=sameFile?window.RunTeamsResourceViewer?.captureFileState?.(previous.host):undefined;
  releasePreview();
- if(file.kind==='binary')host.textContent=`二进制资源，${file.size} 字节。`;
+ if(file.kind==='binary'){
+  host.dataset.appI18n='employeeResource.binaryResource';
+  host.dataset.appI18nVars=JSON.stringify({size:file.size});
+  host.textContent=`二进制资源，${file.size} 字节。`;
+  window.RunTeamsLocale?.apply(host);
+ }
  else{
+  delete host.dataset.appI18n;
+  delete host.dataset.appI18nVars;
   if(!window.RunTeamsResourceViewer?.mountFile)return;
   window.RunTeamsResourceViewer.mountFile(host,{compact:true,path,file,...(initialState?{initialState}:{})});
  }

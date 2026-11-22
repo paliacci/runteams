@@ -927,7 +927,7 @@ async function editLocation(s,button){
  const currentInput=()=>displayed(s)&&s.data?.definition_sha256===definition?document.getElementById(fieldPrefix(s)+key):null;
  const kind=button.dataset.locationPick;
  let path;
- const target='/api/employee-configuration/pick-location',body={kind,language:document.documentElement.lang.startsWith('en')?'en':'zh-CN'};
+ const target='/api/employee-configuration/pick-location',body={kind,language:globalThis.RunTeamsLocale?.language??'zh-CN'};
  s.locationPicker=true;button.disabled=true;
  try{
   let result;

@@ -204,7 +204,7 @@
   let body=failure+`<div class="source-work-content settings-section-stack">${lead||activity||queued||actions?`<div class="source-work-context">${lead}${activity}${queued}${actions?detailDrawerActions(actions):''}</div>`:''}`;
   const {files}=taskDeliveries(work);
   const deliverables=files.length?taskSection(selection,'deliveries','<span data-app-i18n="pipelineWork.deliveryItems">交付物</span>',
-   `<div class="result-delivery-list work-record-list" role="list" aria-label="交付物">${files.map((file,index)=>rowMarkup({key:'delivery-'+file.id,title:file.name,
+   `<div class="result-delivery-list work-record-list" role="list" aria-label="交付物" data-app-i18n-aria-label="workRecordDetail.deliverables">${files.map((file,index)=>rowMarkup({key:'delivery-'+file.id,title:file.name,
     summary:file.meta_json?.description||'',created_at:file.created_at,previousTime:files[index-1]?.created_at||null,icon:file.purpose==='document'?'doc':resultEvidenceIcon(file),role:''},
     `RunTeamsWorkRecords.openTaskDelivery(${Number(file.id)})`)).join('')}</div>`,work.state==='completed'):'';
   const history=runs.length?executionSectionMarkup(work,runs):'';

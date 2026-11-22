@@ -360,33 +360,36 @@
     try{
       await navigator.clipboard.writeText(text);
       if(visibleWork()!==owner)return;
-      fallback.hidden=true;status.textContent='已复制。请粘贴到 Eva 的对话。';
+      fallback.hidden=true;status.innerHTML=evaCopy('copied','已复制。请粘贴到 Eva 的对话。');
     }catch{
       if(visibleWork()!==owner)return;
       fallback.hidden=false;fallback.value=text;fallback.focus();fallback.select();
-      status.textContent='已选中指令。请按复制快捷键。';
+      status.innerHTML=evaCopy('selected','已选中指令。请按复制快捷键。');
     }
   }
+  function evaCopy(key,fallback,vars){
+    return `<span data-app-i18n="evaWorkbench.${key}"${vars?` data-app-i18n-vars="${esc(JSON.stringify(vars))}"`:''}>${esc(fallback)}</span>`;
+  }
   function evaPanel(data){
-    const copyButton=task=>`<button type="button" class="btn sm" onclick="RunTeamsCreatorWork.copyEvaPrompt('${task}')">复制交办指令</button>`;
+    const copyButton=task=>`<button type="button" class="btn sm" onclick="RunTeamsCreatorWork.copyEvaPrompt('${task}')" data-app-i18n="evaWorkbench.copy">复制交办指令</button>`;
     return `<div class="employee-inbox-summary">
       <section aria-labelledby="eva_mail_heading">
-        <header><h3 id="eva_mail_heading">邮件处理</h3><button id="eva_summary_refresh" type="button" class="btn sm" onclick="RunTeamsCreatorWork.retryPanel()">刷新</button></header>
-        <p role="status">${data.total?`${data.limited?'已读取前':'已记录'} ${esc(String(data.total))} 封邮件。`:'暂无邮件处理记录。'}</p>
-        ${data.total?`<dl>${Object.entries(evaCategories).map(([key,label])=>`<div><dt>${label}</dt><dd>${esc(String(data.counts[key]))}</dd></div>`).join('')}</dl>`:''}
-        ${data.connections.gmail?`<p>${data.gmail_initialized?'Gmail 增量同步进度已保存。':'Gmail 暂无已保存的同步进度。'}</p>`:''}
+        <header><h3 id="eva_mail_heading" data-app-i18n="evaWorkbench.mail">邮件处理</h3><button id="eva_summary_refresh" type="button" class="btn sm" onclick="RunTeamsCreatorWork.retryPanel()" data-app-i18n="evaWorkbench.refresh">刷新</button></header>
+        <p role="status">${data.total?evaCopy(data.limited?'limited':'loaded',`${data.limited?'已读取前':'已记录'} ${data.total} 封邮件。`,{count:data.total}):evaCopy('empty','暂无邮件处理记录。')}</p>
+        ${data.total?`<dl>${Object.entries(evaCategories).map(([key,label])=>`<div><dt data-app-i18n="evaWorkbench.${key}">${label}</dt><dd>${esc(String(data.counts[key]))}</dd></div>`).join('')}</dl>`:''}
+        ${data.connections.gmail?`<p>${data.gmail_initialized?evaCopy('progressSaved','Gmail 增量同步进度已保存。'):evaCopy('progressEmpty','Gmail 暂无已保存的同步进度。')}</p>`:''}
       </section>
       <section aria-labelledby="eva_tasks_heading">
-        <h3 id="eva_tasks_heading">常用交办</h3>
-        <details><summary>处理新邮件</summary><p>选择时间范围，按已有规则分类并准备必要的回复草稿。</p>
-          <label for="eva_mail_hours">检查范围</label> <select class="inp" id="eva_mail_hours"><option value="24">最近 24 小时</option><option value="72">最近 3 天</option><option value="168">最近 7 天</option></select> ${copyButton('mail')}</details>
-        <details><summary>查找空闲时间</summary><p>在指令中补上时区、日期范围、时长和参会人。</p>${copyButton('calendar')}</details>
-        <details><summary>整理会议纪要</summary><p>交办时附上逐字稿。需要会后自动寄给自己时，将 Google Meet 会议标题设为以「【Eva纪要】」开头，邀请 Fireflies，并将会议隐私设为仅自己。</p>${copyButton('meeting')}</details>
+        <h3 id="eva_tasks_heading" data-app-i18n="evaWorkbench.commonTasks">常用交办</h3>
+        <details><summary data-app-i18n="evaWorkbench.processMail">处理新邮件</summary><p data-app-i18n="evaWorkbench.processHint">选择时间范围，按已有规则分类并准备必要的回复草稿。</p>
+          <label for="eva_mail_hours" data-app-i18n="evaWorkbench.timeRange">检查范围</label> <select class="inp" id="eva_mail_hours"><option value="24" data-app-i18n="evaWorkbench.hours24">最近 24 小时</option><option value="72" data-app-i18n="evaWorkbench.days3">最近 3 天</option><option value="168" data-app-i18n="evaWorkbench.days7">最近 7 天</option></select> ${copyButton('mail')}</details>
+        <details><summary data-app-i18n="evaWorkbench.findTime">查找空闲时间</summary><p data-app-i18n="evaWorkbench.findHint">在指令中补上时区、日期范围、时长和参会人。</p>${copyButton('calendar')}</details>
+        <details><summary data-app-i18n="evaWorkbench.meeting">整理会议纪要</summary><p data-app-i18n="evaWorkbench.meetingHint">交办时附上逐字稿。需要会后自动寄给自己时，将 Google Meet 会议标题设为以「【Eva纪要】」开头，邀请 Fireflies，并将会议隐私设为仅自己。</p>${copyButton('meeting')}</details>
         <p id="eva_copy_status" role="status"></p>
-        <textarea id="eva_copy_fallback" class="inp" aria-label="交办指令" rows="4" readonly hidden></textarea>
+        <textarea id="eva_copy_fallback" class="inp" aria-label="交办指令" data-app-i18n-aria-label="evaWorkbench.instructions" rows="4" readonly hidden></textarea>
       </section>
-      <section aria-labelledby="eva_apps_heading"><h3 id="eva_apps_heading">应用连接</h3>
-        <ul>${Object.entries(evaServices).map(([key,label])=>`<li><span>${label}</span><span>${data.connections[key]?'已连接':'未连接'}</span></li>`).join('')}</ul>
+      <section aria-labelledby="eva_apps_heading"><h3 id="eva_apps_heading" data-app-i18n="evaWorkbench.connections">应用连接</h3>
+        <ul>${Object.entries(evaServices).map(([key,label])=>`<li><span>${label}</span><span>${data.connections[key]?evaCopy('connected','已连接'):evaCopy('disconnected','未连接')}</span></li>`).join('')}</ul>
       </section></div>`;
   }
   function emptyContent(){

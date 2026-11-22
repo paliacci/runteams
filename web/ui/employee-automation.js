@@ -400,8 +400,8 @@
   return !!s&&!!t?.source&&(s.session===panel.id||(s.sourceId===t.source.id||s.localDraft?.id===t.source.id)&&(!s.employeeSource||s.employeeSource===t.source.path));
  }
  async function sourceSettings(){
-  const panel=S.conversationPanel;if(panel?.context?.pipeline_work){toast('请在智能体团队设置中配置对应岗位。','info');return;}
-  const work=window.RunTeamsEmployeeConfiguration?.workTarget?.(panel),t=target();if(!t&&!work){toast('员工暂不可用。','info');return;}
+  const panel=S.conversationPanel;if(panel?.context?.pipeline_work){toast('请在智能体团队设置中配置对应岗位。','info',"employeeSettings.configurePipeline");return;}
+  const work=window.RunTeamsEmployeeConfiguration?.workTarget?.(panel),t=target();if(!t&&!work){toast('员工暂不可用。','info',"employeeSettings.missingEmployee");return;}
   if(settingsOpen(panel))return window.RunTeamsEmployeeConfiguration?.current()?RunTeamsEmployeeConfiguration.close():RunTeamsCreatorAuthor.close();
 
   return work?RunTeamsEmployeeConfiguration.openConversation(work,RunTeamsEmployeeDirectory.forPanel(panel)):RunTeamsEmployeeDirectory.settings(t.key);
