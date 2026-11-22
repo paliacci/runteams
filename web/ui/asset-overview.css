@@ -31,7 +31,7 @@
 .overview-standard{font-size:13px;line-height:1.55;overflow-wrap:anywhere}
 .overview-standard[role=button]{cursor:text;border-radius:4px}
 .overview-standard>:first-child{margin-top:0}.overview-standard>:last-child{margin-bottom:0}
-.overview-examples,.overview-footer,.overview-footer>div{display:flex;align-items:center;gap:8px}
+.overview-examples,.overview-footer,.overview-version-actions{display:flex;align-items:center;gap:8px}
 .overview-examples{flex-wrap:wrap;align-items:stretch;gap:10px}.overview-examples button{flex:1;min-height:28px;padding:5px 9px;border-radius:6px;background:var(--surface-subtle);font-size:12px;overflow-wrap:anywhere}
 .overview-section-bar{display:flex;align-items:center;justify-content:space-between;gap:4px;min-height:32px;padding:0 0 0 10px;border-radius:6px}
 .overview-knowledge-actions{display:flex;align-items:center}
@@ -80,12 +80,11 @@
 .overview-activity-rows .work-record-state{padding:0;background:transparent;color:var(--text-secondary)}
 .overview-footer{box-sizing:border-box;flex:none;justify-content:space-between;gap:8px;padding:10px var(--overview-inline-padding);min-height:58px;border-top:1px solid var(--border-default);background:var(--panel);flex-wrap:wrap}
 .overview-footer>.source-pipeline-creation-control{padding-inline-start:0}
-.overview-version{display:inline-flex;gap:8px;align-items:center;font-size:13px;font-weight:500;overflow-wrap:anywhere}
 .overview-version-number{font-size:13px;white-space:nowrap;color:var(--text-secondary);font-variant-numeric:tabular-nums}
-.overview-footer>div{flex-wrap:wrap;margin-inline-start:auto}
+.overview-version-actions{flex-wrap:wrap;margin-inline-start:auto}
 .overview-footer .btn{min-width:80px}
 .overview-footer .i{width:14px;height:14px}
-.overview-footer>div:empty,.asset-overview .agent-question-dock[hidden]{display:none}
+.overview-version-actions:empty,.asset-overview .agent-question-dock[hidden]{display:none}
 .asset-overview .agent-question-dock{position:static;margin:0;width:100%;padding:0}
 .asset-overview .agent-question-card{max-width:none;box-shadow:none;border:0;padding:0}
 .asset-overview .agent-question-head{display:none}

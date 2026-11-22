@@ -304,3 +304,34 @@ test('media repair keeps the warning through approval until the device probe suc
   status='ready';await env.retry();
   assert.equal(env.markup(rows),'');
 });
+
+test('employee and pipeline settings share the same version toolbar in each state', () => {
+  const state = {};
+  const context = vm.createContext({
+    window: {}, S: state, esc: String,
+    RunTeamsHost: {session: {workspace: () => true}},
+    RunTeamsEmployeeAutomation: {overviewSection: () => ''},
+    RunTeamsEmptyStates: {markup: () => ''},
+    RunTeamsSkeletons: {statusAttrs: () => 'role="status"'},
+  });
+  vm.runInContext(fs.readFileSync('web/ui/asset-overview.js', 'utf8'), context);
+  const toolbar = (sel, props) => {
+    state.sel = {...sel, overviewRecords: []};
+    const html = context.window.RunTeamsAssetOverview.shell({title: 'Asset', avatar: '', ...props});
+    return html.match(/<footer\b[^]*?<\/footer>/)?.[0] || '';
+  };
+  const render = props => {
+    const employee = toolbar({type: 'employee-overview'}, props);
+    assert.equal(toolbar({type: 'source-pipeline', id: 'settings'}, props), employee);
+    return employee;
+  };
+  const mode = '<button role="switch">Mode</button>';
+  const publication = {id: 'versions', labelKey: 'versions', label: 'Versions', action: 'openVersions()',
+    popup: 'dialog', expanded: false, disabled: true};
+  const ready = render({version: '1.2.3', modeControl: mode, publication});
+  assert.ok(ready.includes(mode + '<div class="overview-version-actions">'));
+  assert.match(ready, /v1\.2\.3<\/span><button[^>]*onclick="openVersions\(\)"[^>]* disabled[^>]*aria-haspopup="dialog" aria-expanded="false"/);
+  assert.doesNotMatch(render({version:'v2.0'}), /button|vv2/);
+  assert.match(render({publication, versionLoading:true}), /overview-version-action/);
+  assert.equal(render({}), '');
+});

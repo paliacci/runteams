@@ -623,23 +623,24 @@ const RunTeamsEnvironment = (() => {
  function placeholder(part,labelKey){
   return `<span class="skeleton-block overview-placeholder" data-skeleton-region="overview-${part}" ${RunTeamsSkeletons.statusAttrs(labelKey)}></span>`;
  }
- function footer(version,modeControl,actions,loading){
-  if(loading&&!version)return `<footer class="overview-footer">${placeholder('version','skeleton.loading')}${actions?placeholder('version-action','skeleton.loading'):''}</footer>`;
-  if(!modeControl&&!version&&!actions)return '';
+ function versionToolbar({version,modeControl,publication,loading}){
+  if(!loading&&!modeControl&&!version&&!publication)return '';
   const number=version?esc(/^\d/.test(version)?'v'+version:version):'';
-  if(pipeline()){
-   const label=number?`<span class="overview-version-number">${number}</span>`:'';
-   return `<footer class="overview-footer">${modeControl}<div>${label}${actions}</div></footer>`;
+  const versionLabel=number?`<span class="overview-version-number">${number}</span>`:loading?placeholder('version','skeleton.loading'):'';
+  let button='';
+  if(publication){
+   const {labelKey,label,action,id,disabled,popup,expanded}=publication;
+   button=loading&&!number?placeholder('version-action','skeleton.loading'):
+    `<button type="button"${id?' id="'+esc(id)+'"':''} class="btn pri sm" onclick="${esc(action)}"${disabled?' disabled':''}${popup?' aria-haspopup="'+esc(popup)+'" aria-expanded="'+!!expanded+'"':''}><span data-app-i18n="${esc(labelKey)}">${esc(label)}</span></button>`;
   }
-  const label=number?`<span class="overview-version">${ICON('tag')}${number}</span>`:'';
-  return `<footer class="overview-footer">${label}<div>${actions}</div></footer>`;
+  return `<footer class="overview-footer">${modeControl}<div class="overview-version-actions">${versionLabel}${button}</div></footer>`;
  }
  function identity({title='',avatar,description='',descriptionControl='',runtime='',descriptionDetails='',namePlaceholder=''}){
   return `<header class="overview-identity">${avatar}
    <h2 title="${esc(title||'')}">${title?esc(title):namePlaceholder}</h2><div class="overview-head-action">${runtime}</div>
    ${description||descriptionControl?`<div class="overview-description" title="${esc(description||'')}">${descriptionControl||`<span>${esc(description)}</span>`}</div>`:''}${descriptionDetails}</header>`;
  }
- function shell({title,avatar,description,descriptionControl='',descriptionDetails='',runtime='',examples='',pending='',environment=[],configuration='',version='',modeControl='',actions='',extras='',records,identityLoading=false,versionLoading=false}){
+ function shell({title,avatar,description,descriptionControl='',descriptionDetails='',runtime='',examples='',pending='',environment=[],configuration='',version='',modeControl='',publication=null,extras='',records,identityLoading=false,versionLoading=false}){
   const sel=S.sel;
   if(records){
    const revision=JSON.stringify(records.map(row=>[row.key,row.state,row.updated_at]));
@@ -654,7 +655,7 @@ const RunTeamsEnvironment = (() => {
   const knowledge=knowledgeState();
   const body=`${intro}${RunTeamsEnvironment.markup(environment)}${pending}${deliverySection()}${employee()?knowledgeSection(knowledge):''}${activity(records||sel.overviewRecords||[])}
    ${RunTeamsEmployeeAutomation.overviewSection()}${pipeline()?knowledgeSection(knowledge):''}${configuration}${extras}`;
-  return `<aside class="drawer right-detail-drawer asset-overview employee-configuration-drawer ${pipeline()?'source-pipeline-settings-drawer':''}"><div class="right-detail-scroll overview-scroll"><div class="right-detail-body overview-body">${body}</div></div>${footer(version,modeControl,actions,versionLoading)}</aside>`;
+  return `<aside class="drawer right-detail-drawer asset-overview employee-configuration-drawer ${pipeline()?'source-pipeline-settings-drawer':''}"><div class="right-detail-scroll overview-scroll"><div class="right-detail-body overview-body">${body}</div></div>${versionToolbar({version,modeControl,publication,loading:versionLoading})}</aside>`;
  }
  function employeeConfiguration(panel,entry){
   if(!entry||entry.work?.history_only||panel.loading||panel.error||panel.employee_error||panel.context?.pipeline_work||panel.context?.source_pipeline_workspace)return '';
@@ -671,7 +672,7 @@ const RunTeamsEnvironment = (() => {
   const examples=conversationEmployeeExamples(panel);
   const chips=examples.map((item,i)=>`<button type="button" onclick="RunTeamsAssetOverview.example(${i})">${esc(item.title)}</button>`).join('');
   const version=entry?.source?.version||entry?.work?.origin?.listing_version||record.active_release?.version||entry?.asset?.version||'';
-  const publication=RunTeamsHost.assets.employeePublicationControl?.(panel,entry)||'';
+  const publication=RunTeamsHost.assets.employeePublicationAction?.(panel,entry);
   const directoryLoading=!entry&&RunTeamsEmployeeDirectory.isLoading();
   const infoLoading=!panel.error&&(panel.loading||panel.guidanceReading||directoryLoading);
   const name=record.name||binding.name;
@@ -681,7 +682,8 @@ const RunTeamsEnvironment = (() => {
    environment:[{name:name||'当前员工',tools:binding.environment_tools??entry?.source?.environment_tools}],
    avatar:`<span class="overview-avatar">${workerAvatarMarkup({...record,...binding})}</span>`,description,runtime,
    examples:chips?`<div class="overview-examples">${chips}</div>`:'',versionLoading:directoryLoading,
-   configuration:employeeConfiguration(panel,entry),pending:conversationQuestionDock('panel'),version,actions:(RunTeamsHost.assets.employeeVersionControl?.(panel,entry)||'')+publication});
+   configuration:employeeConfiguration(panel,entry),pending:conversationQuestionDock('panel'),version,publication,
+   modeControl:RunTeamsHost.assets.employeeVersionControl?.(panel,entry)||''});
  }
  function example(i){if(!employee())return;const item=conversationEmployeeExamples(S.conversationPanel)[i];if(item)conversationPanelWorkExample(JSON.stringify(item));}
  window.RunTeamsAssetOverview={active,employee,pipeline,employeeEligible,pendingPage,prepare,closed,takeManualMotion,trigger,toggle,section,sectionAction,loadingSection,textButton,labels,shell,employeeDrawer,back,backMarkup,openKnowledge,toggleKnowledge,retryKnowledge,uploadKnowledge,exportKnowledge,openDelivery,openRow,toggleActivity,openEmployeeActivity,toggleDeliveries,load,example};

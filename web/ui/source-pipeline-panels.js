@@ -272,12 +272,12 @@ function drawer(){const s=current();if(!s)return '';const p=state(s),positionKey
   const descriptionDetails=hasStandard?`<div id="${standardId}" class="settings-section-body overview-standard-body"${collapsed?' hidden':''}>${standardContent}</div>`:'';
   const version=creator?p.data?.version:s.data.installed_version||p.data?.version;
   const publication=window.RunTeamsPipelineMarket?.headerAction?.(s);
-  const publish=publication?`<button type="button" id="pipeline_market_open" class="btn pri sm" onclick="RunTeamsSourcePipelinePanels.overviewVersion()" ${publication.disabled?'disabled':''}${publication.popup?' aria-haspopup="dialog" aria-expanded="'+!!publication.expanded+'"':''}><span data-app-i18n="${esc(publication.labelKey)}">${esc(publication.label)}</span></button>`:'';
   const mode=RunTeamsHost.pipeline?.creationModeControl(s)||'';
   const extras=s.data.programs_available?RunTeamsCreatorWork.controls(host().workContext()):'';
   return overview.shell({title:pipeline.name||s.data.name,description,descriptionControl:descriptionRow+standardToggle,descriptionDetails,avatar:host().pipelineIcon(s,false),
    environment:RunTeamsEnvironment.pipelineRows(p.data),configuration:body,records:RunTeamsWorkRecords.taskResults(s.data.workflows||[],s.reference).results,
-   version,modeControl:mode,versionLoading:settingsLoading,actions:publish,extras:extras+(window.RunTeamsPipelineMarket?.versionPopover?.(s)||'')});
+   version,modeControl:mode,versionLoading:settingsLoading,
+   publication:publication&&{...publication,id:publication.platformId,action:'RunTeamsSourcePipelinePanels.overviewVersion()'},extras:extras+(window.RunTeamsPipelineMarket?.versionPopover?.(s)||'')});
  }
  return detailDrawerShell({className:'employee-configuration-drawer source-pipeline-settings-drawer node-detail-drawer core-position-detail-drawer',
   header:positionHeader(s,asset,positionKey),body,bodyClass:'employee-configuration-body',
