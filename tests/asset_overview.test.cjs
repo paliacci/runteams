@@ -395,3 +395,27 @@ test('an unconfigured downloaded employee uses the verified conversation default
   assert.equal(context.normalizeConversationModelConfig(saved), false);
   assert.equal(saved.model, 'first');
 });
+
+test('employee startup retries invalidated preferences only in the same account', async () => {
+  const source = fs.readFileSync('web/modules/account.js', 'utf8')
+    .match(/async function accountSettingsReadPreferences\([^]*?\n}/)[0];
+  for (const changeAccount of [false, true]) {
+    let account = 'first', calls = 0;
+    const state = {localLibrary: true};
+    const context = vm.createContext({
+      S: state, settingsContext: () => account, accountSettingsPaint() {},
+      accountSettingsStartRuntimeMonitor() {}, accountSettingsSyncInteraction() {},
+      RunTeamsHost: {settings: {async read() {
+        if (++calls === 1) {
+          if (changeAccount) account = 'second';
+          throw Object.assign(new Error(), {code: 'workspace_scope_changed'});
+        }
+        return {settings: {default_model: '2::chosen'}};
+      }}},
+    });
+    vm.runInContext(source, context);
+    await context.accountSettingsReadPreferences();
+    assert.equal(calls, changeAccount ? 1 : 2);
+    assert.equal(state.settingsPreferences?.default_model, changeAccount ? undefined : '2::chosen');
+  }
+});

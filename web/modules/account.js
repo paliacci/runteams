@@ -299,7 +299,27 @@ function accountSettingsNotice(){
 async function accountSettingsReadPreferences(force=false){
  if(!S.localLibrary&&!RunTeamsHost.session.ready(S))return;const context=settingsContext();if(S.settingsPreferencesRead?.context===context)return S.settingsPreferencesRead.promise;if(!force&&S.settingsPreferencesState==='ready')return;
  const read={context};S.settingsPreferencesRead=read;S.settingsPreferencesState='loading';accountSettingsPaint();
- read.promise=(async()=>{try{const result=await RunTeamsHost.settings.read();if(context!==settingsContext()||S.settingsPreferencesRead!==read)return;if(result.error||(!result.settings||typeof result.settings!=='object'||Array.isArray(result.settings)))throw Error('设置读取失败');const value=result.settings;if(!value||typeof value!=='object'||Array.isArray(value))throw Error('设置格式无效');S.settingsPreferences=value;S.settingsPreferencesState='ready';accountSettingsSyncInteraction();}catch(error){if(context===settingsContext()&&S.settingsPreferencesRead===read)S.settingsPreferencesState='error';}finally{if(S.settingsPreferencesRead===read)S.settingsPreferencesRead=null;if(context===settingsContext()){accountSettingsStartRuntimeMonitor();accountSettingsPaint();}}})();return read.promise;
+ const current=()=>context===settingsContext()&&S.settingsPreferencesRead===read;
+ read.promise=(async()=>{
+  try{
+   let result;
+   try{result=await RunTeamsHost.settings.read();}
+   catch(error){
+    // Opening an employee can finish workspace discovery during the first read.
+    if(error.code!=='workspace_scope_changed'||!current())throw error;
+    result=await RunTeamsHost.settings.read();
+   }
+   if(!current())return;
+   const value=result.settings;
+   if(result.error||!value||typeof value!=='object'||Array.isArray(value))throw Error('设置读取失败');
+   S.settingsPreferences=value;S.settingsPreferencesState='ready';accountSettingsSyncInteraction();
+  }catch(error){if(current())S.settingsPreferencesState='error';}
+  finally{
+   if(S.settingsPreferencesRead===read)S.settingsPreferencesRead=null;
+   if(context===settingsContext()){accountSettingsStartRuntimeMonitor();accountSettingsPaint();}
+  }
+ })();
+ return read.promise;
 }
 
 function accountSettingsToggle(key){if(['launch_at_login','prevent_sleep'].includes(key)){accountSaveNativeSetting(key,!S.nativeSettings?.[key]);return;}const device=key==='restore_windows';accountSettingsSave(key,!(device?accountDeviceDisplayPrefs()[key]:accountSettingsPrefs()[key]));}
