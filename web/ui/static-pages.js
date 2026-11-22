@@ -43,8 +43,9 @@ function employeeWelcomeSize(){
 }
 global.addEventListener?.('pagehide',()=>{
  const title=global.document.querySelector('.is-home-start #conversation_empty_title[data-app-i18n="employeeChat.emptyTitle"]');
+ if(!title)return;
  const key=localLayoutStorageKey(localConversationId());
- if(!title||!key)return;
+ if(!key)return;
  const root=title.parentElement;
  if(root.querySelector('[inert],.rt-load-failure'))return;
  const buttons=Array.from(root.querySelectorAll('.conversation-new-action'),button=>{
@@ -81,7 +82,9 @@ function conversationAwaitingLocal(header='',{label='对话',labelKey='conversat
  return `<section class="rail-assistant is-home-start" aria-busy="true">${header}<div class="rail-assistant-scroll conversation-start-scroll"><div class="conversation-new-state">${shape(label,line('name'),labelKey)}</div></div></section>`;
 }
 function localConversationId(value=global.location.href){
- const url=new URL(global.RunTeamsRoutes.unmount(value),global.location.origin);
+ const routes=global.RunTeamsRoutes;
+ if(!routes)return '';
+ const url=new URL(routes.unmount(value),global.location.origin);
  const id=url.pathname.match(/^(?:\/(?:employees|pipelines)\/[0-9][a-z][a-z0-9]{6})?\/chats\/([0-9][a-z][a-z0-9]{6})\/?$/)?.[1]||url.searchParams.get('chat')||'';
  return /^[0-9][a-z][a-z0-9]{6}$/.test(id)?id:'';
 }
@@ -219,7 +222,7 @@ function page(value,options={}){
  case 'pipeline-new':return `<main class="pending-page pending-pipeline" data-pending-page="${kind}"><div class="vhead core-pipeline-head"><div class="pipeline-title-host">${shape('智能体团队名称',line('name'),'skeleton.pipelineName')}</div></div>${body(`<div class="board skeleton-board"><div class="cols">${Array.from({length:4},()=>`<div class="col skeleton-column column-color-gray"><div class="col-surface">${shape('岗位',line('name')+rows('任务',3,'skeleton.tasks'),'skeleton.roles')}</div></div>`).join('')}</div></div>`)}</main>`;
  case 'conversation-new':case 'employee-examples': {
   const employee=kind==='employee-examples';
-  const purpose=global.RunTeamsRoutes.preview(options.route||location.href)?.purpose;
+  const purpose=global.RunTeamsRoutes?.preview(options.route||global.location.href)?.purpose;
   const layout=employee?'employee':purpose==='create-employee'?'create-employee':'general';
   const header=conversationPendingHeader({route:options.route,layout,failed:!!options.error});
   const welcome=options.error?`<section class="rail-assistant">${header}<div class="rail-assistant-scroll">${body('')}</div><div class="rail-assistant-input">${composer()}</div></section>`:conversationWelcome(layout,header);
