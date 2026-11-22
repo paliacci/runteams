@@ -1089,6 +1089,7 @@ function conversationRuntimeControl(surface,disabled=false,pendingMarkup){
     return {models:chatModelItems(cfg),value:chatRouteValue(cfg),modelLabel:view.label,modelLabelKey:!view.label&&S.settingsPreferencesState==='error'?'runtimeSelector.modelSettingsFailed':'',preview:view.selected,loading:!view.selected&&view.loading,saving:!!cfg.runtimeSaving,effort,efforts,effortLabel:EFFORT_LABELS[effort]||'模型默认',defaultEffort:defaultEffort(channel,cfg.model),disabled:disabled||!origin||current!==origin||!!(cfg.busy||cfg.loading||cfg.saving)||view.displayOnly&&!RunTeamsModelChannels.hasSelectableModels(S),failed:view.failed||!!startup?.channelsError,status:view.status};
   };
   const view=state();
+  if(!view.preview&&(!origin?.model&&S.settingsPreferencesState==='error'||!S.modelCatalogReady&&S.modelCatalogReadState==='error'))return RunTeamsLoadFailure.button({variant:'local',compact:true,label:'无法更新模型状态。重试',labelKey:'runtimeSelector.refreshRetry',busyLabelKey:'composer.runtimeLoading',retry:'conversationRefreshRuntime()',buttonClassName:'csel runtime-csel'});
   if(startup?.channelsPending&&!view.preview)return pendingMarkup??RunTeamsStaticPages.runtimePending();
   if(startup?.channelsError&&!view.preview)return RunTeamsLoadFailure.button({variant:'local',compact:true,label:'无法读取模型渠道，输入已保留。重试',labelKey:'runtimeSelector.channelRetry',busyLabelKey:'composer.runtimeLoading',retry:'conversationRefreshRuntime()',buttonClassName:'csel runtime-csel'});
   const control=runtimeCsel(surface==='overview'?'overview_runtime':'conversation_runtime',{
@@ -1110,7 +1111,7 @@ async function conversationRefreshRuntime(){
     if(S.settingsPreferencesState==='ready')saveModelCatalogSnapshot(S.modelCatalog);render();
   };
   try{
-    await Promise.all([S.settingsPreferencesState==='error'?accountSettingsReadPreferences(true):Promise.resolve(),modelChannelData().configuration(true,{progressive:true,force:true,onCatalog:paint})]);
+    await Promise.all([accountSettingsReadPreferences(S.settingsPreferencesState==='error'),modelChannelData().configuration(true,{progressive:true,force:true,onCatalog:paint})]);
     paint();
   }catch(error){if(token===workspaceAccountCacheToken()){S.modelCatalogReadState='error';render();}}
 }

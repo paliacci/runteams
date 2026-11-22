@@ -677,11 +677,11 @@ const RunTeamsEnvironment = (() => {
   const version=entry?.source?.version||entry?.work?.origin?.listing_version||record.active_release?.version||entry?.asset?.version||'';
   const publication=RunTeamsHost.assets.employeePublicationAction?.(panel,entry);
   const directoryLoading=!entry&&RunTeamsEmployeeDirectory.isLoading();
-  const infoLoading=!panel.error&&(panel.loading||panel.guidanceReading||directoryLoading);
   const name=record.name||binding.name;
+  const identityLoading=!name&&!panel.error&&(panel.loading||panel.guidanceReading||directoryLoading);
   const description=binding.description||entry?.source?.description||record.description||entry?.source?.capabilities?.[0]?.summary;
-  const runtime=infoLoading?'':conversationRuntimeControl('overview',!!panel.busy,'');
-  return shell({title:name||conversationSessionTitle(panel),identityLoading:infoLoading||!runtime,
+  const runtime=identityLoading?'':conversationRuntimeControl('overview',!!panel.busy,placeholder('runtime','composer.runtimeLoading'));
+  return shell({title:name||conversationSessionTitle(panel),identityLoading,
    environment:[{name:name||'当前员工',tools:binding.environment_tools??entry?.source?.environment_tools}],
    avatar:`<span class="overview-avatar">${workerAvatarMarkup({...record,...binding})}</span>`,description,runtime,
    examples:chips?`<div class="overview-examples">${chips}</div>`:'',versionLoading:directoryLoading,

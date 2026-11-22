@@ -85,7 +85,7 @@
 <script src="/ui/creator-author.js?v=pipeline-version-copy-20261104.employee-resource-default-20261105.resource-settings-back-20261105.creator-draft-receipt-20261105.work-authorization-20261105.drawer-inline-actions.cloud-asset-history-20261112.hide-empty-history.resource-folders-collapsed.consolidated.no-build-action.unified-kb.2.canonical"></script>
 <link rel="stylesheet" href="/ui/employee-automation.css?v=drawer-cleanup-20261120">
 <script src="/ui/work-state.js?v=right-click-card-restart-20261110.pipeline-recovery-retry-20261104.consolidated.current-read"></script>
-<script src="/ui/asset-overview.js?v=footer-order-20261120.knowledge-section.empty-add.unified-kb.2.inline-three.kb-actions.kb-row-view.open-file.knowledge-origin.csv-preview.row-numbers.chunk-import.office-reader.inline-deliveries.inline-activity.shared-toolbar.market-states.version-check.delivery-buttons"></script>
+<script src="/ui/asset-overview.js?v=footer-order-20261120.knowledge-section.empty-add.unified-kb.2.inline-three.kb-actions.kb-row-view.open-file.knowledge-origin.csv-preview.row-numbers.chunk-import.office-reader.inline-deliveries.inline-activity.shared-toolbar.market-states.version-check.delivery-buttons.employee-runtime"></script>
 <script src="/ui/employee-automation.js?v=overview-row-skeleton-20261120"></script>
 <script src="/ui/work-folder.js?v=work-folder-copy-20261104"></script>
 <script src="/ui/reply-content-bundle.js?v=reply-table-20261122"></script>
@@ -93,7 +93,7 @@
 <script src="/ui/reply-spec.js?v=json-render-20261113-1.utf8-capacity"></script>
 <script src="/ui/reply-content.js?v=json-render-20261113-1.utf8-capacity"></script>
 <script src="/ui/reply-content-preview.js?v=20261029-3"></script>
-<script src="/modules/conversation.js?v=pipeline-chat-copy-20261104.authoring-records-route.unified-employee-conversation.employee-apps-20261114.app-auth-card-20261114.app-operation-summary.sdk-workbench.asset-overview-20261120.section-ready.chat-hydration.skill-menu-20261120.employee-shortcuts-1120.example-icon-v1.default-spark.canonical.example-attachments.sent-attachments-above.reveal-sent-files"></script>
+<script src="/modules/conversation.js?v=pipeline-chat-copy-20261104.authoring-records-route.unified-employee-conversation.employee-apps-20261114.app-auth-card-20261114.app-operation-summary.sdk-workbench.asset-overview-20261120.section-ready.chat-hydration.skill-menu-20261120.employee-shortcuts-1120.example-icon-v1.default-spark.canonical.example-attachments.sent-attachments-above.reveal-sent-files.employee-runtime"></script>
 <script src="/ui/model-channels.js?v=runtime-copy-20261104.quota-coalescing.skill-menu-20261120"></script>
 <script src="/modules/skills.js?v=employee-resource-controls-20261104.retired-pages-20261113"></script>
 <script src="/modules/account.js?v=default-model-copy-20261104.wallet-copy-20261104.language-device-copy-20261105.mcp-tests.composio-sessions.model-catalog-notice.quota-coalescing"></script>
@@ -6918,7 +6918,15 @@ async function loadConversationPanelSession(id,options={}){
   const stillHere=()=>!embedded||RunTeamsSourcePipelines.current()===embedded;
   const mount=(panel,settings)=>{
     if(embedded){panel.rail_hosted=true;rememberConversationPanel(panel);}
-    else{hostConversationInRail(panel,settings);closePop();}
+    else{
+      hostConversationInRail(panel,settings);closePop();
+      if(RunTeamsEmployeeDirectory.employeePanel(panel)){
+        if(!S.modelCatalogReady&&!S.workspaceStartup?.channelsPending)void conversationRefreshRuntime();
+        else if(!panel.model&&S.settingsPreferencesState!=='ready'&&S.settingsPreferencesState!=='error'){
+          void accountSettingsReadPreferences().then(()=>{if(S.conversationPanel===panel)render();});
+        }
+      }
+    }
   };
   const employeeOpen=S.workspaceSwitchPending?.employeeOpen;
   if(employeeOpen)workspaceFinishSwitchPending();
@@ -7199,7 +7207,6 @@ async function openBotConversation(employeeId=0,options={}){
       await openRailConversationSession(session.id,{forceWorkspace:true,replace:true,device:true,employeeKey:options.employeeKey,employeeHome:options.employeeHome});
       if(String(S.conversationPanel?.id)!==String(session.id))return;
     }
-    if(!S.modelCatalogReady&&!S.workspaceStartup?.channelsPending)void conversationRefreshRuntime();
     void window.RunTeamsEmployeeConfiguration?.showOnboarding(S.conversationPanel);
     return;
   }

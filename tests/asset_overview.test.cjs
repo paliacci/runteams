@@ -342,3 +342,25 @@ test('employee and pipeline settings share the same version toolbar in each stat
   assert.match(render({publication, versionLoading:true}), /overview-version-action/);
   assert.equal(render({}), '');
 });
+
+test('a pending model leaves the bound employee identity and examples visible', () => {
+  const panel = {guidanceReading: true, employee_binding: {name: 'SEO 助理', description: '诊断网站'}};
+  const context = vm.createContext({
+    window: {}, S: {conversationPanel: panel, sel: {type: 'employee-overview', overviewRecords: []}},
+    RunTeamsHost: {assets: {}, session: {workspace: () => true}},
+    RunTeamsEmployeeDirectory: {forPanel: () => null, isLoading: () => true},
+    conversationEmployeeExamples: () => [{title: '检查页面'}],
+    conversationRuntimeControl: (_surface, _disabled, pending) => pending,
+    RunTeamsSkeletons: {statusAttrs: () => 'role="status"'},
+    RunTeamsEmptyStates: {markup: () => ''},
+    RunTeamsEmployeeAutomation: {overviewSection: () => ''},
+    workerAvatarMarkup: () => '<img>', conversationQuestionDock: () => '', esc: String,
+  });
+  vm.runInContext(fs.readFileSync('web/ui/asset-overview.js', 'utf8'), context);
+  const drawer = context.window.RunTeamsAssetOverview.employeeDrawer();
+  assert.match(drawer, /<h2[^>]*>SEO 助理<\/h2>/);
+  assert.match(drawer, /诊断网站/);
+  assert.match(drawer, /<button[^>]*>检查页面<\/button>/);
+  assert.match(drawer, /data-skeleton-region="overview-runtime"/);
+  assert.doesNotMatch(drawer, /data-skeleton-region="overview-name"/);
+});
