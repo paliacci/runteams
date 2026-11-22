@@ -4873,10 +4873,22 @@ function providerBrandIcon(provider,label=""){const definition=providerDefinitio
 function workerAvatarSrc(avatar,worker){return RunTeamsEmployeeAvatars.src(avatar,worker);}
 function workerAvatarLoadFailed(image){const avatar=image?.parentElement;if(!avatar?.classList.contains('av'))return;avatar.classList.remove('has-image');avatar.classList.add('is-default');image.outerHTML=ICON(avatar.classList.contains('pipeline-avatar')?'flow':'user');}
 function workerAvatarMarkup(worker,{id="",editor=false}={}){const avatar=String(worker?.avatar||DEFAULT_EMPLOYEE_AVATAR),src=workerAvatarSrc(avatar,worker),live=id==='conversation_worker_avatar'?RunTeamsEmployeeAvatars.liveMarkup(avatar,worker):'',tag=editor?"button":"span",attrs=editor?` type="button" onclick="openWorkerAvatarPicker(event)" aria-label="更换头像" data-app-i18n-aria-label="employeeSettings.avatarChange" aria-haspopup="dialog" aria-expanded="false"`:"";return `<${tag}${id?` id="${id}"`:""} class="av ${src?'has-image':'is-default'}${editor?' worker-avatar-button':''}" data-avatar="${esc(avatar)}"${attrs}>${live||(src?`<img src="${esc(src)}" alt="" onerror="workerAvatarLoadFailed(this)">`:ICON("user"))}</${tag}>`;}
-let _workerAvatarPresets=null,_workerAvatarPicker=null,_workerAvatarPickerOutside=null,_workerAvatarPickerKey=null,_workerAvatarAnchor=null,_workerAvatarTarget=null,_workerAvatarPosition=null;
+let _workerAvatarPresets=null,_workerAvatarPicker=null,_workerAvatarAnchor=null,_workerAvatarTarget=null,_workerAvatarListeners=null;
 window.addEventListener('runteams:business-scope-changed',()=>closeWorkerAvatarPicker());
-function closeWorkerAvatarPicker(){if(_workerAvatarPosition){window.removeEventListener("resize",_workerAvatarPosition);window.removeEventListener("scroll",_workerAvatarPosition,true);_workerAvatarPosition=null;}if(_workerAvatarPicker)_workerAvatarPicker.remove();_workerAvatarPicker=null;if(_workerAvatarPickerOutside)document.removeEventListener("pointerdown",_workerAvatarPickerOutside,true);if(_workerAvatarPickerKey)document.removeEventListener("keydown",_workerAvatarPickerKey);_workerAvatarPickerOutside=null;_workerAvatarPickerKey=null;(_workerAvatarAnchor||document.getElementById("worker_avatar"))?.setAttribute("aria-expanded","false");_workerAvatarAnchor=null;_workerAvatarTarget=null;}
-function positionWorkerAvatarPicker(anchor,panel){if(!anchor?.isConnected||!panel)return;panel.style.maxHeight=`${Math.max(48,window.innerHeight-20)}px`;const rect=anchor.getBoundingClientRect(),margin=10,gap=7,width=panel.offsetWidth,height=panel.offsetHeight;let left=Math.max(margin,Math.min(rect.left,window.innerWidth-width-margin)),top=rect.bottom+gap;if(top+height>window.innerHeight-margin)top=Math.max(margin,rect.top-height-gap);panel.style.left=`${Math.round(left)}px`;panel.style.top=`${Math.round(top)}px`;}
+function closeWorkerAvatarPicker(){
+  _workerAvatarListeners?.abort();_workerAvatarListeners=null;
+  _workerAvatarPicker?.remove();_workerAvatarPicker=null;
+  _workerAvatarAnchor?.setAttribute('aria-expanded','false');_workerAvatarAnchor=null;_workerAvatarTarget=null;
+}
+function positionWorkerAvatarPicker(anchor,panel){
+  if(!anchor.isConnected)return;
+  const view=anchor.ownerDocument.defaultView,margin=10,gap=7;
+  panel.style.maxHeight=`${Math.max(48,view.innerHeight-2*margin)}px`;
+  const rect=anchor.getBoundingClientRect(),width=panel.offsetWidth,height=panel.offsetHeight;
+  const left=Math.max(margin,Math.min(rect.left,view.innerWidth-width-margin));
+  const below=rect.bottom+gap,top=below+height<=view.innerHeight-margin?below:Math.max(margin,rect.top-height-gap);
+  panel.style.left=`${Math.round(left)}px`;panel.style.top=`${Math.round(top)}px`;
+}
 function workerAvatarEditableEntry(panel=S.conversationPanel){
   if((!S.localLibrary&&!RunTeamsHost.session.ready(S))||!panel||panel.loading||panel.error||panel.debug_preview||RunTeamsHost.session.workspace(S))return null;
   const entry=RunTeamsEmployeeDirectory.forPanel(panel);
@@ -4888,32 +4900,34 @@ function workerAvatarTargetCurrent(target){
 async function selectWorkerAvatar(avatar,target=_workerAvatarTarget){
   if(!workerAvatarTargetCurrent(target)||target.saving)return false;
   const next=avatar||DEFAULT_EMPLOYEE_AVATAR,button=_workerAvatarAnchor,panel=_workerAvatarPicker;
-  const active=document.activeElement,focusedControl=panel?.contains(active)?active:null;
+  const doc=button?.ownerDocument||document;
+  const active=doc.activeElement,focusedControl=panel?.contains(active)?active:null;
   target.saving=true;button?.setAttribute('aria-busy','true');panel?.querySelectorAll('button').forEach(item=>item.disabled=true);
   try{
     await target.save(next);
     if(workerAvatarTargetCurrent(target)){
-      const restoreFocus=focusedControl&&(panel.contains(document.activeElement)||document.activeElement===document.body);
-      closeWorkerAvatarPicker();render();
-      if(restoreFocus)(button?.isConnected?button:document.getElementById(button?.id))?.focus({preventScroll:true});
+      const restoreFocus=focusedControl&&(panel.contains(doc.activeElement)||doc.activeElement===doc.body);
+      closeWorkerAvatarPicker();if(doc===document)render();
+      if(restoreFocus)(button?.isConnected?button:doc.getElementById(button?.id))?.focus({preventScroll:true});
     }
     return true;
   }catch(error){if(workerAvatarTargetCurrent(target))toast(error.message||'无法更新头像。请重试。','err',error.messageKey||(!error.message?'employeeSettings.avatarFailed':undefined));return false;}
-  finally{target.saving=false;button?.removeAttribute('aria-busy');panel?.querySelectorAll('button').forEach(item=>item.disabled=false);if(focusedControl?.isConnected&&document.activeElement===document.body)focusedControl.focus({preventScroll:true});}
+  finally{target.saving=false;button?.removeAttribute('aria-busy');panel?.querySelectorAll('button').forEach(item=>item.disabled=false);if(focusedControl?.isConnected&&doc.activeElement===doc.body)focusedControl.focus({preventScroll:true});}
 }
 function workerAvatarFileData(file){return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result||"").split(",").pop());reader.onerror=()=>reject(employeeIdentityError("avatarReadFailed","无法读取图片。请重新选择。"));reader.readAsDataURL(file);});}
 async function uploadWorkerAvatar(input){
   const file=input?.files?.[0],target=_workerAvatarTarget;if(!file||!workerAvatarTargetCurrent(target)||target.saving)return;
   if(!/^image\/(png|jpe?g|webp)$/i.test(file.type||'')||file.size>5*1024*1024){toast('请选择不超过 5 MB 的 PNG、JPEG 或 WebP 图片。','err','employeeSettings.avatarFormats');input.value='';return;}
   const panel=_workerAvatarPicker,button=panel?.querySelector('.worker-avatar-upload');
-  const returnFocus=document.activeElement===button;
+  const doc=input.ownerDocument||document;
+  const returnFocus=doc.activeElement===button;
   target.saving=true;panel?.querySelectorAll('button').forEach(item=>item.disabled=true);
   if(button){button.classList.add('busy');button.setAttribute('aria-busy','true');button.dataset.appI18nAriaLabel='employeeSettings.avatarProcessing';button.setAttribute('aria-label','正在处理头像…');RunTeamsLocale.apply(button);}
   try{
     const data=await workerAvatarFileData(file);if(!workerAvatarTargetCurrent(target))return;
     target.saving=false;await selectWorkerAvatar({content_base64:data},target);
   }catch(error){if(workerAvatarTargetCurrent(target))toast(error.message||'无法更新头像。请重试。','err',error.messageKey||(!error.message?'employeeSettings.avatarFailed':undefined));}
-  finally{target.saving=false;panel?.querySelectorAll('button').forEach(item=>item.disabled=false);if(button){button.classList.remove('busy');button.removeAttribute('aria-busy');button.dataset.appI18nAriaLabel='employeeSettings.avatarUpload';button.setAttribute('aria-label','选择图片…');RunTeamsLocale.apply(button);if(returnFocus&&button.isConnected&&document.activeElement===document.body)button.focus({preventScroll:true});}input.value='';}
+  finally{target.saving=false;panel?.querySelectorAll('button').forEach(item=>item.disabled=false);if(button){button.classList.remove('busy');button.removeAttribute('aria-busy');button.dataset.appI18nAriaLabel='employeeSettings.avatarUpload';button.setAttribute('aria-label','选择图片…');RunTeamsLocale.apply(button);if(returnFocus&&button.isConnected&&doc.activeElement===doc.body)button.focus({preventScroll:true});}input.value='';}
 }
 async function openWorkerAvatarPicker(event,assetTarget){
   event?.preventDefault();event?.stopPropagation();const anchor=event?.currentTarget||document.getElementById('worker_avatar');if(!anchor)return;
@@ -4926,6 +4940,10 @@ async function openWorkerAvatarPicker(event,assetTarget){
     save:avatar=>employeeWrite(entry.key,edit=>{edit.avatar=avatar;}),
   };
   closePop();_workerAvatarAnchor=anchor;_workerAvatarTarget=target;
+  const doc=anchor.ownerDocument,view=doc.defaultView;
+  _workerAvatarListeners=new AbortController();
+  const {signal}=_workerAvatarListeners;
+  view.addEventListener('pagehide',closeWorkerAvatarPicker,{signal});
   anchor.setAttribute('aria-expanded','true');
   if(!_workerAvatarPresets){
     anchor.setAttribute('aria-busy','true');
@@ -4934,21 +4952,41 @@ async function openWorkerAvatarPicker(event,assetTarget){
     finally{anchor.removeAttribute('aria-busy');}
   }
   if(!anchor.isConnected||!workerAvatarTargetCurrent(target)){if(_workerAvatarTarget===target)closeWorkerAvatarPicker();return;}
-  const identity=target.identity(),current=String(identity?.avatar||(assetTarget?'':DEFAULT_EMPLOYEE_AVATAR)),panel=document.createElement('div');
+  const identity=target.identity(),current=String(identity?.avatar||(assetTarget?'':DEFAULT_EMPLOYEE_AVATAR)),panel=doc.createElement('div');
   panel.id='workerAvatarPicker';panel.className='worker-avatar-picker';panel.setAttribute('role','dialog');
   panel.setAttribute('aria-label',assetTarget?'选择智能体团队图标':'选择员工头像');
-  panel.dataset.appI18nAriaLabel=assetTarget?'pipelineBoard.iconPicker':'employeeSettings.avatarPicker';
+  panel.dataset.appI18nAriaLabel=target.labelKey||(assetTarget?'pipelineBoard.iconPicker':'employeeSettings.avatarPicker');
   panel.innerHTML=`<div class="worker-avatar-grid">${_workerAvatarPresets.map((item,index)=>{
     const selected=RunTeamsEmployeeAvatars.matches(item,current,identity);
-    return `<button type="button" data-avatar="${esc(item.avatar)}" class="${selected?'selected':''}" onclick="event.preventDefault();event.stopPropagation();selectWorkerAvatar(this.dataset.avatar)" aria-label="选择头像 ${index+1}" data-app-i18n-aria-label="employeeSettings.avatarOption" data-app-i18n-vars="${esc(JSON.stringify({index:index+1}))}" aria-pressed="${selected}"><img src="${esc(item.src)}" alt=""><span>${ICON('check')}</span></button>`;
-  }).join('')}<button type="button" class="worker-avatar-upload worker-avatar-upload-tile" aria-label="选择图片…" data-app-i18n-aria-label="employeeSettings.avatarUpload" onclick="this.nextElementSibling.click()">${ICON('plus')}</button><input type="file" accept="image/png,image/jpeg,image/webp" hidden onchange="uploadWorkerAvatar(this)"></div>`;
-  panel.addEventListener('pointerdown',e=>e.stopPropagation());document.body.appendChild(panel);RunTeamsLocale.apply(panel);_workerAvatarPicker=panel;positionWorkerAvatarPicker(anchor,panel);
-  _workerAvatarPosition=()=>{if(!workerAvatarTargetCurrent(target)||!anchor.isConnected){closeWorkerAvatarPicker();return;}positionWorkerAvatarPicker(anchor,panel);};
-  window.addEventListener('resize',_workerAvatarPosition);window.addEventListener('scroll',_workerAvatarPosition,true);
-  _workerAvatarPickerOutside=e=>{if(panel.contains(e.target)||anchor.contains(e.target))return;closeWorkerAvatarPicker();};
-  _workerAvatarPickerKey=e=>{if(e.key==='Escape'){e.preventDefault();closeWorkerAvatarPicker();if(anchor.isConnected)anchor.focus({preventScroll:true});}};
-  const outside=_workerAvatarPickerOutside;setTimeout(()=>{if(_workerAvatarPicker===panel)document.addEventListener('pointerdown',outside,true);},0);
-  document.addEventListener('keydown',_workerAvatarPickerKey);const selected=panel.querySelector('button.selected')||panel.querySelector('button');selected?.focus({preventScroll:true});selected?.scrollIntoView({block:'nearest'});
+    return `<button type="button" data-avatar="${esc(item.avatar)}" class="${selected?'selected':''}" aria-label="选择头像 ${index+1}" data-app-i18n-aria-label="employeeSettings.avatarOption" data-app-i18n-vars="${esc(JSON.stringify({index:index+1}))}" aria-pressed="${selected}"><img src="${esc(item.src)}" alt=""><span>${ICON('check')}</span></button>`;
+  }).join('')}<button type="button" class="worker-avatar-upload worker-avatar-upload-tile" aria-label="选择图片…" data-app-i18n-aria-label="employeeSettings.avatarUpload">${ICON('plus')}</button><input type="file" accept="image/png,image/jpeg,image/webp" hidden></div>`;
+  const file=panel.querySelector('input[type="file"]');
+  panel.querySelector('.worker-avatar-grid').addEventListener('click',e=>{
+    const choice=e.target.closest('button');if(!choice)return;
+    e.preventDefault();e.stopPropagation();
+    if(choice.dataset.avatar)void selectWorkerAvatar(choice.dataset.avatar,target);
+    else file.click();
+  });
+  file.addEventListener('change',()=>uploadWorkerAvatar(file));
+  if(target.footer)panel.appendChild(target.footer(()=>{
+    if(_workerAvatarTarget!==target)return;
+    closeWorkerAvatarPicker();if(anchor.isConnected)anchor.focus({preventScroll:true});
+  }));
+  panel.addEventListener('pointerdown',e=>e.stopPropagation());doc.body.appendChild(panel);RunTeamsLocale.apply(panel);
+  _workerAvatarPicker=panel;positionWorkerAvatarPicker(anchor,panel);
+  const position=()=>{
+    if(!workerAvatarTargetCurrent(target)||!anchor.isConnected){closeWorkerAvatarPicker();return;}
+    positionWorkerAvatarPicker(anchor,panel);
+  };
+  const outside=e=>{if(!panel.contains(e.target)&&!anchor.contains(e.target))closeWorkerAvatarPicker();};
+  view.addEventListener('resize',position,{signal});view.addEventListener('scroll',position,{capture:true,signal});
+  doc.addEventListener('pointerdown',outside,{capture:true,signal});
+  if(doc!==document)document.addEventListener('pointerdown',outside,{capture:true,signal});
+  doc.addEventListener('keydown',e=>{
+    if(e.key==='Escape'){e.preventDefault();closeWorkerAvatarPicker();if(anchor.isConnected)anchor.focus({preventScroll:true});}
+  },{signal});
+  const selected=panel.querySelector('button.selected')||panel.querySelector('button');
+  selected?.focus({preventScroll:true});selected?.scrollIntoView({block:'nearest'});
 }
 
 
