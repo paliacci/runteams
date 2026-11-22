@@ -1109,9 +1109,9 @@ function conversationFolderPath(encodedPath){
   catch{return "";}
 }
 
-function conversationFolderChipHtml(path){
+function conversationFolderChipHtml(path,locked=true){
   const label=path.replace(/\/+$/,"").split("/").pop()||path;
-  return `<span class="cinline-folder" contenteditable="false" data-folder-path="${esc(encodeURIComponent(path))}" title="${esc(path)}">${ICON("folder")}<b lang="${/[\u3400-\u9fff]/.test(label)?"zh":"en"}">${esc(label)}</b></span>`;
+  return `<span${locked?' class="cinline-folder" contenteditable="false"':""} data-folder-path="${esc(encodeURIComponent(path))}" title="${esc(path)}">${ICON("folder")}<b lang="${/[\u3400-\u9fff]/.test(label)?"zh":"en"}">${esc(label)}</b></span>`;
 }
 
 function conversationInlineMarker(node){
@@ -1302,7 +1302,7 @@ function conversationComposer(options){
   const promptKey=options.placeholderCopy?.key||(placeholder==="说说你想做什么…"?"composer.prompt":placeholder==="描述员工要负责的工作…"?"employeeCreate.prompt":"");
   const promptMarkers=promptKey?` data-app-i18n-aria-label="${promptKey}" data-app-i18n-data-placeholder="${promptKey}"${options.placeholderCopy?.vars?` data-app-i18n-vars="${esc(JSON.stringify(options.placeholderCopy.vars))}"`:""}`:"";
   const runtimeControls=options.runtimeControl!=null?`<div class="copt runtime" ${options.busy?'inert aria-disabled="true"':''}>${options.runtimeControl}</div>`:`<div class="copt route" ${options.busy?'inert aria-disabled="true"':''}>${options.modelControl}</div><div class="copt effort" ${options.busy?'inert aria-disabled="true"':''}><span class="copt-label" data-app-i18n="composer.thinking">思考</span>${options.effortControl}</div>`;
-  const content=`${options.scopeControl||""}${options.contextControl||""}<div class="ccomposer-editor" id="${options.inputId}" role="textbox" aria-multiline="true" aria-label="${esc(placeholder)}" data-placeholder="${esc(placeholder)}" ${promptMarkers} data-empty="${String(!String(value).trim())}" contenteditable="true" oninput="conversationInputChanged(this,'${surface}')" onbeforeinput="conversationBeforeInput(event)" onpaste="conversationPaste(event,'${surface}')" onkeydown="${keydown}(event)" onkeyup="conversationComposerSelectionChanged('${surface}')" onmouseup="conversationComposerSelectionChanged('${surface}')" onfocus="conversationComposerFocused(this,'${surface}')">${conversationEditorHtml(value,conversationCapabilities(surface))}</div><div class="cfoot"><div class="cfoot-left"><input id="${options.fileInputId}" class="cfile-input" type="file" multiple accept="${CHAT_FILE_ACCEPT}" onchange="conversationFilesPicked('${surface}',this.files);this.value=''"><button class="cattach-btn" type="button" data-menu-trigger="quiet" aria-haspopup="menu" aria-expanded="false" title="添加内容" aria-label="添加内容" data-app-i18n-title="composer.add" data-app-i18n-aria-label="composer.add" onpointerdown="event.preventDefault();captureConversationSelection('${surface}')" onclick="conversationAddMenu(event,'${surface}')" ${options.busy||connecting?"disabled":""}>${ICON("plus")}</button>${typeof RunTeamsWorkFolders!=="undefined"?RunTeamsWorkFolders.markup(surface,!!options.busy):""}${draftItems?`<div class="cattachments" aria-label="已添加资料" data-app-i18n-aria-label="composer.attachments">${draftItems}</div>`:""}${runtimeControls}</div><div class="cfoot-right">${options.busy?`<button type="button" class="conversation-composer-stop" aria-label="${stopping?'正在停止…':'停止回复'}" data-app-i18n-aria-label="composer.${stopping?'stopping':'stop'}" ${stopping?'disabled':''} onclick="${stopAction}()">${ICON('stop')}</button>`:''}<button class="sendbtn" title="${esc(title)}" aria-label="${esc(title)}" data-app-i18n-title="${sendKey}" data-app-i18n-aria-label="${sendKey}" ${connecting&&S.workspaceStartup?.profilePending?'aria-busy="true"':""} onclick="conversationSubmit('${surface}',()=>${action}())" ${conversationSendDisabled(surface,!!options.busy,value)?"disabled":""}>${ICON("arrow")}</button></div></div>${connecting?workspaceStartupNotice():""}`;
+  const content=`${options.scopeControl||""}${options.contextControl||""}<div class="ccomposer-editor" id="${options.inputId}" role="textbox" aria-multiline="true" aria-label="${esc(placeholder)}" data-placeholder="${esc(placeholder)}" ${promptMarkers} data-empty="${String(!String(value).trim())}" contenteditable="true" oninput="conversationInputChanged(this,'${surface}',event)" onbeforeinput="conversationBeforeInput(event)" onpaste="conversationPaste(event,'${surface}')" onkeydown="${keydown}(event)" onkeyup="conversationComposerSelectionChanged('${surface}')" onmouseup="conversationComposerSelectionChanged('${surface}')" onfocus="conversationComposerFocused(this,'${surface}')">${conversationEditorHtml(value,conversationCapabilities(surface))}</div><div class="cfoot"><div class="cfoot-left"><input id="${options.fileInputId}" class="cfile-input" type="file" multiple accept="${CHAT_FILE_ACCEPT}" onchange="conversationFilesPicked('${surface}',this.files);this.value=''"><button class="cattach-btn" type="button" data-menu-trigger="quiet" aria-haspopup="menu" aria-expanded="false" title="添加内容" aria-label="添加内容" data-app-i18n-title="composer.add" data-app-i18n-aria-label="composer.add" onpointerdown="event.preventDefault();captureConversationSelection('${surface}')" onclick="conversationAddMenu(event,'${surface}')" ${options.busy||connecting?"disabled":""}>${ICON("plus")}</button>${typeof RunTeamsWorkFolders!=="undefined"?RunTeamsWorkFolders.markup(surface,!!options.busy):""}${draftItems?`<div class="cattachments" aria-label="已添加资料" data-app-i18n-aria-label="composer.attachments">${draftItems}</div>`:""}${runtimeControls}</div><div class="cfoot-right">${options.busy?`<button type="button" class="conversation-composer-stop" aria-label="${stopping?'正在停止…':'停止回复'}" data-app-i18n-aria-label="composer.${stopping?'stopping':'stop'}" ${stopping?'disabled':''} onclick="${stopAction}()">${ICON('stop')}</button>`:''}<button class="sendbtn" title="${esc(title)}" aria-label="${esc(title)}" data-app-i18n-title="${sendKey}" data-app-i18n-aria-label="${sendKey}" ${connecting&&S.workspaceStartup?.profilePending?'aria-busy="true"':""} onclick="conversationSubmit('${surface}',()=>${action}())" ${conversationSendDisabled(surface,!!options.busy,value)?"disabled":""}>${ICON("arrow")}</button></div></div>${connecting?workspaceStartupNotice():""}`;
   return `${conversationProviderBanner(surface)}<div data-conversation-queue="${surface}">${conversationQueueMarkup(surface)}</div>${surface==='panel'&&window.RunTeamsAssetOverview?.employee()?'':conversationQuestionDock(surface)}${RunTeamsStaticPages.composer(content,{surface,busy:options.busy,attributes:`data-local-references="${conversationSupportsLocalReferences(surface)}" ondragover="conversationDragOver(event)" ondragleave="this.classList.remove('dragging')" ondrop="conversationDrop(event,'${surface}')"`})}`;
 }
 
@@ -1319,7 +1319,7 @@ function conversationPanelKeydown(event){conversationComposerKeydown(event,"pane
 function conversationBeforeInput(event){if(event.inputType==="insertParagraph"){event.preventDefault();document.execCommand("insertLineBreak",false,null);}}
 
 /* module-function:conversationInputChanged */
-function conversationInputChanged(box,surface){const value=conversationInputValue(box),visibleValue=value.replace(CAPABILITY_MARKER_RE,"");box.dataset.empty=String(!value.trim());autoSizeChatInput(box);conversationSyncSendState(surface);captureConversationSelection(surface);const filtering=updateConversationCapabilitySearch(box,surface);if(filtering)return;setConversationDraftValue(surface,value);if(surface==="panel"&&!visibleValue.trim())clearConversationExampleMaterials();refreshConversationDraftItems(surface);if(surface==="chat")syncChatEmptyState(box);conversationOpenMentionSearch(box,surface);}
+function conversationInputChanged(box,surface,event){conversationRestoreFolderChips(box,event);const value=conversationInputValue(box),visibleValue=value.replace(CAPABILITY_MARKER_RE,"");box.dataset.empty=String(!value.trim());autoSizeChatInput(box);conversationSyncSendState(surface);captureConversationSelection(surface);const filtering=updateConversationCapabilitySearch(box,surface);if(filtering)return;setConversationDraftValue(surface,value);if(surface==="panel"&&!visibleValue.trim())clearConversationExampleMaterials();refreshConversationDraftItems(surface);if(surface==="chat")syncChatEmptyState(box);conversationOpenMentionSearch(box,surface);}
 
 /* module-function:conversationMentionQuery */
 function conversationMentionQuery(value,selection){
@@ -1373,19 +1373,38 @@ async function conversationNativeLocalDrop(paths,x,y){
   try{await prepareConversationLocalReferences(surface,await api("/api/local-references/prepare","POST",{paths}),panel);}catch(error){toast(error.message||"无法添加本地引用。请重试。","err",error.message?undefined:"localReference.addFailed");}
 }
 
-function insertConversationFolderChips(surface,box,folders){
-  // Keep the native editing transaction so one Undo restores the replaced selection.
-  if(!document.execCommand("insertHTML",false,folders.map(conversationFolderChipHtml).join("<br>")))return;
-  const selection=window.getSelection(),focus=selection?.focusNode;
-  const chip=(focus?.nodeType===Node.ELEMENT_NODE?focus:focus?.parentElement)?.closest("[data-folder-path]");
-  if(chip&&box.contains(chip)){
-    const range=document.createRange();
-    range.setStartAfter(chip);
-    range.collapse(true);
-    selection.removeAllRanges();
-    selection.addRange(range);
-    captureConversationSelection(surface);
+function conversationLockFolderChips(box){
+  for(const chip of box.querySelectorAll('[data-folder-path]:not([contenteditable="false"])')){
+    chip.classList.add("cinline-folder");
+    chip.contentEditable="false";
   }
+}
+
+function conversationMoveCaretAfterFolderChip(box){
+  const selection=window.getSelection(),focus=selection?.focusNode;
+  if(!selection?.isCollapsed||!focus)return false;
+  const chip=(focus.nodeType===Node.ELEMENT_NODE?focus:focus.parentElement)?.closest("[data-folder-path]");
+  if(!chip||!box.contains(chip))return false;
+  const range=document.createRange();
+  range.setStartAfter(chip);
+  range.collapse(true);
+  selection.removeAllRanges();
+  selection.addRange(range);
+  return true;
+}
+
+function conversationRestoreFolderChips(box,event){
+  if(event?.inputType!=="historyUndo"&&event?.inputType!=="historyRedo")return;
+  conversationLockFolderChips(box);
+  conversationMoveCaretAfterFolderChip(box);
+}
+
+function insertConversationFolderChips(surface,box,folders){
+  // WebKit can strip contenteditable and corrupt Undo when inserting styled chips.
+  // Insert ordinary spans in one native transaction, then lock the same nodes.
+  if(!document.execCommand("insertHTML",false,folders.map(path=>conversationFolderChipHtml(path,false)).join("<br>")))return;
+  conversationLockFolderChips(box);
+  if(conversationMoveCaretAfterFolderChip(box))captureConversationSelection(surface);
 }
 
 /* module-function:conversationPaste */
@@ -2135,7 +2154,7 @@ function conversationQueueMarkup(surface){
     const folderRefs=[],text=conversationMessageFromDraft(conversationQueuePreviewText(item.text),[],folderRefs);
     const editorLabel='aria-label="编辑排队消息" data-app-i18n-aria-label="conversationQueue.editQueued"';
     const input=folderRefs.length
-      ?`<div><div data-queue-editor class="ccomposer-editor" role="textbox" aria-multiline="true" contenteditable="true" ${editorLabel} oninput="conversationQueueEditInput('${surface}',conversationInputValue(this))" onpaste="conversationQueuePaste(event)">${conversationEditorHtml(editText,[])}</div></div>`
+      ?`<div><div data-queue-editor class="ccomposer-editor" role="textbox" aria-multiline="true" contenteditable="true" ${editorLabel} oninput="conversationRestoreFolderChips(this,event);conversationQueueEditInput('${surface}',conversationInputValue(this))" onpaste="conversationQueuePaste(event)">${conversationEditorHtml(editText,[])}</div></div>`
       :`<textarea data-queue-editor ${editorLabel} oninput="conversationQueueEditInput('${surface}',this.value)">${esc(editText)}</textarea>`;
     const editor=`<div class="conversation-queue-edit">${input}<div><button type="button" data-queue-save data-queue-action="save" ${editText.trim()?'':'disabled'} onclick="conversationQueueEditSave('${surface}')" data-app-i18n="conversationQueue.save">保存</button><button type="button" data-queue-action="cancel" onclick="conversationQueueEditCancel('${surface}')" data-app-i18n="conversationQueue.cancel">取消</button></div></div>`;
     const status=item.uncertain?'<small role="status" data-app-i18n="conversationQueue.sendUnknown">发送结果待确认，请先查看对话。</small>':sending?'<small role="status" data-app-i18n="conversationQueue.sending">正在发送…</small>':'';
