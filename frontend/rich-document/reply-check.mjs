@@ -23,6 +23,7 @@ const click=async node=>{assert(node);await act(async()=>node.click());};const b
 try{
  const {ReplyView}=await server.ssrLoadModule('/src/reply-content.jsx');
  await act(async()=>root.render(createElement(ReplyView,{data})));
+ assert.equal(document.querySelector('.reply-table-tools, input[type=search]'),null);
  await click(button('分数'));assert.deepEqual([...document.querySelectorAll('tbody tr')].map(r=>r.cells[2].textContent),['80','10','2']);
  await click(button('分数'));assert.deepEqual([...document.querySelectorAll('tbody tr')].map(r=>r.cells[2].textContent),['2','10','80']);
  await click(button('乙'));assert(document.querySelector('.reply-record').textContent.includes('旅行'));await click(button('收起'));assert.equal(document.querySelector('.reply-record'),null);checks.push('Actual TanStack table sorts numbers numerically and opens/closes record detail.');
@@ -31,6 +32,6 @@ try{
  const malicious={...data,rows:[{name:'<img src=x onerror=alert(1)>',category:'x',value:1}]};
  await act(async()=>root.render(createElement(ReplyView,{data:malicious})));
  assert.equal(document.querySelector('img'),null);assert(document.body.textContent.includes('<img src=x'));checks.push('Rendered cells remain text even when supplied markup.');
- await act(async()=>root.render(createElement(ReplyView,{data:{...data,rows:[]}})));assert(document.body.textContent.includes('没有符合条件'));checks.push('Empty table state is explicit.');
+ await act(async()=>root.render(createElement(ReplyView,{data:{...data,rows:[]}})));assert(document.body.textContent.includes('暂无记录'));checks.push('Empty table state is explicit.');
  console.log(JSON.stringify({passed:checks.length,checks},null,2));
 }finally{await act(async()=>root.unmount());await server.close();dom.window.close();}

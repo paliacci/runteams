@@ -32,7 +32,7 @@ key 以英文字母开头，只含 ASCII 字母、数字、下划线、连字符
 {"version":1,"type":"table","title":"检查结果","columns":[{"key":"item","label":"检查项"},{"key":"result","label":"结果"}],"rows":[{"item":"示例检查项","result":"待验证"}],"caption":"格式示意"}
 ```
 
-表格自带搜索、排序、每页 5 条、记录详情。无需额外添加按钮定义。
+表格自带排序、每页 5 条、记录详情。无需额外添加按钮定义。
 
 ## 图表
 
@@ -63,7 +63,7 @@ spec 使用 json-render 的 root/elements 格式。每个 element 只能包含 t
 | type | props |
 | --- | --- |
 | Stack | `{}`，children 为子组件 ID 数组 |
-| Table | `title, items, columns`，复用搜索、排序和详情表格 |
+| Table | `title, items, columns`，复用排序和详情表格 |
 | Chart | `title, items, columns, x, metrics`，复用横向条形图与原数据表 |
 | Messages | `title, items, headline, body, meta`，通用消息列表；meta 是最多 3 个字段路径 |
 | Detail | `title, value`，原始对象、单值或空结果 |
