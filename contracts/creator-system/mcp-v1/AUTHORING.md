@@ -3,7 +3,7 @@
 当前开发格式为 `runteams.creator-project/2`、`runteams.dependencies/2` 与 `runteams.release/2`。
 完整员工仍使用原员工／技能随包格式，原源码 ZIP、修订、权限及正式发布回执继续复用。
 
-员工快捷选项写在技能目录 `runteams.json` 的 `work.examples`。每项填写 `title` 和 `prompt`，并从技能 schema 的图标列表中按工作用途选择 `icon`，例如查找资料用 `search`、撰写周报用 `edit`。没有贴切图标时可省略，此时显示星光（`spark`）。
+每名员工合计设置 2–3 个不同的快捷问题，标题用用户会直接说的话，点开后可继续补充委托。员工快捷选项写在技能目录 `runteams.json` 的 `work.examples`。每项填写 `title` 和 `prompt`，并从技能 schema 的图标列表中按工作用途选择 `icon`，例如查找资料用 `search`、撰写周报用 `edit`。没有贴切图标时可省略，此时显示星光（`spark`）。
 
 ## 智能体团队源码与构建
 

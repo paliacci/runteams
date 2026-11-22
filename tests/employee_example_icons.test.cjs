@@ -28,5 +28,8 @@ test('employee suggestions keep their asset icons when reordered and older examp
   const legacy = {title:'Help', prompt:'Help with a task'};
   assert.equal(render([draft, legacy, lookup]), 'Write/editHelp/sparkFind/search');
   assert.equal(render([lookup, draft, legacy]), 'Find/searchWrite/editHelp/spark');
-  assert.equal(render([{...lookup, icon:'unknown-icon'}]), 'Find/spark');
+  assert.equal(render([{...lookup, icon:'unknown-icon'}]), 'Find/spark你能帮我做什么？/briefcase');
+  assert.equal(render([]), '你能帮我做什么？/briefcase我需要先准备哪些资料？/doc');
+  assert.equal(render([draft,draft,lookup]), 'Write/editFind/search');
+  assert.equal(render([draft,legacy,lookup,{title:'Fourth',prompt:'Fourth item'}]), 'Write/editHelp/sparkFind/search');
 });

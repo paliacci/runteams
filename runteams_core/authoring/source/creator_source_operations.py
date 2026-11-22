@@ -148,7 +148,7 @@ def write(store, identity, file, body, scope, serialize):
                 if len(raw) > 2 * 1024 * 1024:
                     raise ValueError('本机单次编辑暂限 2 MB。')
                 files[path] = raw
-        value = revisions.commit(files, body['base_revision'], body['operation_key'])
+        value = revisions.commit(files, body['base_revision'], body['operation_key'], restoring=restore)
     else:
         raise ValueError('源码操作无效。')
     store.check_scope()

@@ -166,7 +166,7 @@ class Revisions:
                 return self._revision(revision)[1]
             return None
 
-    def commit(self, files, base, operation_key, *, knowledge_stage=None):
+    def commit(self, files, base, operation_key, *, knowledge_stage=None, restoring=False):
         files = source_files(files)
         revision = _operation_revision(operation_key)
         source = tree(files)
@@ -179,6 +179,9 @@ class Revisions:
                     return {'revision': revision, 'source': previous['source'], 'original_revision': self.identity}
             if base != self._head():
                 raise SourceConflict('源码已在其他位置更新。当前编辑已保留，请先核对最新源码。')
+            if not restoring:
+                from runteams_core.authoring.source.employee_starters import validate_edit
+                validate_edit(self._files(base), files)
             from runteams_core.employees.employee_avatars import validate_sources
             validate_sources(files)
             from runteams_core.assets import workspace_background

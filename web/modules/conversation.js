@@ -5,7 +5,7 @@
 /* module-function:conversationPanelWorkExample */
 function conversationPanelWorkExample(value){
   let example;try{example=JSON.parse(value);}catch(error){return;}
-  conversationPanelStarter(example.prompt,{skill_key:example.skill_key,requirements:example.requirements||[],bindings:{}});
+  conversationPanelStarter(example.prompt,example.general?null:{skill_key:example.skill_key,requirements:example.requirements||[],bindings:{}});
 }
 
 /* module-function:conversationExampleMaterialRows */
@@ -64,7 +64,23 @@ function conversationEmployeeGuidance(panel){
 function conversationEmployeeExamples(panel,guidance=conversationEmployeeGuidance(panel)){
  const entry=RunTeamsEmployeeDirectory.forPanel(panel);
  const works=guidance?.employee?.skills??entry?.source?.capabilities??panel.authoringCapabilities??[];
- return guidance?.loading?[]:workExampleItems(works).slice(0,3);
+ if(guidance?.loading)return [];
+ const items=[];
+ const add=item=>{
+   const title=item.title.trim(),prompt=item.prompt.trim();
+   if(title&&prompt&&!items.some(other=>other.title===title||other.prompt===prompt))items.push({...item,title,prompt});
+ };
+ for(const item of workExampleItems(works)){
+   add(item);
+   if(items.length===3)break;
+ }
+ const local=(key,text)=>globalThis.RunTeamsLocale?.t('employeeChat.'+key,{},text)??text;
+ for(const [key,text,icon] of [['canHelp','你能帮我做什么？','briefcase'],['whatToSend','我需要先准备哪些资料？','doc'],['firstStep','我该从哪一步开始？','message-circle-more']]){
+   if(items.length>=2)break;
+   const prompt=local(key,text);
+   add({title:prompt,prompt,icon,general:true});
+ }
+ return items;
 }
 
 function conversationExampleIcon(icon){

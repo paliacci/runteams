@@ -57,7 +57,7 @@ BASE_AGENT_INSTRUCTION += '\n\n' + RESOURCE_DISCOVERY_GUIDANCE
 
 
 EMPLOYEE_EXAMPLE_ICON_INSTRUCTION = (
-    '创建或编辑员工快捷选项时，为每项工作在技能 runteams.json 的 work.examples[].icon 中选择与用途相符的图标。'
+    '创建或编辑员工快捷选项时，每名员工在可见技能中合计设置 2–3 个不同的问题，标题用用户会直接说的话。为每项工作在技能 runteams.json 的 work.examples[].icon 中选择与用途相符的图标。'
     '可选值见技能 schema，例如查找资料用 search，撰写用 edit。没有贴切图标时可省略，界面默认显示星光（spark）。')
 
 
