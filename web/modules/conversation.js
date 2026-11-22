@@ -863,7 +863,17 @@ function conversationMessages(messages,options={}){
     if(m.role==='bot'&&!m.text&&!m.streaming&&!m.ephemeral&&!m.workReference&&!failure&&!agentTraceHasDetails(m.trace)&&!m.trace?.employeeAppAuthorization&&!(m.trace?.requests||[]).length&&!m.stopped&&!m.trace?.cancelled)return '';
     const date=conversationMessageDate(m,hasUser?previous:null);if(m.role==="user")hasUser=true;if(!m.transientQuestionSegment&&!['debug','debug-draft'].includes(m.role))previous=m;
     if(m.role==="debug")return `<div class="conversation-debug-state-label" role="separator"><span>${esc(m.text)}</span></div>`;
-    if(m.role==="user")return `${date}<div class="cmsg user ${esc(m.state||'')}" role="article" aria-label="你的消息" data-app-i18n-aria-label="conversationDetail.userMessage" ${m.localId?`data-local-message="${esc(m.localId)}"`:""}><div class="cmessage-stack"><div class="cbubble ${(m.attachments||[]).length||(m.capabilities||[]).some(item=>!item.mention_token&&!item.mention_id)?"has-context":"text-only"}">${m.metadata?.question_summary?`<div class="cmessage-question-summary" title="${esc(m.metadata.question_summary)}">${esc(m.metadata.question_summary)}</div>`:""}${m.text?`<div class="cmessage-text">${chatMessageText(m.text,m.capabilities||[])}</div>`:""}${chatMessageContext(m.attachments||[],m.capabilities||[],chatId)}</div>${showActions?conversationMessageActions(m,index,surface,{user:true}):""}</div></div>`;
+    if(m.role==="user"){
+      const capabilities=m.capabilities||[],files=chatMessageAttachments(m.attachments||[],chatId);
+      const extensions=chatMessageCapabilities(capabilities),summary=m.metadata?.question_summary;
+      const content=[
+        summary?`<div class="cmessage-question-summary" title="${esc(summary)}">${esc(summary)}</div>`:"",
+        m.text?`<div class="cmessage-text">${chatMessageText(m.text,capabilities)}</div>`:"",
+        extensions?`<div class="cmessage-context">${extensions}</div>`:""
+      ].join("");
+      const bubble=content?`<div class="cbubble ${extensions?"has-context":"text-only"}">${content}</div>`:"";
+      return `${date}<div class="cmsg user ${esc(m.state||'')}" role="article" aria-label="你的消息" data-app-i18n-aria-label="conversationDetail.userMessage" ${m.localId?`data-local-message="${esc(m.localId)}"`:""}><div class="cmessage-stack">${files}${bubble}${showActions?conversationMessageActions(m,index,surface,{user:true}):""}</div></div>`;
+    }
     const waiting=!!m.streaming&&!m.text&&!agentTraceHasDetails(m.trace)&&!(m.trace?.requests||[]).some(item=>item.status==='pending'),identity=conversationMessageIdentity(surface,{waiting});
     if(m.ephemeral){const unconfirmed=typeof m.retryAccepted==='boolean';return `<div class="cmsg bot" ${unconfirmed?'data-reply-unknown="true"':''} role="article" aria-label="${unconfirmed?'回复结果待确认':'回复失败'}" data-app-i18n-aria-label="conversationDetail.${unconfirmed?'replyUnknown':'replyFailed'}">${identity}<div class="cmessage-stack"><div class="cbubble">${m.systemNotice&&m.text?`<div class="cmessage-markdown">${conversationMarkdown(m.text)}</div>`:''}${failure}${agentTraceMarkup(m.trace,false)}</div></div></div>`;}
     return `<div class="cmsg bot${m.streaming?' streaming':''}${waiting?' is-waiting':''}" role="article" aria-label="${m.systemNotice&&!m.text?'系统提示':'助手消息'}" data-app-i18n-aria-label="conversationDetail.${m.systemNotice&&!m.text?'systemNotice':'assistantMessage'}" ${m.localId?`data-live-agent="${esc(m.localId)}"`:''}>${identity}<div class="cmessage-stack"><div class="cbubble">${botConversationBody(m,index,surface,chatId)}</div>${showActions?conversationMessageActions(m,index,surface):''}</div></div>`;
@@ -968,9 +978,6 @@ function chatMessageAttachments(items,chatId=S.chatId){
 
 /* module-function:chatMessageCapabilities */
 function chatMessageCapabilities(items){const global=(items||[]).filter(item=>!item.mention_token&&!item.mention_id);if(!global.length)return "";return `<div class="cmessage-capabilities">${global.map(item=>`<span>${conversationCapabilityIcon(item)}<b>${esc(item.label||item.id)}</b></span>`).join("")}</div>`;}
-
-/* module-function:chatMessageContext */
-function chatMessageContext(attachments,capabilities,chatId){const files=chatMessageAttachments(attachments||[],chatId),extensions=chatMessageCapabilities(capabilities||[]);return files||extensions?`<div class="cmessage-context">${files}${extensions}</div>`:"";}
 
 /* module-function:chatMessageText */
 function chatMessageText(text,items){let html=esc(text||"");(items||[]).filter(item=>item.mention_token).forEach(item=>{const token=esc(item.mention_token),chip=`<span class="cmessage-capability-ref">${conversationCapabilityIcon(item)}<b lang="${/[\u3400-\u9fff]/.test(item.label||item.id)?"zh":"en"}">${esc(item.label||item.id)}</b></span>`;html=html.split(token).join(chip);});return html;}
