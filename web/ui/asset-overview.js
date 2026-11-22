@@ -625,9 +625,13 @@ const RunTeamsEnvironment = (() => {
  }
  function versionToolbar({version,modeControl,publication,loading}){
   if(!loading&&!modeControl&&!version&&!publication)return '';
+  if(publication?.initialRead||(!publication&&loading)){
+   return '<footer class="overview-footer"><div class="overview-version-actions">'+placeholder('version','skeleton.loading')+
+    placeholder('version-action','skeleton.loading')+'</div></footer>';
+  }
   version=publication?.version||version;
   const number=version?esc(/^\d/.test(version)?'v'+version:version):'';
-  const versionLabel=number?`<span class="overview-version-number">${number}</span>`:loading?placeholder('version','skeleton.loading'):'';
+  const versionLabel=publication?.versionPending?placeholder('version','skeleton.loading'):number?`<span class="overview-version-number">${number}</span>`:loading?placeholder('version','skeleton.loading'):'';
   let button='';
   if(publication){
    const {labelKey,label,vars,action,id,disabled,popup,expanded,passive}=publication;

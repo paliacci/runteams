@@ -97,10 +97,15 @@ async function employeeWriteSource(entry,change,sequence){
   const value=JSON.parse(file.content),identity={name:value.name,avatar:value.avatar};change(identity);
   if(Object.keys(identity).some(key=>!['name','avatar'].includes(key))||typeof identity.name!=='string'||!identity.name.trim()||identity.name.length>160||!(typeof identity.avatar==='string'&&identity.avatar||identity.avatar&&typeof identity.avatar==='object'&&Object.keys(identity.avatar).length===1&&typeof identity.avatar.content_base64==='string'))throw employeeIdentityError('identityInvalid','请检查员工名称和头像。');
   if(original?.body.employee_source===path&&JSON.stringify(identity.avatar)===JSON.stringify(original.body.avatar))identity.avatar=value.avatar;
+  function acceptIdentity(saved,revision){
+    const employee=opened.session.employee;
+    RunTeamsEmployeeDirectory.accept({...employee,source:{...employee.source,revision},
+      record:{...employee.record,avatar_src:null,...saved}});
+    return {...saved,source_revision:revision};
+  }
   if(identity.name===value.name&&identity.avatar===value.avatar){
     const saved=await request('/identity?employee_source='+encodeURIComponent(path));
-    RunTeamsEmployeeDirectory.accept({...opened.session.employee,record:{...opened.session.employee.record,avatar_src:null,...saved}});
-    return {...saved,source_revision:workspace.revision};
+    return acceptIdentity(saved,workspace.revision);
   }
   const body={base_revision:workspace.revision,operation_key:crypto.randomUUID(),employee_source:path,...identity};
   RunTeamsBusinessStorage.setItem(storageKey,JSON.stringify({source,path,body}));
@@ -114,8 +119,8 @@ async function employeeWriteSource(entry,change,sequence){
   if(!result.identity||typeof result.identity.name!=='string'||typeof result.identity.avatar!=='string')throw employeeIdentityError('identityUnknown','暂时无法确认是否已保存。再次保存前会先核对上次结果。');
   RunTeamsBusinessStorage.removeItem(storageKey);
   if(typeof RunTeamsCreatorAuthor!=='undefined')queueMicrotask(()=>void RunTeamsCreatorAuthor.sync());
-  RunTeamsEmployeeDirectory.accept({...opened.session.employee,record:{...opened.session.employee.record,avatar_src:null,...result.identity}});
-  toast('员工资料已保存。','ok','employeeSettings.identitySaved');return {...result.identity,source_revision:result.revision};
+  const saved=acceptIdentity(result.identity,result.revision);
+  toast('员工资料已保存。','ok','employeeSettings.identitySaved');return saved;
 }
 /* module-function:coreEmployeeRuntimeChannel */
 function coreEmployeeRuntimeChannel(runtime){return (S.channels||[]).find(item=>Number(item.id)===Number(runtime?.channel_id))||null;}

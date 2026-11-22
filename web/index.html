@@ -85,7 +85,7 @@
 <script src="/ui/creator-author.js?v=pipeline-version-copy-20261104.employee-resource-default-20261105.resource-settings-back-20261105.creator-draft-receipt-20261105.work-authorization-20261105.drawer-inline-actions.cloud-asset-history-20261112.hide-empty-history.resource-folders-collapsed.consolidated.no-build-action.unified-kb.2.canonical"></script>
 <link rel="stylesheet" href="/ui/employee-automation.css?v=drawer-cleanup-20261120">
 <script src="/ui/work-state.js?v=right-click-card-restart-20261110.pipeline-recovery-retry-20261104.consolidated.current-read"></script>
-<script src="/ui/asset-overview.js?v=footer-order-20261120.knowledge-section.empty-add.unified-kb.2.inline-three.kb-actions.kb-row-view.open-file.knowledge-origin.csv-preview.row-numbers.chunk-import.office-reader.inline-deliveries.inline-activity.shared-toolbar.market-states.version-check.delivery-buttons.employee-runtime"></script>
+<script src="/ui/asset-overview.js?v=footer-order-20261120.knowledge-section.empty-add.unified-kb.2.inline-three.kb-actions.kb-row-view.open-file.knowledge-origin.csv-preview.row-numbers.chunk-import.office-reader.inline-deliveries.inline-activity.shared-toolbar.market-states.version-check.delivery-buttons.employee-runtime.stable-footer"></script>
 <script src="/ui/employee-automation.js?v=overview-row-skeleton-20261120"></script>
 <script src="/ui/work-folder.js?v=work-folder-copy-20261104"></script>
 <script src="/ui/reply-content-bundle.js?v=reply-table-20261122"></script>
@@ -109,7 +109,7 @@
 <script src="/ui/source-pipeline-panels.js?v=footer-order-20261120.inline-activity.shared-toolbar.market-states"></script>
 
 <script src="/ui/employee-directory.js?v=employee-link-resolution.employee-conversation-loading-20261105.employee-roster-20261105.employee-switch-first-paint-20261105.employee-pending-selection-20261105.employee-resource-default-20261105.unified-employee-conversation.trash-menu-style.stable-roster-order.sidebar-scroll-dismiss.employee-conversation-summary.cloud-employee-protection-20261113.local-creation-switch-restore.1.drawer-alignment.object-urls.owned-chats.canonical2"></script>
-<script src="/modules/employee.js?v=work-permission-settings-20261105.trash-menu-style.cloud-employee-protection-20261113.employee-workbench.2.work-apps.1"></script>
+<script src="/modules/employee.js?v=work-permission-settings-20261105.trash-menu-style.cloud-employee-protection-20261113.employee-workbench.2.work-apps.1.identity-revision"></script>
 <link rel="stylesheet" href="/ui/configuration-fields.css?v=configuration-info-size-20261106.drawer-inline-actions.credential-filename.credential-selection.shared-credential-controls.credential-configured-field.direct-secret-input.reveal-saved-credential.shared-config-input-style.shared-field-spacing">
 <link rel="stylesheet" href="/ui/employee-configuration.css?v=shared-configuration-form-20261106.4.employee-apps-20261114.13.asset-onboarding-2.asset-guide-welcome-1.footer-progress.application-row.direct-auth">
 <script src="/ui/employee-configuration.js?v=drawer-cleanup-20261120.pipeline-panel-load.footer-progress.application-row.direct-auth.binding-sync"></script>
@@ -5383,7 +5383,8 @@ async function saveCoreEmployeeHeaderName(input){
   input.dataset.saving='1';input.disabled=true;input.setAttribute('aria-busy','true');
   try{
     await employeeWrite(edit.key,value=>{value.name=name;});
-    if(coreEmployeeHeaderNameCurrent(input)){restoreCoreEmployeeHeaderName(input);render();}
+    if(coreEmployeeHeaderNameCurrent(input))restoreCoreEmployeeHeaderName(input);
+    if(edit.panel===S.conversationPanel&&edit.scope===_employeeBusinessScopeSequence&&workerAvatarEditableEntry()?.key===edit.key)render();
     return true;
   }catch(error){
     if(coreEmployeeHeaderNameCurrent(input)){
