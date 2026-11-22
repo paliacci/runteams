@@ -2,7 +2,7 @@
  * References, applied graphs and work states are always returned by the host. */
 (()=>{
  'use strict';
- let rows=[],catalogScope='',catalogError='',catalogErrorScope='',catalogSequence=0,sequence=0,reading=false;
+ let rows=[],catalogScope='',catalogError='',catalogErrorScope='',catalogSequence=0,sequence=0;
  const scope=()=>JSON.stringify([_workspaceBusinessGeneration,workspaceAccountCacheToken(),workspaceDeviceStorageScope()]);
  const durableScope=()=>workspaceDeviceStorageScope();
  const referenceKey=ref=>{
@@ -261,10 +261,10 @@
   render();
  }
  async function refresh({afterEdit=false,silent=false}={}){
-  const s=taskWorkspace();if(!s?.reference||reading&&!afterEdit)return false;
+  const s=taskWorkspace();if(!s?.reference||s.refreshReading&&!afterEdit)return false;
   const requestId=s.refreshSequence=(s.refreshSequence||0)+1;
   const active=()=>ownsTask(s)&&s.refreshSequence===requestId;
-  reading=true;let repaint=!silent;
+  s.refreshReading=true;let repaint=!silent;
   try{
    const backgroundRevision=s.data?.source_revision;
    const data=await request('workspace',{reference:s.reference,...(backgroundRevision?{background_revision:backgroundRevision}:{})});if(!active())return false;
@@ -277,7 +277,7 @@
    s.data=data;if(!s.errorKey)s.error='';return true;
   }
   catch(error){if(active()&&!silent&&!s.errorKey)s.error=error.message;}
-  finally{if(s.refreshSequence===requestId)reading=false;if(active()&&repaint)render();}
+  finally{if(s.refreshSequence===requestId)s.refreshReading=false;if(active()&&repaint)render();}
  }
 
  // The board uses the same immutable workspace chat without navigating or sending.
@@ -303,11 +303,12 @@
   const runtime=s.data?.runtime;
   if(!runtime)return '';
   const loading=s.controlBusy==='submitting'||runtime.status==='pausing';
-  const labelKey=loading&&s.controlLabelKey||runtimeLabelKey(s.data);
+  const pausing=runtime.status==='pausing';
+  const labelKey=pausing?'pausing':loading&&s.controlLabelKey||runtimeLabelKey(s.data);
   const running=labelKey!=='paused',action=running?'pause':'start';
-  const label=running?'运行中':'已暂停';
-  const accessible=running?'pausePipeline':'startPipeline';
-  const actionLabel=running?'暂停智能体团队':'启动智能体团队';
+  const label=pausing?'正在暂停':running?'运行中':'已暂停';
+  const accessible=pausing?'pausing':running?'pausePipeline':'startPipeline';
+  const actionLabel=pausing?label:running?'暂停智能体团队':'启动智能体团队';
   return `<button type="button" class="source-pipeline-runtime-action" ${disabled||s.controlPending||s.controlBusy||loading?'disabled':''} ${loading?'aria-busy="true"':''} onclick="RunTeamsSourcePipelines.control('${action}')"
    aria-label="${actionLabel}" title="${actionLabel}" data-app-i18n-aria-label="pipelineBoard.${accessible}" data-app-i18n-title="pipelineBoard.${accessible}">
    ${loading?'<span class="pipeline-run-spinner" aria-hidden="true"></span>':ICON(running?'pause':'play')}<span data-app-i18n="pipelineBoard.${labelKey}">${label}</span>
@@ -624,7 +625,7 @@
    }
    if(result.status!=='committed'||result.receipt?.action!==command.action)throw Error('Unconfirmed pipeline action');
    RunTeamsWorkState.removeItem(controlKey(s));s.controlPending=null;s.controlUnknown=false;s.controlCanRetry=false;s.controlError='';
-   await refresh();
+   await refresh({afterEdit:true});
   }catch(error){
    if(matches(s)){
     s.controlCanRetry=false;s.controlUnknown=checking||error.code==='operation_unknown'||!error.confirmedReply;
@@ -1223,7 +1224,7 @@
     }
    }}
  }
- function reset(){stopActivity();catalogSequence++;sequence++;rows=[];catalogScope='';catalogError='';catalogErrorScope='';reading=false;creation=null;}
+ function reset(){stopActivity();catalogSequence++;sequence++;rows=[];catalogScope='';catalogError='';catalogErrorScope='';creation=null;}
  window.addEventListener('runteams:business-scope-will-change',reset);
  setInterval(()=>{
   const s=current();

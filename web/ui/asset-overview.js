@@ -632,7 +632,7 @@ const RunTeamsEnvironment = (() => {
   if(publication){
    const {labelKey,label,vars,action,id,disabled,popup,expanded,passive}=publication;
    const caption=`<span data-app-i18n="${esc(labelKey)}"${vars?' data-app-i18n-vars="'+esc(JSON.stringify(vars))+'"':''}>${esc(label)}</span>`;
-   button=loading&&!number?placeholder('version-action','skeleton.loading'):
+   button=publication.checking||loading&&!number?placeholder('version-action',publication.checking?labelKey:'skeleton.loading'):
     passive?`<span class="overview-version-status" role="status">${caption}</span>`:
     `<button type="button"${id?' id="'+esc(id)+'"':''} class="btn pri sm" onclick="${esc(action)}"${disabled?' disabled':''}${popup?' aria-haspopup="'+esc(popup)+'" aria-expanded="'+!!expanded+'"':''}>${caption}</button>`;
   }
