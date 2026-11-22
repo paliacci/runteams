@@ -1,8 +1,10 @@
 """Library ingress to canonical employee services, with no account RPCs."""
 import json,re
 
+_LOCAL_REFERENCE_PATHS = {'/api/local-references/' + action for action in ('pick', 'confirm', 'paste', 'drop')}
+
 def handles(path):
-    return path in {'/api/employee-configuration/pick-location','/api/employee-directory','/api/employee-directory/open','/api/employee-workbench/prepare','/api/employee-configuration/resources','/api/employee-configuration/resources/import','/api/local-references/pick','/api/local-references/confirm','/api/device/work/results','/api/device/work/files'} or bool(re.fullmatch(r'/api/chat/[1-9][0-9]*/(?:employee-configuration|employee-mcp|pipeline-mcp|pipeline-work|work)',path) or re.fullmatch(r'/api/device/work/chats/[1-9][0-9]*',path) or re.fullmatch(r'/api/(?:core|device/work)/workflows/[1-9][0-9]*(?:/(?:cancel|retry))?',path))
+    return path in _LOCAL_REFERENCE_PATHS or path in {'/api/employee-configuration/pick-location','/api/employee-directory','/api/employee-directory/open','/api/employee-workbench/prepare','/api/employee-configuration/resources','/api/employee-configuration/resources/import','/api/device/work/results','/api/device/work/files'} or bool(re.fullmatch(r'/api/chat/[1-9][0-9]*/(?:employee-configuration|employee-mcp|pipeline-mcp|pipeline-work|work)',path) or re.fullmatch(r'/api/device/work/chats/[1-9][0-9]*',path) or re.fullmatch(r'/api/(?:core|device/work)/workflows/[1-9][0-9]*(?:/(?:cancel|retry))?',path))
 
 def dispatch(runtime,method,path,data):
     from runteams_core.employees.employee_directory import read, open_entry, with_activity
@@ -76,10 +78,14 @@ def dispatch(runtime,method,path,data):
         if 'employee_id' in data:raise PermissionError('请选择本机源码资产。')
         from runteams_core.employees.employee_collection_operations import dispatch
         return dispatch(method,data,importing=path.endswith('/import'))
-    if path.startswith('/api/local-references/') and method=='POST':
+    if path in _LOCAL_REFERENCE_PATHS and method=='POST':
         from runteams_core.assets import local_references
         from runteams_core.conversations import chat_attachments
         import os
+        action = path.rsplit('/', 1)[-1]
+        if action in ('paste', 'drop') and data == {}:
+            paths = chat_attachments.native_reference_paths(action)
+            return local_references.prepare(paths) if paths else {'references': [], 'pending': [], 'empty': True}
         if path.endswith('/confirm') and set(data)=={'tokens'}:return {'references':local_references.confirm(data['tokens'])}
         if path.endswith('/pick') and set(data)=={'kind'}:
             if data['kind'] not in ('file','folder'):raise ValueError('资料类型无效。')

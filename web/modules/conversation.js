@@ -1262,8 +1262,11 @@ async function conversationNativeLocalDrop(paths,x,y){
 
 /* module-function:conversationPaste */
 async function conversationPaste(event,surface){
-  const box=event.currentTarget,files=Array.from(event.clipboardData?.files||[]),text=event.clipboardData?.getData("text/plain")||"";
-  const types=Array.from(event.clipboardData?.types||[]),hasLocalFiles=types.includes("public.file-url")||(!files.length&&types.includes("Files"))||/^file:\/\//i.test(event.clipboardData?.getData("text/uri-list")||"");
+  const box=event.currentTarget,clipboard=event.clipboardData;
+  const files=Array.from(clipboard?.files||[]),text=clipboard?.getData("text/plain")||"";
+  const types=Array.from(clipboard?.types||[]);
+  const hasDirectory=Array.from(clipboard?.items||[]).some(item=>item.kind==="file"&&item.webkitGetAsEntry?.()?.isDirectory);
+  const hasLocalFiles=hasDirectory||files.length>0||types.includes("Files")||types.includes("public.file-url");
   const local=conversationSupportsLocalReferences(surface),panel=S.conversationPanel;
   if(local&&panel?.busy){event.preventDefault();return;}
   const native=local&&event.isTrusted&&window.webkit?.messageHandlers?.runteamsLocalReferencePaste;
@@ -1277,13 +1280,33 @@ async function conversationPaste(event,surface){
       // Keep the captured selection for normal paste, but never overwrite edits
       // or steal focus if the user moved on while the native bridge replied.
       if(!box.isConnected||document.activeElement!==box||conversationInputValue(box)!==draft)return;
+      if(hasDirectory){toast("找不到本地路径。请重新复制，或点按加号选择文件。","err","localReference.pathMissing");return;}
       if(selected)restoreConversationSelection(surface,selected.start,selected.end);
       applyConversationPaste(surface,box,files,text);
     }catch(error){if(S.conversationPanel===panel)toast("无法粘贴。请重试，或点按加号添加本地引用。","err","localReference.pasteFailed");}
     return;
   }
-  if(local&&(hasLocalFiles||files.length)){
-    event.preventDefault();if(event.isTrusted)await readConversationLocalReferenceEvent(surface,"paste",{box,files,text});return;
+  if(local&&hasLocalFiles){
+    event.preventDefault();if(event.isTrusted)await readConversationLocalReferenceEvent(surface,"paste",hasDirectory?null:{box,files,text});return;
+  }
+  if(hasLocalFiles&&event.isTrusted){
+    event.preventDefault();
+    const owner=surface==="panel"?panel:S.chatId;
+    const isCurrent=()=>box.isConnected&&(surface==="panel"?S.conversationPanel:S.chatId)===owner;
+    try{
+      const result=await api("/api/attachments/paste","POST",{});
+      if(!isCurrent())return;
+      if(result.error){toast(result.error,"err");return;}
+      if(result.items?.length){addConversationPickedAttachments(surface,result.items);return;}
+    }catch(error){if(isCurrent())toast("无法粘贴。请重试，或点按加号选择文件。","err","localReference.pasteFailed");return;}
+    if(files.length&&!hasDirectory){addConversationFiles(surface,files);return;}
+    toast("找不到本地路径。请重新复制，或点按加号选择文件。","err","localReference.pathMissing");
+    return;
+  }
+  if(hasDirectory){
+    event.preventDefault();
+    toast("请在这台电脑上的 RunTeams 桌面端选择本地文件。","info","localReference.desktopOnly");
+    return;
   }
   if(files.length||box?.isContentEditable){event.preventDefault();applyConversationPaste(surface,box,files,text);}
 }

@@ -93,7 +93,7 @@
 <script src="/ui/reply-spec.js?v=json-render-20261113-1.utf8-capacity"></script>
 <script src="/ui/reply-content.js?v=json-render-20261113-1.utf8-capacity"></script>
 <script src="/ui/reply-content-preview.js?v=20261029-3.locale-review"></script>
-<script src="/modules/conversation.js?v=pipeline-chat-copy-20261104.authoring-records-route.unified-employee-conversation.employee-apps-20261114.app-auth-card-20261114.app-operation-summary.sdk-workbench.asset-overview-20261120.section-ready.chat-hydration.skill-menu-20261120.employee-shortcuts-1120.example-icon-v1.default-spark.canonical.example-attachments.sent-attachments-above.reveal-sent-files.employee-runtime.locale-review.review-copy.localized-work-examples"></script>
+<script src="/modules/conversation.js?v=pipeline-chat-copy-20261104.authoring-records-route.unified-employee-conversation.employee-apps-20261114.app-auth-card-20261114.app-operation-summary.sdk-workbench.asset-overview-20261120.section-ready.chat-hydration.skill-menu-20261120.employee-shortcuts-1120.example-icon-v1.default-spark.canonical.example-attachments.sent-attachments-above.reveal-sent-files.employee-runtime.locale-review.review-copy.localized-work-examples.clipboard-folders"></script>
 <script src="/ui/model-channels.js?v=runtime-copy-20261104.quota-coalescing.skill-menu-20261120"></script>
 <script src="/modules/skills.js?v=employee-resource-controls-20261104.retired-pages-20261113"></script>
 <script src="/modules/account.js?v=default-model-copy-20261104.wallet-copy-20261104.language-device-copy-20261105.mcp-tests.composio-sessions.model-catalog-notice.quota-coalescing.workspace-read.locale-review"></script>
@@ -6541,9 +6541,12 @@ async function openConversationAttachmentPicker(surface){
   try{
     const result=await api("/api/attachments/pick","POST",{});
     if(result.error){toast(result.error,"err");return;}
-    const additions=(result.items||[]).map(item=>({localId:(surface==="panel"?"pp":"p")+item.token,pickToken:item.token,name:item.name,size:item.size,kind:item.kind,file_count:item.file_count||1,mime_type:item.kind==="folder"?"inode/directory":"application/octet-stream"}));
-    if(additions.length){setConversationAttachments(surface,[...conversationAttachments(surface),...additions]);rerenderConversation(surface);}
+    addConversationPickedAttachments(surface,result.items||[]);
   }catch(e){toast("无法打开文件选择器，请重试。","err","composer.pickerFailed");}
+}
+function addConversationPickedAttachments(surface,items){
+  const additions=items.map(item=>({localId:(surface==="panel"?"pp":"p")+item.token,pickToken:item.token,name:item.name,size:item.size,kind:item.kind,file_count:item.file_count||1,mime_type:item.kind==="folder"?"inode/directory":"application/octet-stream"}));
+  if(additions.length){setConversationAttachments(surface,[...conversationAttachments(surface),...additions]);rerenderConversation(surface);}
 }
 function removeConversationAttachment(surface,id){const items=conversationAttachments(surface),item=items.find(x=>x.localId===id);if(item&&item.preview)URL.revokeObjectURL(item.preview);setConversationAttachments(surface,items.filter(x=>x.localId!==id));rerenderConversation(surface);}
 function clearConversationAttachments(surface){conversationAttachments(surface).forEach(x=>{if(x.preview)URL.revokeObjectURL(x.preview);});setConversationAttachments(surface,[]);}

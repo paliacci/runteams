@@ -18,7 +18,7 @@ ATTACHMENT_REVEAL = re.compile(r'/api/chat/([1-9][0-9]*)/attachment/([a-f0-9]{24
 
 def handles(path):
     return path in {'/api/channels', '/api/model-catalog', '/api/channel-usage',
-                    '/api/environment', '/api/environment/capabilities', '/api/mcp-connections', '/api/app-info', '/api/attachments/pick', '/api/work-folders', '/api/chats', '/api/conversations', '/api/device/page-ids'} or bool(
+                    '/api/environment', '/api/environment/capabilities', '/api/mcp-connections', '/api/app-info', '/api/attachments/pick', '/api/attachments/paste', '/api/work-folders', '/api/chats', '/api/conversations', '/api/device/page-ids'} or bool(
         ATTACHMENT_REVEAL.fullmatch(path) or
         re.fullmatch(r'/api/work-folders/(?:pick|clear|bind|open)', path) or
         re.fullmatch(r'/api/chat/[1-9][0-9]*/attachment/[a-f0-9]{24}', path) or
@@ -465,6 +465,11 @@ class LocalRuntime:
                 except (OSError, RuntimeError, UnicodeError):
                     version = ''
                 return {'version': version, 'native_attachment_picker': bool(os.environ.get('RUNTEAMS_ATTACHMENT_PICKER')) and chat_attachments.native_picker_available()}
+            if method == 'POST' and path == '/api/attachments/paste':
+                from runteams_core.conversations import chat_attachments
+                if data:
+                    raise ValueError('附件粘贴请求无效。')
+                return {'items': chat_attachments.paste_native_folders()}
             if method == 'POST' and path == '/api/attachments/pick':
                 from runteams_core.conversations import chat_attachments
                 if data:

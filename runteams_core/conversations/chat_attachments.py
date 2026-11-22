@@ -293,6 +293,19 @@ def native_reference_paths(source):
         raise ValueError('无法读取本地路径，请重试或从＋添加')
 
 
+def paste_native_folders():
+    """Stage Finder selections containing a folder using the native picker rules."""
+    if not native_picker_available():
+        return []
+    paths = native_reference_paths('paste')
+    if not any(os.path.isdir(path) for path in paths):
+        return []
+    try:
+        return _stage_native_paths(paths)
+    except OSError:
+        raise ValueError('无法读取所复制的内容，请重新复制或从＋添加') from None
+
+
 def pick_native(*, cancel_event=None):
     paths = pick_native_paths(cancel_event=cancel_event) if cancel_event is not None else pick_native_paths()
     return _stage_native_paths(paths)
