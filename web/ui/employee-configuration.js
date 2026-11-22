@@ -196,6 +196,7 @@ function groupParts(key,owner){
  if(!owned(s))return RunTeamsAssetOverview.pipeline()?RunTeamsSkeletons.region('overview-configuration',1,'employeeSettings.loading'):
   '<section>'+ownerHeading+RunTeamsSkeletons.region('detail',undefined,'employeeSettings.loading')+'</section>';
  const {content,footer}=formParts(s,owner);
+ if(!content&&!footer)return '';
  mountInputs(s);
  return '<section class="pipeline-configuration-session" data-config-session="'+s.inlineId+'">'+content+footer+'</section>';
 }
@@ -397,6 +398,10 @@ async function changeApplication(s,row,remove=false){
 }
 function paintApplicationRows(s){
  const slot=document.getElementById(formId(s)+'-applications');
+ if(!!slot!==showApplicationSection(s)){
+  paint(s);
+  return;
+ }
  if(slot){
   slot.innerHTML=applicationRows(s);RunTeamsLocale?.apply(slot);
   const dialog=document.getElementById('childModalHost');
@@ -471,6 +476,9 @@ function listedApplications(s){
  }
  return [...items.values()];
 }
+function showApplicationSection(s){
+ return listedApplications(s).length>0||bindingsState(s)?.applicationReadFailed===true;
+}
 function applicationRow(row,actions){
  const name=esc(row.name);
  return '<div class="employee-application-row">'+applicationMark(row)+
@@ -482,8 +490,8 @@ function applicationAccountLabel(name){
 function applicationRows(s){
  const label=(key,fallback)=>messageMarkup(message(key,fallback));
  const state=bindingsState(s);
+ if(state?.applicationReadFailed&&!state.applications?.length)return '<button type="button" class="btn" data-employee-app-retry data-app-i18n="employeeHistory.retry">重试</button>';
  if(!state?.applications){
-  if(state?.applicationReadFailed)return '<button type="button" class="btn" data-employee-app-retry data-app-i18n="employeeHistory.retry">重试</button>';
   return RunTeamsSkeletons.region('detail',1,'employeeSettings.loading');
  }
  return listedApplications(s).map(row=>{
@@ -499,6 +507,7 @@ function applicationSection(s){
   s.applicationLoadState=state;
   void loadApplicationBindings(s,state);
  }
+ if(!showApplicationSection(s))return '';
  const id=formId(s)+'-applications';
  return RunTeamsEmployeeDrawerHeader.section({
   id:id+'-section',title:messageMarkup(message('appsTitle','应用连接')),
@@ -819,13 +828,13 @@ function formParts(s,groupOwner=null){
  const groups=(s.data?.definition.groups||[]).filter(group=>group.fields.length);
  let content=!s.data&&!s.error?RunTeamsSkeletons.region(groupOwner&&RunTeamsAssetOverview.pipeline()?'overview-configuration':'detail',undefined,'employeeSettings.loading'):'';
  if(s.data){
-  if(s.entry.chat_id)content+='<p class="configuration-readiness" data-app-i18n="employeeSettings.workScope">已开始的工作会继续使用原配置。</p>';
-  if(!groups.length&&!s.loading&&!s.error&&!hasApplications(s))content+='<p class="configuration-readiness" data-app-i18n="employeeSettings.emptyConfiguration">没有可配置的选项。</p>';
+  if(s.entry.chat_id&&groups.length)content+='<p class="configuration-readiness" data-app-i18n="employeeSettings.workScope">已开始的工作会继续使用原配置。</p>';
    const labeledGroups=groupOwner?.qualifyGroups?groups.map(group=>({...group,label:groupOwner.name+' · '+group.label})):groups;
    const fields=RunTeamsConfigurationForm.groups({groups:labeledGroups,idFor:group=>groupSectionId(s,group),
    renderField:field=>fieldMarkup(s,field),collapsedSections:s.collapsedSections,
    action:'RunTeamsEmployeeConfiguration.toggleSection'});
-  content+=RunTeamsConfigurationForm.markup({id:formId(s),body:fields+conflictMarkup(s)});
+  const formBody=fields+conflictMarkup(s);
+  if(formBody)content+=RunTeamsConfigurationForm.markup({id:formId(s),body:formBody});
   content+=applicationSection(s);
  }
  if(s.error){
@@ -834,15 +843,16 @@ function formParts(s,groupOwner=null){
  }
  if(s.errors?._form)content+='<p class="configuration-error" role="alert">'+fieldErrorMarkup(s.errors._form)+'</p>';
  if(s.notice)content+='<p class="configuration-notice" role="status" tabindex="-1">'+messageMarkup(s.notice)+'</p>';
- if(groupOwner&&!groups.length)content=pipelineGroupHeading(groupOwner.name,groupOwner.labelKey)+content;
  content+=RunTeamsWorkAuthorization.settings(s.entry);
  const footer=s.data?RunTeamsConfigurationForm.footer({state:s,receiptAttrs:'data-config-receipt',inline:true}):'';
+ if(groupOwner&&!groups.length&&(content||footer))content=pipelineGroupHeading(groupOwner.name,groupOwner.labelKey)+content;
  return {content,footer};
 }
 function inlineParts(key){
  const s=current();
- if(!s?.inlineSelection||s.entry.key!==key||s.data&&!rows(s).length&&!s.error&&!hasApplications(s))return null;
+ if(!s?.inlineSelection||s.entry.key!==key)return null;
  const {content,footer}=formParts(s);
+ if(!content&&!footer)return null;
  mountInputs(s);
  return {body:content+footer};
 }

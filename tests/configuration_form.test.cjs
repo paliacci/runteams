@@ -24,6 +24,30 @@ for(const surface of surfaces){
  assert.doesNotMatch(surface.content,/使用配置/);
  assert.equal(surface.footer,'');
 }
+const emptyDefinition={groups:[{key:'empty',fields:[]}]};
+for(const entry of [{},{pipeline_own:true},{pipeline_reference:{}}]){
+ const s=employeeState(entry);
+ s.data.definition=emptyDefinition;
+ assert.equal(c.employeeFormParts(s,entry.pipeline_own?{name:'Pipeline'}:null).content,'');
+}
+// An employee can have application settings without any ordinary fields.
+Object.assign(c,{workspaceAccountCacheToken:()=>'account',RunTeamsHost:{session:{
+ deviceScope:()=>'device',workspace:()=>false,readOnly:()=>false
+}}});
+const appState=employeeState({key:'employee',reference:{id:1}});
+Object.assign(appState,{scope:'account',deviceScope:'device',cacheKey:'account|device|employee',
+ applications:[],applicationLoadState:appState});
+c.installEmployeeSession(appState);
+appState.data.definition=emptyDefinition;
+assert.equal(c.employeeFormParts(appState).content,'');
+appState.applicationReadFailed=true;
+assert.match(c.employeeFormParts(appState).content,/data-employee-app-retry/);
+appState.applicationReadFailed=false;
+appState.data.definition={groups:[],application_requirements:[{toolkit:'gmail',label:'Gmail'}]};
+assert.match(c.employeeFormParts(appState).content,/Gmail/);
+appState.data.definition=emptyDefinition;
+appState.applications=[{provider:'mcp',id:'saved',name:'Saved app'}];
+assert.match(c.employeeFormParts(appState).content,/Saved app/);
 assert.equal(f.footer({state:{draft:{app_id:'edited'}}}),'','Edits must not display manual save controls');
 assert.equal(f.footer({state:{saving:true,pending:{operation_id:'saving'}}}),'','An in-flight save must leave no footer');
 const pipeline=fs.readFileSync('web/ui/source-pipeline-panels.js','utf8');
