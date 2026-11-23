@@ -16,6 +16,7 @@ from zoneinfo import ZoneInfo
 from runteams_core.foundation.errors import Cancelled
 
 from runteams_core.storage import device_data
+from runteams_core.automation.automation_time import checked_device_schedule
 from runteams_core.foundation.contracts import ContractError
 from runteams_core.authoring.definition_contracts import validate_definition, select_work_unit, validate_work_parameters
 
@@ -203,20 +204,7 @@ class EmployeeSchedules:
                 or len(value['objective']) > 20000 or not isinstance(value['name'], str)
                 or not value['name'].strip() or len(value['name']) > 120 or type(value['enabled']) is not bool):
             raise ContractError('自动化设置无效。')
-        schedule = value['schedule']
-        if (not isinstance(schedule, dict) or set(schedule) - {'time', 'weekdays', 'timezone'}
-                or not isinstance(schedule.get('timezone'), str) or type(value['interval_sec']) is not int
-                or not 60 <= value['interval_sec'] <= 2592000):
-            raise ContractError('时间安排无效。')
-        try:
-            ZoneInfo(schedule['timezone'])
-        except (ValueError, KeyError) as exc:
-            raise ContractError('请选择有效时区。') from exc
-        if value['schedule_kind'] == 'weekly' and (not isinstance(schedule.get('weekdays'), list)
-                or not schedule['weekdays'] or any(type(d) is not int or not 0 <= d <= 6 for d in schedule['weekdays'])):
-            raise ContractError('请选择至少一天。')
-        from runteams_core.automation import automation_time
-        automation_time._normalize_automation_schedule(value)
+        checked_device_schedule(value)
         with self.connection(write=True) as c:
             prior = c.execute('SELECT request,result FROM commands WHERE id=?', (data['operation_id'],)).fetchone()
             if prior:
@@ -269,7 +257,7 @@ class EmployeeSchedules:
             raise ContractError('自动化操作内容无效。')
         operation_id(data['operation_id'])
         action = data['action']
-        if action not in ('save', 'pause', 'resume', 'delete', 'run', 'resolve'):
+        if action not in ('save', 'reschedule', 'pause', 'resume', 'delete', 'run', 'resolve'):
             raise ContractError('自动化操作无效。')
         # Receipt recovery never revalidates changed assets or replays a command.
         request = canonical(data)
@@ -320,20 +308,7 @@ class EmployeeSchedules:
                 else:
                     unit = select_work_unit(asset['active_release']['snapshot_json'], value['skill_key'])
                     validate_work_parameters(unit, value['parameters'])
-                from runteams_core.automation import automation_time as time_rules
-                raw_schedule = value['schedule']
-                if (not isinstance(raw_schedule, dict) or set(raw_schedule) - {'time', 'weekdays', 'timezone'}
-                        or not isinstance(raw_schedule.get('timezone'), str)
-                        or type(value['interval_sec']) is not int or not 60 <= value['interval_sec'] <= 2592000):
-                    raise ContractError('时间安排无效。')
-                try:
-                    ZoneInfo(raw_schedule['timezone'])
-                except (KeyError, ValueError) as exc:
-                    raise ContractError('请选择有效时区。') from exc
-                if value['schedule_kind'] == 'weekly' and (not isinstance(raw_schedule.get('weekdays'), list)
-                        or any(type(day) is not int or not 0 <= day <= 6 for day in raw_schedule['weekdays'])):
-                    raise ContractError('星期选择无效。')
-                kind, interval, schedule = time_rules._normalize_automation_schedule(value)
+                kind, interval, schedule = checked_device_schedule(value)
                 following = next_run(kind, interval, schedule) if value['enabled'] else ''
                 values = (employee_id, canonical(data['reference']), asset['active_release']['digest'],
                     value['name'].strip(), canonical(payload), int(value['enabled']), kind, interval, canonical(schedule), following)
@@ -344,6 +319,8 @@ class EmployeeSchedules:
                 else:
                     c.execute('UPDATE schedules SET revision=revision+1,employee_id=?,reference=?,release_digest=?,name=?,payload=?,enabled=?,schedule_kind=?,interval_sec=?,schedule=?,next_run_at=? WHERE id=?', (*values, identifier))
                     self.cancel_rows(c,identifier)
+            elif action == 'reschedule':
+                self.reschedule(c, row, data['value'])
             else:
                 if row is None or data['value'] is not None:
                     raise ContractError('请选择原自动化。')
@@ -362,6 +339,16 @@ class EmployeeSchedules:
             result = {'id': identifier, 'operation_id': data['operation_id']}
             c.execute('INSERT INTO commands VALUES(?,?,?)', (data['operation_id'], request, canonical(result)))
             return result
+
+    def reschedule(self, connection, row, value):
+        if row is None or not isinstance(value, dict) or set(value) != {'schedule_kind', 'interval_sec', 'schedule'}:
+            raise ContractError('请选择原自动化并填写时间安排。')
+        kind, interval, schedule = checked_device_schedule(value)
+        following = next_run(kind, interval, schedule) if row['enabled'] else ''
+        connection.execute(
+            'UPDATE schedules SET revision=revision+1,schedule_kind=?,interval_sec=?,schedule=?,next_run_at=? WHERE id=?',
+            (kind, interval, canonical(schedule), following, row['id']))
+        self.cancel_rows(connection, row['id'])
 
     def cancel_rows(self,c,identifier):
         # A scheduler claim is not work admission. Fence it with the same

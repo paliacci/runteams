@@ -8,8 +8,8 @@ from runteams_core.work import workflow_policy
 import json
 import threading
 import uuid
-from zoneinfo import ZoneInfo
 from runteams_core.storage import device_data
+from runteams_core.automation.automation_time import checked_device_schedule
 from runteams_core.pipelines import source_pipeline_work as work, source_pipeline_control as control
 from runteams_core.foundation.contracts import ContractError
 from runteams_core.automation.device_employee_schedules import EmployeeSchedules, canonical, next_run, operation_id
@@ -72,7 +72,7 @@ class PipelineSchedules(EmployeeSchedules):
             raise ContractError('自动化操作内容无效。')
         operation_id(data['operation_id']);ref=pipeline_references.checked_reference(data['reference'])
         request=canonical(data);action=data['action']
-        if action not in ('save','pause','resume','delete','run','resolve'):raise ContractError('自动化操作无效。')
+        if action not in ('save','reschedule','pause','resume','delete','run','resolve'):raise ContractError('自动化操作无效。')
         # This gate fences this domain's plan edits against its own admission;
         # no employee scheduling lock is held across building/admitting work.
         with _gate:
@@ -87,14 +87,7 @@ class PipelineSchedules(EmployeeSchedules):
                 if (not isinstance(value,dict) or set(value)!=keys or type(value['enabled']) is not bool
                     or not isinstance(value['name'],str) or not value['name'].strip() or len(value['name'])>120
                     or not isinstance(value['objective'],str) or not value['objective'].strip() or len(value['objective'])>20000):raise ContractError('请填写名称和要完成的工作。')
-                raw=value['schedule']
-                if (not isinstance(raw,dict) or set(raw)-{'time','weekdays','timezone'} or not isinstance(raw.get('timezone'),str)
-                    or type(value['interval_sec']) is not int or not 60<=value['interval_sec']<=2592000):raise ContractError('时间安排无效。')
-                try:ZoneInfo(raw['timezone'])
-                except (KeyError,ValueError) as exc:raise ContractError('请选择有效时区。') from exc
-                if value['schedule_kind']=='weekly' and (not isinstance(raw.get('weekdays'),list) or not raw['weekdays'] or any(type(d) is not int or not 0<=d<=6 for d in raw['weekdays'])):raise ContractError('请选择至少一天。')
-                from runteams_core.automation import automation_time
-                kind,interval,schedule=automation_time._normalize_automation_schedule(value)
+                kind,interval,schedule=checked_device_schedule(value)
                 contract=self.contract(ref,value['start_column_key'])
                 from jsonschema import Draft202012Validator
                 # The same actual column input contract as manual task creation.
@@ -104,7 +97,7 @@ class PipelineSchedules(EmployeeSchedules):
                     'parameters':value['parameters'],'context':{},'inputs':[],'module_bindings':{},'asset_bindings':{}}
                 work._request({'operation_id':data['operation_id'],'reference':ref,'title':value['name'],'payload':payload,'start_column_key':value['start_column_key']})
                 following=next_run(kind,interval,schedule) if value['enabled'] else ''
-            elif value is not None:raise ContractError('请选择原自动化。')
+            elif action!='reschedule' and value is not None:raise ContractError('请选择原自动化。')
             core=self.core()
             with self.connection(write=True) as c:
                 # Abandon can commit while contract validation runs.
@@ -124,6 +117,8 @@ class PipelineSchedules(EmployeeSchedules):
                     else:
                         c.execute('UPDATE schedules SET revision=revision+1,employee_id=?,reference=?,release_digest=?,name=?,payload=?,enabled=?,schedule_kind=?,interval_sec=?,schedule=?,next_run_at=? WHERE id=?',(*values,identifier))
                         self.cancel_rows(c,identifier)
+                elif action=='reschedule':
+                    self.reschedule(c,row,value)
                 elif action=='run':
                     if control.read(core,ref)['status']!='running':raise ContractError('智能体团队已暂停，不能开始新工作。')
                     self.fire(c,row,'manual:'+data['operation_id'])

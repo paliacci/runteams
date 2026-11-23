@@ -23,7 +23,8 @@ def claude_tools(context, names=NAMES):
 
 
 def run(channel, chat, message, attachments, workspace, activity, cancel, store, library_id, capabilities=None, *,
-        employee_host=None, configuration=None, signing_assistance=None, wake_pipeline_work=None):
+        employee_host=None, configuration=None, signing_assistance=None, wake_pipeline_work=None,
+        user_message_id=None, automation_invoke=None):
     from runteams_core.agents import agent_guidance
     from runteams_core.conversations import chat_attachments
     from runteams_core.agents.adapters.adapter_base import EXECUTION_USER_AGENT
@@ -46,6 +47,10 @@ def run(channel, chat, message, attachments, workspace, activity, cancel, store,
     facts = agent_guidance.runtime_facts(channel, chat['model'], chat['reasoning_effort'], workspace)
     context = {'chat_id': chat['id'], 'library_id': library_id, 'actor_id':library_id, 'runtime': facts,
                'request_user_input': activity.request_user_input}
+    from runteams_core.automation import chat_automation_tool
+    automation_available = chat_automation_tool.bind_turn(context, user_message_id, cancel, automation_invoke)
+    if automation_available:
+        names += (chat_automation_tool.TOOL,)
     instructions = ('这是用户的个人本机对话，按用户要求回答。员工、智能体团队和共享业务工具未在此入口开放。'
         '工具目录是本轮唯一的平台工具范围；不通过命令或其他接口绕过该范围。'
         '文档操作沿用户指令自动应用完成的工具提交；先读文档并用 base_revision 更新，结构文档保留完整 blocks、sources 和附件。'
@@ -54,6 +59,8 @@ def run(channel, chat, message, attachments, workspace, activity, cancel, store,
         + '创建智能体团队先确认业务终点；全体成员列在 employees，仅实际交接列在 positions。定时复盘等独立工作读取目标状态的原卡并更新。临时阻塞留在原岗。\n'
         + agent_guidance.USER_DECISION_INSTRUCTION + '\n'
         + agent_guidance.runtime_guidance(facts) + '\n# 已保存对话\n' + history)
+    if automation_available:
+        instructions += chat_automation_tool.GUIDANCE
     purpose_guidance = agent_guidance.conversation_purpose(chat.get('context'))
     if purpose_guidance:instructions += '\n\n' + purpose_guidance
     from runteams_core.assets.resource_discovery import GUIDANCE

@@ -732,6 +732,7 @@ class LocalRuntime:
                         if not authoring and Path(folder_runtime(chat_id, employee_workspace(chat_id) if employee else self.store.assistant_workspace())) != workspace:
                             raise PermissionError('工作文件夹已变化，请重新打开对话。')
                         from runteams_core.conversations.local_conversation_tools import run
+                        from runteams_core.automation.chat_automation_tool import host_call
                         activity = Activity()
                         from runteams_core.authoring.creator_local_authoring import workspace as source_workspace
                         with (source_workspace(chat) if authoring else nullcontext(workspace)) as working:
@@ -740,6 +741,8 @@ class LocalRuntime:
                                                    employee_host=self.employee_mcp_work() if employee or authoring else None,
                                                    configuration=configuration,
                                                    signing_assistance=signing_assistance,
+                                                   user_message_id=mid,
+                                                   automation_invoke=host_call(self.schedule_host),
                                                    wake_pipeline_work=lambda identifier: self.schedule_employee_work([{'workflow_id': identifier}]))
                         if turn['cancel'].is_set():raise Cancelled(system_text('stopped', policy))
                         from runteams_core.conversations.local_conversation_tools import apply_completed
