@@ -79,3 +79,12 @@
 #modalHost .employee-schedule-editor #employee_schedule_name:focus,
 #modalHost .employee-schedule-editor #employee_schedule_name:focus-visible{border:0!important;outline:0!important;box-shadow:none!important;appearance:none;-webkit-appearance:none;background:transparent;border-radius:0;padding:0;height:auto;min-height:0}
 #modalHost .employee-schedule-editor #employee_schedule_name::placeholder{color:var(--text-muted);opacity:1}
+
+.employee-automation-templates{margin-top:14px;padding-top:12px;border-top:1px solid var(--border-default)}
+.overview-section-bar+.employee-automation-templates{margin-top:4px;padding-top:0;border-top:0}
+.employee-automation-templates h4{margin:0 0 4px;font-size:13px;line-height:20px;font-weight:500;color:var(--text-secondary)}
+.employee-automation-template{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:8px;min-height:48px;padding:5px 8px}
+.employee-automation-template .btn{min-height:30px}
+.employee-automation-template-added{font-size:11px;color:var(--text-secondary)}
+.employee-automation-template-review h4,.employee-automation-template-review p{margin:0;overflow-wrap:anywhere}
+.employee-automation-template-review .employee-automation-template-objective{margin:4px 0 8px;white-space:pre-wrap}

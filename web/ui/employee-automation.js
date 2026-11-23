@@ -3,6 +3,7 @@
  'use strict';
  let state=null,form=null;
  const base='/api/device/employee-schedules';
+ const templateEndpoint='/api/device/asset-automation-templates';
  const pipelineOwner=()=>S.surface==='source-pipeline'?window.RunTeamsSourcePipelines?.current():null;
  const endpoint=s=>s?.pipeline?'/api/device/pipeline-schedules':base;
  const refKey=ref=>ref?.pipeline_source?RunTeamsSourcePipelines.referenceKey(ref):RunTeamsEmployeeDirectory.referenceKey(ref);
@@ -41,10 +42,12 @@
  function paint(){
   const active=document.activeElement;
   const row=active?.closest?.(drawerSelector+' [data-schedule-id]');
-  const control=active?.dataset?.scheduleControl;
+  const control=active?.dataset?.scheduleControl,template=active?.dataset?.templateReview;
   const owner=current();
   render();
-  if(!owner||!row||!control||active.isConnected||current()!==owner||document.activeElement!==document.body)return;
+  if(!owner||active?.isConnected||current()!==owner||document.activeElement!==document.body)return;
+  if(template!==undefined){templateButton(template)?.focus({preventScroll:true});return;}
+  if(!row||!control)return;
   const drawer=document.querySelector(drawerSelector);
   const replacement=drawer?.querySelector(`[data-schedule-id="${row.dataset.scheduleId}"]`);
   const target=replacement?.querySelector(`[data-schedule-control="${control}"]:not(:disabled)`)
@@ -67,7 +70,7 @@
   if(!s.hasRead&&!s.error&&!s.unavailable)return RunTeamsAssetOverview.loadingSection('overview-automation');
   const disabled=!s.hasRead||s.loading||s.busy||s.unavailable||s.error||!!pending(s);
   const add=RunTeamsAssetOverview.sectionAction(RunTeamsAssetOverview.labels('new','新建'),'RunTeamsEmployeeAutomation.edit()',disabled);
-  return RunTeamsAssetOverview.section(copy('pipelineBoard.automation','自动化'),add,automationContent(s));
+  return RunTeamsAssetOverview.section(copy('pipelineBoard.automation','自动化'),add,automationContent(s)+templateContent(s));
  }
  function refresh(options={}){
   const s=current();if(!s)return;
@@ -89,10 +92,105 @@
    if(s.reference&&refKey(s.reference)!==refKey(t.reference))throw Error('员工来源已变化，请关闭面板后重新打开。');
    s.reference=t.reference;s.source=t.source;s.storageKey||=operationKey(t);s.unavailable='';
    const out=await api(endpoint(s)+'?reference='+encodeURIComponent(JSON.stringify(s.reference)),undefined,undefined,{readCurrent:true});if(!valid(s)||defer())return;if(out.error)throw Error(out.error);if(!Array.isArray(out.items)||!Array.isArray(out.skills)||refKey(out.reference)!==refKey(s.reference))throw Error('自动化读取结果无效。');s.items=out.items;s.skills=out.skills;s.followupTargets=out.followup_targets||[];if(s.pipeline){s.positions=out.positions||[];s.startColumn=out.start_column_key;s.pipelineStatus=out.pipeline_status;}s.reference=out.reference;s.error='';s.unavailable=!!out.unavailable;s.hasRead=true;
+   if(!S.localLibrary&&!s.unavailable&&(!options.background||!s.templates))await readTemplates(s);
   }
   catch(e){if(valid(s)&&!defer()){s.error=e.message||'自动化暂时无法读取。';}}
   finally{s.loading=false;if(current()===s&&!defer())paint();}
  }
+
+ async function readTemplates(s){
+  try{
+   const out=await api(templateEndpoint+'?reference='+encodeURIComponent(JSON.stringify(s.reference)),undefined,undefined,{readCurrent:true});
+   if(!valid(s))return;
+   if(out.error||!Array.isArray(out.templates)||!Array.isArray(out.imported_ids)||refKey(out.reference)!==refKey(s.reference))throw Error();
+   s.templates=out.templates;s.templateRevision=out.revision;s.importedTemplates=new Set(out.imported_ids);s.canImportTemplates=out.can_import!==false;s.templateReadError=false;
+  }catch(_){
+   if(valid(s))s.templateReadError=true;
+  }
+ }
+ const templateButton=index=>document.querySelector(`${drawerSelector} [data-template-review="${Number(index)}"]`);
+ function templateContent(s){
+  if(!s.templates?.length&&!s.templateReadError)return '';
+  const disabled=s.templateReadError||s.loading||s.busy||s.error||s.unavailable||!!pending(s);
+  const failure=s.templateReadError?RunTeamsLoadFailure.markup({variant:'local',title:'无法载入资产模板',
+   titleKey:'scheduledAutomation.templatesFailed',labelKey:'employeeHistory.retry',retry:'RunTeamsEmployeeAutomation.refresh()'}):'';
+  return `<div class="employee-automation-templates"><h4>${copy('scheduledAutomation.assetTemplates','资产模板')}</h4>
+   ${failure}<div class="employee-automation-list">${(s.templates||[]).map((item,index)=>`<div class="employee-automation-template">
+    <span class="employee-automation-copy"><b title="${esc(item.name)}">${esc(item.name)}</b><small>${esc(automationListSchedule(item))}</small></span>
+    ${s.importedTemplates.has(item.id)?`<small class="employee-automation-template-added">${copy('scheduledAutomation.templateAdded','已添加')}</small>`:
+     `<button type="button" class="btn ghost" data-template-review="${index}" onclick="RunTeamsEmployeeAutomation.reviewTemplate(${index})" ${disabled?'disabled':''}>${copy('scheduledAutomation.reviewTemplate','查看')}</button>`}
+   </div>`).join('')}</div></div>`;
+ }
+ async function reviewTemplate(index){
+  const s=current(),item=s?.templates?.[index];
+  if(!item||s.templateReadError||s.loading||s.busy||s.error||s.unavailable||pending(s)||s.importedTemplates.has(item.id))return;
+  const revision=s.templateRevision,canImport=s.canImportTemplates;
+  const title=canImport?'添加自动化模板':'自动化模板',titleKey=canImport?'scheduledAutomation.addTemplateTitle':'scheduledAutomation.templateTitle';
+  const hasInputs=canImport&&(s.pipeline||!!item.skill_key);
+  const dialog=openDialog({
+   className:'automation-editor employee-schedule-editor',title,titleKey,closeLabelKey:'employeeConsent.close',
+   attrs:`role="dialog" aria-modal="true" aria-label="${title}" data-app-i18n-aria-label="${titleKey}"`,
+   closeAction:`RunTeamsEmployeeAutomation.closeTemplate(${index})`,
+   body:`<div class="employee-schedule-content employee-automation-template-review">
+    <h4>${esc(item.name)}</h4><p class="help">${esc(automationListSchedule(item))}
+     ${item.schedule_kind==='interval'?'':` · ${esc(item.schedule.timezone)}`}</p>
+    <p class="employee-automation-template-objective">${esc(item.objective)}</p>
+    <p class="help">${canImport?copy('scheduledAutomation.templatePaused','添加后保持暂停。核对设置后可启用。'):copy('scheduledAutomation.templateReadOnly','此资产的模板仅供查看。')}</p>
+    <div data-automation-template-inputs>${hasInputs?RunTeamsSkeletons.region('parameters',undefined,'scheduledAutomation.loadingInputs'):''}</div>
+    <p class="account-team-error" data-automation-template-error role="alert" hidden></p>
+   </div>`,
+   footer:`<button type="button" class="btn ghost" onclick="RunTeamsEmployeeAutomation.closeTemplate(${index})">${canImport?copy('scheduledAutomation.cancel','取消'):copy('employeeConsent.close','关闭')}</button>
+    ${canImport?`<button type="button" class="btn pri" data-automation-template-add ${hasInputs?'disabled':''}>${copy('scheduledAutomation.addTemplate','添加')}</button>`:''}`
+  });
+  const ownsDialog=()=>current()===s&&document.getElementById('modalHost')===dialog;
+  const inputs=dialog.querySelector('[data-automation-template-inputs]');
+  const error=dialog.querySelector('[data-automation-template-error]');
+  const add=dialog.querySelector('[data-automation-template-add]');
+  dialog.querySelector('.modal-x')?.focus();
+  if(!canImport)return;
+  if(hasInputs){
+   try{
+    const contract=s.pipeline?await RunTeamsSourcePipelines.request('contract',{reference:s.reference,start_column_key:item.start_column_key}):
+     s.skills.find(skill=>skill.key===item.skill_key);
+    if(!ownsDialog())return;
+    if(!contract?.input_schema)throw Error();
+    inputs.innerHTML=coreTaskParameterFields(coreWorkflowFrozenParameters(contract),{},'automation_template');
+    RunTeamsLocale.apply(inputs);add.disabled=false;
+   }catch(_){
+    if(ownsDialog()){
+     inputs.replaceChildren();
+     applyCopy(error,'无法读取任务信息。请重新打开模板后再试。','scheduledAutomation.templateInputsFailed');
+     error.hidden=false;
+    }
+    return;
+   }
+  }
+  add.onclick=async()=>{
+   if(!ownsDialog()||s.busy)return;
+   error.hidden=true;
+   let parameters;
+   try{if(hasInputs)parameters={[item.id]:readCoreTaskParameters(inputs)};}
+   catch(e){applyCopy(error,e.message,e.detailKey,e.detailVars);error.hidden=false;return;}
+   s.busy=true;add.disabled=true;add.setAttribute('aria-busy','true');
+   try{
+    const out=await api(templateEndpoint,'POST',{reference:s.reference,revision,template_ids:[item.id],...(parameters?{parameters}:{})});
+    if(out.error||!Array.isArray(out.results)||!out.results.some(row=>row.template_id===item.id))throw Error(out.error||'');
+    if(valid(s)){
+     s.importedTemplates.add(item.id);s.busy=false;
+     if(ownsDialog())closeModal();
+     await refresh();
+     if(current()===s&&document.activeElement===document.body)document.querySelector(`${drawerSelector} [data-schedule-id="${Number(out.results[0].id)}"] .employee-automation-open`)?.focus({preventScroll:true});
+    }
+   }catch(e){
+    if(ownsDialog()){
+     applyCopy(error,'无法添加自动化模板。请检查任务信息后重试。','scheduledAutomation.addTemplateFailed');
+     error.hidden=false;
+    }
+   }finally{s.busy=false;add.disabled=false;add.removeAttribute('aria-busy');}
+  };
+ }
+
+ function closeTemplate(index){closeModal();templateButton(index)?.focus({preventScroll:true});}
 
  const runStates={
   queued:['automationList.queued','等待执行'],running:['automationList.running','正在执行'],
@@ -144,7 +242,7 @@
   }else if(s.unavailable)content=RunTeamsEmptyStates.markup('automations',{
    title:'暂时无法设置自动化',titleKey:'scheduledAutomation.unavailable'
   })+list;
-  else if(!list)content=RunTeamsEmptyStates.markup('automations',{titleKey:'automationList.empty'});
+  else if(!list&&!s.templates?.length&&!s.templateReadError)content=RunTeamsEmptyStates.markup('automations',{titleKey:'automationList.empty'});
   const recovery=pending(s)&&!s.submitting?`<div class="employee-automation-recovery" role="status">
    ${copy('scheduledAutomation.operationPending','上次操作结果待确认。')}
    <button type="button" class="btn" onclick="RunTeamsEmployeeAutomation.recover()" ${s.busy?'disabled':''}>${copy('scheduledAutomation.checkOperation','核对操作')}</button>
@@ -259,8 +357,8 @@
    if(selected<0)selected=targets.push({name:saved.followup_pipeline+' · '+saved.followup_state,pipeline:saved.followup_pipeline,state:saved.followup_state,skill_key:payload.skill_key})-1;
   }
   const showTargets=!s.pipeline&&targets.length&&(selected>=0||!item||payload.schema!=='runteams.task-input/v2');
-  const parameters=selected<0&&!s.pipeline&&payload.schema==='runteams.task-input/v2'&&Object.keys(payload.parameters||{}).length?'\n\n任务资料：\n'+JSON.stringify(payload.parameters,null,2):'';
-  const f={owner:s,item,targets,scheduleSelected:!!item,scheduleExpanded:false,hasSchedule:!!item,enabled:item?item.enabled:true,saving:false,position:payload.start_column_key||s.startColumn,parameterDrafts:{[payload.start_column_key||s.startColumn]:payload.parameters||{}}};form=f;
+  const fixedSkill=!s.pipeline&&selected<0&&payload.skill_key?s.skills.find(skill=>skill.key===payload.skill_key):null;
+  const f={owner:s,item,targets,fixedSkill,scheduleSelected:!!item,scheduleExpanded:false,hasSchedule:!!item,enabled:item?item.enabled:true,saving:false,position:payload.start_column_key||s.startColumn,parameterDrafts:{[payload.start_column_key||s.startColumn]:payload.parameters||{}}};form=f;
   const title=item?'编辑自动化':'新建自动化',titleKey=item?'scheduledAutomation.editTitle':'scheduledAutomation.new';
   const promptKey=s.pipeline?'scheduledAutomation.pipelinePrompt':'scheduledAutomation.employeePrompt';
   const dialog=openDialog({
@@ -269,10 +367,11 @@
    headerActions:item&&!item.enabled?`<button type="button" class="x" aria-label="计划选项" data-app-i18n-aria-label="scheduledAutomation.options" onclick="RunTeamsEmployeeAutomation.editOptions(event)">${ICON('more')}</button>`:'',
    body:`<div class="employee-schedule-content">
     <div class="employee-schedule-task">
-     <textarea class="ta" id="employee_schedule_objective" maxlength="20000" aria-label="任务说明" data-app-i18n-aria-label="automationEditor.instructions" placeholder="描述每次运行要完成的工作" data-app-i18n-placeholder="${promptKey}" oninput="RunTeamsEmployeeAutomation.taskChanged()">${esc(objective+parameters)}</textarea>
-     ${s.pipeline?'':`<label class="employee-schedule-original" id="employee_schedule_original_field" title="关闭此选项时，应用会先润色任务说明。" data-app-i18n-title="scheduledAutomation.originalHint"><input type="checkbox" id="employee_schedule_original" ${item&&payload.use_original!==false?'checked':''}>${copy('scheduledAutomation.original','使用原文')}</label>`}
+     <textarea class="ta" id="employee_schedule_objective" maxlength="20000" aria-label="任务说明" data-app-i18n-aria-label="automationEditor.instructions" placeholder="描述每次运行要完成的工作" data-app-i18n-placeholder="${promptKey}" oninput="RunTeamsEmployeeAutomation.taskChanged()">${esc(objective)}</textarea>
+     ${s.pipeline||fixedSkill?'':`<label class="employee-schedule-original" id="employee_schedule_original_field" title="关闭此选项时，应用会先润色任务说明。" data-app-i18n-title="scheduledAutomation.originalHint"><input type="checkbox" id="employee_schedule_original" ${item&&payload.use_original!==false?'checked':''}>${copy('scheduledAutomation.original','使用原文')}</label>`}
     </div>
     ${s.pipeline?`<div class="field"><label for="employee_schedule_position" data-app-i18n="scheduledAutomation.startPosition">起始岗位</label><select class="inp" id="employee_schedule_position" onchange="RunTeamsEmployeeAutomation.startChanged()">${s.positions.map(p=>`<option value="${esc(p.key)}" ${p.key===f.position?'selected':''}>${esc(p.name)}</option>`).join('')}</select></div><div id="employee_schedule_inputs"></div>`:''}
+    ${fixedSkill?coreTaskParameterFields(coreWorkflowFrozenParameters(fixedSkill),saved,'employee_schedule_work'):''}
     ${showTargets?`<div class="field"><label for="employee_schedule_target">${copy('scheduledAutomation.followupTarget','跟进对象')}</label><select class="inp" id="employee_schedule_target" onchange="RunTeamsEmployeeAutomation.taskChanged()"><option value="-1" data-app-i18n="scheduledAutomation.standalone">独立任务</option>${targets.map((target,index)=>`<option value="${index}" ${index===selected?'selected':''}>${esc(target.name)}</option>`).join('')}</select></div>`:''}
     <div class="employee-schedule-timing">
      <button type="button" class="employee-schedule-summary" id="employee_schedule_summary" aria-expanded="false" aria-controls="employee_schedule_details" onclick="RunTeamsEmployeeAutomation.toggleSchedule()">${ICON('clock')}<span id="employee_schedule_label" data-app-i18n="scheduledAutomation.chooseSchedule">设置运行时间</span><small>${copy('scheduledAutomation.keepOnline','运行时电脑需在线')}</small>${ICON('chev')}</button>
@@ -359,7 +458,8 @@
    const objective=field('objective').value,name=field('name').value.trim()||automaticName(objective);
    if(!objective.trim())throw localError('scheduledAutomation.missingInstructions','请描述要完成的工作。');if(!f.scheduleSelected)throw localError('scheduledAutomation.chooseSchedule','设置运行时间');
    const target=f.targets[Number(field('target')?.value??-1)];
-   const employeeTask=target?{skill_key:target.skill_key,parameters:{...(f.item?.payload?.skill_key===target.skill_key?f.item.payload.parameters:{}),followup_pipeline:target.pipeline,followup_state:target.state}}:null;
+   const employeeTask=target?{skill_key:target.skill_key,parameters:{...(f.item?.payload?.skill_key===target.skill_key?f.item.payload.parameters:{}),followup_pipeline:target.pipeline,followup_state:target.state}}:
+    f.fixedSkill?{skill_key:f.fixedSkill.key,parameters:readCoreTaskParameters(f.element.querySelector('.employee-schedule-content'))}:null;
    const task=f.owner.pipeline?{start_column_key:f.position,parameters:readCoreTaskParameters(field('inputs'))}:employeeTask||{use_original:field('original').checked};
    const value={name,objective,enabled:f.enabled,...scheduleValue(),...task};
    if(f.owner.pipeline&&!f.inputContract)throw localError('scheduledAutomation.checkInputs','请先检查起始岗位的任务信息。');
@@ -406,7 +506,7 @@
 
   return work?RunTeamsEmployeeConfiguration.openConversation(work,RunTeamsEmployeeDirectory.forPanel(panel)):RunTeamsEmployeeDirectory.settings(t.key);
  }
- window.RunTeamsEmployeeAutomation=Object.freeze({overviewSection,sourceSettings,current,refresh,edit,startChanged,scheduleChanged,taskChanged,toggleSchedule,editOptions,save,action,menu,records,closeRecords,recover,resolve,cancelPending});
+ window.RunTeamsEmployeeAutomation=Object.freeze({overviewSection,sourceSettings,current,refresh,reviewTemplate,closeTemplate,edit,startChanged,scheduleChanged,taskChanged,toggleSchedule,editOptions,save,action,menu,records,closeRecords,recover,resolve,cancelPending});
  if(typeof setInterval==='function')setInterval(()=>{const s=current();if(s&&!s.unavailable&&!s.busy&&!pending(s)&&!document.querySelector('#modalHost')&&!scheduleMenuOpen())void refresh({silent:true,background:true});},10000);
  window.addEventListener('runteams:business-scope-changed',()=>{state=null;form=null;});
 })();

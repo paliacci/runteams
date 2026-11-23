@@ -1,13 +1,14 @@
 """Transfer complete asset versions without copying media through the source compiler."""
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 import errno
 import os
 from pathlib import Path
+import re
 import shutil
 import tempfile
 
 from runteams_core.assets import knowledge_archive as media
-from runteams_core.authoring.creator_contracts import digest
+from runteams_core.authoring.creator_contracts import CreatorContractError, canonical, digest, strict_json
 from runteams_core.authoring.source import creator_source_archive
 from runteams_core.authoring.source.creator_source_revisions import Revisions
 
@@ -126,7 +127,6 @@ def send_http(handler, store, identity, revision, entry=None):
 def attach(store, identity, request):
     """Snapshot the folder the author actually selects in the native picker."""
     from runteams_core.conversations.chat_attachments import choose_location
-    from runteams_core.authoring.creator_contracts import canonical
     if not isinstance(request, dict) or set(request) != {'owner', 'base_revision', 'operation_key'}:
         raise ValueError('请选择要添加素材的员工或智能体团队。')
     revisions = Revisions(store, identity)
@@ -155,6 +155,119 @@ def attach(store, identity, request):
         store.check_scope()
         return revisions.commit(updated, request['base_revision'], request['operation_key'], knowledge_stage=stage)
 
+
+
+def source_asset_reference(store, identity, files, owner):
+    from runteams_core.employees.employee_references import source_reference
+    from runteams_core.pipelines.pipeline_references import reference
+
+    store.check_scope()
+    entries = strict_json(files['project.json'])['entrypoints']
+    if owner in entries['employees']:
+        return source_reference(identity, owner)
+    if owner in entries.get('pipelines', []):
+        return reference(identity, owner)
+    raise PermissionError('请选择当前工程中的员工或智能体团队。')
+
+
+def _personal_bank(store, identity, files, owner):
+    from runteams_core.conversations.asset_memory import bank_for
+    from runteams_core.storage import device_data
+
+    if not device_data.personal():
+        raise PermissionError('请在个人工作区选择知识库资料。')
+    return bank_for(source_asset_reference(store, identity, files, owner))
+
+
+def _selectable_name(name):
+    try:
+        return '/' not in media.file_name(name)
+    except CreatorContractError:
+        return False
+
+
+def personal_choices(store, identity, owner, revision, offset=0):
+    from runteams_core.conversations.asset_sources import CATALOG_SIZE
+    from runteams_core.storage import device_data
+
+    if type(offset) is not int or offset < 0:
+        raise ValueError('资料列表位置无效。')
+    files = Revisions(store, identity).files_at(revision)
+    bank = _personal_bank(store, identity, files, owner)
+    with device_data.connect(readonly=True) as connection:
+        rows = connection.execute(
+            'SELECT id,name,length(original) FROM asset_sources WHERE bank=? '
+            'AND length(original) <= ? ORDER BY name,id', (bank, media.MAX_DATA))
+        eligible = [(sid, name, size) for sid, name, size in rows if _selectable_name(name)]
+        items = []
+        for sid, name, size in eligible[offset:offset + CATALOG_SIZE]:
+            with connection.blobopen('asset_sources', 'original', sid, readonly=True) as blob:
+                sha = media.copy_checked(blob, None, size)
+            items.append({'id': sid, 'name': name, 'size': size, 'sha256': sha})
+    store.check_scope()
+    end = offset + len(items)
+    return {'sources': items, 'total': len(eligible), 'next_offset': end if end < len(eligible) else None}
+
+
+@contextmanager
+def personal_snapshot(store, identity, files, owner, sources):
+    """Stage checked originals for the caller's source revision commit."""
+    from runteams_core.storage import device_data
+
+    bank = _personal_bank(store, identity, files, owner)
+    if not isinstance(sources, list) or len(sources) > media.MAX_FILES:
+        raise media.invalid('请选择有效的知识库资料。')
+    selected = {}
+    for row in sources:
+        if (not isinstance(row, dict) or set(row) != {'id', 'sha256'}
+                or type(row['id']) is not int or not 0 < row['id'] < 2**53
+                or row['id'] in selected or not isinstance(row['sha256'], str)
+                or not re.fullmatch('[a-f0-9]{64}', row['sha256'])):
+            raise media.invalid('请选择有效的知识库资料。')
+        selected[row['id']] = row['sha256']
+    if not selected:
+        yield files, None
+        return
+
+    root = store._directory(identity)
+    prior = require(root, files)
+    prior_objects = media.unique(prior)
+    previous = location(root, prior)
+    with tempfile.TemporaryDirectory(prefix='.personal-materials-', dir=store.root) as folder:
+        stage = Path(folder) / 'objects'
+        stage.mkdir(mode=0o700)
+        with device_data.connect(readonly=True) as connection:
+            combined = {r['path'].casefold(): r for r in prior.get(owner, [])}
+            additions = []
+            for sid, sha in selected.items():
+                row = connection.execute(
+                    'SELECT name,length(original) FROM asset_sources WHERE bank=? AND id=?',
+                    (bank, sid)).fetchone()
+                if row is None or not _selectable_name(row[0]):
+                    raise media.invalid('资料已不存在，请刷新后重新选择。')
+                name, size = row
+                record = {'path': name, 'size': size, 'sha256': sha}
+                existing = combined.get(name.casefold())
+                if existing and existing != record:
+                    raise media.invalid(f'发布包中已有同名资料“{name}”，请重命名后再添加。')
+                combined[name.casefold()] = record
+                additions.append((sid, sha, size))
+
+            mapping = {**prior, owner: sorted(combined.values(), key=lambda r: r['path'])}
+            updated = {**files, media.INDEX: canonical(mapping)}
+            media.index(updated)
+            media.unique(mapping)
+            for sid, sha, size in additions:
+                target = stage / sha
+                with connection.blobopen('asset_sources', 'original', sid, readonly=True) as blob:
+                    output = nullcontext() if sha in prior_objects or target.exists() else target.open('xb')
+                    with output as out:
+                        if media.copy_checked(blob, out, size) != sha:
+                            raise media.invalid('所选资料已更新，请刷新后重新选择。')
+
+        copy_objects(prior, {sha: previous for sha in prior_objects}, stage)
+        store.check_scope()
+        yield updated, stage
 
 def backup_knowledge(root, destination, files):
     mapping = require(root, files)

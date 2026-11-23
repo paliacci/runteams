@@ -129,6 +129,10 @@ def verified_pipeline_asset(value):
         if row['ref'] in by_ref: raise ContractError('智能体团队员工引用重复')
         by_ref[row['ref']] = verified_employee_asset(row['asset'])
     pipeline = value['pipeline']
+    from runteams_core.automation.automation_template_contract import FIELD, validate_templates
+    positions = {row['key'] for row in [*pipeline['positions'], *pipeline.get('states', [])]}
+    if any(row['start_column_key'] not in positions for row in validate_templates(value.get(FIELD, []), 'pipeline')):
+        raise ContractError('资产自动化模板引用了智能体团队未提供的起始岗位。')
     validate_pipeline_bindings(pipeline, {
         ref: [entry['package_key'] for entry in asset['employee']['skill_refs']]
         for ref, asset in by_ref.items()})

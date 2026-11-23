@@ -18,6 +18,8 @@ def selected_source(files, kind, entry, *, keep_project_key=False):
     pipelines = {entry} if pipeline is not None else set()
     from runteams_core.assets.knowledge_archive import INDEX, index
     materials = {k: v for k, v in index(files).items() if k in employees | pipelines}
+    from runteams_core.automation import automation_template_contract
+    templates = automation_template_contract.read(files, entry)
     unrelated = (set(entries['employees']) - employees) | (set(entries.get('pipelines', [])) - pipelines)
     if not keep_project_key:
         suffix = hashlib.sha256(f"{project['key']}:{kind}:{entry}".encode()).hexdigest()[:16]
@@ -85,4 +87,5 @@ def selected_source(files, kind, entry, *, keep_project_key=False):
     result.pop(INDEX, None)
     if materials:
         result[INDEX] = canonical(materials)
-    return result
+    result.pop(automation_template_contract.INDEX, None)
+    return automation_template_contract.put(result, entry, templates) if templates else result

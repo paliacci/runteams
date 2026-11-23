@@ -1696,6 +1696,90 @@
       ],
       "additionalProperties": false
     },
+    "automation_template": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "objective",
+        "schedule_kind",
+        "interval_sec",
+        "schedule"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "objective": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 20000
+        },
+        "schedule_kind": {
+          "enum": [
+            "interval",
+            "daily",
+            "weekly"
+          ]
+        },
+        "interval_sec": {
+          "type": "integer",
+          "minimum": 60,
+          "maximum": 2592000
+        },
+        "schedule": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "timezone"
+          ],
+          "properties": {
+            "timezone": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "time": {
+              "type": "string",
+              "pattern": "^(?:[01][0-9]|2[0-3]):[0-5][0-9]$"
+            },
+            "weekdays": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 7,
+              "uniqueItems": true,
+              "items": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 6
+              }
+            }
+          }
+        },
+        "skill_key": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,79}$"
+        },
+        "start_column_key": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,79}$"
+        }
+      }
+    },
+    "automation_templates": {
+      "type": "array",
+      "maxItems": 30,
+      "items": {
+        "$ref": "#/$defs/automation_template"
+      }
+    },
     "marketplace_employee_asset": {
       "type": "object",
       "properties": {
@@ -1712,6 +1796,9 @@
           },
           "minItems": 1,
           "maxItems": 64
+        },
+        "automation_templates": {
+          "$ref": "#/$defs/automation_templates"
         },
         "workspace_background": {
           "$ref": "#/$defs/workspace_background_attachment"

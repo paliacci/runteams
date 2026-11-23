@@ -28,7 +28,7 @@ def compiler_identity():
     return {'contracts': contract_catalog()['digest'], 'implementation': {
         name: hashlib.sha256((root / name).read_bytes()).hexdigest() for name in
         ('authoring/creator_definitions.py', 'authoring/creator_contracts.py', 'authoring/creator_schema_validation.py', 'authoring/definition_contracts.py', 'authoring/creator_conversation_assets.py',
-         'assets/skills/skill_packages.py', 'assets/skills/skill_provenance.py', 'assets/skills/skill_icons.py', 'assets/workspace_background.py', 'agents/capability_runtime.py', 'configuration/configuration_schema.py', 'configuration/asset_onboarding.py', 'employees/portable_employee.py', 'assets/skills/skill_metadata.py', 'assets/skills/skill_bundles.py', 'assets/collections/collection_schema.py', 'pipelines/portable_pipeline.py', 'pipelines/pipeline_avatars.py', 'authoring/compilation/creator_mcp_source.py', 'employees/mcp/employee_mcp_package.py', 'employees/employee_avatars.py', 'pipelines/pipeline_dependency_contracts.py', 'pipelines/pipeline_closure_contracts.py', 'foundation/identity/resource_ids.py')}}
+         'assets/skills/skill_packages.py', 'assets/skills/skill_provenance.py', 'assets/skills/skill_icons.py', 'assets/workspace_background.py', 'automation/automation_template_contract.py', 'agents/capability_runtime.py', 'configuration/configuration_schema.py', 'configuration/asset_onboarding.py', 'employees/portable_employee.py', 'assets/skills/skill_metadata.py', 'assets/skills/skill_bundles.py', 'assets/collections/collection_schema.py', 'pipelines/portable_pipeline.py', 'pipelines/pipeline_avatars.py', 'authoring/compilation/creator_mcp_source.py', 'employees/mcp/employee_mcp_package.py', 'employees/employee_avatars.py', 'pipelines/pipeline_dependency_contracts.py', 'pipelines/pipeline_closure_contracts.py', 'foundation/identity/resource_ids.py')}}
 
 
 def author_schema(kind, *, version='3'):
@@ -110,6 +110,8 @@ def validate_author(kind, value):
 def compile_definitions(files, compiled, *, require=False):
     """Freeze the current complete sources without runtime or machine authority."""
     from runteams_core.authoring.compilation.creator_mcp_source import definition_files, pipeline_programs
+    from runteams_core.automation.automation_template_contract import FIELD, index
+    templates = index(files)
     programs=pipeline_programs(files,compiled)
     files=definition_files(files,compiled)
     from runteams_core.employees.portable_employee import verify as verified_employee_asset
@@ -158,6 +160,7 @@ def compile_definitions(files, compiled, *, require=False):
             asset = verified_employee_asset({'schema': 'runteams.marketplace-employee/v2',
                 **({'avatar_file':picture} if picture else {}),
                 **workspace_background.source_fields(employee, files),
+                **({FIELD: templates[source_path]} if source_path in templates else {}),
                 'employee': {k: copy.deepcopy(employee[k]) for k in ('name', 'avatar')} |
                     {'runtime_requirement': copy.deepcopy(employee.get('runtime_requirement', {}))} |
                     {'soul': soul, 'skill_refs': [{'package_key': b['package_key'], 'digest': b['digest']} for b in bundles]} |
@@ -176,9 +179,11 @@ def compile_definitions(files, compiled, *, require=False):
             pipeline_keys.add(pipeline['key'])
         result_pipelines[path] = verified_pipeline_asset({'schema': 'runteams.marketplace-pipeline/v2',
             'pipeline': pipeline['pipeline'], 'employees': [
-                {'ref': row['ref'], 'asset': employees[row['source']]} for row in pipeline['employees']],
+                {'ref': row['ref'], 'asset': {key: value for key, value in employees[row['source']].items()
+                    if key != FIELD}} for row in pipeline['employees']],
             **source_fields(pipeline, files),
             **workspace_background.source_fields(pipeline, files),
+            **({FIELD: templates[path]} if path in templates else {}),
             **({'configuration':copy.deepcopy(pipeline['configuration'])} if 'configuration' in pipeline else {}),
             **({'program_bundles':programs[path]} if path in programs else {})})
     return {'schema': 'runteams.creator-definitions/1', 'source_sha256': compiled['source']['sha256'],

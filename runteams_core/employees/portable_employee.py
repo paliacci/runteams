@@ -11,6 +11,11 @@ def verify(value):
     asset = validate_definition("marketplace_employee_asset", value)
     from runteams_core.assets.workspace_background import image_src
     image_src(asset)
+    from runteams_core.automation.automation_template_contract import FIELD, validate_templates
+    keys = {row['package_key'] for row in asset['employee']['skill_refs']}
+    if any('skill_key' in row and row['skill_key'] not in keys
+           for row in validate_templates(asset.get(FIELD, []), 'employee')):
+        raise ContractError('资产自动化模板引用了员工未提供的技能。')
     if 'configuration' in asset['employee']:
         from runteams_core.configuration.configuration_schema import validate_declaration
         try:

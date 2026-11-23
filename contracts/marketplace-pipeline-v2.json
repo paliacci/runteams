@@ -593,6 +593,9 @@
     "avatar_file": {
       "$ref": "urn:runteams:product-model:v2#/$defs/marketplace_employee_asset/properties/avatar_file"
     },
+    "automation_templates": {
+      "$ref": "urn:runteams:product-model:v2#/$defs/automation_templates"
+    },
     "workspace_background": {
       "$ref": "urn:runteams:product-model:v2#/$defs/workspace_background_attachment"
     },
