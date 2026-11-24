@@ -98,6 +98,9 @@ class CapabilityMenuTests(unittest.TestCase):
             capabilities._tools_cli_plugin_labels(channel, data)
             self.assertEqual(data["installed"][0], {**row, "displayName": "Writer One"})
             self.assertEqual(available, row)
+            moved = {**row, "version": "retired"}
+            capabilities._tools_cli_plugin_labels(channel, [moved])
+            self.assertEqual(moved, {**row, "version": "retired", "displayName": "Writer One"})
             manifest("2", "Writer Two")
             for version, label in [(None, None), ("2", "Writer Two"), ("../2", None), ("unknown", None)]:
                 item = {**row, "version": version}

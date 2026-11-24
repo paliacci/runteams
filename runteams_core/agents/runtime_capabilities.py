@@ -149,9 +149,10 @@ def _tools_cli_plugin_labels(channel, data):
             continue
         directory = cache / market / name
         try:
-            if version:
-                manifest = directory / version / ".codex-plugin" / "plugin.json"
-            else:
+            manifest = directory / version / ".codex-plugin" / "plugin.json" if version else None
+            if manifest is None or not manifest.is_file():
+                # Remote catalog and materialization can advance separately.
+                # A single manifest for the same installed ID can supply its label.
                 matches = list(directory.glob("*/.codex-plugin/plugin.json"))
                 if len(matches) != 1:
                     continue
