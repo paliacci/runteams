@@ -29,7 +29,7 @@ globalThis.RunTeamsLocale?.onChange(({language,previousLanguage})=>{
   if(language===previousLanguage)return;
   for(const button of document.querySelectorAll('button[data-work-example]')){
     const {title,prompt}=conversationWorkExampleText(JSON.parse(button.dataset.workExample));
-    const label=button.querySelector('.conversation-new-action-heading b')||button;
+    const label=button.querySelector('[data-work-example-label]')||button;
     label.textContent=title;
     const preview=button.querySelector('.conversation-new-action-description');
     if(preview)preview.textContent=workExamplePreview(prompt);
@@ -117,7 +117,7 @@ function conversationExampleIcon(icon){
 /* module-function:conversationNewAction */
 function conversationNewAction(label,action,icon,description,id,copy={}){
   const tooltipId=description?`conversation_starter_${id}`:'';
-  const heading=`<span class="conversation-new-action-heading"><span class="conversation-new-action-icon" aria-hidden="true">${ICON(icon)}</span><b${copy.title?` data-app-i18n="${esc(copy.title)}"`:''}>${esc(label)}</b></span>`;
+  const heading=`<span class="conversation-new-action-heading"><span class="conversation-new-action-icon" aria-hidden="true">${ICON(icon)}</span><b${copy.workExample?' data-work-example-label':''}${copy.title?` data-app-i18n="${esc(copy.title)}"`:''}>${esc(label)}</b></span>`;
   const tooltip=description?`<span class="conversation-new-action-description" id="${tooltipId}" role="tooltip"${copy.detail?` data-app-i18n="${esc(copy.detail)}"`:''}>${esc(description)}</span>`:'';
   return `<button type="button" class="conversation-new-action" onclick="${esc(action)}"${copy.workExample?conversationWorkExampleAttribute(copy.workExample):''}${tooltipId?` aria-describedby="${tooltipId}"`:''}>${heading}${tooltip}</button>`;
 }
@@ -1747,6 +1747,7 @@ function conversationPanelFromSession(session,options={}){
     const source=session.employee?.source;
     if(source?.id&&source.id===context.creator_local_source_id&&
        (!context.creator_employee_source||source.path===context.creator_employee_source)){
+      RunTeamsEmployeeDirectory.rememberSessionEntry(panel,session.employee);
       panel.authoringEmployeeReference=source.reference;
       panel.authoringCapabilities=source.capabilities;
     }

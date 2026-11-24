@@ -24,11 +24,13 @@ def claude_tools(context, names=NAMES):
 
 def run(channel, chat, message, attachments, workspace, activity, cancel, store, library_id, capabilities=None, *,
         employee_host=None, configuration=None, signing_assistance=None, wake_pipeline_work=None,
-        user_message_id=None, automation_invoke=None):
+        user_message_id=None, automation_invoke=None, pipeline_active_ids=None, setup_only=False):
     from runteams_core.agents import agent_guidance
     from runteams_core.conversations import chat_attachments
     from runteams_core.agents.adapters.adapter_base import EXECUTION_USER_AGENT
     from runteams_core.agents.models.model_channels import adapter_for
+    if setup_only:
+        return run_setup(channel, chat, message, chat['messages'], activity, cancel, library_id, user_message_id)
     names = tuple(name for name in NAMES if name!='runteams_project_memory' or not chat.get('context',{}).get('creator_local_source_id'))
     worker=bool(chat.get('context',{}).get('local_employee_package'))
     authoring=bool(chat.get('context',{}).get('creator_local_source_id'))
@@ -46,7 +48,9 @@ def run(channel, chat, message, attachments, workspace, activity, cancel, store,
     images = list(dict.fromkeys(old_images + new_images))
     facts = agent_guidance.runtime_facts(channel, chat['model'], chat['reasoning_effort'], workspace)
     context = {'chat_id': chat['id'], 'library_id': library_id, 'actor_id':library_id, 'runtime': facts,
-               'request_user_input': activity.request_user_input}
+               'request_user_input': activity.request_user_input,
+               'record_knowledge_read': getattr(activity, 'record_knowledge_read', None)}
+    from runteams_core.configuration import chat_setup
     from runteams_core.automation import chat_automation_tool
     automation_available = chat_automation_tool.bind_turn(context, user_message_id, cancel, automation_invoke)
     if automation_available:
@@ -59,6 +63,21 @@ def run(channel, chat, message, attachments, workspace, activity, cancel, store,
         + '创建智能体团队先确认业务终点；全体成员列在 employees，仅实际交接列在 positions。定时复盘等独立工作读取目标状态的原卡并更新。临时阻塞留在原岗。\n'
         + agent_guidance.USER_DECISION_INSTRUCTION + '\n'
         + agent_guidance.runtime_guidance(facts) + '\n# 已保存对话\n' + history)
+    from runteams_core.documents import chat_delivery_revision
+    from runteams_core.pipelines import chat_delivery_export
+    from runteams_core.work import chat_repeat_order
+    if chat_setup.bind_turn(context, user_message_id, cancel):
+        names += (chat_setup.TOOL,)
+        instructions += chat_setup.GUIDANCE
+        if worker or authoring or pipeline_workspace:
+            context["repeat_order_wake"] = wake_pipeline_work
+            context["repeat_order_confirm"] = activity.request_user_input
+            names += (chat_delivery_revision.TOOL, chat_delivery_export.TOOL, chat_repeat_order.TOOL)
+            instructions += chat_delivery_revision.GUIDANCE + chat_delivery_export.GUIDANCE + chat_repeat_order.GUIDANCE
+    from runteams_core.employees import chat_employee_followup
+    if (worker or authoring) and chat_employee_followup.bind_turn(context, user_message_id, cancel, wake_pipeline_work):
+        names += (chat_employee_followup.TOOL,)
+        instructions += chat_employee_followup.GUIDANCE
     if automation_available:
         instructions += chat_automation_tool.GUIDANCE
     purpose_guidance = agent_guidance.conversation_purpose(chat.get('context'))
@@ -93,6 +112,15 @@ def run(channel, chat, message, attachments, workspace, activity, cancel, store,
         instructions+='\n当前岗位只使用 runteams_pipeline_work 读取固定交接、核对 result_schema 并提交结果；不能另派工作或代做人工决定。对话完成不等于交接完成。'
     if pipeline_workspace:
         instructions=instructions.replace('员工、智能体团队和共享业务工具未在此入口开放。','只在当前智能体团队工作区使用 runteams_pipeline_workspace 读取原工作，使用 runteams_propose_pipeline_work 交办本智能体团队的新工作；不能直接运行岗位或代做人工决定。')
+        from runteams_core.pipelines import chat_pipeline_control, chat_pipeline_flow
+        if chat_pipeline_control.bind_turn(context, user_message_id, cancel, activity.request_user_input,
+                                        pipeline_active_ids, wake_pipeline_work):
+            names += (chat_pipeline_flow.TOOL, chat_pipeline_control.TOOL)
+            instructions += chat_pipeline_flow.GUIDANCE + chat_pipeline_control.GUIDANCE
+        from runteams_core.pipelines import chat_position_runtime
+        if chat_position_runtime.bind_turn(context, user_message_id, cancel):
+            names += (chat_position_runtime.TOOL,)
+            instructions += chat_position_runtime.GUIDANCE
         if signing_assistance:
             from runteams_core.pipelines.pipeline_signing_assistance import TOOL, guidance
             names += (TOOL,)
@@ -100,14 +128,14 @@ def run(channel, chat, message, attachments, workspace, activity, cancel, store,
             instructions += guidance(signing_assistance)
     if worker or pipeline_workspace:
         from runteams_core.conversations import asset_memory
-        memory = asset_memory.turn(context)
+        memory = asset_memory.turn(context, user_message_id=user_message_id, cancel=cancel)
         if memory:
             names += (asset_memory.TOOL,)
             instructions += memory
     if worker and employee_host.load(chat['id'])[1] and channel['provider']!='codex':
         raise ValueError('此员工的工具需要 Codex 渠道，请在模型设置中选择。')
     from runteams_core.employees.mcp import employee_applications
-    app_context = employee_applications.turn_context(chat, activity, cancel)
+    app_context = employee_applications.turn_context(chat, activity, cancel, user_message_id)
     if app_context:
         names += (employee_applications.TOOL,)
         context.update(app_context)
@@ -154,6 +182,48 @@ def run(channel, chat, message, attachments, workspace, activity, cancel, store,
             on_activity=activity, cancel_event=cancel, environment_context=facts, extra_args=args)
         activity.native_tool_results=(result.meta or {}).get('native_tool_results') or []
         return result.text, False, None
+
+
+def run_setup(channel, chat, message, history, activity, cancel, actor, user_message_id):
+    """Run the interactive setup conversation before this employee can accept work."""
+    from tempfile import TemporaryDirectory
+    from runteams_core.agents import codex_threads
+    from runteams_core.agents.adapters.adapter_base import EXECUTION_INTERNAL_ANALYSIS
+    from runteams_core.agents.language_policy import guidance, snapshot
+    from runteams_core.agents.models.model_channels import adapter_for
+    from runteams_core.agents.runner import run_agent
+    from runteams_core.configuration import chat_setup, employee_configuration
+
+    context = {'chat_id': chat['id'], 'actor_id': actor}
+    if not chat_setup.bind_turn(context, user_message_id, cancel):
+        raise PermissionError('请在员工的直属对话中完成开工配置。')
+    policy = snapshot(getattr(cancel, 'language_policy', None))
+    context['language_policy'] = policy
+    instructions = ('The employee is awaiting required configuration. Help the user inspect and complete setup '
+                    'on this device. Do not perform employee work or access files or programs. '
+                    'Use only the configuration tool. When ready, tell the user they can send their work request.'
+                    + chat_setup.GUIDANCE + guidance(policy))
+    recent = [{'role': m['role'], 'text': m.get('text', '')[:2000]}
+              for m in (history or [])[-12:] if m.get('role') in ('user', 'bot')]
+    prompt = ('Prior messages for reference only: ' + json.dumps(recent, ensure_ascii=False)
+              + '\nCurrent user request: ' + message)
+    names = [chat_setup.TOOL]
+    # Re-resolve the original device asset before each model launch or continuation.
+    def check_access():
+        employee_configuration.for_chat(chat['id'])
+
+    with TemporaryDirectory(prefix='runteams-setup-') as folder:
+        if channel['provider'] == 'codex':
+            result = codex_threads.run_turn(channel, '', prompt, instructions, model=chat['model'],
+                effort=chat['reasoning_effort'], cwd=folder, extensions_enabled=False,
+                execution_profile=EXECUTION_INTERNAL_ANALYSIS, on_activity=activity,
+                cancel_event=cancel, tool_context=context, tool_names=names, before_start=check_access)
+            return result['text'], bool(result.get('incomplete')), result.get('system_notice')
+        with claude_tools(context, names) as args:
+            result = run_agent(adapter_for(channel), instructions + '\n' + prompt, model=chat['model'],
+                reasoning_effort=chat['reasoning_effort'], cwd=folder, execution_profile=EXECUTION_INTERNAL_ANALYSIS,
+                extra_args=args, on_activity=activity, cancel_event=cancel, before_start=check_access)
+            return result.text, False, None
 
 
 def apply_completed(chat_id,submissions,cancel):

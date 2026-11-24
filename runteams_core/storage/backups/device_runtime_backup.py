@@ -9,7 +9,7 @@ def verify(connection):
     from runteams_core.storage.device_data import SCHEMA_VERSION, schema
     from runteams_core.storage.device_schema import verify as verify_schema
     version = connection.execute('PRAGMA user_version').fetchone()[0]
-    if version not in (5, 6, SCHEMA_VERSION):
+    if version not in (5, 6, 7, SCHEMA_VERSION):
         raise ValueError('备份本机数据版本不受支持。')
     verify_schema(connection,schema(version))
     rows = connection.execute('SELECT r.chat_id,r.generation,r.provider,r.thread_id,c.runtime_generation,c.runtime_provider,i.chat_id '

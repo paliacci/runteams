@@ -4,6 +4,7 @@ A source digest identifies bytes, never ownership of a platform employee. Import
 does not replace an existing project or confer third-party source permissions.
 The loopback handler supplies its captured account scope and isolated checker.
 """
+from contextlib import contextmanager
 import errno
 import hashlib
 import os
@@ -54,15 +55,11 @@ def _sync(path):
         os.close(fd)
 
 
-class LocalSources:
-    def __init__(self, root, check_scope=lambda: None):
-        self.root = Path(root)
+class _SourceReader:
+    """File operations rooted in one library, without source write methods."""
+    def __init__(self, root, check_scope):
+        self.root = root
         self.check_scope = check_scope
-        self.check_scope()
-        if any(p.is_symlink() for p in (self.root, *self.root.parents)):
-            raise ValueError('本机源码目录无效。')
-        self.root.mkdir(mode=0o700, parents=True, exist_ok=True)
-        self.root.chmod(0o700)
 
     def _directory(self, identity):
         path = self.root / _hash(identity)
@@ -105,11 +102,14 @@ class LocalSources:
         # Integrity is rechecked before parsing. No archive paths are extracted.
         return inspect(self.archive(identity))
 
-    def list(self, after=None):
+    def identities(self):
         self.check_scope()
+        return sorted(p.name for p in self.root.iterdir() if HASH.fullmatch(p.name))
+
+    def list(self, after=None):
         if after is not None:
             _hash(after)
-        keys = sorted(p.name for p in self.root.iterdir() if HASH.fullmatch(p.name))
+        keys = self.identities()
         keys = [k for k in keys if after is None or k > after]
         items = []
         for key in keys[:50]:
@@ -118,6 +118,43 @@ class LocalSources:
             items.append({k: item[k] for k in ('id', 'project', 'created_at')})
         self.check_scope()
         return {'items': items, 'next_cursor': keys[49] if len(keys) > 50 else None}
+
+class LocalSources(_SourceReader):
+    def __init__(self, root, check_scope=lambda: None, *, display_scope=None):
+        self.display_scope = display_scope
+        super().__init__(Path(root), check_scope)
+        self.check_scope()
+        if any(p.is_symlink() for p in (self.root, *self.root.parents)):
+            raise ValueError('本机源码目录无效。')
+        self.root.mkdir(mode=0o700, parents=True, exist_ok=True)
+        self.root.chmod(0o700)
+
+    @contextmanager
+    def reading_project(self):
+        """Collect one project's display data; verify live scope before releasing it."""
+        self.check_scope()
+        opened = True
+
+        def check_open():
+            if not opened:
+                raise RuntimeError('源码读取已结束。')
+
+        try:
+            yield _SourceReader(self.root, check_open)
+        finally:
+            opened = False
+            self.check_scope()
+
+    def index_saved_project(self, identity):
+        if self.display_scope is None:
+            return
+        from runteams_core.pipelines.source_pipeline_workspace import index_saved_project
+        try:
+            index_saved_project(self, self.display_scope, identity)
+        except (ValueError, OSError, RuntimeError):
+            # A saved draft can be incomplete. Listing it will retry and report
+            # the live error; its durable save does not depend on a display index.
+            pass
 
     def save(self, raw, expected, checker, *, knowledge_stage=None):
         self.check_scope()
@@ -169,6 +206,7 @@ class LocalSources:
                 if error.errno not in (errno.EEXIST, errno.ENOTEMPTY):
                     raise
             _sync(self.root)
+            self.index_saved_project(expected)
             return self.describe(expected)
         finally:
             if staging.exists():
@@ -182,7 +220,7 @@ def current_store(expected_scope):
         raise PermissionError('账户已变化，请重新打开作品文件。')
     if scope.get('organization_id'):
         raise PermissionError('请切换到个人空间，再导入本机源码。')
-    return LocalSources(device_data.root() / 'creator-sources', lambda: device_data.check(scope))
+    return LocalSources(device_data.root() / 'creator-sources', lambda: device_data.check(scope), display_scope=scope)
 
 
 def snapshot(source, destination, _scope, check):

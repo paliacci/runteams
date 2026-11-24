@@ -90,6 +90,25 @@ def _consume(core_root, task_id, tokens):
     return result
 
 
+def copy_chat_attachment(core_root, task_id, chat_id, item, *, operation_id):
+    """Pin an accepted chat upload to the task before the next visit can run."""
+    from runteams_core.assets.cloud_files import decode_tree, materialize_tree
+    from runteams_core.conversations import chat_attachments
+
+    storage = _device_storage(core_root)
+    if storage is None or item.get('kind') not in ('file', 'image', 'folder'):
+        raise ValueError('请使用当前设备对话中上传的任务资料。')
+    from uuid import UUID, uuid5
+    identifier = uuid5(UUID(operation_id), item['id']).hex[:24]
+    body = chat_attachments.snapshot_tree(chat_id, item)
+    target = task_root(core_root, task_id) / identifier
+    materialize_tree(decode_tree(body), target)
+    sha = hashlib.sha256(body).hexdigest()
+    storage.check_scope()
+    return {**{key: item[key] for key in PUBLIC_KEYS if key in item and key not in ('id', 'ref')},
+            'id': identifier, 'ref': f'device-input://{task_id}/{identifier}/{sha}'}
+
+
 def discard_task(core_root, task_id):
     root = Path(core_root).resolve()
     target = (root / "task-inputs" / "task-{}".format(int(task_id))).resolve()

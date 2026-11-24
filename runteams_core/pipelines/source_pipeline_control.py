@@ -8,6 +8,7 @@ from runteams_core.assets import rented_references
 from runteams_core.pipelines import pipeline_references
 import copy
 import json
+import re
 import time
 import uuid
 from contextlib import nullcontext
@@ -47,10 +48,11 @@ def _write(core, connection, state):
 
 
 def _rows(connection, ref):
-    return connection.execute("SELECT w.*,t.payload_json,t.trashed_at FROM workflow_runs w JOIN tasks t ON t.id=w.task_id "
+    rows = connection.execute("SELECT w.*,t.title AS task_title,t.payload_json,t.trashed_at FROM workflow_runs w JOIN tasks t ON t.id=w.task_id "
         "WHERE t.trashed_at IS NULL AND json_extract(w.snapshot_json,'$.pipeline_work.reference.source_id')=? "
         "AND json_extract(w.snapshot_json,'$.pipeline_work.reference.pipeline_source')=? ORDER BY w.id",
         (ref['source_id'], ref['pipeline_source'])).fetchall()
+    return [row for row in rows if json.loads(row['snapshot_json'])['pipeline_work']['reference'] == ref]
 
 
 def _live(rows, active_ids=()):
@@ -306,7 +308,8 @@ def settle_pause(core, ref):
 def _request(data):
     if not isinstance(data, dict) or set(data) not in (
             {'operation_id', 'reference', 'action', 'expected_revision'},
-            {'operation_id', 'reference', 'action', 'expected_revision', 'source_revision'}):
+            {'operation_id', 'reference', 'action', 'expected_revision', 'source_revision'},
+            {'operation_id', 'reference', 'action', 'expected_revision', 'source_revision', 'expected_impact'}):
         raise ContractError('智能体团队控制参数无效。')
     try:
         key = str(uuid.UUID(data['operation_id']))
@@ -316,6 +319,9 @@ def _request(data):
         raise ContractError('原操作编号或运行版本无效。')
     if data['action'] not in ('pause', 'update', 'start') or (data['action'] == 'update') != ('source_revision' in data):
         raise ContractError('请选择暂停、应用更新或启动；更新必须指定已保存源码版本。')
+    if 'expected_impact' in data:
+        if not isinstance(data['expected_impact'], str) or not re.fullmatch('[a-f0-9]{64}', data['expected_impact']):
+            raise ContractError('请先重新检查这次更新对在途工作的影响。')
     return key, {**copy.deepcopy({k: v for k, v in data.items() if k != 'operation_id'}),
         'reference': pipeline_references.checked_reference(data['reference'])}
 
@@ -382,7 +388,9 @@ def _updated(core, row, bundle, previous):
     frozen = work.stage_snapshot(role['package'], role['context'], role['configuration'])
     from runteams_core.pipelines.source_pipeline_flow import archive, _lineage
     frozen.update(pipeline_visit=previous['pipeline_visit']+1,
-        **{k:copy.deepcopy(previous[k]) for k in ('pipeline_input','pipeline_lineage','pipeline_feedback','pipeline_response','pipeline_waiting','pipeline_card_pause') if k in previous})
+        **{k:copy.deepcopy(previous[k]) for k in ('pipeline_input','initial_pipeline_input','queued_pipeline_input','rerun','pipeline_lineage','pipeline_feedback',
+                                                'pipeline_response','pipeline_waiting','pipeline_card_pause','repeat_order',
+                                                'schedule_origin','manual_order') if k in previous})
     frozen['pipeline_history'] = archive(previous)
     if material_wait:
         frozen['pipeline_waiting'] = material_wait
@@ -438,6 +446,15 @@ def _retired_position(bundle, frozen):
         and (frozen.get('pipeline_waiting') or {}).get('kind') != 'approval')
 
 
+def impact_fingerprint(saved, rows, source_revision):
+    return digest({
+        'reference': saved['reference'], 'revision': saved['revision'],
+        'source_revision': source_revision,
+        'in_flight': [{key: row[key] for key in ('id', 'state', 'cursor_key', 'snapshot_json', 'payload_json')}
+                      for row in rows if row['state'] not in TERMINAL and not row['trashed_at']],
+    })
+
+
 def command(core, data, active_ids=()):
     core._actor(); key, request = _request(data); ref = request['reference']; action = request['action']
     with core.repository.read_snapshot() as connection:
@@ -458,6 +475,11 @@ def command(core, data, active_ids=()):
                 raise ContractError('请先暂停智能体团队，并等待岗位执行确实结束后再更新或启动。')
             raise ContractError('智能体团队运行状态已变化，请重新核对。')
         if action == 'update':
+            if 'expected_impact' in request:
+                with core.repository.read_snapshot() as connection:
+                    saved = read(core, ref, connection)
+                    if request['expected_impact'] != impact_fingerprint(saved, _rows(connection, ref), request['source_revision']):
+                        raise ContractError('在途工作已变化，请重新检查更新影响并确认。')
             candidate = prepare_bundle(ref, key, request['source_revision'])
         else:
             saved=read(core,ref);bundle=saved['bundle']
@@ -498,6 +520,9 @@ def command(core, data, active_ids=()):
                 if action == 'update':
                     if revisions._head() != candidate['revision']:
                         raise ContractError('源码在准备期间已有更新，请核对原版本。')
+                    if ('expected_impact' in request and request['expected_impact'] !=
+                            impact_fingerprint(saved, rows, candidate['revision'])):
+                        raise ContractError('在途工作已变化，请重新检查更新影响并确认。')
                     candidate['generation'] = (saved['bundle']['generation'] if saved['bundle'] else 0) + 1
                     policy = candidate['asset']['pipeline'].get('routing_policy')
                     changes = []

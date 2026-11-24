@@ -25,6 +25,20 @@ def _candidate(identity, attempt):
     return ''.join(characters)
 
 
+def lookup(directory, public_id):
+    """Look up an existing public ID without allocating or modifying an identity."""
+    path = directory / DATABASE
+    if path.is_symlink():
+        raise ValueError('资料库页面索引路径无效。')
+    if not path.exists():
+        return None
+    with closing(sqlite3.connect(path.as_uri() + '?mode=ro', uri=True, timeout=30)) as database:
+        if not database.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='page_ids'").fetchone():
+            return None
+        row = database.execute('SELECT identity FROM page_ids WHERE public_id=?', (public_id,)).fetchone()
+    return row[0] if row else None
+
+
 def resolve(directory, identities):
     keys = sorted(set(identities))
     if not keys:

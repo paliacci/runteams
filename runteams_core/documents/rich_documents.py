@@ -150,7 +150,7 @@ def narrative(value):
 
 
 def write(core, *, name, document, document_id=None, base_revision=0, document_key=None, author='human', data_view=None, note='',
-          task_report=None, connection=None, attachments=None):
+          task_report=None, connection=None, attachments=None, force_new=False):
     title = str(name or '').strip()
     if not title or len(title)>200: raise ContractError('请填写文档名称，最多200个字。')
     if type(base_revision) is not int or base_revision < 0: raise ContractError('请先读取当前文档再保存。')
@@ -205,7 +205,9 @@ def write(core, *, name, document, document_id=None, base_revision=0, document_k
         if base_revision != revision and not identical:
             return {'ok': False, 'conflict': True, 'current_revision': revision,
                     'error': '文档已被更新。请先导出本页修改，再重新打开核对，避免覆盖他人的内容。'}
-        if identical: return core.document_detail(current['id'], include_content=False)
+        if identical and not force_new: return core.document_detail(current['id'], include_content=False)
+        if force_new and base_revision != revision:
+            raise ContractError('文档已被更新，请重新读取版本后再恢复。')
         key = meta.get('document_key') or _normalize_agent_document_key(document_key or uuid.uuid4().hex, title)
         destination = core._agent_document_path(key, digest).with_suffix('.json')
         if not destination.exists(): destination.write_bytes(body)

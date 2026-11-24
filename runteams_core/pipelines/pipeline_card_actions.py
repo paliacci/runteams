@@ -25,6 +25,102 @@ def capabilities(row, frozen, active_ids=()):
             'visit': frozen['pipeline_visit']}
 
 
+def queued_fields(frozen):
+    return [field for field in frozen['pipeline_work']['asset']['pipeline'].get('parameters', [])
+            if field.get('source') == 'user' and field.get('display', 'input') == 'input'
+            and field['type'] != 'secret']
+
+
+def queued_safe(row, frozen, active_ids=()):
+    return (not row['trashed_at']
+            and not any(frozen.get(key) for key in ('send_admitted', 'pipeline_unresolved',
+                                                    'pipeline_result_correction', 'pipeline_setup_required'))
+            and capabilities(row, frozen, active_ids)['edit'])
+
+
+def queued_editable(connection, row, frozen, active_ids=()):
+    # A new ready visit may no longer carry the completed visit's sent marker.
+    return (frozen['pipeline_visit'] == 1 and queued_safe(row, frozen, active_ids)
+            and connection.execute('SELECT 1 FROM employee_runs WHERE workflow_run_id=? LIMIT 1',
+                                   (row['id'],)).fetchone() is None)
+
+
+def _queued_inputs(row, frozen):
+    # The regular attachment settings may append to the live task payload.
+    return json.loads(row['payload_json']).get('inputs', frozen['pipeline_input'].get('inputs') or [])
+
+
+def queued_attachments(row, frozen):
+    from runteams_core.work.task_inputs import LOCAL_INPUT_REF
+
+    for item in _queued_inputs(row, frozen):
+        reference = LOCAL_INPUT_REF.fullmatch(str(item.get('ref') or ''))
+        if (item.get('kind') in ('file', 'image', 'folder') and not item.get('asset_grant_id')
+                and reference and int(reference[1]) == row['task_id'] and reference[2] == item.get('id')):
+            yield item
+
+
+def _replace_queued_attachments(row, frozen, replacements, copy_material):
+    if not callable(copy_material):
+        raise PermissionError('只能使用本轮对话中用户上传的附件。')
+    allowed = list(queued_attachments(row, frozen))
+    ids = {item['input_id'] for item in replacements}
+    selected = [item for item in allowed if item['id'] in ids]
+    if set(item['id'] for item in selected) != ids or len(selected) != len(ids):
+        raise ContractError('既有附件已变化，或不是可以替换的本机附件。')
+    copied = {item['input_id']: copy_material(row['task_id'], item['attachment_id']) for item in replacements}
+    old_inputs = _queued_inputs(row, frozen)
+    edited = [copied.get(item.get('id'), item) for item in old_inputs]
+    audit = [{'before': item, 'after': copied[item['id']]} for item in selected]
+    return edited, audit
+
+
+def _edit_queued(core, connection, row, frozen, request, active_ids, copy_material):
+    from runteams_core.pipelines import source_pipeline_flow as flow
+    from runteams_core.pipelines.pipeline_task_configuration import validate_values
+
+    pause = frozen.get('pipeline_card_pause') or {}
+    if (row['state'] != 'paused' or pause.get('previous_state') not in ('ready', 'waiting_retry')
+            or not queued_editable(connection, row, frozen, active_ids)):
+        raise ContractError('请先暂缓尚未开始的原任务，再修改目标或输入。')
+    allowed = queued_fields(frozen)
+    keys = {field['key'] for field in allowed}
+    updates = request.get('parameters', {})
+    if set(updates) - keys:
+        raise ContractError('只能修改已声明的普通用户输入。')
+    payload = frozen['pipeline_input']
+    old_values = payload.get('parameters', {})
+    new_values = {**old_values, **updates}
+    validate_values(allowed, {key: value for key, value in new_values.items() if key in keys})
+    old_objective = payload['objective']
+    objective = request.get('objective', old_objective)
+    replacements = request.get('replace_attachments', [])
+    if objective == old_objective and new_values == old_values and not replacements:
+        raise ContractError('任务目标和输入均没有变化。')
+    frozen.setdefault('initial_pipeline_input', copy.deepcopy(payload))
+    attachment_changes = []
+    if replacements:
+        payload['inputs'], attachment_changes = _replace_queued_attachments(row, frozen, replacements, copy_material)
+    elif 'inputs' in json.loads(row['payload_json']):
+        payload['inputs'] = _queued_inputs(row, frozen)
+    payload.update(objective=objective, parameters=new_values)
+    frozen['queued_pipeline_input'] = copy.deepcopy(payload)
+    role = {'context': frozen['pipeline_work'], 'package': frozen['package']}
+    projected = flow.payload_for(core, connection, frozen, role)
+    connection.execute('UPDATE tasks SET payload_json=? WHERE id=?',
+                       (canonical(projected).decode(), row['task_id']))
+    _save(core, connection, row, frozen, 'paused', row['available_at'])
+    trace = {'operation_id': request['operation_id'], 'visit': frozen['pipeline_visit'],
+             'parameters_before': {key: old_values[key] for key in updates if key in old_values},
+             'parameters_after': updates}
+    if attachment_changes:
+        trace['attachment_replacements'] = attachment_changes
+    if 'objective' in request:
+        trace.update(objective_before=old_objective, objective_after=objective)
+    core.repository.event('workflow_run:' + str(row['id']), 'workflow.queued_input_edited', trace,
+                          connection=connection)
+
+
 def _row(connection, ref, identifier):
     row = connection.execute('SELECT w.*,t.title,t.payload_json,t.trashed_at FROM workflow_runs w '
                              'JOIN tasks t ON t.id=w.task_id WHERE w.id=?', (identifier,)).fetchone()
@@ -58,9 +154,25 @@ def _restart_state(frozen, stopped):
 
 def _request(data):
     fields = {'operation_id', 'reference', 'workflow_id', 'expected_visit', 'action'}
-    if not isinstance(data, dict) or data.get('action') not in ('pause', 'resume', 'edit', 'stop', 'trash', 'restore'):
+    if not isinstance(data, dict) or data.get('action') not in ('pause', 'resume', 'edit', 'edit_queued', 'stop', 'trash', 'restore'):
         raise ContractError('请选择有效的任务操作。')
     extra = {'title', 'expected_title', 'resume_after_edit'} if data['action'] == 'edit' else set()
+    if data['action'] == 'edit_queued':
+        extra = set(data) - fields
+        if (not extra or extra - {'objective', 'parameters', 'replace_attachments'}
+                or 'objective' in data and (not isinstance(data['objective'], str)
+                                            or not data['objective'].strip() or len(data['objective']) > 8000)
+                or 'parameters' in data and (not isinstance(data['parameters'], dict) or not data['parameters'])):
+            raise ContractError('请提供有效的新目标或需要修改的任务输入。')
+        if 'replace_attachments' in data:
+            replacements = data['replace_attachments']
+            keys = ('input_id', 'attachment_id')
+            if (not isinstance(replacements, list) or not 1 <= len(replacements) <= 10
+                    or any(not isinstance(item, dict) or set(item) != set(keys)
+                           or any(not isinstance(item[key], str) or not 1 <= len(item[key]) <= 40 for key in keys)
+                           for item in replacements)
+                    or any(len({item[key] for item in replacements}) != len(replacements) for key in keys)):
+                raise ContractError('一个原附件只能替换一次，每个新附件只能使用一次。')
     if set(data) != fields | extra:
         raise ContractError('任务操作参数无效。')
     try:
@@ -70,15 +182,17 @@ def _request(data):
         raise ContractError('请沿原操作编号核对任务。') from None
     if any(type(data[k]) is not int or not 0 < data[k] < 2**53 for k in ('workflow_id', 'expected_visit')):
         raise ContractError('任务或岗位访问编号无效。')
-    if extra and (not isinstance(data['title'], str) or not data['title'].strip() or len(data['title']) > 200 or
+    if data['action'] == 'edit' and (not isinstance(data['title'], str) or not data['title'].strip() or len(data['title']) > 200 or
                   not isinstance(data['expected_title'], str) or type(data['resume_after_edit']) is not bool):
         raise ContractError('请填写有效的任务名称。')
     return {**copy.deepcopy(data), 'reference': pipeline_references.checked_reference(data['reference'])}
 
 
-def command(core, data, active_ids=(), *, read_only=False):
+def command(core, data, active_ids=(), *, read_only=False, guard=None, chat_fingerprint=None, copy_material=None):
     core._actor()
     request = _request(data); ref = request['reference']; identifier = request['workflow_id']
+    if request['action'] == 'edit_queued' and guard is None and not read_only:
+        raise PermissionError('请从当前智能体团队对话修改暂缓任务。')
     stream = 'pipeline-card-operation:' + request['operation_id']
     with core.repository.connect() as connection:
         connection.execute('BEGIN IMMEDIATE')
@@ -92,12 +206,14 @@ def command(core, data, active_ids=(), *, read_only=False):
         elif read_only:
             return {'operation_id': request['operation_id'], 'status': 'unknown'}
         else:
+            if guard is not None:
+                guard(row, frozen)
             action = request['action']; caps = capabilities(row, frozen, active_ids)
             if frozen['pipeline_visit'] != request['expected_visit']:
                 raise ContractError('任务已流转，请查看当前状态后重试。')
             if bool(row['trashed_at']) != (action == 'restore'):
                 raise ContractError('任务已移入垃圾箱或已经恢复，请刷新后重试。')
-            if action in ('pause', 'edit', 'resume'):
+            if action in ('pause', 'edit', 'edit_queued', 'resume'):
                 core.repository.storage.assert_executable(identifier)
             if action == 'pause':
                 if not caps['pause']:
@@ -119,6 +235,8 @@ def command(core, data, active_ids=(), *, read_only=False):
                     if state not in ('ready', 'waiting_retry') or frozen.get('pipeline_unresolved'):
                         state = 'interrupted'
                 _save(core, connection, row, frozen, state, paused.get('available_at'))
+            elif action == 'edit_queued':
+                _edit_queued(core, connection, row, frozen, request, active_ids, copy_material)
             elif action == 'edit':
                 if not caps['edit'] or row['title'] != request['expected_title']:
                     raise ContractError('任务已经开始或已被修改，请保留输入并核对当前任务。')
@@ -168,7 +286,10 @@ def command(core, data, active_ids=(), *, read_only=False):
                     _save(core, connection, row, frozen, 'paused')
                 connection.execute('UPDATE tasks SET trashed_at=NULL,updated_at=? WHERE id=?', (utc_now(), row['task_id']))
             receipt = {'request_sha256': digest(request), 'action': action, 'workflow_id': identifier}
-            core.repository.event(stream, 'pipeline.card_committed', receipt, connection=connection)
+            audit = dict(receipt)
+            if chat_fingerprint is not None:
+                audit['chat_request_sha256'] = chat_fingerprint
+            core.repository.event(stream, 'pipeline.card_committed', audit, connection=connection)
         row, frozen = _row(connection, ref, identifier)
         return {'operation_id': request['operation_id'], 'status': 'committed', 'receipt': receipt,
                 'workflow': {'id': identifier, 'state': row['state'], 'title': row['title'],

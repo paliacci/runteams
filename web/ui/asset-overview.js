@@ -155,7 +155,7 @@ const RunTeamsEnvironment = (() => {
  const employee=()=>S.sel?.type==='employee-overview';
  const pipeline=()=>S.sel?.type==='source-pipeline'&&S.sel.id==='settings';
  const active=()=>employee()||pipeline();
- const section=(title,action,body,className='')=>`<section class="overview-section${className?' '+className:''}"><div class="settings-section-bar overview-section-bar"><h3>${title}</h3>${action}</div>${body}</section>`;
+ const section=(title,action,body,className='')=>`<section class="overview-section${className?' '+className:''}"><div class="settings-section-bar"><h3 class="settings-section-title">${title}</h3>${action}</div>${body}</section>`;
  const textButton=(label,action,disabled=false,style='btn pri sm')=>`<button type="button" class="${style}" onclick="${action}" ${disabled?'disabled':''}>${label}</button>`;
 
  const sectionAction=(label,action,disabled=false)=>textButton(label,action,disabled,'settings-section-action');
@@ -185,6 +185,8 @@ const RunTeamsEnvironment = (() => {
   if(route.kind==='source-pipeline')return 'pipeline';
   if(route.kind==='employee-work'||route.kind==='bot'&&!route.settings)return 'employee';
   if(!['chat','chat-new'].includes(route.kind))return '';
+  if(route.ownerPath?.startsWith('/employees/'))return 'employee';
+  if(route.ownerPath?.startsWith('/pipelines/'))return RunTeamsStaticPages.pipelineChatView(url.href)==='board'?'pipeline':'';
   if(layout==='employee'||RunTeamsStaticPages.localConversationLayout(url.href)==='employee')return 'employee';
   try{if(sessionStorage.getItem(employeeHint)===routeKey(url))return 'employee';}catch{}
   return window.RunTeamsBoot?.savedWorkspaceWindows().some(row=>row.employeeReference&&routeKey(new URL(row.route,location.origin))===routeKey(url))?'employee':'';
@@ -216,9 +218,11 @@ const RunTeamsEnvironment = (() => {
   const ready=s?!!s.data&&!s.loading&&!s.errorKey:!!panel&&!panel.loading&&!panel.error;
   if(!kind||!ready){
    lastContext='';
-   const hydratingRoute=!S.pageTransition&&S.surface==='team'&&(!panel||panel.loading);
+   const startup=S.workspaceStartup;
+   const restoringPanel=startup?.deferChrome&&!startup.chromeReady&&!startup.navigationDetached&&startup.panel===panel;
+   const hydratingRoute=!S.pageTransition&&S.surface==='team'&&!panel?.error&&(!panel||panel.loading||restoringPanel);
    const pending=pipelinePage&&!s?.errorKey?'pipeline':hydratingRoute?pendingKind():'';
-   return pending&&!S.sel&&!detailLink(appRouteLocation())&&preferred(pending)?{key:'overview-pending:'+pending,content:()=>loadingDrawer(pending)}:null;
+   return pending&&!S.sel&&!detailLink(new URL(location.href))&&preferred(pending)?{key:'overview-pending:'+pending,content:()=>loadingDrawer(pending)}:null;
   }
   const context=detailWorkspaceContext();
   if(context===lastContext)return null;
@@ -558,6 +562,11 @@ const RunTeamsEnvironment = (() => {
   void readKnowledge(s);
   render();
  }
+ function refreshKnowledgeAfterTurn(panel){
+  if(S.conversationPanel!==panel||!(pipeline()?panel.context?.source_pipeline_workspace:employee()&&panel.kind==='general'))return;
+  const s=knowledgeState();
+  if(s&&!s.uploading)void readKnowledge(s);
+ }
  function knowledgeAddAction(s){
   return sectionAction(esc(knowledgeText('import')),'this.nextElementSibling.click()',s.busy)+
    '<input type="file" hidden accept=".png,.jpg,.jpeg,.webp,.gif,.mp4,.mov,.wav,.mp3,.m4a,.ogg,.flac,.txt,.md,.markdown,.csv,.json,.srt,.vtt,.pdf,.doc,.docx,.xls,.xlsx" onchange="RunTeamsAssetOverview.uploadKnowledge(this.files[0])">';
@@ -648,6 +657,41 @@ const RunTeamsEnvironment = (() => {
    <h2 title="${esc(title||'')}">${title?esc(title):namePlaceholder}</h2><div class="overview-head-action">${runtime}</div>
    ${description||descriptionControl?`<div class="overview-description" title="${esc(description||'')}">${descriptionControl||`<span>${esc(description)}</span>`}</div>`:''}${descriptionDetails}</header>`;
  }
+ // Comment boundaries keep optional, multi-element sections in the same layout.
+ const part=(name,html)=>`<!--overview:${name}-->${html}<!--/overview:${name}-->`;
+ function splitDrawer(html){
+  const parts=new Map();
+  const frame=html.replace(/<!--overview:([a-z-]+)-->([\s\S]*?)<!--\/overview:\1-->/g,(_,name,body)=>{
+   parts.set(name,body);return part(name,'');
+  });
+  return {parts,frame};
+ }
+ function patchDrawer(root,before,after){
+  if(!before||!root.querySelector('.asset-overview .overview-scroll'))return false;
+  const previous=splitDrawer(before),next=splitDrawer(after);
+  if(!previous.parts.size||previous.frame!==next.frame)return false;
+  const changed=new Map([...next.parts].filter(([name,body])=>body!==previous.parts.get(name)));
+  const comments=document.createTreeWalker(root,NodeFilter.SHOW_COMMENT),ranges=new Map();
+  // Validate all boundaries before mutating any section. A drawer rebuilt by
+  // another view must go through the normal full render.
+  for(let node=comments.nextNode();node;node=comments.nextNode()){
+   if(!node.data.startsWith('overview:'))continue;
+   const name=node.data.slice('overview:'.length);
+   if(!changed.has(name))continue;
+   let end=node.nextSibling;
+   while(end&&!(end.nodeType===Node.COMMENT_NODE&&end.data==='/overview:'+name))end=end.nextSibling;
+   if(!end||ranges.has(name))return false;
+   const range=document.createRange();
+   range.setStartAfter(node);range.setEndBefore(end);ranges.set(name,range);
+  }
+  if(ranges.size!==changed.size)return false;
+  for(const [name,range] of ranges){
+   const template=document.createElement('template');
+   template.innerHTML=changed.get(name);
+   range.deleteContents();range.insertNode(template.content);
+  }
+  return true;
+ }
  function shell({title,avatar,description,descriptionControl='',descriptionDetails='',runtime='',examples='',pending='',environment=[],configuration='',version='',modeControl='',publication=null,extras='',records,identityLoading=false,versionLoading=false}){
   const sel=S.sel;
   if(records){
@@ -661,9 +705,13 @@ const RunTeamsEnvironment = (() => {
   if(!sel.overviewRecords&&!sel.overviewLoading&&!sel.overviewError)queueMicrotask(()=>{if(S.sel===sel&&!sel.overviewRecords)void load(sel);});
   const intro=identityLoading?loadingIntro(pipeline()?'pipeline':'employee'):identity({title,avatar,description,descriptionControl,descriptionDetails,runtime})+examples;
   const knowledge=knowledgeState();
-  const body=`${intro}${RunTeamsEnvironment.markup(environment)}${pending}${deliverySection()}${employee()?knowledgeSection(knowledge):''}${activity(records||sel.overviewRecords||[])}
-   ${RunTeamsEmployeeAutomation.overviewSection()}${pipeline()?knowledgeSection(knowledge):''}${configuration}${extras}`;
-  return `<aside class="drawer right-detail-drawer asset-overview employee-configuration-drawer ${pipeline()?'source-pipeline-settings-drawer':''}"><div class="right-detail-scroll overview-scroll"><div class="right-detail-body overview-body">${body}</div></div>${versionToolbar({version,modeControl,publication,loading:versionLoading})}</aside>`;
+  const body=part('identity',intro)+part('environment',RunTeamsEnvironment.markup(environment))+
+   part('pending',pending)+part('deliveries',deliverySection())+
+   (employee()?part('knowledge',knowledgeSection(knowledge)):'')+
+   part('activity',activity(records||sel.overviewRecords||[]))+part('automation',RunTeamsEmployeeAutomation.overviewSection())+
+   (pipeline()?part('knowledge',knowledgeSection(knowledge)):'')+
+   part('configuration',configuration)+part('extras',extras);
+  return `<aside class="drawer right-detail-drawer asset-overview employee-configuration-drawer ${pipeline()?'source-pipeline-settings-drawer':''}"><div class="right-detail-scroll overview-scroll"><div class="right-detail-body overview-body">${body}</div></div>${part('version',versionToolbar({version,modeControl,publication,loading:versionLoading}))}</aside>`;
  }
  function employeeConfiguration(panel,entry){
   if(!entry||entry.work?.history_only||panel.loading||panel.error||panel.employee_error||panel.context?.pipeline_work||panel.context?.source_pipeline_workspace)return '';
@@ -676,9 +724,9 @@ const RunTeamsEnvironment = (() => {
   return parts?'<div class="settings-section-stack">'+parts.body+'</div>':'';
  }
  function employeeDrawer(){
-  const panel=S.conversationPanel,entry=RunTeamsEmployeeDirectory.forPanel(panel),record=entry?.record||{},binding=panel.employee_binding||{};
+  const panel=S.conversationPanel,entry=RunTeamsEmployeeDirectory.overviewEntry(panel),record=entry?.record||{},binding=panel.employee_binding||{};
   const examples=conversationEmployeeExamples(panel);
-  const chips=examples.map(item=>`<button type="button" onclick="conversationPanelWorkExample(this)"${conversationWorkExampleAttribute(item)}>${esc(conversationWorkExampleText(item).title)}</button>`).join('');
+  const chips=examples.map(item=>`<button type="button" onclick="conversationPanelWorkExample(this)"${conversationWorkExampleAttribute(item)}><span class="overview-example-icon" aria-hidden="true">${ICON(conversationExampleIcon(item.icon))}</span><span data-work-example-label>${esc(conversationWorkExampleText(item).title)}</span></button>`).join('');
   const version=entry?.source?.version||entry?.work?.origin?.listing_version||record.active_release?.version||entry?.asset?.version||'';
   const publication=RunTeamsHost.assets.employeePublicationAction?.(panel,entry);
   const directoryLoading=!entry&&RunTeamsEmployeeDirectory.isLoading();
@@ -693,5 +741,5 @@ const RunTeamsEnvironment = (() => {
    configuration:employeeConfiguration(panel,entry),pending:conversationQuestionDock('panel'),version,publication,
    modeControl:RunTeamsHost.assets.employeeVersionControl?.(panel,entry)||''});
  }
- window.RunTeamsAssetOverview={active,employee,pipeline,employeeEligible,pendingPage,prepare,closed,takeManualMotion,trigger,toggle,section,sectionAction,loadingSection,textButton,labels,shell,employeeDrawer,back,backMarkup,openKnowledge,toggleKnowledge,retryKnowledge,uploadKnowledge,exportKnowledge,openDelivery,openRow,toggleActivity,openEmployeeActivity,toggleDeliveries,load};
+ window.RunTeamsAssetOverview={patchDrawer,active,employee,pipeline,employeeEligible,pendingPage,prepare,closed,takeManualMotion,trigger,toggle,section,sectionAction,loadingSection,textButton,labels,shell,employeeDrawer,back,backMarkup,openKnowledge,toggleKnowledge,retryKnowledge,refreshKnowledgeAfterTurn,uploadKnowledge,exportKnowledge,openDelivery,openRow,toggleActivity,openEmployeeActivity,toggleDeliveries,load};
 })();

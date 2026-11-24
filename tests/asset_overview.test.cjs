@@ -245,6 +245,35 @@ test('open drawers reserve description and employee shortcuts in both startup re
   }
 });
 
+test('refresh keeps the employee chat drawer open while restoring its session', () => {
+  const url=new URL('http://localhost/employees/1a000001/chats/2b000002');
+  const placeholder={kind:'general'}, restored={id:42,kind:'general',context:{context_type:'worker'}};
+  const startup={deferChrome:true,chromeReady:false,panel:placeholder};
+  const state={surface:'team',conversationPanel:placeholder,workspaceStartup:startup};
+  let preference='open';
+  const context=vm.createContext({
+    window:{},S:state,location:url,URL,
+    RunTeamsRoutes:{preview:()=>({kind:'chat',ownerPath:'/employees/1a000001'})},
+    RunTeamsEmployeeDirectory:{employeePanel:p=>p===restored},
+    localStorage:{getItem:()=>preference,setItem(){}},
+    appRouteLocation:()=>url,detailWorkspaceContext:()=>'chat:42',
+    selectDetailWorkspace:next=>state.sel=next,
+  });
+  vm.runInContext(fs.readFileSync('web/ui/asset-overview.js','utf8'),context);
+  const prepare=()=>context.window.RunTeamsAssetOverview.prepare(false,true);
+  assert.equal(prepare().key,'overview-pending:employee');
+  preference='closed';
+  assert.equal(prepare(),null);
+  preference='open';
+  startup.navigationDetached=true;
+  assert.equal(prepare(),null);
+  startup.navigationDetached=false;
+  state.conversationPanel=restored;
+  prepare();
+  assert.equal(state.sel.type,'employee-overview');
+  assert.equal(state.sel.id,42);
+});
+
 test('pipeline activity uses the matching work record and keeps new board tasks visible', () => {
   const records = [
     {key:'new',state:'ready',objective:'New task objective'},
@@ -348,21 +377,22 @@ test('a pending model leaves the bound employee identity and examples visible', 
   const context = vm.createContext({
     window: {}, S: {conversationPanel: panel, sel: {type: 'employee-overview', overviewRecords: []}},
     RunTeamsHost: {assets: {}, session: {workspace: () => true}},
-    RunTeamsEmployeeDirectory: {forPanel: () => null, isLoading: () => true},
+    RunTeamsEmployeeDirectory: {overviewEntry: () => null, isLoading: () => true},
     RunTeamsSkeletons: {statusAttrs: () => 'role="status"'},
     RunTeamsEmptyStates: {markup: () => ''},
     RunTeamsEmployeeAutomation: {overviewSection: () => ''},
-    workerAvatarMarkup: () => '<img>', esc: String,
+    workerAvatarMarkup: () => '<img>', esc: String, ICON: name => '<svg data-icon="'+name+'"></svg>',
+    document: {getElementById: id => id === 'i-search' ? {localName:'symbol'} : null},
   });
   vm.runInContext(fs.readFileSync('web/modules/conversation.js', 'utf8'), context);
-  context.conversationEmployeeExamples = () => [{title: '检查页面', prompt: '请检查这个页面。'}];
+  context.conversationEmployeeExamples = () => [{title: '检查页面', prompt: '请检查这个页面。', icon: 'search'}];
   context.conversationRuntimeControl = (_surface, _disabled, pending) => pending;
   context.conversationQuestionDock = () => '';
   vm.runInContext(fs.readFileSync('web/ui/asset-overview.js', 'utf8'), context);
   const drawer = context.window.RunTeamsAssetOverview.employeeDrawer();
   assert.match(drawer, /<h2[^>]*>SEO 助理<\/h2>/);
   assert.match(drawer, /诊断网站/);
-  assert.match(drawer, /<button[^>]*>检查页面<\/button>/);
+  assert.match(drawer, /aria-hidden="true"><svg data-icon="search"><\/svg><\/span><span data-work-example-label>检查页面<\/span><\/button>/);
   assert.match(drawer, /data-skeleton-region="overview-runtime"/);
   assert.doesNotMatch(drawer, /data-skeleton-region="overview-name"/);
 });

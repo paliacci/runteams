@@ -496,7 +496,7 @@ class ConfigurationStore:
                 raise PermissionError('保存回执不属于这名员工。')
         return {'state': 'confirmed', 'result': result}
 
-    def save(self, *, operation_id, expected_revision, definition_sha256, values, bindings=None, onboarding=False):
+    def save(self, *, operation_id, expected_revision, definition_sha256, values, bindings=None, onboarding=False, patch_values=False):
         self._check()
         if (not isinstance(operation_id, str) or not re.fullmatch('[0-9a-f-]{36}', operation_id)
                 or str(uuid.UUID(operation_id)) != operation_id or type(expected_revision) is not int or expected_revision < 0):
@@ -507,6 +507,10 @@ class ConfigurationStore:
             request['bindings'] = bindings
         if onboarding:
             request['onboarding'] = True
+        if patch_values:
+            if onboarding or bindings is not None:
+                raise ValueError('补齐只接受普通配置值。')
+            request['patch_values'] = True
         fingerprint = digest(request)
         receipt_key = self.receipt_prefix + operation_id
         # CLI catalog reads must not hold the personal SQLite write transaction.
@@ -536,14 +540,21 @@ class ConfigurationStore:
                             if key in index and row['types'].get(key) == index[key]['type']
                             and not _configuration_schema._value_error(index[key], value)}
                 checked = {**previous, **checked}
+            elif patch_values:
+                fields = {field['key'] for field in _configuration_schema.fields(self.definition)
+                          if field['type'] not in _configuration_schema.PRIVATE | {'file_path', 'directory_path'}}
+                if not isinstance(values, dict) or not values or values.keys() - fields:
+                    raise ConfigurationInvalid({'_form': '此项必须在原设置页填写或授权。'})
+                checked = {**row['values'], **validate_values(self.definition, values, complete=False)}
             else:
                 checked = validate_values(self.definition, values)
             selected = row.get('bindings', {}) if bindings is None else bindings
             if not isinstance(selected, dict) or len(selected) > 128:
                 raise ConfigurationInvalid({'_form': '资料配置格式无效。'})
             index = {f['key']: f for f in _configuration_schema.fields(self.definition)}
-            resolved = copy.deepcopy(selected) if onboarding else {}
-            for key, selection in (() if onboarding else selected.items()):
+            keep_bindings = onboarding or patch_values
+            resolved = copy.deepcopy(selected) if keep_bindings else {}
+            for key, selection in (() if keep_bindings else selected.items()):
                 if key not in index:
                     if bindings is None:
                         continue
@@ -556,9 +567,12 @@ class ConfigurationStore:
             # replace old selections; preflighting stale grants would poison
             # this save transaction even when the user has repaired them.
             _, retained, _, _ = self._project({**row, 'bindings': {}}, runtime_states)
+            types = {key: field['type'] for key, field in index.items() if key in (values if patch_values else checked)}
+            if patch_values:
+                types = {**row['types'], **types}
             result_row = {'schema': STATE, 'reference': self.reference, 'revision': row['revision'] + 1,
                           'definition_sha256': self.definition_sha256, 'values': checked,
-                          'types': {f['key']: f['type'] for f in _configuration_schema.fields(self.definition) if f['key'] in checked},
+                          'types': types,
                           'retained': retained, 'bindings': resolved}
             if row.get('credential_files'):result_row['credential_files']=copy.deepcopy(row['credential_files'])
             managed_keys={f['key'] for f in _configuration_schema.managed_fields(self.definition)}

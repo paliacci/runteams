@@ -98,6 +98,31 @@ class StarterLimits(unittest.TestCase):
         asset = compile_definitions(files, compile_source(files))['employees']['employee.json']
         self.assertEqual(extension(asset['skill_bundles'][0])['work']['examples'], STARTERS)
 
+    def test_directory_reuses_unchanged_source_and_rechecks_edits_and_links(self):
+        from runteams_core.employees import employee_directory as directory
+        with TemporaryDirectory() as folder:
+            store = LocalSources(Path(folder).resolve())
+            files = project(STARTERS)
+            key = tree(files)['sha256']
+            store.save(pack(files), key, inspect_source)
+            scope = {'cache_scope': 'directory-test'}
+            with patch.object(directory, 'source_entries', wraps=source_entries) as read:
+                rows, _ = directory._roster_sources(store, scope, {})
+                rows[0]['source']['path'] = 'mutated'
+                again, _ = directory._roster_sources(store, scope, {})
+                self.assertEqual(again[0]['source']['path'], 'employee.json')
+                self.assertEqual(read.call_count, 1)
+                Revisions(store, key).commit({**files, 'soul.md': b'changed'}, key, 'directory-edit')
+                new, _ = directory._roster_sources(store, scope, {})
+                self.assertNotEqual(new[0]['source']['revision'], again[0]['source']['revision'])
+                link = store.root / key / directory.source_links.LINK
+                link.write_text('{}')
+                for _ in range(2):
+                    errors = {}
+                    self.assertEqual(directory._roster_sources(store, scope, errors)[0], [])
+                    self.assertIn(key, errors)
+                self.assertEqual(read.call_count, 4)
+
     def test_incomplete_translations_rejected_on_import_and_edit(self):
         before = project(STARTERS)
         for translations in ({}, None, {'fr': {'title': 'Rapport', 'prompt': 'Rédigez un rapport.'}},

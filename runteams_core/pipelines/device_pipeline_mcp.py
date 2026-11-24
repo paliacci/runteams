@@ -56,6 +56,17 @@ class PipelineMCPWork(EmployeeMCPWork):
         self.work_requests = set()
         self.work_wake = work_wake
 
+    def discover_for_chat(self, chat_id):
+        # An applied team without programs has no work pages of its own.
+        # Member runtimes are separate and need not be opened to answer this read.
+        ref = pipeline_chat_binding.reference(chat_id)
+        core = self.core_factory()
+        core._actor()
+        bundle = control.read(core, ref)['bundle']
+        if bundle is not None and not bundle['asset'].get('programs'):
+            return {'items': [], 'authority': 'device-owned-mcp-work', 'chat_id': chat_id}
+        return super().discover_for_chat(chat_id)
+
     def notice_context(self, chat):
         from runteams_core.storage import product_store
         ref=pipeline_chat_binding.reference(chat)

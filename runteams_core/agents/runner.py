@@ -37,7 +37,8 @@ class AgentResult:
 def run_agent(adapter, prompt, *, execution_profile, mode="judge", model,
               reasoning_effort=None, timeout_sec=None,
               extra_args=None, on_activity=None, transcript_path=None, cwd=None,
-              cancel_event=None, require_final_text=True, environment_context=None, work_context=None):
+              cancel_event=None, require_final_text=True, environment_context=None, work_context=None,
+              before_start=None):
     """用指定 adapter 无头运行一次 Agent CLI。
 
     失败语义(与 driver.py 一致,由 adapter.classify_error 判定):
@@ -66,6 +67,8 @@ def run_agent(adapter, prompt, *, execution_profile, mode="judge", model,
     if not compatibility["compatible"]:
         raise RuntimeError(compatibility["detail"])
     # start_new_session=True:Agent 及其派生子进程自成进程组，超时可整组杀干净。
+    if before_start is not None:
+        before_start()
     p = subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                          text=True, env=env, cwd=cwd, bufsize=1, start_new_session=True)
     try:

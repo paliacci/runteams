@@ -760,6 +760,23 @@ def path_for(chat_id, item):
     return _contained_path(chat_id, item.get("stored_name"))
 
 
+def snapshot_tree(chat_id, item):
+    """Read the exact managed attachment tree, with the picker snapshot limits."""
+    import re
+    from pathlib import Path
+    from runteams_core.assets.cloud_files import tree_bytes
+
+    identifier = item.get('id') or ''
+    if not re.fullmatch(r'[a-f0-9]{24}', identifier):
+        raise ValueError('原附件编号无效。')
+    _storage().restore(chat_id, item)
+    root = Path(_chat_dir(chat_id)).resolve() / identifier
+    original = Path(_contained_path(chat_id, item.get('stored_name'), require_file=item['kind'] != 'folder'))
+    if original.parent != root or (item['kind'] == 'folder' and not original.is_dir()):
+        raise ValueError('原附件无法核对。')
+    return tree_bytes(root)
+
+
 def reveal_file(chat_id, attachment_id):
     item = product_store.find_chat_attachment(chat_id, attachment_id)
     if not item:

@@ -94,6 +94,14 @@ def check_directory(directory):
             },
             (second, 'employees/one.json'): {f'source:{second}:pipelines/first.json': ('Same name', 0)},
         })
+        parent = app.dispatch('POST', '/api/device/work/source-pipelines/catalog', {})['items']
+        ref = next(row['reference'] for row in parent if row['reference']['source_id'] == first and
+                   row['reference']['pipeline_source'] == 'pipelines/first.json')
+        app.dispatch('POST', '/api/device/work/source-pipelines/trash', {'reference': ref})
+        remaining = {row['key']: row for row in app.dispatch('GET', '/api/employee-directory', {'view':'local'})['items']}
+        shared = rows[first, 'employees/shared.json']['key']
+        check.assertEqual([g['key'] for g in remaining[shared]['pipeline_groups']], [f'source:{first}:pipelines/second.json'])
+        check.assertNotIn(rows[first, 'employees/two.json']['key'], remaining)
         check.assertEqual(len(rows), 6)
         check.assertEqual(reply['errors'], {})
         check.assertTrue(all(row['open'] == {'action': 'source-work'} for row in rows.values()))

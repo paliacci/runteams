@@ -34,8 +34,8 @@ def verify_work(directory, scope):
     if not path.exists():return
     with closing(disk.readonly_database(path)) as connection:
         version=connection.execute('PRAGMA user_version').fetchone()[0]
-        if version not in work.SUPPORTED_VERSIONS:raise ValueError('本机文档版本不受支持。')
-        work.verify_structure(connection,version)
+        if version != work.VERSION:raise ValueError('本机文档版本不受支持。')
+        work.verify_structure(connection)
         row=connection.execute('SELECT binding_json,data_epoch FROM device_work_scope WHERE singleton=1').fetchone()
         if not row or json.loads(row[0])!={k:scope[k] for k in ('storage_kind','library_id','storage_namespace')} or str(uuid.UUID(row[1]))!=row[1]:
             raise ValueError('文档与资料库身份不一致。')

@@ -44,6 +44,7 @@ class AssetMemoryTests(TestCase):
         self.assertEqual(memory.tool({'action': 'read'}, first).data['text'], '')
 
     def test_stage_and_scheduled_member_share_readonly_bank(self):
+        from runteams_core.agents.tools.agent_tool_registry import AgentToolError, dispatch
         from runteams_core.employees import employee_binding
         from runteams_core.pipelines import scheduled_followup, source_pipeline_work
         from runteams_core.pipelines.bound_pipeline_context import BoundPipelineContext
@@ -64,10 +65,20 @@ class AssetMemoryTests(TestCase):
             for context in ({'pipeline_work': {'role': 'editor'}}, {}):
                 get.return_value = {'kind': 'general', 'subject_type': 'employee', 'context': context}
                 turn = {'chat_id': team['chat_id']}
-                self.assertIn('持续偏好', memory.turn(turn))
+                guidance = memory.turn(turn)
+                self.assertIn('持续偏好', guidance)
+                self.assertIn('按任务输入列出的路径读取本单附件', guidance)
                 self.assertEqual(turn['asset_memory_binding'], {'bank': bank, 'writable': False, 'reference': self.team})
                 with self.assertRaises(PermissionError):
                     memory.tool({'action': 'save', 'text': '', 'revision': ''}, turn)
+                # The native adapter handles AgentToolError and keeps the
+                # same model turn open. Reading the scoped bank still works.
+                with self.assertRaisesRegex(AgentToolError, '互动会话'):
+                    dispatch(memory.TOOL, {'action': 'attachments'}, turn)
+                with self.assertRaises(AgentToolError):
+                    dispatch(memory.TOOL, {'action': 'add_sources', 'attachment_ids': ['a' * 24]}, turn)
+                self.assertIn('sources', dispatch(memory.TOOL, {'action': 'sources'}, turn).data)
+                self.assertEqual(dispatch(memory.TOOL, {'action': 'read'}, turn).data['text'], '持续偏好')
 
     def test_legacy_import_is_once_and_clear_is_durable(self):
         ctx = self.chat(self.team)
@@ -84,26 +95,94 @@ class AssetMemoryTests(TestCase):
         self.assertEqual(memory.turn(general), '')
         self.assertNotIn('asset_memory_binding', general)
 
+    def send(self, context, message, files=None, *, cancel=None):
+        from runteams_core.conversations import chat_attachments
+        from runteams_core.foundation.identity.work_identity import principal
+        from runteams_core.storage import device_data
+
+        cid = context['chat_id']
+        items = chat_attachments.save(cid, [
+            {'name': name, 'data': base64.b64encode(raw).decode()}
+            for name, raw in (files or {}).items()
+        ])
+        message_id = product_store.add_chat_message(cid, 'user', message, attachments=items)
+        context['actor_id'] = principal(device_data.identity())
+        memory.turn(context, user_message_id=message_id, cancel=cancel)
+        return items
+
     def test_uploaded_source_survives_chat_deletion_and_replacement(self):
         from runteams_core.conversations import chat_attachments
         source, fresh = self.chat(self.team), self.chat(self.team)
         other = self.chat(pipeline_references.reference('2' * 64, 'pipelines/team.json'))
-        def upload(ctx, text):
-            data = base64.b64encode(text.encode()).decode()
-            items = chat_attachments.save(ctx['chat_id'], [{'name':'品牌手册.md', 'data':data}])
-            product_store.add_chat_message(ctx['chat_id'], 'user', '附件', attachments=items)
-        upload(source, '独立资料原文')
+        first, = self.send(source, '仅供这次参考', {'品牌手册.md': '独立资料原文'.encode()})
         memory.turn(fresh)
+        self.assertEqual(memory.tool({'action':'sources'}, fresh).data['total'], 0)
+        self.send(source, '请把刚才的附件加入知识库')
+        self.assertEqual(memory.tool({'action':'attachments'}, source).data['attachments'][0]['id'], first['id'])
+        add = {'action':'add_sources', 'attachment_ids':[first['id']]}
+        original = memory.tool(add, source).data
+        self.assertEqual(memory.tool(add, source).data, original)
         saved = memory.tool({'action':'sources'}, fresh).data['sources'][0]
         request = {'action':'excerpt','source':saved['id']}
         self.assertEqual(memory.tool(request, fresh).data['text'], '独立资料原文')
-        memory.turn(other)
+        self.send(other, '把附件加入这里的知识库')
+        with self.assertRaisesRegex(ValueError, '附件不属于'):
+            memory.tool(add, other)
         with self.assertRaises(ValueError):
             memory.tool(request, other)
         chat_attachments.remove_chat(source['chat_id'])
+        product_store.delete_chat(source['chat_id'])
         self.assertEqual(memory.tool(request, fresh).data['text'], '独立资料原文')
-        upload(fresh, '修改后的资料')
-        self.assertEqual(memory.tool(request, fresh).data['text'], '修改后的资料')
+        new, = self.send(fresh, '请替换旧版手册', {'品牌手册.md': '修改后的资料'.encode()})
+        self.assertEqual(memory.tool(request, fresh).data['text'], '独立资料原文')
+        replace = {'action':'replace_source','source':saved['id'],'revision':saved['revision'],
+                   'attachment_ids':[new['id']]}
+        result = memory.tool(replace, fresh).data
+        self.assertEqual(memory.tool(replace, fresh).data, result)
+        self.assertEqual(result['removed']['name'], '品牌手册.md')
+        current, = memory.tool({'action':'sources'}, fresh).data['sources']
+        self.assertNotEqual(saved['id'], current['id'])
+        with self.assertRaises(ValueError):
+            memory.tool(request, fresh)
+        self.assertEqual(memory.tool({**request, 'source':current['id']}, fresh).data['text'], '修改后的资料')
+        self.send(fresh, '移除现在的手册')
+        remove = {'action':'remove_source','source':current['id'],'revision':current['revision']}
+        result = memory.tool(remove, fresh).data
+        self.assertEqual(memory.tool(remove, fresh).data, result)
+        self.assertEqual(memory.tool({'action':'sources'}, fresh).data['total'], 0)
+
+    def test_chat_changes_require_current_live_user_turn_and_valid_version(self):
+        from threading import Event
+        from runteams_core.conversations import asset_sources
+        ctx = self.chat(self.team)
+        first, = self.send(ctx, '上传', {'old.md': b'old text'})
+        add = {'action':'add_sources','attachment_ids':[first['id']]}
+        memory.tool(add, ctx)
+        old, = memory.tool({'action':'sources'}, ctx).data['sources']
+        later = {key: value for key, value in ctx.items() if key == 'chat_id'}
+        cancel = Event()
+        new, = self.send(later, '本轮换新版', {'new.md': b'new text'}, cancel=cancel)
+        remove = {'action':'remove_source','source':old['id'],'revision':old['revision']}
+        with self.assertRaises(PermissionError):
+            memory.tool(remove, ctx)
+        bank = memory.bank_for(self.team)
+        from runteams_core.storage import device_data
+        with device_data.connect() as c:
+            asset_sources._store(c, bank, 'old.md', b'concurrent update', ['concurrent update'])
+        with self.assertRaisesRegex(ValueError, '已变化'):
+            memory.tool(remove, later)
+        replace = {**remove, 'action':'replace_source', 'attachment_ids':[new['id']]}
+        with self.assertRaises(ValueError):
+            memory.tool(replace, later)
+        current, = memory.tool({'action':'sources'}, later).data['sources']
+        self.assertEqual(current['preview'], 'concurrent update')
+        cancel.set()
+        with self.assertRaises(PermissionError):
+            memory.tool({**remove, 'revision':current['revision']}, later)
+        unbound = {'chat_id':ctx['chat_id']}
+        memory.turn(unbound)
+        with self.assertRaises(PermissionError):
+            memory.tool({**remove, 'revision':current['revision']}, unbound)
 
     def test_drawer_and_chat_share_sources_and_isolate_other_assets(self):
         from runteams_core.conversations import asset_sources
@@ -201,6 +280,27 @@ class AssetMemoryTests(TestCase):
                 else:
                     result = memory.tool({'action':'original','source':item['id']},ctx).data
                     self.assertEqual(Path(result['path']).read_bytes(),b'my' if item['origin']=='personal' else b'bundled-logo')
+            old_guide = next(i for i in items['sources'] if i['name'] == 'guide.md')
+            update, = self.send(ctx, '请替换过期的随包团队手册', {'guide-v2.md': b'latest team guide'})
+            reply = memory.tool({'action':'replace_source','source':old_guide['id'],
+                                 'attachment_ids':[update['id']]}, ctx).data
+            self.assertEqual(reply['removed']['origin'], 'bundled')
+            self.assertEqual(memory.tool({'action':'excerpt','source':reply['added'][0]['id']}, ctx).data['text'],
+                             'latest team guide')
+            self.assertCountEqual([i['name'] for i in asset_sources.drawer(drawer)['sources']],
+                                  ['guide-v2.md', 'logo.png', 'logo.png'])
+            for action in ('excerpt', 'original'):
+                with self.assertRaises(ValueError):
+                    memory.tool({'action':action,'source':old_guide['id']}, ctx)
+            with self.assertRaises(ValueError):
+                asset_sources.drawer({**drawer, 'source':old_guide['id'], 'open':True})
+            logo = next(i for i in items['sources'] if i['name'] == 'logo.png' and i['origin'] == 'bundled')
+            self.send(ctx, '移除随包标志')
+            memory.tool({'action':'remove_source','source':logo['id']}, ctx)
+            self.assertCountEqual([i['name'] for i in asset_sources.drawer(drawer)['sources']],
+                                  ['guide-v2.md', 'logo.png'])
+            self.assertCountEqual([i['name'] for i in asset_sources.catalog(
+                member_bank, bundled=bundled_knowledge.catalog(member_ref))['sources']], ['private.md', 'logo.png'])
             with knowledge_packages.download(store,sid,sid) as (stream,_):
                 archive.write_bytes(stream.read())
             staging=path/'exported'
@@ -244,7 +344,6 @@ class AssetMemoryTests(TestCase):
     def test_upgrade_old_library_and_import_pdf_by_physical_page(self):
         import sqlite3
         from runteams_core.storage import device_data
-        from runteams_core.conversations import chat_attachments
         db = device_data.root() / 'personal.sqlite3'
         with sqlite3.connect(db) as c:
             c.executescript(device_data.schema(5))
@@ -252,9 +351,8 @@ class AssetMemoryTests(TestCase):
             c.execute("INSERT INTO device_settings VALUES('existing','true')")
         source, fresh = self.chat(self.team), self.chat(self.team)
         fixture = Path(__file__).parent / 'fixtures/two-pages.pdf'
-        uploads = [{'name':'两页.pdf','data':base64.b64encode(fixture.read_bytes()).decode()}]
-        items = chat_attachments.save(source['chat_id'], uploads)
-        product_store.add_chat_message(source['chat_id'], 'user', '参考资料', attachments=items)
+        item, = self.send(source, '请把资料加入知识库', {'两页.pdf':fixture.read_bytes()})
+        memory.tool({'action':'add_sources','attachment_ids':[item['id']]}, source)
         memory.turn(fresh)
         doc = memory.tool({'action':'sources'}, fresh).data['sources'][0]
         self.assertEqual(doc['pages'], 2)
@@ -280,6 +378,9 @@ class AssetMemoryTests(TestCase):
         for i in range(asset_history.PAGE):
             send(earlier, 'bot', str(i))
         foreign = send(other, 'user', '他人原话')
+        from runteams_core.agents.tools.agent_tool_registry import AgentToolError
+        with self.assertRaisesRegex(AgentToolError, 'before'):
+            query(action='history', limit=10)
         first = query(action='history')
         send(fresh, 'user', '在翻页之后发送')
         last = query(action='history', before=first['next_before'])

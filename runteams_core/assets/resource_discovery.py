@@ -3,6 +3,8 @@
 IDs identify a checked revision within one scope; they are not capabilities.
 No discovery path builds, installs, grants access, or starts a program.
 """
+from collections import OrderedDict
+from threading import Lock
 import base64
 import copy
 import json
@@ -48,7 +50,7 @@ def extra_tools():
 
 
 def names():
-    return (NAME, *(item.name for item in extra_tools()))
+    return (NAME, *(item.name for item in extra_tools() if item.ui_kind == 'resource_discovery'))
 
 
 def tool(arguments, context):
@@ -109,6 +111,61 @@ def page(items, request, scope, errors):
     return {'items':result,'next_cursor':cursor,'errors':errors,'complete':not errors}
 
 
+# Compact display rows only. Read and verify the current files and scope before
+# reuse; permissions, errors and downloaded/rental state are never cached here.
+_source_pages = OrderedDict()
+_source_pages_lock = Lock()
+
+
+def _source_rows(scope, source_id, revision, files):
+    from runteams_core.authoring.creator_contracts import tree
+    from runteams_core.authoring.source.creator_source_import import validated_catalog
+    from runteams_core.authoring.creator_conversation_assets import extension
+    from runteams_core.foundation.identity.work_identity import source_scope
+    key = (digest(scope), source_id, revision, tree(files)['sha256'])
+    with _source_pages_lock:
+        raw = _source_pages.get(key)
+        if raw is not None:
+            _source_pages.move_to_end(key)
+    if raw is not None:
+        return json.loads(raw)
+    items = []
+    compiled, catalog = validated_catalog(files)
+    project=compiled['project']['name'];base={**source_scope(scope),'source_id':source_id}
+    skills={}
+    for entry,asset in catalog['employees'].items():
+        employee=asset['employee'];work=[]
+        for bundle in asset['skill_bundles']:
+            metadata=extension(bundle);unit=metadata.get('work') or {}
+            directory=next(p for p in compiled['employees'][entry]['skill_dirs'] if p.rsplit('/',1)[-1]==bundle['package_key'])
+            from runteams_core.assets.skills.skill_metadata import frontmatter
+            front=frontmatter(files[directory+'/SKILL.md'].decode('utf-8'))
+            name=unit.get('name') or metadata.get('display_name') or bundle['package_key']
+            summary=unit.get('summary') or front['description']
+            work.append({'key':bundle['package_key'],'name':name,'summary':text(summary)})
+            skills[directory]=row(scope,'skill','local_source',{**base,'entry':directory},revision,name,summary,
+                project_name=project,work=copy.deepcopy(unit),content_sha256=bundle['digest'])
+        item=row(scope,'employee','local_source',{**base,'entry':entry},revision,employee['name'],
+            employee.get('soul',''),project_name=project,skills=work,
+            runtime_requirement=copy.deepcopy(employee['runtime_requirement']),
+            configuration_required=[f['key'] for group in employee.get('configuration',{}).get('groups',[]) for f in group.get('fields',[]) if f.get('required')])
+        items.append(item)
+    items.extend(skills.values())
+    for entry,asset in catalog['pipelines'].items():
+        items.append(row(scope,'pipeline','local_source',{**base,'entry':entry},revision,
+            asset['pipeline']['name'],asset.get('description',''),project_name=project,
+            positions=[{'key':p.get('key'),'name':p.get('name',p.get('key',''))} for p in asset['pipeline'].get('positions',[])],
+            employee_count=len(asset.get('employees',[]))))
+    raw = canonical(items)
+    if len(raw) <= 64 * 1024:
+        with _source_pages_lock:
+            _source_pages[key] = raw
+            _source_pages.move_to_end(key)
+            if len(_source_pages) > 128:
+                _source_pages.popitem(last=False)
+    return items
+
+
 class LocalResources:
     def __init__(self, provider):
         self.provider=provider
@@ -134,9 +191,6 @@ class LocalResources:
     def owned(self, scope):
         from runteams_core.authoring.source.creator_local_source import current_store
         from runteams_core.authoring.source.creator_source_revisions import Revisions
-        from runteams_core.authoring.source.creator_source_import import validate_source
-        from runteams_core.authoring.creator_conversation_assets import compile_catalog, extension
-        from runteams_core.foundation.identity.work_identity import source_scope
         # Organization workspaces cannot read personal source projects.
         if scope.get('organization_id'):return [],[]
         store=current_store(scope['cache_scope']);items=[];errors=[];after=None
@@ -153,32 +207,7 @@ class LocalResources:
                     revisions=Revisions(store,saved['id'])
                     with revisions.locked():
                         revision=revisions._head();files=revisions._files(revision)
-                    compiled=validate_source(files);catalog=compile_catalog(files,compiled)
-                    project=compiled['project']['name'];base={**source_scope(scope),'source_id':saved['id']}
-                    skills={}
-                    for entry,asset in catalog['employees'].items():
-                        employee=asset['employee'];work=[]
-                        for bundle in asset['skill_bundles']:
-                            metadata=extension(bundle);unit=metadata.get('work') or {}
-                            directory=next(p for p in compiled['employees'][entry]['skill_dirs'] if p.rsplit('/',1)[-1]==bundle['package_key'])
-                            from runteams_core.assets.skills.skill_metadata import frontmatter
-                            front=frontmatter(files[directory+'/SKILL.md'].decode('utf-8'))
-                            name=unit.get('name') or metadata.get('display_name') or bundle['package_key']
-                            summary=unit.get('summary') or front['description']
-                            work.append({'key':bundle['package_key'],'name':name,'summary':text(summary)})
-                            skills[directory]=row(scope,'skill','local_source',{**base,'entry':directory},revision,name,summary,
-                                project_name=project,work=copy.deepcopy(unit),content_sha256=bundle['digest'])
-                        item=row(scope,'employee','local_source',{**base,'entry':entry},revision,employee['name'],
-                            employee.get('soul',''),project_name=project,skills=work,
-                            runtime_requirement=copy.deepcopy(employee['runtime_requirement']),
-                            configuration_required=[f['key'] for group in employee.get('configuration',{}).get('groups',[]) for f in group.get('fields',[]) if f.get('required')])
-                        items.append(item)
-                    items.extend(skills.values())
-                    for entry,asset in catalog['pipelines'].items():
-                        items.append(row(scope,'pipeline','local_source',{**base,'entry':entry},revision,
-                            asset['pipeline']['name'],asset.get('description',''),project_name=project,
-                            positions=[{'key':p.get('key'),'name':p.get('name',p.get('key',''))} for p in asset['pipeline'].get('positions',[])],
-                            employee_count=len(asset.get('employees',[]))))
+                    items.extend(_source_rows(scope, saved['id'], revision, files))
                 except PermissionError:
                     raise
                 except (ValueError,OSError,KeyError,StopIteration) as exc:

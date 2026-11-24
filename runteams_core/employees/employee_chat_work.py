@@ -18,11 +18,11 @@ from runteams_core.employees.employee_references import checked_reference, same
 from runteams_core.storage.repository import utc_now
 
 
-def snapshot(core, identifier):
+def snapshot(core, identifier, *, include_native=False):
     with core.repository.connect() as c:
         row = c.execute('SELECT snapshot_json FROM workflow_runs WHERE id=?', (identifier,)).fetchone()
     value = json.loads(row[0]) if row else {}
-    return value if value.get('schema') == employee_work_contracts.SCHEMA else None
+    return value if include_native or value.get('schema') == employee_work_contracts.SCHEMA else None
 
 
 def catalog(reference, *, limit=100, core=None):
@@ -35,22 +35,28 @@ def catalog(reference, *, limit=100, core=None):
             return []
         from runteams_core.work.device_work_services import current
         core = current()
-    result = []
     with core.repository.connect() as c:
         rows = c.execute('SELECT wr.id,wr.state,wr.snapshot_json,wr.updated_at,t.id AS task_id,t.title '
             'FROM workflow_runs wr JOIN tasks t ON t.id=wr.task_id WHERE t.trashed_at IS NULL '
             'ORDER BY wr.updated_at DESC,wr.id DESC').fetchall()
+    from runteams_core.employees.employee_references import matching_references
+    with matching_references(owners) as matches:
+        return _catalog_rows(rows, matches, core, reference, limit)
+
+
+def _catalog_rows(rows, matches, core, reference, limit):
+    result = []
     for row in rows:
         value = json.loads(row['snapshot_json'])
         owner=value.get('employee_reference')
-        belongs=owner and any(same(owner,ref) for ref in owners)
+        belongs=owner and matches(owner)
         if not belongs and value.get('pipeline_work'):
-            belongs=any(any(same(item['snapshot'].get('employee_reference'),ref) for ref in owners)
+            belongs=any(matches(item['snapshot'].get('employee_reference'))
                 for item in value.get('pipeline_history',[]))
         if not owner:
             with core.repository.connect() as connection:
                 refs=connection.execute("SELECT rel.source_ref_json FROM workflow_runs wr,json_each(wr.snapshot_json,'$.definition.positions') p JOIN employee_releases rel ON rel.id=json_extract(p.value,'$.employee_release_id') WHERE wr.id=?",(row['id'],)).fetchall()
-            belongs=any(any(same(native,ref) for ref in owners) for item in refs if (native:=json.loads(item[0]).get('native_asset',{}).get('employee_reference')))
+            belongs=any(matches(native) for item in refs if (native:=json.loads(item[0]).get('native_asset',{}).get('employee_reference')))
         if belongs:
             result.append({'id': row['id'], 'workflow_id': row['id'], 'task_id': row['task_id'],
                 'title': row['title'], 'state': row['state'], 'updated_at': row['updated_at'],
@@ -108,7 +114,32 @@ def submit(core, binding, action, source):
         if errors:raise ContractError('工作输入不符合技能声明：'+errors[0].message)
     payload['inputs'].extend({'name': item['name'], 'asset_grant_id': str(item['grant_id'])} for item in files)
     dedupe = str(action.get('dedupe_key') or '').strip()
+    return _admit(core, binding, package, title, payload, source, dedupe)
+
+
+def admit_rerun(core, reference, package, title, payload, link):
+    from runteams_core.authoring.definition_contracts import validate_definition
+    from runteams_core.employees.source_employee_runtime import employee, package_asset, validate_parameters
+    payload = validate_definition('task_payload', payload)
+    if payload.get('module_bindings') or any(payload.get('context', {}).get(key) for key in ('business_event', 'work_item')):
+        raise ContractError('这项共享业务工作尚未接入本机执行。')
+    if payload.get('skill_key'):
+        validate_parameters(package_asset(package), payload['skill_key'], payload.get('parameters', {}))
+    binding = {'reference': reference, 'employee': employee(package)}
+    _, effect = _admit(core, binding, package, title, payload, {}, '', rerun=link)
+    return effect['run_card']
+
+
+def _admit(core, binding, package, title, payload, source, dedupe, *, rerun=None,
+           repeat_order=None, prepare_inputs=None):
+    reference = binding['reference']
     with core.repository.connect() as c:
+        if rerun is not None:
+            from runteams_core.automation.automation_rerun import receipt
+            c.execute('BEGIN IMMEDIATE')
+            previous_run = receipt(c, rerun)
+            if previous_run is not None:
+                return _effect(binding, previous_run['title'], previous_run['task_id'], previous_run['workflow_id'])
         if dedupe:
             for row in c.execute('SELECT wr.id,wr.task_id,wr.snapshot_json,t.title FROM workflow_runs wr '
                     'JOIN tasks t ON t.id=wr.task_id WHERE t.opportunity_key=?', (dedupe,)):
@@ -120,24 +151,34 @@ def submit(core, binding, action, source):
         frozen = {'language_policy': language_snapshot(source.get('language_policy')), 'schema': employee_work_contracts.SCHEMA, 'employee_reference': reference, 'package': package,
             'employee': {key: binding['employee'][key] for key in ('name', 'avatar')},
             'name': binding['employee']['name'], 'definition': {'positions': [], 'edges': []},
-            'source': {'chat_id': source['chat_id'], 'actor_id': principal(device_data.identity())}}
+            'source': {'chat_id': source.get('chat_id'), 'actor_id': principal(device_data.identity())}}
+        if rerun is not None:
+            frozen['rerun'] = {key: rerun[key] for key in ('source_run_key', 'knowledge')}
+        if repeat_order is not None:
+            frozen['repeat_order'] = repeat_order
         from runteams_core.configuration.employee_configuration import for_package
         from runteams_core.employees.source_employee_runtime import package_asset
         if package_asset(package)['employee'].get('configuration'):
             frozen['configuration'] = for_package(package).snapshot()
         from runteams_core.conversations.conversation_folders import frozen_reference
-        folder_reference = frozen_reference(source['chat_id'])
+        folder_reference = frozen_reference(source['chat_id']) if source.get('chat_id') else None
         if folder_reference:
             frozen['work_folder'] = folder_reference
         task = c.execute('INSERT INTO tasks(pipeline_id,employee_id,employee_reference,opportunity_key,title,payload_json,state,'
             'pipeline_snapshot_json,created_at,updated_at) VALUES(NULL,NULL,?,?,?,?,?,?,?,?)',
             (json.dumps(reference,sort_keys=True,separators=(',',':')),dedupe or None, title, json.dumps(payload), 'ready', json.dumps(frozen), now, now)).lastrowid
+        if prepare_inputs is not None:
+            payload = prepare_inputs(task)
+            c.execute('UPDATE tasks SET payload_json=? WHERE id=?', (json.dumps(payload), task))
         run = c.execute('INSERT INTO workflow_runs(task_id,state,available_at,cursor_key,snapshot_json,created_at,updated_at) '
             'VALUES(?,?,?,?,?,?,?)', (task, 'ready', now, 'employee', json.dumps(frozen), now, now)).lastrowid
         core.repository.event('task:'+str(task), 'task.created', {'task_id': task,
             'employee_reference': reference, 'title': title}, connection=c)
         core.repository.event('workflow_run:'+str(run), 'workflow.created', {'task_id': task,
             'employee_reference': reference}, connection=c)
+        if rerun is not None:
+            from runteams_core.automation.automation_rerun import record
+            record(core, c, rerun, run, task, title)
     return _effect(binding, title, task, run)
 
 
@@ -194,6 +235,12 @@ def _execute(core, identifier, frozen, runtime=None):
     executor = getattr(core, 'chat_executor', None)
     if not callable(executor):
         raise ContractError('原员工工作宿主尚未就绪。')
+    if frozen.get('rerun'):
+        from runteams_core.automation.automation_rerun import assert_knowledge
+        try:
+            assert_knowledge(frozen)
+        except ContractError as error:
+            return finish(core, identifier, 'blocked', str(error), visit=frozen.get('pipeline_visit'))
     if frozen.get('pipeline_work') and frozen.get('pipeline_result_correction'):
         from runteams_core.pipelines.source_pipeline_flow import correct_rejected_result
         return correct_rejected_result(core,identifier,executor)
@@ -274,10 +321,12 @@ def _execute(core, identifier, frozen, runtime=None):
         if blocked:return finish(core,identifier,'blocked',str(records.get('output',{}).get('question','工作资料需要核对。')),visit=frozen.get('pipeline_visit'))
         payload['local_assets']=records
     with core.repository.connect() as connection:
+        if not connection.in_transaction:
+            connection.execute('BEGIN IMMEDIATE')
+        current = connection.execute('SELECT state,snapshot_json FROM workflow_runs WHERE id=?', (identifier,)).fetchone()
+        if current['state'] != 'running' or json.loads(current['snapshot_json']).get('send_admitted'):
+            return current['state']
         if frozen.get('pipeline_work'):
-            current = connection.execute('SELECT state,snapshot_json FROM workflow_runs WHERE id=?', (identifier,)).fetchone()
-            if current['state'] != 'running' or json.loads(current['snapshot_json']).get('send_admitted'):
-                return current['state']
             from runteams_core.pipelines.source_pipeline_flow import add_approval_history, stage_assignment, stage_prompt
             stage = payload['context']['pipeline_stage']
             stage.update(stage_assignment(frozen))
@@ -291,19 +340,32 @@ def _execute(core, identifier, frozen, runtime=None):
             order['pipeline_generation'] = frozen.get('pipeline_generation')
             order['pipeline_visit'] = frozen['pipeline_visit']
             position_key = frozen['pipeline_work']['position_key']
-        attempt=connection.execute('SELECT COUNT(*)+1 FROM employee_runs WHERE workflow_run_id=? AND position_key=?',(identifier,position_key)).fetchone()[0] if frozen.get('pipeline_work') else 1
+        followup = frozen.get('employee_followup')
+        if followup:
+            order['followup'] = followup.copy()
+        attempt = connection.execute('SELECT COALESCE(MAX(attempt),0)+1 FROM employee_runs '
+                                     'WHERE workflow_run_id=? AND position_key=?', (identifier, position_key)).fetchone()[0]
         frozen['employee_run_id']=connection.execute('INSERT INTO employee_runs(workflow_run_id,position_key,employee_release_id,attempt,state,input_json,output_json,created_at,updated_at) VALUES(?,?,NULL,?,?,?,?,?,?)',
             (identifier,position_key,attempt,'running',json.dumps(order),'{}',utc_now(),utc_now())).lastrowid
         connection.execute('UPDATE workflow_runs SET snapshot_json=? WHERE id=?',(json.dumps(frozen),identifier))
     prompt = payload['objective']
     if frozen.get('pipeline_work'):
         prompt = stage_prompt(payload['context']['pipeline_stage'])
+    operation = 'employee-work:' + str(identifier)
+    if followup:
+        operation += ':followup:' + followup['operation_id']
+        if followup['action'] == 'continue_work':
+            prompt = ('继续同一份原工单。先核对这个工作对话中已完成的步骤和实际结果，只处理剩余工作；'
+                      '已经确认完成的操作不可重做，结果不明的操作先核对。'
+                      '\n\n原工单目标：\n' + prompt)
+            if followup['response']:
+                prompt += '\n\n本次用户补充：\n' + followup['response']
     details = {key: value for key, value in payload.items() if key not in ('schema', 'objective') and value}
     if details:
         prompt += '\n\n工作资料：\n' + json.dumps(details, ensure_ascii=False)
     from runteams_core.pipelines.pipeline_execution_activity import capture
     with capture(core, identifier, frozen):
-        result = executor(chat_id, prompt, core._cancel_event(identifier), 'employee-work:'+str(identifier))
+        result = executor(chat_id, prompt, core._cancel_event(identifier), operation)
         if grants:
             from runteams_core.assets import local_assets
             changed=[name for name,entry in grants.items() if local_assets.diff_fingerprints(entry['before'],local_assets.fingerprint(entry['grant']))]
@@ -325,7 +387,7 @@ def finish(core, identifier, status, reason='', *, summary='', visit=None):
     states = {'completed': 'completed', 'failed': 'failed', 'blocked': 'needs_human',
               'cancelled': 'canceled', 'canceled': 'canceled', 'interrupted': 'interrupted'}
     state = states.get(status, 'interrupted')
-    with core.repository.connect() as c:
+    with core.repository.definition_lock(), core.repository.connect() as c:
         row = c.execute('SELECT task_id,state,snapshot_json FROM workflow_runs WHERE id=?', (identifier,)).fetchone()
         if row['state'] == 'canceled':
             state = 'canceled'
@@ -342,7 +404,14 @@ def finish(core, identifier, status, reason='', *, summary='', visit=None):
         if frozen.get('employee_run_id'):
             output={'status':execution_state,'summary':summary if execution_state=='completed' else '',
                     'output':{},'issues':[reason] if reason else [],'artifacts':[]}
-            c.execute('UPDATE employee_runs SET state=?,output_json=?,updated_at=? WHERE id=?',
+            if execution_state == 'completed':
+                from runteams_core.work.work_reports import pinned_work_versions
+
+                work_chat_id = frozen.get('work_chat_id')
+                output['report_work_chat_id'] = work_chat_id
+                output['report_references'] = pinned_work_versions(c, identifier, work_chat_id)
+            # Repeated settlement must not replace the report pins of a completed attempt.
+            c.execute("UPDATE employee_runs SET state=?,output_json=?,updated_at=? WHERE id=? AND state!='completed'",
                 (execution_state,json.dumps(output),now,frozen['employee_run_id']))
         core.repository.event('workflow_run:'+str(identifier), 'workflow.'+state,
             {'reason': reason}, connection=c)
@@ -446,13 +515,14 @@ def results(core,reference,workflow_id=None):
     jobs=catalog(reference,core=core,limit=500);deliveries=[]
     from runteams_core.work.work_reports import catalog as report_catalog, apply_to_delivery
     report_groups={}
-    for report in report_catalog(core):report_groups.setdefault(report['binding'].get('workflow_id'),[]).append(report)
+    reports = report_catalog(core)
+    for report in reports:report_groups.setdefault(report['binding'].get('workflow_id'),[]).append(report)
     for job in jobs:
         if workflow_id is not None and job['id']!=workflow_id:continue
         if snapshot(core,job['id']) is None:
             deliveries.extend(core.contextual_results(workflow_id=job['id'])['results']);continue
         deliveries.append(delivery(core,job,report_groups.get(job['id'],[])))
     from runteams_core.work.work_reports import standalone_results
-    deliveries.extend(standalone_results(core,reference))
+    deliveries.extend(standalone_results(reports,reference))
     deliveries.sort(key=lambda item:item['updated_at'],reverse=True)
     return {'schema':'runteams.result-view/v1','scope':{'employee_reference':checked_reference(reference)},'results':deliveries}

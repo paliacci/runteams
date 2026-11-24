@@ -251,12 +251,49 @@
     return `<header class="conversation-panel-header${employee ? ' employee-desk' : ''}">${identity}${actions}</header>`;
   }
 
+  // Compare generated markup. Live DOM can contain translated text, an open
+  // disclosure, or a selection that must survive an unrelated render.
+  function patchSections(root, before, after, sections) {
+    if (!root || !before) return false;
+    const parse = html => {
+      const template = document.createElement('template');
+      template.innerHTML = html;
+      return template.content;
+    };
+    const previous = parse(before), next = parse(after), updates = [];
+    for (const [selector, attribute] of sections) {
+      const oldNodes = previous.querySelectorAll(selector), newNodes = next.querySelectorAll(selector);
+      if (oldNodes.length !== newNodes.length) return false;
+      const liveNodes = root.querySelectorAll(selector);
+      for (let i = 0; i < oldNodes.length; i++) {
+        const old = oldNodes[i], fresh = newNodes[i];
+        if (old.isEqualNode(fresh)) continue;
+        const live = liveNodes[i];
+        if (liveNodes.length !== oldNodes.length || live.tagName !== old.tagName) return false;
+        if (attribute) {
+          const value = fresh.getAttribute(attribute);
+          if (old.getAttribute(attribute) === value) continue;
+          const sync = node => value === null ? node.removeAttribute(attribute) : node.setAttribute(attribute, value);
+          sync(old);
+          updates.push(() => sync(live));
+        } else {
+          old.replaceWith(fresh.cloneNode(true));
+          updates.push(() => live.replaceWith(fresh));
+        }
+      }
+    }
+    // Structural changes, including a switch to another chat, use the full render.
+    if (!previous.isEqualNode(next)) return false;
+    for (const update of updates) update();
+    return true;
+  }
+
   function frame({classes = '', columns, railEdge, drawerWidth = '0px', detailOpen = false, rail, tabs, head, content, drawer, controls}) {
     return `<div class="body product-shell ${escape(classes)}" id="rgBody" data-drawer-width="${escape(drawerWidth)}" data-detail-open="${detailOpen}" style="grid-template-columns:${escape(columns)};--rail-edge-x:${escape(railEdge)}">${rail}${tabs}${head}${content}${drawer}${controls}</div>`;
   }
 
   function accountEntry({icon,...options}){if(typeof global.RunTeamsHost.shell.entry==='function')return global.RunTeamsHost.shell.entry({icon,...options});return `<div class="railfoot-wrap rail-settings-entry">${navigationItem({label:'设置',labelKey:'shell.settingsTitle',icon:icon('settings'),action:"openSettingsPage('general',{returnFocus:this})",className:'rail-settings-button'})}</div>`;}
-  global.RunTeamsShell = Object.freeze({navigationItem, historyActions, settingsToolbar, modeTabs, moveMode, topActions, collapsedActions, syncHistoryControls, recordNavigation, goHistory, trashEntry, footer, accountEntry, windowTabs, patchWindowTabs, syncWindowTabs, scrollWindowTabs, workspaceHeading, headerAction, pageHeader, frame});
+  global.RunTeamsShell = Object.freeze({navigationItem, historyActions, settingsToolbar, modeTabs, moveMode, topActions, collapsedActions, syncHistoryControls, recordNavigation, goHistory, trashEntry, footer, accountEntry, windowTabs, patchWindowTabs, syncWindowTabs, scrollWindowTabs, workspaceHeading, headerAction, pageHeader, frame, patchSections});
   if (global.history && global.location) {
     navigationState();
     global.addEventListener('popstate', () => {

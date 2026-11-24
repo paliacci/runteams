@@ -17,7 +17,7 @@ import tempfile
 from pathlib import Path
 
 from runteams_core.storage import device_data
-from runteams_core.foundation.contracts import ContractError
+from runteams_core.foundation.contracts import ContractError, FrozenRuntimeChanged
 from runteams_core.authoring.creator_contracts import digest, strict_json
 from runteams_core.authoring.source.creator_local_source import current_store, _read
 from runteams_core.authoring.source.creator_source_revisions import Revisions
@@ -72,7 +72,7 @@ def _validate_frozen_build(builds,state,files,artifacts):
             from runteams_core.employees.mcp.employee_mcp import platform_runtime
             runtime=platform_runtime()
             if runtime.manifest_sha256!=state['mcp_runtime_sha256']:
-                raise ContractError('原员工的运行资源已变化。')
+                raise FrozenRuntimeChanged('原员工的运行资源已变化。')
         key=(state['result_sha256'],pin,state.get('mcp_runtime_sha256'))
         with _revalidation_lock:
             if key not in _revalidated_builds:
@@ -107,26 +107,39 @@ def source(ref):
     return store, revisions
 
 
-def describe(ref, *, revision=None, project_key=None, catalog_cache=None):
+def describe(ref, *, revision=None, project_key=None):
     _, revisions = source(ref)
     with revisions.locked():
-        revision = revision or revisions._head()
-    cache_key = (ref['source_id'], revision)
-    cached = catalog_cache.get(cache_key) if catalog_cache is not None else None
-    if cached is None:
+        head = revisions._head() if revision is None else None
+        revision = revision or head
+        files = revisions._files(head) if head == revision else None
+    if files is None:
         files = revisions.files_at(revision)
-        project = strict_json(files['project.json'])
-        if project_key is not None and project.get('key') != project_key:
-            return None
-        from runteams_core.authoring.source.creator_source_import import validate_source
-        from runteams_core.authoring.creator_conversation_assets import compile_catalog
-        definitions = compile_catalog(files, validate_source(files))
-        if catalog_cache is not None:
-            catalog_cache[cache_key] = (project, definitions)
-    else:
-        project, definitions = cached
-        if project_key is not None and project.get('key') != project_key:
-            return None
+    project = strict_json(files['project.json'])
+    if project_key is not None and project.get('key') != project_key:
+        return None
+    from runteams_core.authoring.source.creator_source_import import validated_catalog
+    _, definitions = validated_catalog(files)
+    return _catalog_employee(ref, revision, project, definitions)
+
+
+def describe_current_source(ref, store, scope, catalogs):
+    """Read one verified project snapshot for all its visible employees in a listing."""
+    ref = employee_references.checked_source_reference(ref, scope)
+    if ref['schema'] != employee_references.SOURCE_SCHEMA:
+        raise ContractError('员工源码引用无效。')
+    source_id = ref['source_id']
+    if source_id not in catalogs:
+        from runteams_core.authoring.source.creator_source_import import validated_catalog
+        with store.reading_project() as reader:
+            revisions = Revisions(reader, source_id)
+            with revisions.current_snapshot() as (revision, files):
+                compiled, definitions = validated_catalog(files)
+        catalogs[source_id] = (revision, compiled['project'], definitions)
+    return _catalog_employee(ref, *catalogs[source_id])
+
+
+def _catalog_employee(ref, revision, project, definitions):
     if ref['employee_source'] not in definitions['employees']:
         raise ContractError('员工源码入口已不存在，请在原工程中核对。')
     asset = definitions['employees'][ref['employee_source']]
@@ -135,8 +148,12 @@ def describe(ref, *, revision=None, project_key=None, catalog_cache=None):
 
 
 def units(asset):
-    return [{'key': b['package_key'], 'name': _extension(b)['work']['name'],
-             'input_schema': _extension(b)['work']['input_schema']} for b in asset['skill_bundles'] if _extension(b).get('work')]
+    result = []
+    for bundle in asset['skill_bundles']:
+        work = _extension(bundle).get('work')
+        if work:
+            result.append({'key': bundle['package_key'], 'name': work['name'], 'input_schema': work['input_schema']})
+    return result
 
 
 def prepare(ref, operation_id, *, cancel=None, revision=None, runtime_selection=None):

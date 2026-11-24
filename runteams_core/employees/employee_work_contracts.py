@@ -106,3 +106,27 @@ def verify_frozen(value,scope):
     if value.get('send_admitted') and (type(value.get('work_chat_id')) is not int or type(value.get('employee_run_id')) is not int):
         raise ContractError('员工工作缺少原执行回执。')
     return value
+
+
+def owns_direct_work(connection, row, frozen, reference):
+    """Match a standalone assignment against its frozen employee identity."""
+    import json
+    from runteams_core.employees.employee_references import same
+
+    if frozen.get('pipeline_work') or row['pipeline_id'] is not None:
+        return False
+    owner = frozen.get('employee_reference')
+    if frozen.get('schema') == SCHEMA:
+        return owner is not None and same(owner, reference)
+    if frozen.get('schema') != 'runteams.workflow-run/v1' or not row['employee_id']:
+        return False
+    positions = (frozen.get('definition') or {}).get('positions') or []
+    if len(positions) != 1 or positions[0].get('employee_id') != row['employee_id']:
+        return False
+    release = connection.execute(
+        'SELECT source_ref_json FROM employee_releases WHERE employee_id=? AND id=?',
+        (row['employee_id'], positions[0].get('employee_release_id'))).fetchone()
+    if release is None:
+        return False
+    owner = (json.loads(release['source_ref_json']).get('native_asset') or {}).get('employee_reference')
+    return owner is not None and same(owner, reference)

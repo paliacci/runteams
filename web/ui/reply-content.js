@@ -1,7 +1,7 @@
 /* Inline reply components: bounded data only, never HTML, scripts or remote URLs. */
 window.RunTeamsReplyContent=(()=>{
  'use strict';
- const records=new Map(),mounted=new Map();let serial=0,scheduled=false,bundlePromise;
+ const records=new Map(),mounted=new Map();let serial=0,scheduled=false,bundlePromise,readyRenderer;
  const safe=value=>String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
  const copy=(key,fallback)=>safe(window.RunTeamsLocale?.t(key,{},fallback)??fallback);
  const viewStatus={table:['replyContent.loadingTable','正在显示表格…'],chart:['replyContent.loadingChart','正在显示图表…'],explorer:['replyContent.loadingExplorer','正在显示交互内容…']};
@@ -52,21 +52,41 @@ window.RunTeamsReplyContent=(()=>{
  async function load(){
   if(!bundlePromise)bundlePromise=(async()=>{
    const bundle=window.RunTeamsReplyBundle;if(!bundle)throw Error('Missing renderer');
-   for(const href of bundle.css){if(!document.querySelector(`link[data-reply-style="${href}"]`)){const link=document.createElement('link');link.rel='stylesheet';link.href=href;link.dataset.replyStyle=href;document.head.appendChild(link);}}
-   return import(bundle.entry);
+   const styles=bundle.css.map(href=>{
+    let link=document.querySelector(`link[data-reply-style="${href}"]`);
+    if(link?.sheet)return Promise.resolve();
+    return new Promise((resolve,reject)=>{
+     if(!link){link=document.createElement('link');link.rel='stylesheet';link.href=href;link.dataset.replyStyle=href;}
+     link.addEventListener('load',resolve,{once:true});
+     link.addEventListener('error',()=>{link.remove();reject(Error('Reply stylesheet unavailable'));},{once:true});
+     if(!link.isConnected)document.head.appendChild(link);
+    });
+   });
+   const [renderer]=await Promise.all([import(bundle.entry),...styles]);
+   readyRenderer=renderer;return renderer;
   })().catch(error=>{bundlePromise=null;throw error;});return bundlePromise;
  }
+ async function prepareHistory(messages){
+  if(readyRenderer||!messages?.some(m=>m.role==='bot'&&m.text?.includes('runteams-view')&&split(m.text).some(p=>p.type==='view')))return;
+  // Preserve readable text and the existing inline retry if an asset stalls.
+  let timer;
+  try{await Promise.race([load(),new Promise(resolve=>{timer=setTimeout(resolve,2000);})]);}
+  catch{}finally{clearTimeout(timer);}
+ }
  function queue(){if(scheduled)return;scheduled=true;requestAnimationFrame(()=>{scheduled=false;void scan();});}
- async function scan(){
-  const slots=[...document.querySelectorAll('[data-reply-view]')].filter(node=>!node.dataset.replyMounted&&!node.dataset.replyLoading);
+ function pending(root){return [...root.querySelectorAll('[data-reply-view]:not([data-reply-mounted]):not([data-reply-loading])')];}
+ function mountReady(root){
+  if(readyRenderer&&root)void scan(pending(root));
+ }
+ async function scan(slots=pending(document)){
   if(!slots.length)return;
   slots.forEach(node=>node.dataset.replyLoading='true');
   try{
-   const renderer=await load();
+   const renderer=readyRenderer||await load();
    for(const node of slots){if(!node.isConnected)continue;const token=node.dataset.replyView,record=[...records.values()].find(r=>r.token===token);if(!record)continue;
     const old=mounted.get(token);
     if(old){if(old.node!==node)node.replaceWith(old.node);continue;}
-    node.textContent='';node.dataset.replyMounted='true';const root=renderer.mount(node,record.data);mounted.set(token,{node,root});
+    node.textContent='';const root=renderer.mount(node,record.data);node.dataset.replyMounted='true';mounted.set(token,{node,root});
    }
    // Retain limited detached roots for host re-renders. No persistent browser storage.
    for(const [token,item]of mounted){if(mounted.size<=80)break;if(!item.node.isConnected){item.root.unmount();mounted.delete(token);}}
@@ -86,5 +106,5 @@ window.RunTeamsReplyContent=(()=>{
   const start=()=>{new MutationObserver(changes=>{if(changes.some(c=>[...c.addedNodes].some(n=>n.nodeType===1&&(n.matches?.('[data-reply-view]')||n.querySelector?.('[data-reply-view]')))))queue();}).observe(document.body,{childList:true,subtree:true});document.addEventListener('click',event=>{if(event.target.closest('[data-reply-retry]'))queue();});};
   if(document.body)start();else document.addEventListener('DOMContentLoaded',start,{once:true});
  }
- return {markup,plainText,split,validate,scan,load};
+ return {markup,plainText,split,validate,scan,load,prepareHistory,mountReady};
 })();

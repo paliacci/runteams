@@ -1,4 +1,4 @@
-#rgWorkspaceContent>.source-pipeline-layers {
+.source-pipeline-layers {
  position:relative;isolation:isolate;container-type:size;flex:1;min-width:0;min-height:0;overflow:hidden;
 }
 .source-pipeline-board-layer {position:absolute;inset:0;background:var(--surface)}
@@ -26,10 +26,9 @@
  filter:drop-shadow(0 5px 10px rgb(31 43 56 / 12%));
 }
 #rgWorkspaceContent .pipeline-chat-dock .conversation-main .rail-assistant-input .conversation-composer {
- min-height:var(--pipeline-composer-min-height,88px)!important;background:var(--surface)!important;
+ min-height:88px!important;background:var(--surface)!important;
 }
 #rgWorkspaceContent .pipeline-chat-dock .rail-assistant-input .conversation-composer .ccomposer-editor {
- /* Reserve the same line and padding before and after the editor becomes editable. */
  height:auto!important;min-height:calc(1lh + 24px)!important;max-height:min(120px,20cqh)!important;
 }
 .pipeline-chat-dock .conversation-main .conversation-scroll-shell[inert] {
@@ -107,6 +106,16 @@
 .source-pipeline-runtime-message{flex:1 1 160px;min-inline-size:0}
 .source-pipeline-runtime-feedback :is(details,.source-pipeline-runtime-checking){color:var(--text-secondary);overflow-wrap:anywhere}
 .body.source-pipeline-layout #rgPipelineHead .conversation-panel-header {background:transparent}
+
+
+.state-panel .settings-section-bar{margin-bottom:4px}
+.state-panel-row{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;min-height:40px;padding:6px 10px;border-radius:6px;text-align:start}
+.state-panel-row>span{display:grid;min-width:0;gap:2px}
+.state-panel-row b,.state-panel-row small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.state-panel-row b{font-size:calc(13px * var(--interface-font-scale,1));font-weight:500;color:var(--text-primary)}
+.state-panel-row small,.state-panel-empty{font-size:calc(12px * var(--interface-font-scale,1));line-height:18px;color:var(--text-secondary)}
+.state-panel-row>.i{width:14px;height:14px;flex:none;color:var(--text-secondary)}
+.state-panel-empty{margin:0;padding:10px}
 
 .source-pipeline-settings-drawer .configuration-surface textarea.inp{min-height:100px;resize:vertical;width:100%}
 .source-pipeline-settings-drawer .configuration-surface .inp{width:100%;min-width:0}

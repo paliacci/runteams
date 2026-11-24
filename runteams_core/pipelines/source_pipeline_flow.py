@@ -149,6 +149,9 @@ def _save(core, connection, row, frozen, state, cursor=None, payload=None):
         (canonical(frozen['employee_reference']).decode(), encoded, state, now, row['task_id']))
     if payload is not None:
         connection.execute('UPDATE tasks SET payload_json=? WHERE id=?', (canonical(payload).decode(), row['task_id']))
+    if state == 'completed' and row['state'] != state:
+        from runteams_core.pipelines.pipeline_task_report import save_completion
+        save_completion(core, connection, row['id'])
 
 
 def _runs(connection, frozen, extra=None):
@@ -897,6 +900,9 @@ def _move(core, connection, row, frozen, target, result, run_id=None, *, configu
     next_frozen.update(pipeline_history=archive(frozen), pipeline_visit=frozen['pipeline_visit'] + 1,
         pipeline_generation=frozen['pipeline_generation'], pipeline_input=frozen['pipeline_input'],
         pipeline_lineage=frozen['pipeline_lineage'])
+    for key in ('rerun', 'initial_pipeline_input', 'queued_pipeline_input', 'repeat_order', 'schedule_origin', 'manual_order'):
+        if key in frozen:
+            next_frozen[key] = frozen[key]
     if frozen.get('pipeline_execution'):next_frozen['pipeline_execution'] = frozen['pipeline_execution']
     next_frozen['pipeline_feedback'] = {'from': row['cursor_key'],
         'employee_run_id': run_id, 'summary': result['summary'], 'issues': result['issues'],
@@ -1177,13 +1183,14 @@ def _command_request(data):
     return {**copy.deepcopy(data),'reference':pipeline_references.checked_reference(data['reference'])}
 
 
-def _prepared_recovery(core,request,active_ids,read_only):
+def _prepared_recovery(core,request,active_ids,read_only,guard):
     if read_only or request['action']!='recover':return None
     with core.repository.connect() as connection:
         if connection.execute("SELECT 1 FROM events WHERE stream=? AND type='pipeline.flow_committed'",
                 ('source-pipeline-flow:'+request['operation_id'],)).fetchone():return None
         row=_row(connection,request['workflow_id']);frozen=json.loads(row['snapshot_json'])
         if not frozen.get('pipeline_setup_required'):return None
+        if guard is not None:guard(row,frozen)
         if frozen['pipeline_work']['reference']!=request['reference']:
             raise PermissionError('工作不属于这个智能体团队。')
         if frozen['pipeline_visit']!=request['expected_visit']:
@@ -1251,11 +1258,11 @@ def _review_execution(core, identifier, visit):
             core.repository.event(stream, 'workflow.result_checked', {'visit': visit}, connection=connection)
 
 
-def command(core,data,active_ids=(),*,read_only=False):
+def command(core,data,active_ids=(),*,read_only=False,guard=None,materials=None,chat_fingerprint=None):
     core._actor();request=_command_request(data);identifier=request['workflow_id'];key=request['operation_id']
-    prepared=_prepared_recovery(core,request,active_ids,read_only)
+    prepared=_prepared_recovery(core,request,active_ids,read_only,guard)
     with core.repository.connect() as connection:
-        if request['action'] in ('retry','resume_setup','decide','suggest_approval') and not read_only:
+        if not read_only and (guard is not None or request['action'] in ('retry','resume_setup','decide','suggest_approval')):
             connection.execute('BEGIN IMMEDIATE')
         row=_row(connection,identifier);frozen=json.loads(row['snapshot_json'])
         if (frozen.get('pipeline_work') or {}).get('reference')!=request['reference']:raise PermissionError('工作不属于这个智能体团队。')
@@ -1270,6 +1277,7 @@ def command(core,data,active_ids=(),*,read_only=False):
             core.repository.storage.assert_executable(identifier)
             if frozen['pipeline_visit']!=request['expected_visit']:raise WorkflowVisitChanged('工作已流转，请查看当前进度。')
             if identifier in active_ids:raise ContractError('原岗位仍在执行，请等待收尾，不会并发恢复。')
+            if guard is not None:guard(row,frozen)
             saved=control.read(core,request['reference'],connection)
             if (frozen.get('pipeline_execution') or {}).get('active'):
                 raise ContractError('原执行尚未确认停止，请等待系统核对，不会并发恢复。')
@@ -1373,9 +1381,11 @@ def command(core,data,active_ids=(),*,read_only=False):
                         confirmation = '用户已确认本次必需的任务配置，请核对配置并继续本岗位工作。'
                         response = response + '\n' + confirmation if response else confirmation
                     elif not response:
-                        if not can_continue_with_configuration(frozen, waiting):
+                        if materials is None and not can_continue_with_configuration(frozen, waiting):
                             raise ContractError('请先补充信息或更新任务配置，再继续。')
-                        response = '用户已更新任务配置，请核对当前配置并继续本岗位工作。'
+                        response = ('用户补充了本次工作的资料，请核对任务输入。' if materials else
+                                    '用户已更新任务配置，请核对当前配置并继续本岗位工作。')
+                    if materials is not None:materials(row,frozen)
                     frozen['pipeline_response']=response
                     frozen.pop('pipeline_waiting',None)
                     _move(core,connection,row,frozen,position_key,waiting['result'],waiting.get('source_run_id'))
@@ -1389,9 +1399,10 @@ def command(core,data,active_ids=(),*,read_only=False):
                 visible=[p for p in declarations if p.get('source')=='user' and p.get('type')!='secret' and (not p.get('visible_to') or row['cursor_key'] in p['visible_to'])]
                 allowed={p['key'] for p in visible if p.get('display')!='setup'}
                 configured_issue=any(p.get('display')=='setup' and p['key'] in issue.get('fields',[]) for p in visible)
-                if (not request['parameters'] and not configured_issue) or set(request['parameters'])-allowed:
+                if (not request['parameters'] and not configured_issue and materials is None) or set(request['parameters'])-allowed:
                     raise ContractError('只能补齐已声明的用户任务输入，不能改写员工产出或资料授权。')
                 frozen['pipeline_input']['parameters']={**frozen['pipeline_input'].get('parameters',{}),**copy.deepcopy(request['parameters'])}
+                if materials is not None:materials(row,frozen)
                 role=control.bundle_for_work(core, connection, frozen)['roles'][row['cursor_key']]
                 payload_for(core,connection,frozen,role)
                 _move(core,connection,row,frozen,row['cursor_key'],{'status':'completed','summary':'使用者补齐了任务输入。','output':{},'issues':[]})
@@ -1409,7 +1420,10 @@ def command(core,data,active_ids=(),*,read_only=False):
                 # and receipt settlement run AFTER the transaction, like pause.
                 # A duplicate request can settle only its original visit.
             receipt={'operation_id':key,'workflow_id':identifier,'visit':request['expected_visit'],'action':action}
-            core.repository.event('source-pipeline-flow:'+key,'pipeline.flow_committed',{'request_sha256':digest(request),'receipt':receipt},connection=connection)
+            audit = {'request_sha256': digest(request), 'receipt': receipt}
+            if chat_fingerprint is not None:
+                audit['chat_request_sha256'] = chat_fingerprint
+            core.repository.event('source-pipeline-flow:'+key,'pipeline.flow_committed',audit,connection=connection)
     if not read_only:
         if request['action']=='recover':
             try:

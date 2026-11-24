@@ -185,7 +185,7 @@ class LocalRuntime:
                     operation=str(uuid.uuid5(uuid.UUID(operation),'correction:'+str(repair['submission_id'])+':'+str(repair['message_id'])))
         from runteams_core.agents.language_policy import system_text
         policy = session.get('context', {}).get('language_policy') or {'communication_language': 'zh-CN'}
-        _,op=self.start(chat_id,{'message':prompt,'operation_id':operation},work_id=identifier)
+        _,op=self.start(chat_id,{'message':prompt,'operation_id':operation},work_id=identifier, background=True)
         while True:
             with self.lock:turn=self.active.get(chat_id)
             if turn is None:break
@@ -308,7 +308,7 @@ class LocalRuntime:
         return None
 
     def finish(self, chat_id, operation, text='', *, stopped=False, failed=False, system_notice=None,
-               events=None, document_result=None):
+               events=None, document_result=None, knowledge_reads=None):
         from runteams_core.agents.agent_stream import present_trace_events
         if not self.completed(chat_id, operation):
             if document_result is None:
@@ -317,7 +317,8 @@ class LocalRuntime:
             self.store.add_chat_message(chat_id, 'bot', text, applied=(document_result or {}).get('applied',[]), metadata={
                 'local_turn_id': operation, 'stopped': stopped, 'failed': failed,'run_cards':(document_result or {}).get('run_cards',[]),
                 'trace': {'complete': not stopped, 'cancelled': stopped, 'failed': failed,
-                          'events': present_trace_events(events or [])},
+                          'events': present_trace_events(events or []),
+                          **({'knowledge_reads': knowledge_reads} if knowledge_reads is not None else {})},
                 **({'system_notice': system_notice} if system_notice else {})})
         return self.completed(chat_id, operation)
 
@@ -563,6 +564,8 @@ class LocalRuntime:
             if method == 'GET' and path == '/api/device/page-ids':
                 from runteams_core.storage import device_data
                 from runteams_core.documents.local_documents import LocalDocuments
+                if 'chat' in data:
+                    return device_data.page_ids(data['chat'])
                 directory=device_data.page_ids()
                 directory['items'].extend(self.work_core().page_ids())
                 return directory
@@ -613,7 +616,7 @@ class LocalRuntime:
                 return {'ok': True}
             raise KeyError('本机接口不存在。')
 
-    def start(self, chat_id, data, *, work_id=None):
+    def start(self, chat_id, data, *, work_id=None, background=False):
         """Accept once durably, then run independently of the observing socket."""
         from runteams_core.pipelines.pipeline_execution_activity import current_turn
         work_activity = current_turn(chat_id) if work_id is not None else None
@@ -679,12 +682,20 @@ class LocalRuntime:
             if chat.get('context', {}).get('source_pipeline_workspace'):
                 from runteams_core.pipelines.pipeline_signing_assistance import binding
                 signing_assistance = binding(self.work_core(), chat_id)
+            setup_only = False
             if employee:
-                from runteams_core.configuration.employee_configuration import admission
-                configuration=admission(chat)
+                from runteams_core.configuration.employee_configuration import admission, ConfigurationInvalid
+                from runteams_core.configuration.chat_setup import admission_pending
+                try:
+                    configuration = admission(chat)
+                except ConfigurationInvalid as error:
+                    if not admission_pending(chat, error, background=background or work_id is not None):
+                        raise
+                    setup_only = True
             from runteams_core.employees.employee_workspaces import workspace as employee_workspace
             workspace = None if authoring else Path(folder_runtime(chat_id, employee_workspace(chat_id) if employee else self.store.assistant_workspace()))
-            chat = {**chat, 'context': {**chat.get('context', {}), 'language_policy': policy}}
+            if not authoring:
+                chat = {**chat, 'context': {**chat.get('context', {}), 'language_policy': policy}}
             mid, attachments = prepare(self, chat, data, operation, digest, capabilities=capabilities, rewind_source=rewind_source, employee_configuration=configuration, language_policy=policy)
             if rewind_source:
                 chat = {**chat, 'messages': [m for m in chat['messages'] if m['id'] < rewind_id]}
@@ -695,6 +706,7 @@ class LocalRuntime:
                 self.store.rename_chat(chat_id, title.strip()[:60] or '附件对话')
             turn = {'cancel': threading.Event(), 'events': [], 'done': threading.Event(), 'operation': operation}
             turn['cancel'].background_employee_work = work_id is not None
+            turn['cancel'].background_chat_turn = background
             turn['cancel'].language_policy = policy
             if configuration is not None:
                 turn['cancel'].employee_data_lease=(configuration['reference'],{'chat_id':chat_id,'message_id':mid})
@@ -703,7 +715,11 @@ class LocalRuntime:
             self.active[chat_id] = turn
             def run():
                 from runteams_core.foundation.errors import Cancelled
+                knowledge_reads = []
                 class Activity:
+                    def record_knowledge_read(self, evidence):
+                        if len(knowledge_reads) < 100 and evidence not in knowledge_reads:
+                            knowledge_reads.append(evidence)
                     def __call__(self, *args): pass
                     def request_user_input(self, questions):
                         return turn['cancel'].questions.ask(questions, self.on_event)
@@ -739,17 +755,19 @@ class LocalRuntime:
                             text, incomplete, system_notice = run(channel, chat, message, attachments, working, activity,
                                                    turn['cancel'], self.store, self.app.binding.library_id, capabilities,
                                                    employee_host=self.employee_mcp_work() if employee or authoring else None,
-                                                   configuration=configuration,
+                                                   configuration=configuration, setup_only=setup_only,
                                                    signing_assistance=signing_assistance,
                                                    user_message_id=mid,
                                                    automation_invoke=host_call(self.schedule_host),
-                                                   wake_pipeline_work=lambda identifier: self.schedule_employee_work([{'workflow_id': identifier}]))
+                                                   wake_pipeline_work=lambda identifier: self.schedule_employee_work([{'workflow_id': identifier}]),
+                                                   pipeline_active_ids=lambda: tuple(self.employee_jobs))
                         if turn['cancel'].is_set():raise Cancelled(system_text('stopped', policy))
                         from runteams_core.conversations.local_conversation_tools import apply_completed
                         activity.document_result=apply_completed(chat_id,getattr(activity,'native_tool_results',[]),turn['cancel'])
                         turn['cancel'].questions.close()
                         final = self.finish(chat_id, operation, text, failed=incomplete, system_notice=system_notice,
                             document_result=activity.document_result,
+                            knowledge_reads=knowledge_reads,
                             events=[e for e in turn['events'] if e['type'] == 'agent_event'])
                         self.schedule_employee_work(activity.document_result.get('run_cards',[]))
                 except Cancelled:
@@ -757,6 +775,7 @@ class LocalRuntime:
                     with self.scope():
                         final = self.finish(chat_id, operation, stopped=True,
                             system_notice={'kind': 'stopped', 'text': system_text('reply_stopped', policy)},
+                            knowledge_reads=knowledge_reads,
                             events=[e for e in turn['events'] if e['type'] == 'agent_event'])
                 except Exception as error:
                     turn['cancel'].questions.close()
@@ -765,6 +784,7 @@ class LocalRuntime:
                         error_text = str(error)[:4000] or system_text('failed', policy)
                         final = self.finish(chat_id, operation, failed=True,
                             system_notice={'kind': 'error', 'text': error_text},
+                            knowledge_reads=knowledge_reads,
                             events=[e for e in turn['events'] if e['type'] == 'agent_event'])
                 finally:
                     turn['cancel'].questions.close()

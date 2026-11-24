@@ -9,7 +9,7 @@ import base64
 import copy
 import hashlib
 from pathlib import Path, PurePosixPath
-import tempfile
+from functools import lru_cache
 
 from jsonschema import Draft202012Validator
 
@@ -91,12 +91,17 @@ def author_schema(kind, *, version='3'):
     raise CreatorContractError('unknown_author_schema')
 
 
+@lru_cache(maxsize=3)
+def _author_validator(kind):
+    return Draft202012Validator(author_schema(kind))
+
+
 def validate_author(kind, value):
     version = str(value.get('schema', '')).rsplit('/', 1)[-1] if kind != 'skill' else '3'
     candidate = value
     if kind == 'employee' and 'runtime_requirement' in value:
         candidate = {**value, 'runtime_requirement': without_retired_runtime_limit(value['runtime_requirement'])}
-    if version != '3' or next(Draft202012Validator(author_schema(kind, version=version)).iter_errors(candidate), None) is not None:
+    if version != '3' or next(_author_validator(kind).iter_errors(candidate), None) is not None:
         raise CreatorContractError('invalid_' + kind + '_source')
     if kind in ('employee', 'pipeline') and 'configuration' in value:
         from runteams_core.configuration.configuration_schema import validate_declaration
@@ -125,52 +130,45 @@ def compile_definitions(files, compiled, *, require=False):
     if not versions or set(versions) != {'3'}:
         raise CreatorContractError('independent_employee_source_required')
     employees, by_key, skill_digests = {}, set(), {}
-    with tempfile.TemporaryDirectory(prefix='runteams-creator-definitions-') as tmp:
-        for source_path, employee in sources.items():
-            if not employee['skill_dirs']:
-                raise CreatorContractError('missing_work', '尚未声明工作技能，请补齐技能的工作声明后再编译。')
-            if employee['key'] in by_key:
-                raise CreatorContractError('duplicate_employee_key')
-            by_key.add(employee['key'])
-            bundles, keys = [], set()
-            for directory in employee['skill_dirs']:
-                prefix = relative(directory) + '/'
-                name = PurePosixPath(directory).name
-                if name in keys: raise CreatorContractError('duplicate_skill_key')
-                keys.add(name)
-                package_files = {p[len(prefix):]: b for p, b in files.items() if p.startswith(prefix)}
-                # PackageStore performs the same frontmatter, paths, resources,
-                # tool and native-credential checks as ordinary product skills.
-                root = Path(tmp) / 'employees' / employee['key'] / name
-                root.mkdir(parents=True)
-                for path, body in package_files.items():
-                    target = root / path; target.parent.mkdir(parents=True, exist_ok=True); target.write_bytes(body)
-                prepared = _skill_packages.prepare(root)
-                if prepared['manifest']['schema'] != 'runteams.package-extension/v3':
-                    raise CreatorContractError('independent_skill_required',
-                        '员工的技能须使用独立工作声明 /v3，全部技能资产随作品打包。')
-                bundles.append({'package_key': name, 'digest': prepared['digest'], 'files': [
-                    {'path': p, 'sha256': hashlib.sha256(b).hexdigest(), 'size': len(b),
-                        'content_base64': base64.b64encode(b).decode('ascii')}
-                    for p, b in sorted(package_files.items())]})
-            try: soul = files[employee['soul_file']].decode('utf-8')
-            except UnicodeError: raise CreatorContractError('invalid_employee_soul') from None
-            from runteams_core.employees.employee_avatars import attachment
-            picture = attachment(employee['avatar'], files)
-            asset = verified_employee_asset({'schema': 'runteams.marketplace-employee/v2',
-                **({'avatar_file':picture} if picture else {}),
-                **workspace_background.source_fields(employee, files),
-                **({FIELD: templates[source_path]} if source_path in templates else {}),
-                'employee': {k: copy.deepcopy(employee[k]) for k in ('name', 'avatar')} |
-                    {'runtime_requirement': copy.deepcopy(employee.get('runtime_requirement', {}))} |
-                    {'soul': soul, 'skill_refs': [{'package_key': b['package_key'], 'digest': b['digest']} for b in bundles]} |
-                    ({'configuration': copy.deepcopy(employee['configuration'])} if 'configuration' in employee else {}),
-                'skill_bundles': bundles})
-            for bundle in bundles:
-                ext = _extension(bundle)
-                if any(a['target']['skill_key'] not in keys for a in ext['work']['result_actions']):
-                    raise CreatorContractError('missing_result_action_skill')
-            employees[source_path] = asset
+    for source_path, employee in sources.items():
+        if not employee['skill_dirs']:
+            raise CreatorContractError('missing_work', '尚未声明工作技能，请补齐技能的工作声明后再编译。')
+        if employee['key'] in by_key:
+            raise CreatorContractError('duplicate_employee_key')
+        by_key.add(employee['key'])
+        bundles, keys = [], set()
+        for directory in employee['skill_dirs']:
+            prefix = relative(directory) + '/'
+            name = PurePosixPath(directory).name
+            if name in keys: raise CreatorContractError('duplicate_skill_key')
+            keys.add(name)
+            package_files = {p[len(prefix):]: b for p, b in files.items() if p.startswith(prefix)}
+            prepared = _skill_packages.prepare_files(name, package_files)
+            if prepared['manifest']['schema'] != 'runteams.package-extension/v3':
+                raise CreatorContractError('independent_skill_required',
+                    '员工的技能须使用独立工作声明 /v3，全部技能资产随作品打包。')
+            bundles.append({'package_key': name, 'digest': prepared['digest'], 'files': [
+                {'path': p, 'sha256': hashlib.sha256(b).hexdigest(), 'size': len(b),
+                    'content_base64': base64.b64encode(b).decode('ascii')}
+                for p, b in sorted(package_files.items())]})
+        try: soul = files[employee['soul_file']].decode('utf-8')
+        except UnicodeError: raise CreatorContractError('invalid_employee_soul') from None
+        from runteams_core.employees.employee_avatars import attachment
+        picture = attachment(employee['avatar'], files)
+        asset = verified_employee_asset({'schema': 'runteams.marketplace-employee/v2',
+            **({'avatar_file':picture} if picture else {}),
+            **workspace_background.source_fields(employee, files),
+            **({FIELD: templates[source_path]} if source_path in templates else {}),
+            'employee': {k: copy.deepcopy(employee[k]) for k in ('name', 'avatar')} |
+                {'runtime_requirement': copy.deepcopy(employee.get('runtime_requirement', {}))} |
+                {'soul': soul, 'skill_refs': [{'package_key': b['package_key'], 'digest': b['digest']} for b in bundles]} |
+                ({'configuration': copy.deepcopy(employee['configuration'])} if 'configuration' in employee else {}),
+            'skill_bundles': bundles})
+        for bundle in bundles:
+            ext = _extension(bundle)
+            if any(a['target']['skill_key'] not in keys for a in ext['work']['result_actions']):
+                raise CreatorContractError('missing_result_action_skill')
+        employees[source_path] = asset
     result_pipelines, pipeline_keys = {}, set()
     from runteams_core.pipelines.pipeline_avatars import source_fields
     for path, pipeline in pipelines.items():

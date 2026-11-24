@@ -8,7 +8,7 @@ from runteams_core.authoring.definition_contracts import validate_definition
 def extension(bundle):
     """Read the actual resource bytes, never a caller supplied work projection."""
     bundle = validate_definition("portable_skill_bundle", bundle)
-    files = {f["path"]: base64.b64decode(f["content_base64"], validate=True)
+    files = {f["path"]: f["content_base64"]
              for f in bundle["files"]}
     if "runteams.json" not in files:
         raise ContractError("市场技能缺少v2工作声明")
@@ -21,10 +21,10 @@ def extension(bundle):
             return result
         def invalid_constant(value):
             raise ValueError("声明包含非JSON数值")
-        extension = json.loads(files["runteams.json"].decode("utf-8"), object_pairs_hook=unique_object,
+        extension = json.loads(base64.b64decode(files["runteams.json"], validate=True).decode("utf-8"), object_pairs_hook=unique_object,
                                parse_constant=invalid_constant)
         from runteams_core.assets.skills.skill_metadata import frontmatter as _frontmatter
-        _frontmatter(files["SKILL.md"].decode("utf-8"))
+        _frontmatter(base64.b64decode(files["SKILL.md"], validate=True).decode("utf-8"))
     except (ValueError, UnicodeError) as exc:
         raise ContractError("市场技能声明不是有效UTF-8 JSON") from exc
     extension = validate_definition("skill_extension", extension)

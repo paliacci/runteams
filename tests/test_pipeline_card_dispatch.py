@@ -79,7 +79,8 @@ class CardDispatchTests(TestCase):
             (employee_context, 'current', lambda: SimpleNamespace(validate_package=lambda _: None)),
             (control, 'read', lambda *_args, **_kwargs: self.state),
             (pipeline_position_runtime, 'refresh_bundle', lambda _ref, bundle: bundle),
-            (pipeline_task_report, 'sync', lambda *_args: None),
+            (pipeline_task_report, 'sync', lambda *_args, **_kwargs: None),
+            (pipeline_task_report, 'save_completion', lambda *_args, **_kwargs: None),
             (work, 'stage_snapshot', lambda package, context, configuration: {
                 'schema': 'runteams.employee-chat-work/v1', 'package': package,
                 'employee_reference': {}, 'definition': {'positions': [], 'edges': []}, 'pipeline_work': context}),

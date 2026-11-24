@@ -1,7 +1,6 @@
-"""Folder placement survives revisions and upgrades of an existing local library."""
+"""Folder placement survives revisions and reopening the local library."""
 from io import BytesIO
 from pathlib import Path
-import sqlite3
 from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
@@ -13,11 +12,10 @@ from runteams_core.documents.document_export import export_documents
 from runteams_core.documents.local_documents import LocalDocuments
 from runteams_core.foundation.contracts import ContractError
 from runteams_core.storage import device_data
-from runteams_core.work import device_work
 
 
 class DocumentFolderTests(unittest.TestCase):
-    def test_upgrade_move_and_revision(self):
+    def test_reopen_move_and_revision(self):
         scope = {'storage_kind': 'local', 'library_id': 'test', 'storage_namespace': 'test'}
         with TemporaryDirectory() as directory, \
                 patch.object(device_data, 'root', return_value=Path(directory)), \
@@ -26,10 +24,6 @@ class DocumentFolderTests(unittest.TestCase):
             core = LocalDocuments()
             document = rich_documents.write(core, name='Notes', document_key='notes',
                                             document=rich_documents.from_markdown('Original'))
-            with sqlite3.connect(core.repository.path) as connection:
-                for kind, name in reversed(device_work.DOCUMENT_FOLDER_STRUCTURE):
-                    connection.execute(f'DROP {kind} {name}')
-                connection.execute('PRAGMA user_version=5')
             core = LocalDocuments()
             self.assertEqual(self.ids(core, ''), [document['id']])
 

@@ -6,9 +6,8 @@ const vm = require('node:vm');
 
 const script = fs.readFileSync(path.join(__dirname, '../web/ui/static-pages.js'), 'utf8');
 
-function staticPages({routes, url}) {
+function staticPages({routes, url, saved = new Map()}) {
   const events = new Map();
-  const saved = new Map();
   const title = {
     parentElement: {querySelector: () => null, querySelectorAll: () => []},
     getBoundingClientRect: () => ({height: 42}),
@@ -17,12 +16,14 @@ function staticPages({routes, url}) {
     URL,
     location: new URL(url),
     innerWidth: 940,
+    fetch: async () => ({ok: false}),
+    setTimeout() {},
     document: {querySelector: () => title},
-    sessionStorage: {setItem: (key, value) => saved.set(key, value)},
+    sessionStorage: {getItem: key => saved.get(key), setItem: (key, value) => saved.set(key, value)},
     addEventListener: (event, listener) => events.set(event, listener),
     RunTeamsRoutes: routes,
     RunTeamsDeviceDisplay: {scope: 'device-fixture'},
-    RunTeamsSkeletons: {normalize: value => value, workspaceHeader: () => ''},
+    RunTeamsSkeletons: {normalize: value => value, workspaceHeader: () => '', pipelineBoard: () => '<div class="skeleton-board"></div>', region: () => ''},
     RunTeamsHost: {pages: {render: () => null}},
     RunTeamsShell: {pageHeader: heading => heading},
   };
@@ -53,4 +54,24 @@ test('the desktop route host still unwraps mounted routes and saves welcome dime
     title: 42,
     buttons: [],
   });
+});
+
+test('refresh shows the pipeline board skeleton without its chat dock', () => {
+  const owner = '/pipelines/1a000000';
+  const url = 'https://desktop.test' + owner + '/chats/2b000000';
+  const routes = {unmount: value => new URL(value, url).pathname, preview: () => ({kind: 'chat', ownerPath: owner})};
+  const {pages, saved} = staticPages({url, routes});
+  const initial = pages.page('conversation', {route: url});
+  assert.doesNotMatch(initial, /conversation-workspace-main|skeleton-board/);
+  for (const discussion of [false, true]) {
+    pages.rememberPipelineChatView({
+      owner_path: owner, public_id: '2b000000',
+      context: {source_pipeline_workspace: {}, source_pipeline_discussion: discussion},
+    });
+    const refreshed = staticPages({url, routes, saved}).pages;
+    const body = refreshed.page('conversation', {route: url, conversationLayout: 'history'});
+    assert.equal(body.includes('skeleton-board'), !discussion);
+    assert.doesNotMatch(body, /pipeline-chat-dock/);
+    assert.equal(body.includes('conversation-workspace-main'), discussion);
+  }
 });

@@ -153,7 +153,7 @@ def run_turn(channel, thread_id, message, developer_instructions, *, model="", e
              cancel_event=None, tool_context=None, tool_names=None,
              require_final_text=True, preserve_tool_submissions=False,
              on_runtime=None, initialize_session=None, employee_mcp=None, runtime_owner=None,
-             context_root=None):
+             context_root=None, before_start=None):
     """开始或恢复官方 Codex thread，并等待一轮完成。"""
     if cancel_event is not None and cancel_event.is_set():
         raise Cancelled("运行已停止")
@@ -185,11 +185,13 @@ def run_turn(channel, thread_id, message, developer_instructions, *, model="", e
                     argv += ['-c', 'mcp_servers.'+name+'.'+key+'='+json.dumps(value)]
     started = time.monotonic()
     timings = {}
-    start_process = lambda: subprocess.Popen(
-        argv,
-        stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-        text=True, env=env, cwd=cwd, bufsize=1,
-        start_new_session=(os.name != "nt"))
+    def start_process():
+        if before_start is not None:
+            before_start()
+        return subprocess.Popen(
+            argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            text=True, env=env, cwd=cwd, bufsize=1, start_new_session=(os.name != "nt"))
+
     # External session credentials and per-turn employee MCP bridges have their
     # own lifetime; do not keep those processes beyond their original scope.
     owner = tuple(runtime_owner) if pooled else None
@@ -261,6 +263,8 @@ def run_turn(channel, thread_id, message, developer_instructions, *, model="", e
         process.stdin.flush()
 
     def request(method, params):
+        if method == "turn/start" and before_start is not None:
+            before_start()
         connection.next_id += 1
         request_id = connection.next_id
         send({"method": method, "id": request_id, "params": params})
@@ -764,6 +768,8 @@ def run_turn(channel, thread_id, message, developer_instructions, *, model="", e
                 if params.get('willRetry') is True:
                     # A native reconnect notice is not this turn's outcome.
                     # The same native turn continues; never replay it here.
+                    if before_start is not None:
+                        before_start()
                     timings['native_retry_count'] = timings.get('native_retry_count', 0) + 1
                 else:
                     turn_error = str(error.get("message") or params.get("message") or "Codex 运行失败")

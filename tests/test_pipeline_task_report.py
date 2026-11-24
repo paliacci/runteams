@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import sqlite3
 from tempfile import TemporaryDirectory
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
@@ -11,13 +12,28 @@ from runteams_core.documents import rich_document_assets, rich_documents
 from runteams_core.documents.document_export import export_document
 from runteams_core.documents.document_service import Documents
 from runteams_core.foundation.contracts import ContractError
-from runteams_core.pipelines import pipeline_task_report
+from runteams_core.pipelines import pipeline_task_report, source_pipeline_flow
 from runteams_core.storage import device_data
 from runteams_core.storage.repository import Repository
 from runteams_core.work import device_work
 
 
 class PipelineTaskReportTests(unittest.TestCase):
+    def test_failed_completion_projection_keeps_accepted_work(self):
+        with sqlite3.connect(':memory:') as connection:
+            connection.execute('CREATE TABLE saved(kind TEXT)')
+            connection.execute("INSERT INTO saved VALUES('accepted result')")
+            def project(*args, **kwargs):
+                connection.execute("INSERT INTO saved VALUES('incomplete report')")
+                raise ContractError('Saved delivery file is unavailable')
+            def event(stream, kind, payload, *, connection):
+                connection.execute('INSERT INTO saved VALUES(?)', (kind,))
+            core = SimpleNamespace(repository=SimpleNamespace(event=event))
+            with patch.object(pipeline_task_report, 'sync', side_effect=project):
+                pipeline_task_report.save_completion(core, connection, 1)
+            self.assertEqual(connection.execute('SELECT kind FROM saved').fetchall(),
+                             [('accepted result',), ('workflow.report_unavailable',)])
+
     def test_followup_distinguishes_zero_from_a_missing_metric(self):
         update = {'observed_at': '2026-11-20T15:00:00Z', 'source_url': 'https://example.com/post',
                   'content': 'Public observation', 'metrics': {'comments': 0, 'views': None}}
@@ -53,13 +69,13 @@ class PipelineTaskReportTests(unittest.TestCase):
                 core = Documents()
                 core.root = Path(directory) / 'work'
                 core.repository = Repository(storage.path, storage=storage)
-                frozen = {'pipeline_work': {'reference': reference, 'asset': {'pipeline': {
+                frozen = {'employee_reference': {}, 'pipeline_work': {'reference': reference, 'asset': {'pipeline': {
                     'positions': [{'key': 'design', 'name': '设计'}], 'delivery': policy}}},
                     'pipeline_input': {'parameters': {'goal': 'package'}}}
                 timestamp = '2026-11-06T06:00:00+00:00'
                 with core.repository.connect() as connection:
-                    task = connection.execute('INSERT INTO tasks(employee_id,title,payload_json,state,created_at,updated_at) '
-                        "VALUES(1,'最终交付','{}','ready',?,?)", (timestamp, timestamp)).lastrowid
+                    task = connection.execute('INSERT INTO tasks(employee_reference,title,payload_json,state,created_at,updated_at) '
+                        "VALUES('{}','最终交付','{}','ready',?,?)", (timestamp, timestamp)).lastrowid
                     workflow = connection.execute('INSERT INTO workflow_runs(task_id,state,cursor_key,snapshot_json,created_at,updated_at) '
                         "VALUES(?,'ready','design',?,?,?)", (task, json.dumps(frozen), timestamp, timestamp)).lastrowid
                 original = pipeline_task_report.open_report(core, reference, workflow) if existing else None
@@ -83,9 +99,14 @@ class PipelineTaskReportTests(unittest.TestCase):
                     output = {'output': {'cover': {'report': ref}}, 'report_references': [{**ref, 'id': stage['id']}]}
                     connection.execute('UPDATE employee_runs SET output_json=? WHERE id=?', (json.dumps(output), run))
                     frozen['pipeline_lineage'] = [run]
-                    connection.execute("UPDATE workflow_runs SET state='completed',snapshot_json=? WHERE id=?",
-                                       (json.dumps(frozen), workflow))
+                    row = source_pipeline_flow._row(connection, workflow)
+                    source_pipeline_flow._save(core, connection, row, frozen, 'completed')
+                persisted = pipeline_task_report.final_delivery_reference(core, {'task_id': task, 'task': {'title': '最终交付'}})
+                self.assertIsNotNone(persisted)
+                materialized = core.document_detail(persisted['id'], refresh_task_report=False)
+                self.assertIn('验收稿', materialized['content'])
                 receipt = pipeline_task_report.open_report(core, reference, workflow)
+                self.assertEqual(receipt['revision'], materialized['revision'])
                 self.assertEqual(pipeline_task_report.open_report(core, reference, workflow), receipt)
                 self.assertEqual(pipeline_task_report.final_delivery_reference(core, {'task_id': task, 'task': {'title': '最终交付'}}),
                                  {'id': receipt['document_id'], 'name': '最终交付'})
@@ -114,7 +135,7 @@ class PipelineTaskReportTests(unittest.TestCase):
                 self.assertEqual(list(json.loads(data)['assets'].values()), [attachment])
                 self.assertEqual(merged, pipeline_task_report.open_report(core, reference, workflow))
 
-    def test_upgrade_repeat_open_revision_and_cleanup(self):
+    def test_repeat_open_revision_and_cleanup(self):
         self.check_report_language(False)
 
     def test_english_report_preserves_asset_names_and_original_objective(self):
@@ -135,11 +156,6 @@ class PipelineTaskReportTests(unittest.TestCase):
         core = Documents()
         core.root = root / 'work'
         core.repository = Repository(storage.path, storage=storage)
-        with sqlite3.connect(storage.path) as connection:
-            for kind, name in (*reversed(device_work.DOCUMENT_FOLDER_STRUCTURE), *device_work.TASK_REPORT_STRUCTURE):
-                connection.execute(f'DROP {kind} {name}')
-            connection.execute(f'PRAGMA user_version={device_work.PREVIOUS_VERSION}')
-
         reference = {'local_test': 'pipeline'}
         frozen = {'pipeline_work': {'reference': reference, 'asset': {'pipeline': {
             'positions': [{'key': 'reviewer', 'name': '审查员'}]}}},

@@ -88,6 +88,7 @@ class EmployeeSchedules:
         self.chat_execute = chat_execute
         self.polisher = polisher
         self.recovering = True
+        self.signal_occurrence_stop = lambda identifier: None
 
     @contextmanager
     def connection(self, write=False):
@@ -129,6 +130,8 @@ class EmployeeSchedules:
                     raise PermissionError('自动化不属于当前账户或部署。')
                 if write:
                     c.execute('BEGIN IMMEDIATE')
+                    from runteams_core.automation import single_occurrence
+                    single_occurrence.initialize(c)
                     c.execute('CREATE TABLE IF NOT EXISTS preparations(id TEXT PRIMARY KEY,request TEXT NOT NULL,state TEXT NOT NULL,result TEXT NOT NULL)')
                 yield c
                 device_data.check(self.scope)
@@ -145,7 +148,9 @@ class EmployeeSchedules:
         return schedule_binding(self.scope)
 
     def record(self, c, row):
+        from runteams_core.automation import single_occurrence
         value = dict(row)
+        value['next_run_at'], _ = single_occurrence.first_slot(c, row)
         for key in ('reference', 'payload', 'schedule'):
             value[key] = json.loads(value[key])
         value['enabled'] = bool(value['enabled'])
@@ -252,12 +257,63 @@ class EmployeeSchedules:
             c.execute("UPDATE preparations SET state='ready',result=? WHERE id=?", (canonical(objective), data['operation_id']))
         return objective
 
+    def validate_skill_parameters(self, asset, skill_key, parameters):
+        if 'runtime_source' in asset:
+            from runteams_core.employees.source_employee_runtime import validate_parameters
+            validate_parameters(asset['runtime_source']['asset'], skill_key, parameters)
+        else:
+            unit = select_work_unit(asset['active_release']['snapshot_json'], skill_key)
+            validate_work_parameters(unit, parameters)
+
+    def patched_payload(self, row, value, selection_key):
+        if row is None or not isinstance(value, dict) or not value or (
+                set(value) - {'name', 'objective', 'parameters', selection_key}):
+            raise ContractError('请选择原自动化及需要修改的内容。')
+        for field, limit in (('name', 120), ('objective', 20000), (selection_key, 80)):
+            if field in value and (not isinstance(value[field], str) or
+                    not value[field].strip() or len(value[field]) > limit):
+                raise ContractError('请填写有效的名称、工作内容或工作入口。')
+        if 'parameters' in value and not isinstance(value['parameters'], dict):
+            raise ContractError('工作参数必须是对象。')
+
+        name = value['name'].strip() if 'name' in value else row['name']
+        payload = json.loads(row['payload'])
+        if 'objective' in value:
+            payload['objective'] = value['objective']
+            if 'original_objective' in payload:
+                payload['original_objective'] = value['objective']
+        if 'parameters' in value:
+            payload['parameters'] = {**payload.get('parameters', {}), **value['parameters']}
+        if selection_key in value:
+            payload[selection_key] = value[selection_key]
+        return name, payload
+
+    def save_payload_edit(self, connection, identifier, name, payload):
+        connection.execute('UPDATE schedules SET revision=revision+1,name=?,payload=? WHERE id=?',
+                           (name, canonical(payload), identifier))
+        self.cancel_rows(connection, identifier)
+
+    def edit_employee(self, connection, row, value, asset):
+        name, payload = self.patched_payload(row, value, 'skill_key')
+        if payload.get('schema') == 'runteams.employee-instruction/1':
+            if payload.get('skill_key'):
+                payload.update(schema='runteams.task-input/v2', context={}, inputs=[],
+                               module_bindings={}, asset_bindings={})
+                payload.pop('original_objective', None)
+                payload.pop('use_original', None)
+            elif payload['parameters']:
+                raise ContractError('请选择声明了这些参数的员工技能。')
+        if payload.get('skill_key'):
+            validate_definition('task_payload', payload)
+            self.validate_skill_parameters(asset, payload['skill_key'], payload['parameters'])
+        self.save_payload_edit(connection, row['id'], name, payload)
+
     def command(self, data):
         if not isinstance(data, dict) or set(data) != {'operation_id', 'action', 'reference', 'id', 'expected_revision', 'value'}:
             raise ContractError('自动化操作内容无效。')
         operation_id(data['operation_id'])
         action = data['action']
-        if action not in ('save', 'reschedule', 'pause', 'resume', 'delete', 'run', 'resolve'):
+        if action not in ('save', 'edit', 'reschedule', 'pause', 'resume', 'delete', 'run', 'resolve'):
             raise ContractError('自动化操作无效。')
         # Receipt recovery never revalidates changed assets or replays a command.
         request = canonical(data)
@@ -297,17 +353,8 @@ class EmployeeSchedules:
                     payload = validate_definition('task_payload', {'schema': 'runteams.task-input/v2',
                         'objective': value['objective'], 'skill_key': value['skill_key'], 'parameters': value['parameters'],
                         'context': {}, 'inputs': [], 'module_bindings': {}, 'asset_bindings': {}})
-                if instruction:
-                    pass
-                elif 'runtime_source' in asset:
-                    from runteams_core.assets.skills.skill_bundles import extension as _extension
-                    bundle = next((b for b in asset['runtime_source']['asset']['skill_bundles'] if b['package_key']==value['skill_key']),None)
-                    if bundle is None:raise ContractError('员工已不提供这项工作，请重新选择。')
-                    from runteams_core.employees.source_employee_runtime import validate_parameters
-                    validate_parameters(asset['runtime_source']['asset'],value['skill_key'],value['parameters'])
-                else:
-                    unit = select_work_unit(asset['active_release']['snapshot_json'], value['skill_key'])
-                    validate_work_parameters(unit, value['parameters'])
+                if not instruction:
+                    self.validate_skill_parameters(asset, value['skill_key'], value['parameters'])
                 kind, interval, schedule = checked_device_schedule(value)
                 following = next_run(kind, interval, schedule) if value['enabled'] else ''
                 values = (employee_id, canonical(data['reference']), asset['active_release']['digest'],
@@ -319,6 +366,8 @@ class EmployeeSchedules:
                 else:
                     c.execute('UPDATE schedules SET revision=revision+1,employee_id=?,reference=?,release_digest=?,name=?,payload=?,enabled=?,schedule_kind=?,interval_sec=?,schedule=?,next_run_at=? WHERE id=?', (*values, identifier))
                     self.cancel_rows(c,identifier)
+            elif action == 'edit':
+                self.edit_employee(c, row, data['value'], asset)
             elif action == 'reschedule':
                 self.reschedule(c, row, data['value'])
             else:
@@ -329,7 +378,6 @@ class EmployeeSchedules:
                 elif action == 'resolve':
                     c.execute("UPDATE occurrences SET status='cancelled',reason='用户核对后结束本次记录，原工作未重做。' WHERE schedule_id=? AND status='interrupted'", (identifier,))
                 else:
-                    from runteams_core.automation import automation_time as time_rules
                     enabled = action == 'resume'
                     following = next_run(row['schedule_kind'], row['interval_sec'], json.loads(row['schedule'])) if enabled else ''
                     c.execute('UPDATE schedules SET revision=revision+1,enabled=?,deleted=?,next_run_at=? WHERE id=?',
@@ -368,15 +416,17 @@ class EmployeeSchedules:
             (row['id'], scheduled, str(uuid.uuid4()), canonical(dict(row))))
 
     def materialize_due_automations(self, limit=20, has_open_work=None):
-        from runteams_core.automation import automation_time as time_rules
+        from runteams_core.automation import automation_time as time_rules, single_occurrence
         selection, ids = self.dispatch_selection('id')
-        statement = ("SELECT * FROM schedules WHERE enabled=1 AND deleted=0 AND next_run_at<>'' "
-                     "AND next_run_at<=?" + selection + " ORDER BY next_run_at,id LIMIT ?")
         params = (time_rules.now(), *ids, min(20, limit))
         with self.connection() as c:
-            if c is None or c.execute(statement, params).fetchone() is None:
+            if c is None:
+                return
+            statement = single_occurrence.due_query(c, selection)
+            if c.execute(statement, params).fetchone() is None:
                 return
         with self.connection(write=True) as c:
+            statement = single_occurrence.due_query(c, selection)
             for row in c.execute(statement, params).fetchall():
                 if not self.dispatch_allowed(row['id']):
                     continue
@@ -384,12 +434,11 @@ class EmployeeSchedules:
                     from runteams_core.employees.managed_employee_data import writer_busy
                     if writer_busy(json.loads(row['reference'])):
                         raise ContractError('员工已有工作正在执行，本次未重复启动。')
-                    self.fire(c, row, row['next_run_at'])
+                    self.fire(c, row, row['due_at'])
                 except ContractError as exc:
                     c.execute("INSERT OR IGNORE INTO occurrences(schedule_id,scheduled_for,operation_id,status,snapshot,reason) VALUES(?,?,?,'skipped',?,?)",
-                        (row['id'], row['next_run_at'], str(uuid.uuid4()), canonical(dict(row)), str(exc)))
-                c.execute('UPDATE schedules SET next_run_at=? WHERE id=?',
-                    (next_run(row['schedule_kind'], row['interval_sec'], json.loads(row['schedule'])), row['id']))
+                        (row['id'], row['due_at'], str(uuid.uuid4()), canonical(dict(row)), str(exc)))
+                single_occurrence.consume(c, row, single_occurrence.instant(params[0]))
 
     def claim_next_automation_run(self):
         selection, ids = self.dispatch_selection('schedule_id')
@@ -405,12 +454,11 @@ class EmployeeSchedules:
             return {**dict(row), 'automation_id': row['schedule_id']}
 
     def seconds_until_due(self):
+        from runteams_core.automation.single_occurrence import earliest_due
         from runteams_core.storage.local_database import timestamp
         selection, ids = self.dispatch_selection('id')
         with self.connection() as c:
-            due = None if c is None else c.execute(
-                "SELECT min(next_run_at) FROM schedules WHERE enabled=1 AND deleted=0 AND next_run_at<>''"
-                + selection, ids).fetchone()[0]
+            due = None if c is None else earliest_due(c, selection, ids)
         return None if due is None else max(0, (timestamp(due) - datetime.now(timezone.utc)).total_seconds())
 
     def dispatch_ids(self):
@@ -480,7 +528,7 @@ class EmployeeSchedules:
                     source={'kind': 'sdk_employee_schedule', 'schedule_id': job['schedule_id'], 'operation_id': job['operation_id']})
                 core.repository.event('employee-schedule:' + job['operation_id'], 'employee_schedule.admitted', result, connection=c)
         with self.connection(write=True) as c:
-            c.execute("UPDATE occurrences SET status='waiting',workflow_id=? WHERE id=?", (result['workflow_id'], job['id']))
+            c.execute("UPDATE occurrences SET status='waiting',workflow_id=? WHERE id=? AND status<>'canceled'", (result['workflow_id'], job['id']))
         controller.wake()
 
     def reconcile(self):
@@ -541,10 +589,10 @@ class EmployeeSchedules:
                 receipt = self.admitted(self.controller_factory().core, row['operation_id'])
                 if receipt:
                     with self.connection(write=True) as c:
-                        c.execute("UPDATE occurrences SET status='waiting',workflow_id=? WHERE id=?", (receipt['workflow_id'], identifier))
+                        c.execute("UPDATE occurrences SET status='waiting',workflow_id=? WHERE id=? AND status NOT IN ('cancelled','canceled')", (receipt['workflow_id'], identifier))
                     return
         with self.connection(write=True) as c:
-            c.execute("UPDATE occurrences SET status=?,reason=? WHERE id=? AND (status<>'cancelled' OR chat_id IS NOT NULL OR workflow_id IS NOT NULL)",
+            c.execute("UPDATE occurrences SET status=?,reason=? WHERE id=? AND status NOT IN ('cancelled','canceled')",
                 (status, str(reason)[:1000], identifier))
 
     def cancel_queued_automation_runs(self, identifier, reason='计划已暂停'):

@@ -60,6 +60,13 @@ function queryRefs(target,side){
   target.searchParams.set('source',value[0]+':'+(side==='public'?item.id:item.public_id));
  }
 }
+function documentRevision(query){
+ const values=query.getAll('revision');
+ if(!values.length)return 0;
+ const id=Number(values[0]);
+ if(values.length!==1||!/^[1-9][0-9]*$/.test(values[0])||!Number.isSafeInteger(id))throw failure();
+ return id;
+}
 function normalizeInternal(target){
  if(target.pathname==='/docs'&&target.searchParams.has('document')){
   target.pathname='/docs/'+target.searchParams.get('document');target.searchParams.delete('document');
@@ -139,7 +146,10 @@ function resolve(value){
  if(kind==='chat-new')return {kind,...(q.get('purpose')==='create-employee'?{purpose:'create-employee'}:{})};
  if(kind==='employee-work')return {kind,pageId:p.employeePage};
  if(kind==='source-pipeline')return {kind,pageId:p.pipeline};
- if(kind==='docs'||kind==='docs-detail')return {kind:'docs',documentId:Number(p.document)||0,anchor:decodeURIComponent(target.hash.slice(1))};
+ if(kind==='docs'||kind==='docs-detail'){
+  const revisionId=documentRevision(q);
+  return {kind:'docs',documentId:Number(p.document)||0,anchor:decodeURIComponent(target.hash.slice(1)),...(revisionId?{revisionId}:{})};
+ }
  const contributed=global.RunTeamsHost.routes.resolve(found,target);if(contributed!==null)return contributed;
  if(kind==='design-system')return {kind,theme:['light','dark','system'].includes(q.get('theme'))?q.get('theme'):'system'};
  return {kind};
@@ -175,13 +185,16 @@ function installDevice(items,nextScope){
 }
 function isDeviceRoute(value){
  const target=url(unmount(value)),found=match(target.pathname,'public');
- if(found?.route.kind==='docs-detail')return devicePublic.has(key('documents',found.params.document))&&[...target.searchParams].every(([name,id])=>name==='chat'&&devicePublic.has(key('chats',id)));
+ if(found?.route.kind==='docs-detail'){
+  try{documentRevision(target.searchParams);}catch(error){return false;}
+  return devicePublic.has(key('documents',found.params.document))&&[...target.searchParams].every(([name,id])=>name==='revision'||name==='chat'&&devicePublic.has(key('chats',id)));
+ }
  if(found?.route.kind==='chat')return devicePublic.has(key('chats',found.params.chat));
  return false;
 }
 function clear(){byId.clear();byPublic.clear();deviceIds.clear();devicePublic.clear();scope='';deviceScope='';loaded=false;}
 global.addEventListener?.('runteams:business-scope-changed',clear);
-global.RunTeamsRoutes={toInternal,toPublic,preview,resolve,install,installDevice,isDeviceRoute,clear,mount,unmount,base,get ready(){return loaded;},get scope(){return scope;}};
+global.RunTeamsRoutes={toInternal,toPublic,preview,resolve,install,installDevice,isDeviceRoute,documentRevision,clear,mount,unmount,base,get ready(){return loaded;},get scope(){return scope;}};
 if(base)for(const event of ['click','auxclick','contextmenu'])global.document?.addEventListener?.(event,e=>{
  const anchor=e.target.closest?.('a[href]');if(!anchor)return;
  try{const target=url(anchor.href);if(target.origin===global.location.origin&&match(target.pathname,'public'))anchor.href=mount(target.href);}catch(error){}

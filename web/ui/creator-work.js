@@ -77,6 +77,7 @@
     return p;
   }
   async function sync(force=false){
+    if(S.surface==='source-pipeline'&&!force&&!active?.id&&S.sel?.type!=='creator-work')return;
     if(S.surface==='source-pipeline'&&!pipelinePanel()){
       try{await window.RunTeamsSourcePipelines?.ensureWorkContext();}catch(e){return;}
     }
@@ -114,10 +115,10 @@
   async function discover(p,epoch,force){
     const request=reading;
     const current=()=>!!refreshContext()&&epoch===generation&&token()===scope;
+    let observed='';
     try{
       // This token only suppresses idle metadata rereads. Opening a menu and
       // every actual mount/tool still use the original complete verification.
-      let observed='';
       const owner=workId(p);
       if(isPipeline(p)||items.some(item=>item.mcp)){
         const auth=employeeWorkbench?{panel:p,workbenchId:owner}:{panel:p,pipeline:isPipeline(p)};
@@ -128,6 +129,7 @@
         // Known menu entries refresh on change or deliberate opening. Idle
         // pages do not rebuild full assets on a timer; an empty menu keeps a
         // bounded probe so a newly provided page can acquire an entry point.
+        if(!force&&readError==='runtimeChanged'&&observed===discoveryVersion)return;
         if(!force&&(!readError||active?.reopenRequired)&&observed===discoveryVersion&&(items.length||Date.now()-lastDiscovery<30000))return;
       }
       const result=await call({action:'discover',workspace_id:workspace(),chat_id:owner});
@@ -146,7 +148,9 @@
       if(!openRequest&&active?.empty&&!active.reopenRequired&&visibleWork()&&choice&&!opening)await open(choice.work,choice.view);
       void layout();
     }catch(e){if(current()){
-      readError='readFailed';items=[];
+      readError=e.code==='work_runtime_changed'?'runtimeChanged':'readFailed';
+      if(readError==='runtimeChanged')discoveryVersion=observed;
+      items=[];
       // An unavailable read says nothing about the author's unsaved document.
       // Keep its instance hidden until the original discovery verifies it again.
       // Context changes, verified removal and native revocation still release it.
@@ -160,7 +164,7 @@
     if(!panel||panel.loading||panel.error||!employeePanel(panel)&&String(panel.id)!==String(chat))return false;
     const views=items.flatMap(w=>w.views),employee=RunTeamsEmployeeDirectory.forPanel(panel);
     if(employee?.record?.history_only&&!views.length)return false;
-    return !!(views.length||readError||active?.id||visibleWork()||mcpEmployee(panel.identity)||
+    return !!(isPipeline(panel)&&S.sourcePipelineWorkspace?.data?.programs_available||views.length||readError||active?.id||visibleWork()||mcpEmployee(panel.identity)||
       panel.kind==='employee_design'&&employee?.source&&mcpEmployee(employee.record));
   }
   function controls(panel){
@@ -170,7 +174,7 @@
       className:'creator-work-trigger creator-work-toggle',selected:!!visibleWork()||RunTeamsWorkRecords.activeForPanel(panel),disabled:workbench&&(opening||!!openRequest)});
   }
   function toggleEmployeeWork(){
-    const panel=S.conversationPanel;
+    const panel=pipelinePanel()||S.conversationPanel;
     if(RunTeamsWorkRecords.activeForPanel(panel)||!hasWorkbench(panel))return RunTeamsWorkRecords.toggle();
     return showPanel();
   }
@@ -394,7 +398,7 @@
   }
   function emptyContent(){
     if(readError){
-      const titles={readFailed:'无法读取工作页面',reopen:'工作台已关闭',openFailed:'无法打开工作台',windowTooSmall:'请放大窗口以打开工作台。'};
+      const titles={runtimeChanged:'原工作使用的运行资源与当前版本不一致。',readFailed:'无法读取工作页面',reopen:'工作台已关闭',openFailed:'无法打开工作台',windowTooSmall:'请放大窗口以打开工作台。'};
       const [label,labelKey]=readError==='reopen'?['重新打开工作台','employeeWork.reopenAction']:
         readError==='windowTooSmall'?['打开工作台','employeeWork.openAction']:['重试','employeeHistory.retry'];
       return `<div class="creator-work-placeholder">${RunTeamsLoadFailure.markup({variant:'local',title:titles[readError],titleKey:'employeeWork.'+readError,label,labelKey,busyLabelKey:'employeeWork.loading',retry:'RunTeamsCreatorWork.retryPanel()',focusFallback:'#creator_work_header [data-app-i18n-aria-label="employeeWork.close"]'})}</div>`;

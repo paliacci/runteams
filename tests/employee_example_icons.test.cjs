@@ -81,8 +81,9 @@ test('switching the interface language updates employee suggestions in place and
     querySelector: selector => nodes[selector],
   });
   const heading = {}, preview = {};
-  const chat = button(authored, {'.conversation-new-action-heading b': heading, '.conversation-new-action-description': preview});
-  const overview = button(authored);
+  const chat = button(authored, {'[data-work-example-label]': heading, '.conversation-new-action-description': preview});
+  const drawerLabel = {};
+  const overview = button(authored, {'[data-work-example-label]': drawerLabel});
   const builtIn = button(fallback);
   const untranslated = button(legacy);
   const partial = button(incomplete);
@@ -92,7 +93,8 @@ test('switching the interface language updates employee suggestions in place and
   changes({language: 'en', previousLanguage: 'zh-CN'});
   assert.equal(heading.textContent, 'Find the report');
   assert.equal(preview.textContent, 'Find the report.');
-  assert.equal(overview.textContent, 'Find the report');
+  assert.equal(drawerLabel.textContent, 'Find the report');
+  assert.equal(overview.textContent, undefined);
   assert.equal(builtIn.textContent, 'What can you help me with?');
   assert.equal(untranslated.textContent, legacy.title);
   assert.equal(partial.textContent, legacy.title);

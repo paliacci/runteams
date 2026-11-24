@@ -37,9 +37,27 @@ def catalog(core):
     if not Path(core.repository.path).is_file():
         return []
     with core.repository.read_snapshot() as connection:
-        rows = connection.execute('SELECT e.id,e.data_json FROM events e WHERE e.type=? AND e.id=('
-                                  'SELECT max(last.id) FROM events last WHERE last.stream=e.stream AND last.type=e.type)',
-                                  (EVENT,)).fetchall()
+        return _catalog(connection)
+
+
+def hidden_source_references():
+    from runteams_core.work.device_work import DeviceWorkStorage
+    storage = DeviceWorkStorage()
+    if not Path(storage.path).is_file():
+        return []
+    with storage.connect(readonly=True) as connection:
+        return [item['reference'] for item in _catalog(connection)]
+
+
+def hidden_source_keys():
+    from runteams_core.assets.source_links import source_key
+    return {source_key(ref['source_id'], ref['pipeline_source']) for ref in hidden_source_references()}
+
+
+def _catalog(connection):
+    rows = connection.execute('SELECT id,data_json FROM events WHERE id IN '
+                              '(SELECT max(id) FROM events WHERE type=? GROUP BY stream) ORDER BY id',
+                              (EVENT,))
     items = []
     for row in rows:
         state = json.loads(row['data_json'])

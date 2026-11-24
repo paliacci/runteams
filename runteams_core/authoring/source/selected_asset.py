@@ -89,3 +89,11 @@ def selected_source(files, kind, entry, *, keep_project_key=False):
         result[INDEX] = canonical(materials)
     result.pop(automation_template_contract.INDEX, None)
     return automation_template_contract.put(result, entry, templates) if templates else result
+
+
+def selected_publication_source(files, kind, entry, *, keep_project_key=False):
+    """Derive the exact source for the next market version."""
+    from runteams_core.authoring.source import publication_exclusions
+
+    return publication_exclusions.apply(
+        files, selected_source(files, kind, entry, keep_project_key=keep_project_key), entry)

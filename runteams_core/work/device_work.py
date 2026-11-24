@@ -24,11 +24,6 @@ DIRECTORY = 'work'
 DATABASE = 'runteams.db'
 FILE_PREFIX = 'device-work-file://'
 VERSION = 6
-PREVIOUS_VERSION = 4
-SUPPORTED_VERSIONS = (PREVIOUS_VERSION, 5, VERSION)
-TASK_REPORT_STRUCTURE = (('index', 'device_work_task_report'), ('trigger', 'device_work_delete_task_report'))
-DOCUMENT_FOLDER_STRUCTURE = (('table', 'document_folders'), ('index', 'document_folder_siblings'),
-                             ('table', 'document_folder_entries'), ('index', 'document_folder_contents'))
 ID_MIN = 2**48
 ID_MAX = 2**53 - 1
 RESOURCES = ('tasks', 'workflow_runs', 'employee_runs', 'artifacts')
@@ -42,15 +37,9 @@ def schema():
     return (directory/'device-work.sql').read_text()
 
 
-def verify_structure(connection, version=VERSION):
+def verify_structure(connection):
     from runteams_core.storage.device_schema import expected, structure
-    actual, required = structure(connection), expected(schema()).copy()
-    for introduced, keys in ((5, TASK_REPORT_STRUCTURE), (6, DOCUMENT_FOLDER_STRUCTURE)):
-        if version >= introduced:
-            continue
-        for key in keys:
-            required.pop(key)
-    if any(actual.get(key)!=value for key,value in required.items()) or set(actual)-set(required):
+    if structure(connection) != expected(schema()):
         raise ContractError('本机工作数据结构不受支持，原资料保持不变。')
 
 
@@ -200,32 +189,17 @@ class DeviceWorkStorage:
         with self.definition_lock():
             _directory(Path(self.path).parent)
             connection = sqlite3.connect(self.path, timeout=30)
-            Path(self.path).chmod(0o600)
             try:
                 version = connection.execute('PRAGMA user_version').fetchone()[0]
-                if version in (3, 4, 5):
-                    self._verify_scope(connection)
-                    connection.execute('BEGIN IMMEDIATE')
-                    if version == 3:
-                        connection.execute('DROP TABLE IF EXISTS document_native_links')
-                    verify_structure(connection, max(version, 4))
-                    from runteams_core.storage.device_schema import expected
-                    statements = expected(schema())
-                    additions = TASK_REPORT_STRUCTURE if version < 5 else ()
-                    for key in (*additions, *DOCUMENT_FOLDER_STRUCTURE):
-                        connection.execute(statements[key])
-                    verify_structure(connection)
-                    connection.execute('PRAGMA user_version=' + str(VERSION))
-                    self.check_scope()
-                    connection.commit()
-                    version = VERSION
                 if version == VERSION:
                     verify_structure(connection)
                     self._verify_scope(connection)
+                    Path(self.path).chmod(0o600)
                     return
                 if version != 0 or connection.execute(
-                        "SELECT 1 FROM sqlite_master WHERE type='table' LIMIT 1").fetchone():
+                        "SELECT 1 FROM sqlite_master LIMIT 1").fetchone():
                     raise ContractError('本机工作数据版本不受支持，原数据保持不变。')
+                Path(self.path).chmod(0o600)
                 connection.execute('PRAGMA journal_mode=WAL')
                 # Every table and the identity marker commit together. A crash
                 # cannot publish an unowned half-initialized work database.
@@ -271,7 +245,7 @@ class DeviceWorkStorage:
         if readonly:
             # A reader must not acquire the definition/writer lock or create
             # an empty database. Verify the same schema and owner in its WAL
-            # snapshot; initialization/migration remains a writer operation.
+            # snapshot; initialization remains a writer operation.
             connection = sqlite3.connect(Path(self.path).as_uri()+'?mode=ro', uri=True,
                                          timeout=30, factory=_Connection)
         else:
@@ -440,11 +414,11 @@ def verify(directory, scope):
         raise ContractError('本机工作备份路径无效。')
     with sqlite3.connect(path.resolve().as_uri() + '?mode=ro&immutable=1', uri=True) as connection:
         version = connection.execute('PRAGMA user_version').fetchone()[0]
-        if (version not in SUPPORTED_VERSIONS
+        if (version != VERSION
                 or connection.execute('PRAGMA integrity_check').fetchone()[0] != 'ok'
                 or connection.execute('PRAGMA foreign_key_check').fetchone()):
             raise ContractError('本机工作备份数据库无效。')
-        verify_structure(connection, version)
+        verify_structure(connection)
         row = connection.execute('SELECT binding_json,data_epoch FROM device_work_scope WHERE singleton=1').fetchone()
         # Backup manifests use the original storage URL, even after transport
         # changes; account/deployment/namespace remain the durable identity.

@@ -210,7 +210,7 @@ def personal_choices(store, identity, owner, revision, offset=0):
 
 
 @contextmanager
-def personal_snapshot(store, identity, files, owner, sources):
+def personal_snapshot(store, identity, files, owner, sources, *, on_selected=None):
     """Stage checked originals for the caller's source revision commit."""
     from runteams_core.storage import device_data
 
@@ -239,6 +239,7 @@ def personal_snapshot(store, identity, files, owner, sources):
         with device_data.connect(readonly=True) as connection:
             combined = {r['path'].casefold(): r for r in prior.get(owner, [])}
             additions = []
+            names = []
             for sid, sha in selected.items():
                 row = connection.execute(
                     'SELECT name,length(original) FROM asset_sources WHERE bank=? AND id=?',
@@ -252,6 +253,7 @@ def personal_snapshot(store, identity, files, owner, sources):
                     raise media.invalid(f'发布包中已有同名资料“{name}”，请重命名后再添加。')
                 combined[name.casefold()] = record
                 additions.append((sid, sha, size))
+                names.append(name)
 
             mapping = {**prior, owner: sorted(combined.values(), key=lambda r: r['path'])}
             updated = {**files, media.INDEX: canonical(mapping)}
@@ -267,6 +269,8 @@ def personal_snapshot(store, identity, files, owner, sources):
 
         copy_objects(prior, {sha: previous for sha in prior_objects}, stage)
         store.check_scope()
+        if on_selected is not None:
+            on_selected(names)
         yield updated, stage
 
 def backup_knowledge(root, destination, files):

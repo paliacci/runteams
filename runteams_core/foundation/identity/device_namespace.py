@@ -31,11 +31,9 @@ def _identity(scope):
 
 
 def _directory(base):
-    base=Path(base)
-    for path in (base,base/'.identities'):
-        if path.is_symlink():raise ValueError('本机数据身份目录无效。')
-        path.mkdir(mode=0o700,parents=True,exist_ok=True);path.chmod(0o700)
-    return base/'.identities'
+    from runteams_core.storage.local_library import private_directory
+    base = private_directory(base)
+    return private_directory(base / '.identities')
 
 
 def _read(path):

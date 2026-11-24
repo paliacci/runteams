@@ -39,7 +39,10 @@ def portable_employee(files, compiled, path):
 
 def employee_digest(files, path, asset):
     from runteams_core.assets.knowledge_archive import index
-    records = index(files).get(path)
+    return delivered_employee_digest(asset, index(files).get(path))
+
+
+def delivered_employee_digest(asset, records):
     return digest({'employee': asset, 'materials': records}) if records else digest(asset)
 
 
@@ -127,9 +130,21 @@ def verify_prepared(original, files, compiled):
     return manifest
 
 
-def check_original(files, origin, expected_asset):
+def check_original(files, origin, expected_asset, *, materials=None):
     from runteams_core.authoring.creator_contracts import compile_source
     if tree(files)['sha256'] != origin['source_sha256']: _fail('pipeline_dependency_source_changed')
     compiled = compile_source(files)
-    if origin['employee_source'] not in compiled['employees'] or employee_digest(files, origin['employee_source'], portable_employee(files, compiled, origin['employee_source'])) != expected_asset:
+    path = origin['employee_source']
+    if path not in compiled['employees']:
+        _fail('pipeline_dependency_version_changed')
+    asset = portable_employee(files, compiled, path)
+    if materials is None:
+        actual = employee_digest(files, path, asset)
+    else:
+        from runteams_core.assets.knowledge_archive import index
+        originals = index(files).get(path, ())
+        if not isinstance(materials, list) or any(row not in originals for row in materials):
+            _fail('pipeline_dependency_version_changed')
+        actual = delivered_employee_digest(asset, materials)
+    if actual != expected_asset:
         _fail('pipeline_dependency_version_changed')

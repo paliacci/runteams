@@ -1,4 +1,5 @@
 """Validated employee identities; reference equality grants no execution rights."""
+from contextlib import contextmanager
 from copy import deepcopy
 import json
 from runteams_core.storage import device_data
@@ -17,20 +18,33 @@ def source_reference(source_id, employee_source):
 
 
 def checked_reference(value):
-    actual=device_data.identity()
+    return _checked_reference(value, device_data.identity())
+
+
+def _checked_reference(value, actual):
     if actual.get('storage_kind')=='local' and (not isinstance(value,dict) or value.get('schema')!=SOURCE_SCHEMA or value.get('storage_kind')!='local'):
         raise PermissionError('本机资料库只提供自己的源码员工。')
-    if rented_references.is_rented(value):return deepcopy(rented_references.checked(value,employee=True))
+    if rented_references.is_rented(value):return deepcopy(rented_references.checked(value,actual,employee=True))
     if isinstance(value, dict) and value.get('schema') in (SOURCE_SCHEMA, ACQUIRED_SCHEMA):
         if not device_data.personal():raise PermissionError('员工不属于当前账户或部署。')
         return checked_source_reference(value,actual)
     from runteams_core.assets.asset_references import BusinessReference
     ref = BusinessReference.from_json(value)
-    scope = device_data.identity()
     if (not device_data.personal() or ref.resource != 'employees' or
-            ref.deployment_id != scope['deployment_id'] or ref.workspace_id != scope['account_id']):
+            ref.deployment_id != actual['deployment_id'] or ref.workspace_id != actual['account_id']):
         raise PermissionError('员工不属于当前账户或部署。')
     return ref.to_json()
+
+
+@contextmanager
+def matching_references(references):
+    """Compare ledger rows in one scope and recheck it before returning results."""
+    scope = device_data.identity()
+    targets = [_checked_reference(ref, scope) for ref in references]
+    def matches(value):
+        return _checked_reference(value, scope) in targets
+    yield matches
+    device_data.check(scope)
 
 
 def key(reference):

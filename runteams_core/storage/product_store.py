@@ -702,7 +702,10 @@ def get_chat(chat_id, include_messages=True, *, message_limit=None, message_curs
         item["storage_scope"] = "device" if device_chat(chat_id) else "cloud"
         if item['storage_scope']=='device':
             from runteams_core.storage import device_data
-            item['public_id']=device_data.public_id(chat_id)
+            from runteams_core.conversations.page_paths import chat_key, short_ids
+            epoch = device_data.epoch(chat_id)
+            key = chat_key(epoch)
+            item['public_id'] = short_ids([key])[key]
         runtime = None
         if item['storage_scope']=='device':
             runtime = connection.execute('SELECT provider,thread_id FROM device_chat_runtime_links WHERE chat_id=? AND generation=?',
@@ -727,7 +730,10 @@ def get_chat(chat_id, include_messages=True, *, message_limit=None, message_curs
             from runteams_core.storage.business_storage import storage_for
             size=page_size(message_limit)
             from runteams_core.storage import device_data
-            scope=scope_key('chat-messages',device_data.identity()['library_id'] if device_chat(chat_id) else _runtime_account(),device_data.epoch(chat_id) if device_chat(chat_id) else storage_for(local_database.DB_PATH).data_epoch(),int(chat_id))
+            if item['storage_scope'] == 'device':
+                scope = scope_key('chat-messages', device_data.identity()['library_id'], epoch, int(chat_id))
+            else:
+                scope = scope_key('chat-messages', _runtime_account(), storage_for(local_database.DB_PATH).data_epoch(), int(chat_id))
             after=cursor_after(message_cursor,scope)
             if after is not None and (len(after)!=1 or type(after[0]) is not int):raise CursorError('消息分页已失效，请重新打开对话。')
             rows=connection.execute('SELECT id,role,text,applied,attachments,capabilities,metadata,ts FROM chat_messages WHERE chat_id=?'
@@ -821,9 +827,6 @@ def add_chat_message(chat_id, role, text, applied=None, attachments=None,
              json.dumps(metadata or {}, ensure_ascii=False), now()),
         ).lastrowid
         connection.execute("UPDATE chats SET updated_at=? WHERE id=?", (now(), chat_id))
-        if role == 'user' and attachments and device_chat(chat_id):
-            from runteams_core.conversations import asset_sources
-            asset_sources.capture(connection, chat_id, attachments)
         return message_id
 
 

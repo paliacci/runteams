@@ -108,6 +108,6 @@ def consume(host,backend,job,chat_id,payload,cancel_event=None):
     from runteams_core.employees.employee_context import current
     status,reason=current().scheduled_turn(host,backend.scope,job['operation_id'],chat_id,prompt,cancel_event)
     with backend.connection(write=True) as c:
-        c.execute('UPDATE occurrences SET status=?,reason=? WHERE id=?',(status,'' if status == 'completed' else reason,job['id']))
+        c.execute("UPDATE occurrences SET status=?,reason=? WHERE id=? AND status NOT IN ('cancelled','canceled')",(status,'' if status == 'completed' else reason,job['id']))
 
 

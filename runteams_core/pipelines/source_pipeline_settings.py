@@ -247,7 +247,7 @@ def _settings_employees(ref, revision, files, asset, *, configuration_employees=
     return employees
 
 
-def edit(core, data):
+def edit(core, data, *, before_commit=None):
     from runteams_core.assets.rented_references import is_rented
     if is_rented(data.get('reference')):raise PermissionError('租用资产只可配置使用，不能修改或恢复源码。')
     core._actor()
@@ -295,7 +295,12 @@ def edit(core, data):
     from runteams_core.pipelines.pipeline_employee_dependencies import describe as describe_member
     for member in asset['employees']:
         if 'dependency' in member:
-            describe_member(ref, member, data['base_revision'])
+            try:
+                describe_member(ref, member, data['base_revision'])
+            except FileNotFoundError as error:
+                raise ContractError('所选员工版本已不可用，请重新选择。') from error
+    if before_commit is not None:
+        before_commit()
     result = revisions.commit(files, data['base_revision'], operation)
     return {'reference': ref, 'revision': result['revision'], 'pipeline': checked['pipelines'][ref['pipeline_source']]['pipeline'],
             'storage_scope': 'device'}

@@ -1,4 +1,5 @@
 """Bound author JSON-schema work in a separate process, never the Chat process."""
+from functools import lru_cache
 import json
 import os
 from pathlib import Path
@@ -58,8 +59,17 @@ def _worker(payload):
             process.wait()
 
 
+@lru_cache(maxsize=32)
+def _checked_schemas(raw):
+    # Only successful declarations can be reused. New content still goes
+    # through the isolated validator and its byte, memory and time limits.
+    _worker({'schemas': json.loads(raw)})
+
+
 def validate_schemas(schemas):
-    _worker({'schemas': schemas})
+    if schemas != []:
+        raw = canonical(schemas)
+        _checked_schemas(raw)
 
 
 def validate_data(schema, value):

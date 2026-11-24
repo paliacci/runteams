@@ -21,7 +21,8 @@ function fixture(){
  doc.querySelector=selector=>{assert.equal(selector,'#conversation_worker_avatar > svg[data-live-employee-avatar]');return current;};
  Object.assign(win,{matchMedia:query=>query.includes('reduced')?reduced:fine,performance:{now:()=>now},
   requestAnimationFrame:fn=>{frames.set(++nextId,fn);return nextId;},cancelAnimationFrame:id=>frames.delete(id),
-  setTimeout:(fn,delay)=>{timers.set(++nextId,{fn,due:now+delay});return nextId;},clearTimeout:id=>timers.delete(id),
+  // Browser timer delays are whole milliseconds, even when blink jitter is fractional.
+  setTimeout:(fn,delay)=>{timers.set(++nextId,{fn,due:now+Math.trunc(delay)});return nextId;},clearTimeout:id=>timers.delete(id),
   IntersectionObserver:class{constructor(fn){intersection=fn;}observe(){}disconnect(){}}});
  const controller=create(win,doc);
  return {win,doc,reduced,fine,frames,timers,controller,get node(){return current;},

@@ -12,6 +12,10 @@ class ContractError(ValueError):
     pass
 
 
+class FrozenRuntimeChanged(ContractError):
+    """The saved work requires a different verified runtime."""
+
+
 class DocumentLossError(ContractError):
     """永久删除会销毁已发布的文档；调用方必须先确认份数。"""
 

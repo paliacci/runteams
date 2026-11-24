@@ -5,7 +5,7 @@
   const painted=new WeakMap();
   const initialSize=3;
   let host,timer,state={scope:null};
-  const empty=scope=>({scope,status:'idle',data:null,localStatus:'idle',localData:null,pending:null,due:0,localPending:null,localDue:0,expanded:false});
+  const empty=scope=>({scope,localStatus:'idle',localData:null,localPending:null,localDue:0,expanded:false});
   function context(){const value=host?.context()||{},scope=value.signedIn?String(value.scope):'';if(state.scope!==scope)state=empty(scope);return value;}
   function workRow({id,title,name,kind,employee,pipeline_name},device=false){
     return {key:(device?'device-work:':'work:')+id,id,title,name,kind,employee,pipeline_name,
@@ -13,10 +13,6 @@
   }
   function items(){
     const rows=[],seen=new Set();
-    for(const work of state.status==='ready'?state.data.work_items:[]){
-      if(!['needs_approval','needs_human'].includes(work.state))continue;
-      rows.push(workRow(work));seen.add('cloud:'+work.id);
-    }
     for(const work of host?.context()?.localReady&&state.localStatus==='ready'?state.localData.work_items:[]){
       if(!['needs_approval','needs_human'].includes(work.state))continue;
       rows.push(workRow(work,true));seen.add('device:'+work.id);
@@ -45,10 +41,10 @@
   const statusCopy=count=>`<span data-app-i18n="sidebarAttention.${count?'partial':'failed'}">${count?'部分待处理事项无法读取。':'无法读取待处理事项。'}</span>`;
   function contents(values,value){
     const local=!!value.localReady&&!!host.localWork;
-    const failed=state.status==='error'||local&&state.localStatus==='error'||!value.deviceWorkOnly&&!value.ready&&state.localStatus==='ready';
+    const failed=value.cloudWorkUnavailable||local&&state.localStatus==='error'||!value.deviceWorkOnly&&!value.ready&&state.localStatus==='ready';
     const expanded=state.expanded,shown=expanded?values:values.slice(0,initialSize);
     const more=values.length>initialSize?`<button class="rail-section-more rail-pending-more" type="button" aria-expanded="${expanded}" aria-controls="rail-pending-items" onclick="RunTeamsSidebar.toggleMore()" data-app-i18n="sidebarAttention.${expanded?'showLess':'showMore'}">${expanded?'显示更少':'显示更多'}</button>`:'';
-    const error=failed?`<div class="rail-pending-error" role="alert">${statusCopy(values.length)}${global.RunTeamsLoadFailure.button({variant:'local',compact:true,retry:'RunTeamsSidebar.refresh(true)',labelKey:'sidebarAttention.retry',busyLabelKey:'sidebarAttention.loading',busy:!!state.pending||!!state.localPending,focusFallback:'[data-rail-section="pending"] > summary'})}</div>`:'';
+    const error=failed?`<div class="rail-pending-error" role="alert">${statusCopy(values.length)}${global.RunTeamsLoadFailure.button({variant:'local',compact:true,retry:'RunTeamsSidebar.refresh(true)',labelKey:'sidebarAttention.retry',busyLabelKey:'sidebarAttention.loading',busy:!!state.localPending,focusFallback:'[data-rail-section="pending"] > summary'})}</div>`:'';
     const body=`<div id="rail-pending-items">${shown.map(row).join('')}</div>`+more+error;
     return `<details class="rail-pending-section" data-rail-section="pending" ${host.sectionOpen()?'open':''}><summary class="rail-section-toggle" onclick="RunTeamsSidebar.toggle(event)"><span data-app-i18n="sidebarAttention.title">待处理</span><span class="rail-section-chevron" aria-hidden="true">${host.icon('chev')}</span></summary><div class="rail-pending-list">${body}</div></details>`;
   }
@@ -66,25 +62,23 @@
     if(inside)(node.querySelector(target)||node.querySelector('summary'))?.focus({preventScroll:true});
   }
   async function refresh(force=false){
-    const value=context(),local=!!value.localReady&&!!host.localWork;if(!value.signedIn||!value.ready&&!local)return;
-    const current=state,scope=state.scope,reads=[];
-    // Personal work stays on this executor. Unwired shared work is an error,
-    // never a request to the retired backend or the personal work database.
-    if(value.cloudWorkUnavailable){current.status='error';paint();}
-    for(const device of [...(!value.deviceWorkOnly&&!value.cloudWorkUnavailable&&(value.ready||local)?[false]:[]),...(local?[true]:[])]){
-      const pending=device?'localPending':'pending',due=device?'localDue':'due';
-      if(current[pending]){reads.push(current[pending]);continue;}
-      if(!force&&Date.now()<current[due])continue;
-      current[due]=Date.now()+15000;
-      current[pending]=(async()=>{try{const result=await (device?host.localWork():host.request('/api/workspace/sidebar'));if(state!==current||context().scope!==scope)return;
-        if(result?.schema!=='runteams.sidebar-activity/v1'||!Array.isArray(result.work_items)||result.work_items.some(item=>!['employee','pipeline'].includes(item.kind)||!['ready','running','waiting_retry','needs_approval','needs_human'].includes(item.state)||!Number.isSafeInteger(item.id)||item.id<=0||typeof item.title!=='string'||typeof item.name!=='string'))throw Error('invalid attention projection');
-        if(device){if(result.storage_scope!=='device')throw Error('invalid device work projection');current.localData=result;current.localStatus='ready';}
-        else{host.authority?.(result);current.data=result;current.status='ready';}
-      }catch(error){if(state===current&&context().scope===scope){if(device){current.localData=null;current.localStatus='error';}else{host.authorityFailed?.();current.data=null;current.status='error';}current[due]=Date.now()+30000;}}
-      finally{if(state===current){current[pending]=null;paint();}}})();
-      reads.push(current[pending]);
-    }
-    return Promise.all(reads);
+    const value=context(),current=state,scope=current.scope;
+    if(!value.signedIn)return;
+    if(value.cloudWorkUnavailable)paint();
+    if(!value.localReady||!host.localWork)return;
+    if(current.localPending)return current.localPending;
+    if(!force&&Date.now()<current.localDue)return;
+    current.localDue=Date.now()+15000;
+    current.localPending=Promise.resolve().then(()=>host.localWork()).then(result=>{
+      if(context().scope!==scope||state!==current)return;
+      if(result?.schema!=='runteams.sidebar-activity/v1'||result.storage_scope!=='device'||!Array.isArray(result.work_items)||
+        result.work_items.some(item=>!Number.isSafeInteger(item.id)||item.id<=0||typeof item.title!=='string'||typeof item.name!=='string'))throw Error('invalid device work projection');
+      current.localData=result;current.localStatus='ready';
+    }).catch(()=>{
+      if(context().scope!==scope||state!==current)return;
+      current.localData=null;current.localStatus='error';current.localDue=Date.now()+30000;
+    }).finally(()=>{if(state===current){current.localPending=null;paint();}});
+    return current.localPending;
   }
   function setOpen(open){context();host.setSectionOpen(!!open);}
   function toggle(event){event.preventDefault();context();setOpen(!host.sectionOpen());const details=event.currentTarget.closest('details');if(details)details.open=host.sectionOpen();}

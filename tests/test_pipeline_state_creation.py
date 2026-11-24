@@ -72,7 +72,8 @@ class StateCreationTests(TestCase):
                 ('runteams_core.pipelines.source_pipeline_work.verify_context', lambda *args, **kwargs: None),
                 ('runteams_core.pipelines.source_pipeline_work.stage_snapshot', lambda *args: {'pipeline_work': copy.deepcopy(self.context), 'employee_reference': {}}),
                 ('runteams_core.agents.language_policy.snapshot', lambda: {'communication_language': 'en'}),
-                ('runteams_core.pipelines.pipeline_task_report.sync', lambda *args: None),
+                ('runteams_core.pipelines.pipeline_task_report.sync', lambda *args, **kwargs: None),
+                ('runteams_core.pipelines.pipeline_task_report.save_completion', lambda *args, **kwargs: None),
                 ('runteams_core.pipelines.source_pipeline_work._project', lambda core, req, identifier, key: identifier),
             ]:
                 stack.enter_context(patch(target, value))

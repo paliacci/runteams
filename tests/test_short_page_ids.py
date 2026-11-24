@@ -25,3 +25,4 @@ class ShortPageIdTests(unittest.TestCase):
                 for key, value in batch.items():
                     self.assertRegex(value, r'^[0-9][a-z][a-z0-9]{6}$')
                     self.assertEqual(value, all_ids[key])
+                    self.assertEqual(page_id_store.lookup(directory, value), key)

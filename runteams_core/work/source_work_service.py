@@ -42,9 +42,18 @@ class SourceWorkService:
 
 
     def execute_claimed_workflow(self, workflow_run_id, runtime, max_attempts=3, retry_delay_sec=5):
-        from runteams_core.employees.employee_chat_work import snapshot, execute
-        frozen=snapshot(self,workflow_run_id)
-        if frozen is not None:return execute(self,workflow_run_id,frozen,runtime)
+        from runteams_core.employees.employee_chat_work import snapshot, execute, finish
+        frozen = snapshot(self, workflow_run_id, include_native=True)
+        from runteams_core.employees.employee_work_contracts import SCHEMA
+        if frozen and frozen.get('schema') == SCHEMA:
+            return execute(self, workflow_run_id, frozen, runtime)
+        rerun = (frozen or {}).get('rerun')
+        if rerun and rerun.get('reference'):
+            from runteams_core.automation.automation_rerun import assert_knowledge
+            try:
+                assert_knowledge(frozen, reference=rerun['reference'])
+            except ContractError as error:
+                return finish(self, workflow_run_id, 'blocked', str(error))
         return super().execute_claimed_workflow(workflow_run_id,runtime,max_attempts,retry_delay_sec)
 
 

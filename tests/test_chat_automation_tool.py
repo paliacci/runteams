@@ -76,3 +76,18 @@ class ChatAutomationToolTests(TestCase):
             self.assertFalse(self.rpc({'operation': 'list'})['isError'])
         self.invoke.assert_called_once_with(kind='pipeline', reference=self.reference,
                                             turn_key='stored-chat-epoch:8', operation='list', arguments={})
+
+    def test_author_chat_binds_only_the_selected_owned_employee(self):
+        self.session.update(kind='employee_design', subject_type='workspace', context={
+            'context_type': 'worker', 'intent': 'create', 'phase': 'design',
+            'creator_local_scope': 'library', 'creator_authoring': True,
+            'creator_local_source_id': 'source', 'creator_employee_source': 'employees/main.json'})
+        self.scope['cache_scope'] = 'library'
+        with patch('runteams_core.employees.employee_directory.for_session') as lookup:
+            lookup.return_value = {'source': {'reference': self.reference}}
+            self.assertTrue(tool.bind_turn(self.context, 8, self.cancel, self.invoke))
+            self.assertFalse(self.rpc({'operation': 'history'})['isError'])
+            lookup.return_value = {'trashed': True, 'source': {'reference': self.reference}}
+            self.assertTrue(self.rpc({'operation': 'history'})['isError'])
+            self.session['context']['creator_local_scope'] = 'someone-else'
+            self.assertFalse(tool.bind_turn(self.context, 8, self.cancel, self.invoke))

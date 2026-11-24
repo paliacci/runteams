@@ -120,11 +120,11 @@ async function read(s=active){if(s?.credentialQueue)await s.credentialQueue;if(!
  catch(error){if(owned(s))s.error=error.uiMessage||error.message;}
  finally{if(owned(s)){s.loading=false;paint(s);}}
 }
-async function open(value){
- if(S.sel?.type==='core-pipeline-parameters'&&requestDetailWorkspaceLeave(()=>open(value)))return;
+async function open(value,{returnToChat=false}={}){
+ if(S.sel?.type==='core-pipeline-parameters'&&requestDetailWorkspaceLeave(()=>open(value,{returnToChat})))return;
  const entry=typeof value==='object'?value:RunTeamsEmployeeDirectory.entryFor(value)||RunTeamsEmployeeDirectory.assetEntry(value);
  if(!entry)throw messageError(message("directoryChanged","员工列表已变更。请重新打开设置。"));
- return activate(entry,null);
+ return activate(entry,null,{returnToChat});
 }
 async function openConversation(entry,author=entry){
  if(author?.source)return RunTeamsCreatorAuthor.openSource(author.source,{settings:entry});
@@ -144,14 +144,19 @@ function sessionFor(entry){
  s.entry=entry;
  return s;
 }
-async function activate(entry,inlineSelection){
+async function activate(entry,inlineSelection,{returnToChat=false}={}){
  capture();
  const s=sessionFor(entry);
- if(!inlineSelection)selectDetailWorkspace({type:'employee-configuration',id:entry.key});
+ if(!inlineSelection)selectDetailWorkspace({type:'employee-configuration',id:entry.key,returnToChat});
  if(inlineSelection?.type==='creator-assets')embeddedSessions.set(inlineSelection,s);
  else{active=s;s.inlineSelection=inlineSelection;}
  s.applicationLoadState=null;
- paint(s);if(!s.pending)await read(s);
+ paint(s);
+ if(!s.pending){
+  const configuration=read(s);
+  ensureApplicationBindings(s);
+  await configuration;
+ }
 }
 function mountGroup(entries,selection,snapshot,loading){
  const waiting=loading&&!snapshot;
@@ -212,7 +217,12 @@ async function required(error,chatId){
  requestAnimationFrame(()=>{if(current()===s){const target=document.querySelector('#employee_configuration_form [aria-invalid="true"]');target?.scrollIntoView({block:'center'});target?.focus();}});
  return true;
 }
-function close(){leave();if(current()?.entry.pipeline_reference)return RunTeamsSourcePipelinePanels.settings();closeDetailWorkspace();}
+function close(){
+ const returnToChat=S.sel?.returnToChat;
+ leave();
+ if(!returnToChat&&current()?.entry.pipeline_reference)return RunTeamsSourcePipelinePanels.settings();
+ closeDetailWorkspace();
+}
 function leave(){
  const group=inlineGroup(),sessions=group?[...group.byId.values()]:[current()].filter(Boolean);
  for(const s of sessions){
@@ -500,13 +510,17 @@ function applicationRows(s){
   return applicationRow(row,account+(applications(s).some(saved=>applicationId(saved)===applicationId(row))?'<button type="button" class="btn ghost employee-application-more" data-menu-trigger="quiet" data-employee-app-menu="'+id+'" aria-haspopup="menu" aria-expanded="false"'+(pending?' disabled':'')+' aria-label="'+esc(copy('appsMore','更多操作')+' · '+row.name)+'">'+ICON('more')+'</button>':''));
  }).join('')+'<div class="employee-application-footer"><button type="button" class="btn" data-employee-app-add>'+label('appsAdd','添加应用')+'</button></div>';
 }
-function applicationSection(s){
- if(!hasApplications(s))return '';
+function ensureApplicationBindings(s){
+ if(!hasApplications(s))return;
  const state=bindingsState(s);
  if(s.applicationLoadState!==state){
   s.applicationLoadState=state;
   void loadApplicationBindings(s,state);
  }
+}
+function applicationSection(s){
+ if(!hasApplications(s))return '';
+ ensureApplicationBindings(s);
  if(!showApplicationSection(s))return '';
  const id=formId(s)+'-applications';
  return RunTeamsEmployeeDrawerHeader.section({

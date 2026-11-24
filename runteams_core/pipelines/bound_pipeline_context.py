@@ -49,6 +49,12 @@ class BoundPipelineContext:
         return OwnConfiguration(reference, asset, revision)
 
 
+    def position_runtime(self, core, reference, position_key, change=None):
+        self._check()
+        from runteams_core.pipelines.pipeline_position_runtime import configuration
+        return configuration(core, reference, position_key, change)
+
+
     def describe_member(self, reference, member, revision):
         self._check()
         from runteams_core.pipelines.pipeline_employee_dependencies import describe

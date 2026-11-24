@@ -54,7 +54,7 @@ def _asset(core, ref):
 
 def _row(connection, ref, identifier):
     if type(identifier) is not int or not 0<identifier<2**53:raise ContractError('工作引用无效。')
-    row=connection.execute('SELECT w.*,t.title,t.trashed_at FROM workflow_runs w JOIN tasks t ON t.id=w.task_id WHERE w.id=?',
+    row=connection.execute('SELECT w.*,t.title,t.trashed_at,t.payload_json FROM workflow_runs w JOIN tasks t ON t.id=w.task_id WHERE w.id=?',
         (identifier,)).fetchone()
     if not row or row['trashed_at']:raise PermissionError('这项工作不存在或已移入垃圾箱。')
     frozen=json.loads(row['snapshot_json'])

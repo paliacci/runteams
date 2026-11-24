@@ -3,9 +3,11 @@ import json
 import re
 
 from runteams_core.documents import rich_documents
-from runteams_core.foundation.contracts import digest
+from runteams_core.foundation.contracts import ContractError, digest
 from runteams_core.pipelines import pipeline_references
 
+
+FINAL_DELIVERY_EVENT = 'workflow.delivery_pinned'
 
 STATES = {
     'ready': '等待开始', 'running': '正在工作', 'waiting_retry': '等待重试',
@@ -87,7 +89,7 @@ def add_followup(document, update, frozen):
     return document
 
 
-def sync(core, connection, identifier, *, reference=None, expected_root=None):
+def sync(core, connection, identifier, *, reference=None, expected_root=None, use_current_layout=True):
     row = _workflow(connection, identifier)
     frozen = json.loads(row['snapshot_json']) if row else {}
     stored = (frozen.get('pipeline_work') or {}).get('reference')
@@ -101,14 +103,17 @@ def sync(core, connection, identifier, *, reference=None, expected_root=None):
     if root_id and not current:
         raise PermissionError('原任务汇报无法读取。')
     title = str(row['title'] or _label(frozen, '任务'))
-    marker = {'task_id': row['task_id'], 'workflow_id': identifier}
+    marker = {'task_id': row['task_id'], 'workflow_id': identifier, 'state': row['state']}
     if current and row['trashed_at']:
         return current
     from runteams_core.pipelines.scheduled_followup import latest
     update = latest(connection, identifier)
     from runteams_core.pipelines import pipeline_task_delivery
     accepted = frozen.get('pipeline_lineage')
-    policy = pipeline_task_delivery.policy_for(frozen) if row['state'] == 'completed' and accepted else None
+    policy = None
+    if row['state'] == 'completed' and accepted:
+        policy = (pipeline_task_delivery.policy_for(frozen) if use_current_layout else
+                  frozen['pipeline_work']['asset']['pipeline'].get('delivery'))
     # A returned stage can shorten the accepted lineage. Its old material then leaves this document.
     if accepted is not None:
         marker['delivery_lineage'] = digest({'layout': 2, 'accepted': accepted, 'policy': policy,
@@ -137,6 +142,24 @@ def open_report(core, reference, identifier):
     with core.repository.definition_lock(), core.repository.connect() as connection:
         report = sync(core, connection, identifier, reference=reference)
         return {'document_id': report['document_root_id'], 'revision': report['revision']}
+
+
+def save_completion(core, connection, identifier):
+    # A missing delivery file must not discard a successfully accepted result.
+    connection.execute('SAVEPOINT final_task_report')
+    try:
+        report = sync(core, connection, identifier, use_current_layout=False)
+        row = connection.execute('SELECT meta_json FROM artifacts WHERE id=?', (report['id'],)).fetchone()
+        meta = json.loads(row['meta_json'])
+        pin = {'id': report['document_root_id'], 'artifact_id': report['id'], 'revision': report['revision'],
+               'name': report['name'], 'sha256': meta['sha256']}
+        core.repository.event('workflow_run:' + str(identifier), FINAL_DELIVERY_EVENT, pin, connection=connection)
+    except (ContractError, OSError):
+        connection.execute('ROLLBACK TO final_task_report')
+        core.repository.event('workflow_run:' + str(identifier), 'workflow.report_unavailable',
+                              {'workflow_id': identifier}, connection=connection)
+    finally:
+        connection.execute('RELEASE final_task_report')
 
 
 def refresh_document(core, marker, root):

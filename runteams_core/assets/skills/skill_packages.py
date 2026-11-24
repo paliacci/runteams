@@ -49,7 +49,6 @@ def validate_resources(files):
 
 
 def prepare(source):
-    from runteams_core.agents import capability_runtime
     source = Path(source)
     if source.is_symlink():
         raise ContractError("技能包目录不能是符号链接")
@@ -75,12 +74,29 @@ def prepare(source):
         if total > MAX_BYTES:
             raise ContractError("能力包大小超过 32 MB")
         files[safe_relative(relative)] = body
+    return prepare_files(source.name, files)
+
+
+def prepare_files(name, source_files):
+    """Apply the same package contract to validated archive bytes or directory bytes."""
+    from runteams_core.agents import capability_runtime
+    files = {safe_relative(path): body for path, body in source_files.items()
+             if not IGNORED.intersection(Path(path).parts)}
+    for path in files:
+        if any(parent.as_posix() in files for parent in Path(path).parents):
+            raise ContractError("技能资源路径冲突：" + path)
+    if 'SKILL.md' not in files:
+        raise ContractError("Agent Skill 能力包必须包含 SKILL.md")
+    if len(files) > MAX_FILES:
+        raise ContractError("能力包文件数量超过限制")
+    if sum(map(len, files.values())) > MAX_BYTES:
+        raise ContractError("能力包大小超过 32 MB")
     try:
         skill_text = files["SKILL.md"].decode("utf-8")
     except UnicodeDecodeError as exc:
         raise ContractError("SKILL.md 必须使用 UTF-8") from exc
     meta = skill_metadata.frontmatter(skill_text)
-    if source.name != meta["name"]:
+    if name != meta["name"]:
         raise ContractError("SKILL.md name 必须与能力包目录名一致")
     extension = skill_metadata.extension(files, meta)
     for tool in extension["tools"]:

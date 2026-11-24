@@ -56,7 +56,7 @@ def query(args, binding, caller):
     detail = args['action'] == 'history_message'
     allowed = {'action', 'message', 'offset'} if detail else {'action', 'chat', 'before'}
     if set(args) - allowed:
-        raise ValueError('历史查询参数无效。')
+        raise ValueError('历史查询参数无效。history 仅接受 chat、before；history_message 接受 message、offset。')
     identity = device_data.identity()
     ids = _conversations(binding, caller)
     with device_data.connect(readonly=True) as connection:

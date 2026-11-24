@@ -10,8 +10,7 @@ import copy
 import hashlib
 import threading
 from collections import OrderedDict
-from pathlib import Path,PurePosixPath
-import tempfile
+from pathlib import PurePosixPath
 
 from runteams_core.authoring.creator_contracts import canonical, CreatorContractError
 from runteams_core.foundation.contracts import ContractError
@@ -47,24 +46,24 @@ def _checked_employee_metadata(value):
                 _metadata.popitem(last=False)
 
 
-# Only immutable parsed author declarations, keyed by the complete bundle's
-# canonical content hash. No scope, configuration, program enablement, grant,
-# lease or result is memoized. Return a copy so callers cannot poison the cache.
+# The tree digest is trusted only after validating the complete bundle.
 _extensions=OrderedDict();_extensions_lock=threading.RLock()
 def extension(bundle):
-    try:key=hashlib.sha256(canonical(bundle)).digest()
-    except (TypeError,ValueError,RecursionError):key=None
+    value = validate_definition('portable_skill_bundle', bundle)
+    key = value['digest']
     with _extensions_lock:
-        cached=_extensions.get(key) if key is not None else None
+        cached = _extensions.get(key)
         if cached is not None:
-            _extensions.move_to_end(key);return copy.deepcopy(cached[1])
-    value=validate_definition('portable_skill_bundle',bundle)
-    files={f['path']:base64.b64decode(f['content_base64'],validate=True) for f in value['files']}
-    result=_extension(files,_frontmatter(files['SKILL.md'].decode('utf-8')))
-    if key is not None:
-        with _extensions_lock:
-            _extensions[key]=(len(canonical(result)),copy.deepcopy(result));_extensions.move_to_end(key)
-            while len(_extensions)>64 or sum(row[0] for row in _extensions.values())>4*1024*1024:_extensions.popitem(last=False)
+            _extensions.move_to_end(key)
+            return copy.deepcopy(cached[1])
+    files = {f['path']: base64.b64decode(f['content_base64'], validate=True) for f in value['files']
+             if f['path'] in ('SKILL.md', 'runteams.json')}
+    result = _extension(files, _frontmatter(files['SKILL.md'].decode('utf-8')))
+    with _extensions_lock:
+        _extensions[key] = (len(canonical(result)), copy.deepcopy(result))
+        _extensions.move_to_end(key)
+        while len(_extensions) > 64 or sum(row[0] for row in _extensions.values()) > 4 * 1024 * 1024:
+            _extensions.popitem(last=False)
     return result
 
 
@@ -105,31 +104,31 @@ def compile_catalog(files,compiled):
     from runteams_core.authoring.compilation.creator_mcp_source import pipeline_programs
     programs=pipeline_programs(files,compiled)
     files=definition_files(files,compiled);employees={}
-    with tempfile.TemporaryDirectory(prefix='runteams-conversation-assets-') as directory:
-        for path,source in compiled['employees'].items():
-            bundles=[];keys=set()
-            for declared in source['skill_dirs']:
-                key=PurePosixPath(declared).name
-                if key in keys:raise CreatorContractError('duplicate_skill_key')
-                keys.add(key);prefix=declared+'/'
-                values={p[len(prefix):]:body for p,body in files.items() if p.startswith(prefix)}
-                root=Path(directory)/'skills'/source['key']/key;root.mkdir(parents=True)
-                for relative,body in values.items():
-                    target=root/relative;target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(body)
-                prepared=_skill_packages.prepare(root)
-                bundles.append({'package_key':key,'digest':prepared['digest'],'files':[
-                    {'path':relative,'size':len(body),'sha256':hashlib.sha256(body).hexdigest(),
-                     'content_base64':base64.b64encode(body).decode('ascii')} for relative,body in sorted(values.items())]})
-            try:soul=files[source['soul_file']].decode('utf-8')
-            except UnicodeError:raise CreatorContractError('invalid_employee_soul') from None
-            from runteams_core.employees.employee_avatars import attachment
-            picture = attachment(source['avatar'], files)
-            employees[path]=validate_asset({'schema':SCHEMA,**({'avatar_file':picture} if picture else {}),
-                **workspace_background.source_fields(source, files),'employee':{
-                **{key:copy.deepcopy(source[key]) for key in ('name','avatar')},'soul':soul,
-                'runtime_requirement':copy.deepcopy(source.get('runtime_requirement', {})),
-                **({'configuration':copy.deepcopy(source['configuration'])} if 'configuration' in source else {})},
-                'skill_bundles':bundles})
+    packaged = set()
+    for path,source in compiled['employees'].items():
+        bundles=[];keys=set()
+        for declared in source['skill_dirs']:
+            key=PurePosixPath(declared).name
+            if key in keys:raise CreatorContractError('duplicate_skill_key')
+            identity = source['key'], key
+            if identity in packaged:raise CreatorContractError('duplicate_skill_key')
+            packaged.add(identity)
+            keys.add(key);prefix=declared+'/'
+            values={p[len(prefix):]:body for p,body in files.items() if p.startswith(prefix)}
+            prepared=_skill_packages.prepare_files(key,values)
+            bundles.append({'package_key':key,'digest':prepared['digest'],'files':[
+                {'path':relative,'size':len(body),'sha256':hashlib.sha256(body).hexdigest(),
+                 'content_base64':base64.b64encode(body).decode('ascii')} for relative,body in sorted(values.items())]})
+        try:soul=files[source['soul_file']].decode('utf-8')
+        except UnicodeError:raise CreatorContractError('invalid_employee_soul') from None
+        from runteams_core.employees.employee_avatars import attachment
+        picture = attachment(source['avatar'], files)
+        employees[path]=validate_asset({'schema':SCHEMA,**({'avatar_file':picture} if picture else {}),
+            **workspace_background.source_fields(source, files),'employee':{
+            **{key:copy.deepcopy(source[key]) for key in ('name','avatar')},'soul':soul,
+            'runtime_requirement':copy.deepcopy(source.get('runtime_requirement', {})),
+            **({'configuration':copy.deepcopy(source['configuration'])} if 'configuration' in source else {})},
+            'skill_bundles':bundles})
     pipelines = {path: {**copy.deepcopy(source), 'schema':'runteams.conversation-pipeline/v1'}
                  for path, source in compiled['pipelines'].items()}
     return {'schema':CATALOG,'source_sha256':compiled['source']['sha256'],'employees':employees,'pipelines':pipelines,

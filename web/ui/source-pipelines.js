@@ -12,7 +12,10 @@
  };
  function catalogEntry(ref){
   const identity=referenceKey(ref);
-  return identity&&catalogScope===scope()?rows.find(item=>referenceKey(item.reference)===identity):null;
+  if(!identity)return null;
+  if(catalogScope===scope())return rows.find(item=>referenceKey(item.reference)===identity);
+  const entry=current()?.routeEntry;
+  return entry&&referenceKey(entry.reference)===identity?entry:null;
  }
  const pageRoute=ref=>{const row=catalogEntry(ref);return row?'/pipelines/'+row.page_id:null;};
  const key=ref=>{const row=catalogEntry(ref);return row?'pipeline:'+row.page_id:null;};
@@ -44,7 +47,7 @@
  async function request(action,data={},options={}){
   const token=scope(),configuration=action==='configuration'||action==='employee-configuration'||action==='work-configuration';
   const control=action==='control'||action==='control-operation',edit=action==='edit'||action==='edit-operation',flow=['flow','flow-operation','card','card-operation'].includes(action);let reply;
-  try{reply=await api('/api/device/work/source-pipelines/'+action,'POST',data,{readPriority:options.readPriority,retryOnDisconnect:options.retryOnDisconnect,readCurrent:action==='records'||action==='catalog'||action==='trash-catalog'||action==='workspace'||action==='settings'||action==='work',errorStatus:configuration||control||edit||flow});}
+  try{reply=await api('/api/device/work/source-pipelines/'+action,'POST',data,{readPriority:options.readPriority,retryOnDisconnect:options.retryOnDisconnect,readCurrent:action==='records'||action==='catalog'||action==='trash-catalog'||action==='workspace'||action==='settings'||action==='work'||action==='asset-knowledge'&&!data.action,errorStatus:configuration||control||edit||flow});}
   catch(error){
    if(token!==scope())throw Error('工作区已改变，请重新打开智能体团队。');
    if((configuration||control||edit||flow)&&error.status>=400&&error.status<500)error.confirmedReply=true;
@@ -107,42 +110,21 @@
   render();
   document.querySelector(`[data-pipeline-row="${CSS.escape(id)}"]>a`)?.focus({preventScroll:true});
  }
- function trashFromSidebar(row){
+ function trashFromSidebar(row,paired){
   const token=scope(),windowKey=key(row.reference);
   confirmModal('将智能体团队移到垃圾箱？','可以从垃圾箱恢复整个智能体团队。原有任务、对话和文档会随智能体团队保留。',async()=>{
    if(token!==scope())return;
    try{
     const result=await request('trash',{reference:row.reference});
     if(result.trashed!==true)throw Error('未能确认垃圾箱状态。');
-    await refreshCatalog();
+    await Promise.all([refreshCatalog(),RunTeamsEmployeeDirectory.refreshAfterMutation()]);
     if(token!==scope())return;
     if(S.activeWorkspaceKey===windowKey&&S.workspaceWindows?.length===1)await openTrash();
     else closeWorkspaceWindow(windowKey);
     if(S.surface==='trash')await refreshTrash({source:'device'});
     toast('已移到垃圾箱','ok','pipelineBoard.trashed');
    }catch(error){if(token===scope())toast(error.message,'err');}
-  },true,{titleKey:'pipelineBoard.trashTitle',messageKey:'pipelineBoard.trashDetails',action:'移到垃圾箱',actionKey:'pipelineBoard.trash',focusCancel:true});
- }
- const pendingDiscussions=new Map();
- async function newDiscussion(row){
-  const token=scope(),key=token+':'+referenceKey(row.reference);
-  let pending=pendingDiscussions.get(key);
-  if(pending?.busy)return;
-  if(!pending){pending={id:crypto.randomUUID()};pendingDiscussions.set(key,pending);}
-  pending.busy=true;
-  try{
-   const config=defaultChatConfig(null);
-   const {session}=await request('conversation',{reference:row.reference,discussion_id:pending.id,
-    runtime:{channel_id:config.channel_id,model:config.model,reasoning_effort:config.reasoning_effort}});
-   if(scope()!==token)return;
-   const {messages,...summary}=session;
-   S.chats=[summary,...S.chats.filter(chat=>String(chat.id)!==String(session.id))];
-   deviceChatRemember(session);
-   await openRailConversationSession(session.id,{device:true});
-   pendingDiscussions.delete(key);
-  }catch{
-   if(scope()===token)toast('无法打开新对话。请重试。','err','employeeChat.newConversationFailed');
-  }finally{pending.busy=false;}
+  },true,{titleKey:paired?'assetActions.trashOriginalTitle':'pipelineBoard.trashTitle',titleVars:{name:row.name},messageKey:paired?'assetActions.trashOriginalDetails':'pipelineBoard.trashDetails',action:'移到垃圾箱',actionKey:'pipelineBoard.trash',focusCancel:true});
  }
  function sidebarMenu(event){
   if(event.type==='keydown'&&event.key!=='ContextMenu'&&!(event.key==='F10'&&event.shiftKey))return;
@@ -152,12 +134,15 @@
   if(!row)return;
   const own=fn=>()=>{if(token===scope()&&catalogScope===token&&rows.some(item=>referenceKey(item.reference)===id))return fn();};
   const pinned=sidebarPins().includes(id);
-  const items=[{label:'新对话',labelKey:'shell.newChat',icon:'message-circle-more',fn:own(()=>newDiscussion(row))},
+  const href=element.querySelector('a').href;
+  const items=[{label:'打开',labelKey:'pipelineBoard.open',icon:'eye',fn:own(()=>openFromLink(href))},
    {label:pinned?'取消置顶':'置顶',labelKey:pinned?'conversationDetail.unpin':'conversationDetail.pin',icon:pinned?'pin-off':'pin',fn:own(()=>toggleSidebarPin(id))}];
-  if(row.reference.schema==='runteams.local-pipeline-reference/1'&&row.allowed_modes?.includes('creator')){
-   items.push({label:'移到垃圾箱',labelKey:'pipelineBoard.trash',icon:'trash',fn:own(()=>trashFromSidebar(row))});
+  const original=row.reference.schema==='runteams.local-pipeline-reference/1'&&row.allowed_modes?.includes('creator');
+  const installation=original?rows.find(item=>referenceKey(item.creator_reference)===id):row;
+  const extra=installation&&RunTeamsHost.assets.uninstallAction?.('pipeline',installation,original);
+  if(original){
+   items.push({label:extra?'将创作原件移到垃圾箱':'移到垃圾箱',labelKey:extra?'assetActions.trashOriginal':'pipelineBoard.trash',icon:'trash',fn:own(()=>trashFromSidebar(row,!!extra))});
   }
-  const extra=RunTeamsHost.assets.uninstallAction?.('pipeline',row);
   if(extra)items.push({divider:true},{...extra,fn:own(extra.fn)});
   const options=event.type==='contextmenu'?{at:{x:event.clientX,y:event.clientY}}:{align:'right'};
   const button=element.querySelector('.rail-source-pipeline-more');
@@ -182,9 +167,12 @@
  }
  function sidebar({active}){
   const token=scope();
-  const activeKey=active?referenceKey(current()?.reference):'';
+  const workspace=active?current():null;
+  const catalog=catalogScope===token?rows:[];
+  const target=workspace?.reference||(workspace?.pageId?catalog.find(row=>row.page_id===workspace.pageId)?.reference:null);
+  const activeKey=referenceKey(target);
   let selected=false;
-  const byId=new Map((catalogScope===token?rows:[]).filter(row=>!RunTeamsHost.assets?.placeholderPipeline?.(row)).map(row=>[referenceKey(row.reference),row]));
+  const byId=new Map(catalog.filter(row=>!RunTeamsHost.assets?.placeholderPipeline?.(row)).map(row=>[referenceKey(row.reference),row]));
   const ownerKey=referenceKey(byId.get(activeKey)?.creator_reference);
   const visibleActiveKey=byId.has(ownerKey)?ownerKey:activeKey;
   for(const [id,row] of byId){
@@ -196,9 +184,9 @@
   const menuAnchor=document.getElementById('popmenu')?._currentAnchor?.();
   const html=ordered.map(id=>{
    const row=byId.get(id),isCurrent=visibleActiveKey===id,menuOpen=menuAnchor?.closest('[data-pipeline-row]')?.dataset.pipelineRow===id;
-   const target=isCurrent&&current()?.reference||row.reference;
+   const linkReference=isCurrent?target:row.reference;
    selected||=isCurrent;
-   return `<div class="rl rail-source-pipeline-row" data-pipeline-row="${esc(id)}" oncontextmenu="RunTeamsSourcePipelines.sidebarMenu(event)" onkeydown="RunTeamsSourcePipelines.sidebarMenu(event)" onmouseenter="railMarqueeStart(this)" onmouseleave="railMarqueeStop(this)"><a class="pl${isCurrent?' on':''}${pins.has(id)?' pinned':''}" aria-current="${isCurrent?'page':'false'}" href="${esc(pageRoute(target))}" onclick="event.preventDefault();RunTeamsSourcePipelines.openFromLink(this.href)"><span class="rail-pipeline-main">${sidebarAvatar(row.avatar_src)}<span class="nm rail-marquee"><span class="rail-marquee-text">${esc(row.name)}</span></span></span></a><button type="button" class="rail-source-pipeline-more rail-item-more${menuOpen?' menu-trigger-active':''}" data-menu-trigger="quiet" aria-haspopup="menu" aria-expanded="${menuOpen}" aria-label="${esc(row.name)}的更多操作" data-app-i18n-aria-label="pipelineBoard.rowActionsFor" data-app-i18n-vars="${esc(JSON.stringify({name:row.name}))}" onclick="RunTeamsSourcePipelines.sidebarMenu(event)">${ICON('more')}</button></div>`;
+   return `<div class="rl rail-source-pipeline-row" data-pipeline-row="${esc(id)}" oncontextmenu="RunTeamsSourcePipelines.sidebarMenu(event)" onkeydown="RunTeamsSourcePipelines.sidebarMenu(event)" onmouseenter="railMarqueeStart(this)" onmouseleave="railMarqueeStop(this)"><a class="pl${isCurrent?' on':''}${pins.has(id)?' pinned':''}" aria-current="${isCurrent?'page':'false'}" href="${esc(pageRoute(linkReference))}" onclick="event.preventDefault();RunTeamsSourcePipelines.openFromLink(this.href)"><span class="rail-pipeline-main">${sidebarAvatar(row.avatar_src)}<span class="nm rail-marquee"><span class="rail-marquee-text">${esc(row.name)}</span></span></span></a><button type="button" class="rail-source-pipeline-more rail-item-more${menuOpen?' menu-trigger-active':''}" data-menu-trigger="quiet" aria-haspopup="menu" aria-expanded="${menuOpen}" aria-label="${esc(row.name)}的更多操作" data-app-i18n-aria-label="pipelineBoard.rowActionsFor" data-app-i18n-vars="${esc(JSON.stringify({name:row.name}))}" onclick="RunTeamsSourcePipelines.sidebarMenu(event)">${ICON('more')}</button></div>`;
   }).join('');
   return {selected,markup:html+(RunTeamsHost.assets?.marketRows?.('pipeline')||'')+catalogErrorMarkup(token,ordered.length)};
  }
@@ -217,26 +205,50 @@
   closeWorkspaceWindow(from);
   return true;
  }
+ // Keep only the last route reference in this tab. A fresh workspace receipt
+ // must confirm its public URL before any board or conversation is displayed.
+ function routeHintKey(){return 'runteams_pipeline_route_v1:'+JSON.stringify([workspaceAccountCacheToken(),durableScope()]);}
+ async function loadRoute(pageId,version){
+  let items=version?.catalog||(catalogScope===scope()?rows:null);
+  if(!items){
+   let hint;
+   try{hint=JSON.parse(sessionStorage.getItem(routeHintKey()));}catch{}
+   if(hint?.page_id===pageId&&referenceKey(hint.reference)){
+    try{
+     const data=await request('workspace',{reference:hint.reference});
+     if(data.page_id===pageId&&referenceKey(data.reference)===referenceKey(hint.reference))
+      return {entry:{page_id:pageId,reference:data.reference,name:data.name},data};
+    }catch{/* Resolve a removed, switched or unavailable workspace through the catalog. */}
+   }
+  }
+  if(!items?.some(row=>row.page_id===pageId)&&!version?.catalog)items=await readCatalog();
+  const entry=items?.find(row=>row.page_id===pageId);
+  if(!entry)return {};
+  const data=referenceKey(version?.workspace?.reference)===referenceKey(entry.reference)?version.workspace:await request('workspace',{reference:entry.reference});
+  return {entry,data};
+ }
  async function openRoute(value,version){
   const own=++sequence,token=scope(),panelQuery=new URLSearchParams(typeof location==='object'?location.search:'');
   workspaceCaptureCurrent({beforeRoute:true});leaveForBoard();cancelPageTransition();resetDetailWorkspace();
   S.surface='source-pipeline';S.corePipeline=null;S.chatId=null;S.chatMode='';
-  const s={scope:token,storageScope:durableScope(),reference:value.session?.context?.source_pipeline_workspace||null,data:null,error:'',loading:true,view:'board',pending:null,composer:null};S.sourcePipelineWorkspace=s;render();
+  const s={scope:token,storageScope:durableScope(),pageId:value.pageId,reference:value.session?.context?.source_pipeline_workspace||null,data:null,error:'',loading:true,view:'board',pending:null,composer:null};S.sourcePipelineWorkspace=s;render();
   try{
-   const [items]=await Promise.all([version?.catalog||readCatalog(),RunTeamsWorkState.ready?null:RunTeamsWorkState.connect()]);
+   const [{entry,data}]=await Promise.all([loadRoute(value.pageId,version),RunTeamsWorkState.ready?null:RunTeamsWorkState.connect()]);
    if(sequence!==own||!matches(s))return;
-   const entry=items.find(row=>row.page_id===value.pageId);
    if(!entry){s.loading=false;s.error='这个智能体团队不在当前工作区中。';s.errorKey='pipelineBoard.missingPipeline';render();return;}
-   s.reference=entry.reference;s.name=entry.name;s.requestedChat=value.session;
-   const path=pageRoute(s.reference)+(s.requestedChat?'/chats/'+s.requestedChat.id:'');
+   s.routeEntry=entry;s.reference=entry.reference;s.name=data.name;s.requestedChat=value.session;
+   const path='/pipelines/'+entry.page_id+(s.requestedChat?'/chats/'+s.requestedChat.id:'');
    await setAppUrl(path+(typeof location==='object'?location.search+location.hash:''),true);if(sequence!==own||!matches(s))return;
-   s.data=referenceKey(version?.workspace?.reference)===referenceKey(s.reference)?version.workspace:await request('workspace',{reference:s.reference});if(sequence!==own||!matches(s))return;
+   s.data=data;
+   try{sessionStorage.setItem(routeHintKey(),JSON.stringify({page_id:entry.page_id,reference:entry.reference}));}catch{}
    restoreMessageVisibility(s);
    restorePendingCommands(s);s.loading=false;
    if(s.data===version?.workspace)s.creationMode=version.creationMode;
+   // Opening a dock can create a chat. Start that operation before the
+   // overview reads so its write cannot supersede the first panel responses.
+   void prepareDock(s);
    RunTeamsHost.pipeline?.readCreationMode(s);
    render();
-   void prepareDock(s);
    if(matches(s)&&panelQuery.get('results')==='1'&&window.RunTeamsSourcePipelinePanels){
     const workflowId=Number(panelQuery.get('delivery')?.match(/^workflow-([0-9]+)$/)?.[1]);
     if(Number.isSafeInteger(workflowId)&&workflowId>0)await openWork(workflowId,{showDeliveries:true});
@@ -471,26 +483,6 @@
   const panel=S.conversationPanel;
   return s?.workPanel&&panel&&!panel.loading&&!panel.error&&String(s.workPanel.id)===String(panel.id)?panel:null;
  }
- // A restored multiline draft may already be taller than a single line.
- // Reserve its last size while this tab resolves the pipeline's conversation.
- const composerSizeKey='runteams.pipeline-composer-size.v1';
- function rememberComposerSize(){
-  const s=current(),panel=dockPanel(s),box=document.querySelector('.pipeline-chat-dock .conversation-composer');
-  try{
-   if(!panel||!box){sessionStorage.removeItem(composerSizeKey);return;}
-   const height=box.getBoundingClientRect().height;
-   sessionStorage.setItem(composerSizeKey,JSON.stringify({reference:referenceKey(s.reference),draft:conversationPanelDraftKey(panel),width:innerWidth,height}));
-  }catch{}
- }
- function pendingComposerSize(s){
-  try{
-   const saved=JSON.parse(sessionStorage.getItem(composerSizeKey));
-   if(saved?.reference===referenceKey(s.reference)&&saved.width===innerWidth&&S.conversationPanelDrafts?.[saved.draft]&&Number.isFinite(saved.height)&&saved.height>0){
-    return `style="--pipeline-composer-min-height:${saved.height}px"`;
-   }
-  }catch{}
-  return '';
- }
  async function prepareDock(s){
   if(dockPanel(s))return dockPanel(s);
   if(s.dockRequest)return s.dockRequest;
@@ -498,14 +490,24 @@
   s.dockRequest=(async()=>{
    try{
     const config=defaultChatConfig(null);
-    const session=s.requestedChat||(await request('conversation',{reference:s.reference,runtime:{channel_id:config.channel_id,model:config.model,reasoning_effort:config.reasoning_effort}})).session;
-    deviceChatRemember(session);
+    let detail=s.requestedChat;
+    if(!detail&&s.data.board_chat){
+     const known=s.data.board_chat;
+     // A later retry can reopen the workspace chat if it was removed since the board read.
+     delete s.data.board_chat;
+     deviceChatRemember(known);
+     detail=await readConversationSession(known.id);
+     if(!matches(s))return null;
+     if(detail?.id!==known.id||detail.storage_scope!=='device'||referenceKey(detail.context?.source_pipeline_workspace)!==referenceKey(s.reference)||detail.context.source_pipeline_discussion)throw Error();
+    }
+    const session=detail||(await request('conversation',{reference:s.reference,runtime:{channel_id:config.channel_id,model:config.model,reasoning_effort:config.reasoning_effort}})).session;
     if(!matches(s))return null;
+    deviceChatRemember(session);
     const {messages,...summary}=session;
     s.workPanel=summary;
     S.chats=[summary,...S.chats.filter(chat=>String(chat.id)!==String(session.id))];
     // Load through the shared chat reader so paging and active turns work in the dock.
-    const panel=await loadConversationPanelSession(session.id,{embedded:s,session:s.requestedChat,railHosted:true,focus:false,expand:false,render:false,restoreWorkspace:false,refresh:!!cachedConversationPanel(session.id)?.error});
+    const panel=await loadConversationPanelSession(session.id,{embedded:s,session:detail,railHosted:true,focus:false,expand:false,render:false,restoreWorkspace:false,refresh:!!cachedConversationPanel(session.id)?.error});
     if(!matches(s))return null;
     if(!panel||panel.error)throw Error();
     delete s.requestedChat;
@@ -569,10 +571,10 @@
  }
  function workspace(){
   const s=current();
+  const panel=dockPanel(s);
   let dock='';
-  if(s?.data){
-   const panel=dockPanel(s);
-   const input=panel?railConversation({includeHeader:false,pipelineDock:s}):`<section class="rail-assistant conversation-main"><div class="rail-assistant-input">${s.dockError?RunTeamsLoadFailure.markup({variant:'local',title:'无法打开智能体团队对话。请重试。',titleKey:'pipelineBoard.conversationFailed',labelKey:'employeeHistory.retry',retry:'RunTeamsSourcePipelines.conversation()'}):RunTeamsStaticPages.composer(null,{placeholder:'聊聊这个智能体团队的工作…',placeholderKey:'pipelineBoard.chatPrompt',attributes:pendingComposerSize(s)})}</div></section>`;
+  if(s?.data&&!s.loading&&(panel||s.dockError)){
+   const input=panel?railConversation({includeHeader:false,pipelineDock:s}):`<section class="rail-assistant conversation-main"><div class="rail-assistant-input">${RunTeamsLoadFailure.markup({variant:'local',title:'无法打开智能体团队对话。请重试。',titleKey:'pipelineBoard.conversationFailed',labelKey:'employeeHistory.retry',retry:'RunTeamsSourcePipelines.conversation()'})}</div></section>`;
    dock=`<div class="pipeline-chat-dock" onfocusin="RunTeamsSourcePipelines.selectDockChat()" onclick="RunTeamsSourcePipelines.selectDockChat()" data-session="${esc(String(panel?.id||''))}">${input}</div>`;
   }
   return `${workspaceFeedback(s)}<div class="source-pipeline-layers"><div class="source-pipeline-board-layer">${board()}</div>${dock}</div>`;
@@ -598,14 +600,24 @@
    await accountRead;if(S.accountSessionError||!RunTeamsHost.session.ready(S))throw Error(S.accountSessionError||'请先登录。');
    S.deviceSessionActor=String(RunTeamsHost.session.actor(S));S.workspaceWindows=loadWorkspaceWindows();S.conversationPanelDrafts=loadConversationPanelDrafts();
    S.booting=false;S.bootError=null;S.workspaceStartup=null;restoreModelCatalogDisplay();if(RunTeamsRoutes.preview(location.href).kind==='source-pipeline'){const target=new URL(location.href);for(const name of [...target.searchParams.keys()])if(!['results','delivery'].includes(name))target.searchParams.delete(name);await setAppUrl(target.pathname+target.search,true);}
-   void refreshDeviceDirectory().catch(()=>{});void refreshWorkspaceNavigation().catch(()=>{});
-   const token=scope();
+   const kind=RunTeamsRoutes.preview(location.href).kind,board=kind==='source-pipeline',creating=kind==='source-pipeline-new',token=scope();
+   const visibleEmployees=board&&!S.railCollapsed&&S.railNavTab==='bots';
+   if(board||creating){
+    const routeRead=applyAppRoute({initial:true});
+    if(visibleEmployees)void refreshCoreTeam({localFirst:true}).catch(()=>{});
+    await routeRead;
+    if(token!==scope())return;
+   }
+   void refreshDeviceDirectory({readPriority:'background'}).catch(()=>{});
+   // The device directory owns chats. A direct board read still needs sidebar rows.
+   void refreshWorkspaceNavigation({chats:false,employees:!visibleEmployees,pipelines:!board||!catalogState().ready,readPriority:'background'}).catch(()=>{});
    void Promise.allSettled([accountSettingsReadPreferences(),modelChannelData().configuration(true)]).then(results=>{
     if(token!==scope())return;const reply=results[1].status==='fulfilled'?results[1].value:null;
     if(reply&&!reply.error){S.channels=reply.channels||[];S.providerCatalog=reply.providers||[];if(reply.catalog?.channels){S.modelCatalog=reply.catalog.channels;S.modelCatalogReady=true;}}
     render();
    });
-   await applyAppRoute({initial:true});RunTeamsRequests.finishPage(measurement,'settled');
+   if(!board&&!creating)await applyAppRoute({initial:true});
+   RunTeamsRequests.finishPage(measurement,'settled');
   }catch(error){S.booting=true;S.bootError=error;renderBootShell(S.bootRoute,error);}
  }
  function select(kind,extra={}){selectDetailWorkspace({type:'source-pipeline',id:kind,...extra});render();}
@@ -1145,12 +1157,14 @@
   c.loading=true;c.reading=true;c.choicesFailed=false;creationDialog(true);
   const active=()=>creationVisible(c)&&c.ticket();
   try{
+   const choices=request('creation-choices',{}, {readPriority:'foreground'}).then(reply=>({reply}),error=>({error}));
    if(!RunTeamsWorkState.ready)await RunTeamsWorkState.connect();
    if(!active())return;
    c.pending=JSON.parse(RunTeamsWorkState.getItem(creationKey())||'null');
    if(c.pending){c.loading=false;creationDialog(true);}
-   const reply=await request('creation-choices');
+   const {reply,error}=await choices;
    if(!active())return;
+   if(error)throw error;
    if(!Array.isArray(reply.items))throw Error('pipeline creation choices missing');
    c.choices=reply.items;c.choiceErrors=Array.isArray(reply.errors)?reply.errors:[];
   }catch(error){if(active())c.choicesFailed=true;}
@@ -1249,7 +1263,6 @@
  }
  setInterval(()=>void pollWorkspace(),8000);
  setInterval(()=>void pollWorkspace({detailOnly:true}),2000);
- window.addEventListener('pagehide',rememberComposerSize);
  window.addEventListener('focus',()=>void pollWorkspace());
  document.addEventListener('visibilitychange',()=>{if(document.hidden)stopActivity();else void pollWorkspace();});
  window.RunTeamsSourcePipelines={pipelineIcon,cardFeedback,cardKeydown,cardMenu,cardCommand,editCard,draftMenu,restoreCard,taskWorkspace,openEmployeeTask,workCommitted,workContext,ensureWorkContext,request,select,operationError,current,sameScope,refreshCatalog,readCatalog,pageRoute,selectDockChat,catalogState,items:()=>catalogScope===scope()?rows.slice():[],sidebar,sidebarAvatar,sidebarMenu,openRoute,openFromLink,openVersion,refresh,retryRecovery,openReference,key,referenceKey,boot,header,editName,editIcon,board,workspace,conversation,dockPanel,messageToggle,toggleMessages,restoreMessageVisibility,animateComposer,retryBoard,control,compose,composeDraft,cancelCompose,composerKeydown,composerFocusin,composerFocusout,submit,openWork,refreshOpenWork,applyWorkReply,syncActivity,retainActivity,drawer,reset,newPipeline,closeCreation,readCreationChoices,create,retryControl,retryAdmission,creationName:value=>{if(creation)creation.name=value;}};

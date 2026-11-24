@@ -14,13 +14,22 @@ class DocumentResponse:
 
 
 def handles(path):
-    return path in ('/api/device/work/trash', '/api/device/work/document-folders', '/api/device/work/documents/export') or bool(re.fullmatch(
+    from runteams_core.pipelines.chat_delivery_export import PATH as delivery_export_path
+
+    return bool(delivery_export_path.fullmatch(path)) or path in ('/api/device/work/trash', '/api/device/work/document-folders', '/api/device/work/documents/export') or bool(re.fullmatch(
         r'/api/(?:core|device/work)/(?:documents(?:/[1-9][0-9]*(?:/(?:download|assets(?:/[a-f0-9]{64})?|templates(?:/[a-f0-9]{64})?))?)?|artifacts/[1-9][0-9]*/(?:revisions|content|revert|trash|restore|delete))', path))
 
 
 def dispatch(core, method, path, data):
     from runteams_core.documents import rich_documents, rich_document_assets as assets
     core._actor()
+    from runteams_core.pipelines import chat_delivery_export
+    match = chat_delivery_export.PATH.fullmatch(path)
+    if match:
+        if method != 'GET' or data:
+            raise ContractError('工单交付下载请求无效。')
+        raw = chat_delivery_export.download(core, int(match[1]), match[2])
+        return DocumentResponse(raw, 200, chat_delivery_export.FILENAME, 'application/zip')
     if path == '/api/device/work/documents/export':
         if method != 'GET' or set(data) != {'ids'}:raise ContractError('文档导出范围无效。')
         from runteams_core.documents.document_export import export_documents
@@ -34,7 +43,8 @@ def dispatch(core, method, path, data):
         if method != 'GET':raise ContractError('不支持的垃圾箱操作。')
         core.purge_expired_documents()
         from runteams_core.pipelines.pipeline_card_actions import trash_catalog
-        return DocumentResponse({'items': [*core.document_trash_catalog(), *trash_catalog(core)], 'complete':True,
+        from runteams_core.employees import source_employee_trash
+        return DocumentResponse({'items': [*core.document_trash_catalog(), *trash_catalog(core), *source_employee_trash.catalog()], 'complete':True,
                                  'storage_scope':'device','device_page_ids':core.page_ids()})
     suffix = path.split('/',4)[4] if path.startswith('/api/device/work/') else path[len('/api/core/'):]
     parts = suffix.split('/'); resource=parts[0]

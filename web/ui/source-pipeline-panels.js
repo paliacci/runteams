@@ -379,14 +379,17 @@ function dismissMenuOnPageScroll(menu,close){
  });
  observer.observe(menu.parentNode,{childList:true});
 }
-function stageConnections(pipeline){
- const {positions,edges}=pipeline,names=new Map([...positions,...(pipeline.states||[])].map(node=>[node.key,node.name]));
+function routeConditionCaption(pipeline,when='completed'){
  const labels={
   completed:['pipelineEditor.routeAfterCompletion','完成后'],approved:['pipelineEditor.routeApproved','通过'],rejected:['pipelineEditor.routeRejected','退回'],
   failed:['pipelineEditor.routeFailed','失败'],blocked:['pipelineEditor.routeBlocked','阻塞'],exception:['pipelineEditor.routeException','异常'],
   needs_human:['pipelineEditor.routeNeedsHuman','需要人工'],always:['pipelineEditor.routeAlways','兜底'],
  };
- const caption=when=>Object.hasOwn(labels,when)?stageCopy(...labels[when]):when.replace(/^outcome:/,'');
+ if(when==='always'&&pipeline.routing_policy===STATUS_FIRST_ROUTING)return stageCopy('pipelineEditor.completionFallbackWhen','未匹配时');
+ return Object.hasOwn(labels,when)?stageCopy(...labels[when]):when.replace(/^outcome:/,'');
+}
+function stageConnections(pipeline){
+ const {positions,edges}=pipeline,names=new Map([...positions,...(pipeline.states||[])].map(node=>[node.key,node.name]));
  names.set(WAIT_FOR_INPUT,stageCopy('pipelineEditor.waitHere','留在当前岗位，待人工处理'));
  if(pipeline.routing_policy===STATUS_FIRST_ROUTING)names.set(COMPLETE_HERE,stageCopy('pipelineEditor.completeHere','留在当前岗位并完成'));
  const existing=edges.map((edge,index)=>({index,from:edge.from,when:edge.when||'completed',to:edge.to}));
@@ -394,7 +397,7 @@ function stageConnections(pipeline){
   const when=position.kind==='approval'?'approved':'completed';
   return existing.some(edge=>edge.from===position.key&&edge.when===when)?[]:[{from:position.key,when}];
  });
- return [...existing.filter(edge=>edge.to!==WAIT_FOR_INPUT),...free].map(edge=>({...edge,label:[names.get(edge.from),caption(edge.when),edge.to&&names.get(edge.to)].filter(Boolean).join(' → ')}));
+ return [...existing.filter(edge=>edge.to!==WAIT_FOR_INPUT),...free].map(edge=>({...edge,label:[names.get(edge.from),routeConditionCaption(pipeline,edge.when),edge.to&&names.get(edge.to)].filter(Boolean).join(' → ')}));
 }
 function connectStage(pipeline,key,kind,connection){
  if(connection.index===undefined){
@@ -959,63 +962,12 @@ function positionRuntimeTitle(p){
 function positionHeader(s,asset,key){
  const node=(asset&&[...asset.pipeline.positions,...(asset.pipeline.states||[])].find(row=>row.key===key))||boardColumns(s).find(row=>row.key===key);
  const member=node&&memberFor(state(s),node),title=member?.name||node?.name;
- const description=node?.kind==='employee'?node.description:node?.prompt;
+ const stateHints={done:['stateDoneHint','任务进入这里后标记为已完成。'],dropped:['stateDroppedHint','任务进入这里后停止执行。'],pool:['statePoolHint','任务在这里等待后续处理。']};
+ const hint=stateHints[node?.kind];
+ const description=hint?stageCopy('pipelineSettings.'+hint[0],hint[1]):node?.kind==='employee'?node.description:node?.prompt;
  const avatar=node?.kind==='approval'?'<span class="node-detail-avatar approval">'+ICON('check')+'</span>':node?.kind==='employee'?'<span class="node-detail-avatar">'+columnAvatar(node)+'</span>':'';
  const more=`<button type="button" class="detail-head-more" data-menu-trigger="quiet" aria-haspopup="menu" aria-expanded="false" aria-label="更多操作" data-app-i18n-aria-label="automationList.more" data-position="${esc(key)}" onclick="RunTeamsSourcePipelinePanels.columnMenu(event,this.dataset.position)">${ICON('more')}</button>`;
  return detailDrawerHeader(`<div class="node-detail-heading"><div class="node-detail-title-row">${avatar}<h2 class="tt"${title?'':' data-app-i18n="pipelineSettings.position"'}>${esc(title||'岗位详情')}</h2></div>${description?`<div class="sub node-goal-sub" title="${esc(description)}">${esc(description)}</div>`: ''}</div>`,'node-detail-head',(node?.kind==='employee'?positionRuntimeHeader(s,key):'')+more);
-}
-function positionSkillHint(button){
- const field=button.parentElement;
- const tooltip=field.querySelector('[role="tooltip"]');
- const anchor=button.getBoundingClientRect();
- const body=button.closest('.db');
- const bottom=Math.min(body?.getBoundingClientRect().bottom??window.innerHeight,window.innerHeight);
- const top=Math.max(body?.getBoundingClientRect().top??0,0);
- const below=bottom-anchor.bottom,above=anchor.top-top;
- const flip=tooltip.offsetHeight>below&&above>below;
- field.style.setProperty('--skill-hint-anchor',`${button.offsetTop+(flip?0:button.offsetHeight)}px`);
- field.classList.toggle('node-skill-hint-above',flip);
-}
-function dismissSkillHint(event){
- if(event.key!=='Escape')return;
- event.preventDefault();
- event.stopPropagation();
- event.currentTarget.parentElement.classList.add('node-skill-hint-dismissed');
-}
-function skillOutputUsage(p,asset,position,skill){
- const pipeline=asset.pipeline;
- const statusFirst=pipeline.routing_policy===STATUS_FIRST_ROUTING;
- const stateConditions=new Set(['completed','always','failed','blocked','exception','needs_human','approved','rejected']);
- const usesRoute=when=>statusFirst
-  ?when.startsWith(OUTCOME_PREFIX)&&when.length>OUTCOME_PREFIX.length
-  :skill.routes?.includes(when)||!stateConditions.has(when);
- const completedEdges=pipeline.edges.filter(edge=>edge.from===position.key&&
-  (['completed','always'].includes(edge.when||'completed')||usesRoute(edge.when||'completed')));
- const routing=completedEdges.some(edge=>usesRoute(edge.when||'completed'));
- const parameters=(pipeline.parameters||[]).filter(field=>field.source==='employee'&&field.type!=='secret'&&
-  (!field.writers?.length||field.writers.includes(position.key)));
- const readers=new Map();
- if(parameters.length){
-  // Only completed outputs are carried forward. Subsequent branches may go through an approval.
-  const seen=new Set([position.key]);
-  const downstream=completedEdges.map(edge=>edge.to);
-  for(const key of downstream){
-   if(seen.has(key))continue;
-   seen.add(key);
-   const next=pipeline.positions.find(row=>row.key===key);
-   if(!next)continue;
-   for(const edge of pipeline.edges)if(edge.from===key)downstream.push(edge.to);
-   if(next.kind!=='employee')continue;
-   for(const input of skillFor(p,next,asset)?.inputs||[]){
-    const fieldKey=typeof input==='string'?input:input.key;
-    const parameter=parameters.find(field=>field.key===fieldKey);
-    if(!parameter||parameter.visible_to?.length&&!parameter.visible_to.includes(key))continue;
-    if(!readers.has(fieldKey))readers.set(fieldKey,[]);
-    readers.get(fieldKey).push(next.name);
-   }
-  }
- }
- return {routing,readers};
 }
 const positionSectionsKey=s=>'runteams.position-sections:'+JSON.stringify([s.storageScope,host().key(s.reference)]);
 function collapsedPositionSections(s){
@@ -1040,47 +992,28 @@ function togglePositionSection(button){
  RunTeamsEmployeeDrawerHeader.toggleSection(button,values);
  try{localStorage.setItem(positionSectionsKey(s),JSON.stringify([...values]));}catch{}
 }
-function skillContractMarkup(key,skill,usage){
- const inputs=(skill.inputs||[]).map(field=>typeof field==='string'?{key:field}:field);
- const outputs=(skill.outputs||[]).map(field=>{
-  const definition=typeof field==='string'?{key:field}:field;
-  return {...definition, routing:definition.key==='route'&&usage.routing, readers:usage.readers.get(definition.key)};
- });
- const highlighted=outputs.filter(field=>field.routing||field.readers?.length);
- const list=(fields,kind)=>`<ul class="node-skill-fields">${fields.map((field,index)=>{
-  const id=`skill_field_hint_${kind}_${index}`;
-  const label=`${esc(field.title?.trim()||field.key)}${field.routing?'<small data-app-i18n="pipelineEditor.skillOutputRouting">用于流转</small>':''}${field.readers?.length?'<small data-app-i18n="pipelineEditor.skillOutputHandoff">下游交接</small>':''}`;
-  const note=typeof field.description==='string'?field.description.trim():'';
-  const description=[
-   field.readers?.length?`<span data-app-i18n="pipelineEditor.skillOutputReaders" data-app-i18n-vars="${esc(JSON.stringify({names:field.readers.join('、')}))}">传给 ${esc(field.readers.join('、'))}</span>`:'',
-   note?`<span>${esc(note)}</span>`:''
-  ].filter(Boolean).join('');
-  const trigger=description?`<button type="button" class="node-skill-tag" aria-describedby="${id}" onpointerenter="RunTeamsSourcePipelinePanels.positionSkillHint(this)" onfocus="RunTeamsSourcePipelinePanels.positionSkillHint(this)" onclick="this.focus()" onkeydown="RunTeamsSourcePipelinePanels.dismissSkillHint(event)">${label}</button><span class="node-skill-hint" id="${id}" role="tooltip">${description}</span>`:`<span class="node-skill-tag">${label}</span>`;
-  return `<li class="node-skill-field"${description?' onpointerleave="this.classList.remove(\'node-skill-hint-dismissed\')" onfocusout="this.classList.remove(\'node-skill-hint-dismissed\')"':''}>${trigger}</li>`;
- }).join('')}</ul>`;
- const empty='<span class="node-skill-fields-empty" data-app-i18n="workRecordDetail.noItems">无</span>';
- const body=`<div class="node-skill-groups">
-   <div class="node-skill-group">
-    <span class="node-requirement-label" data-app-i18n="pipelineEditor.skillInputs">输入</span>
-    ${inputs.length?list(inputs,'input'):empty}
-   </div>
-   ${highlighted.length||!outputs.length?`<div class="node-skill-group">
-    <span class="node-requirement-label" data-app-i18n="pipelineEditor.skillOutputs">输出</span>
-    <div class="node-skill-output-fields">${highlighted.length?list(highlighted,'output'):empty}</div>
-   </div>`:''}
-  </div>`;
- return positionSection(key,'work',esc(skill.name),body,'node-skill-contract');
+function statePanelMarkup(pipeline,node){
+ const conditions=new Map();
+ for(const edge of pipeline.edges){
+  if(edge.to!==node.key)continue;
+  if(!conditions.has(edge.from))conditions.set(edge.from,new Set());
+  conditions.get(edge.from).add(routeConditionCaption(pipeline,edge.when||'completed'));
+ }
+ const roleRows=pipeline.positions.filter(role=>conditions.has(role.key)).map(role=>
+  `<button type="button" class="rt-list-row state-panel-row" data-position="${esc(role.key)}" onclick="RunTeamsSourcePipelinePanels.position(this.dataset.position)"><span><b>${esc(role.name)}</b><small>${esc([...conditions.get(role.key)].join(RunTeamsLocale.language==='en'?', ':'、'))}</small></span>${ICON('chev')}</button>`);
+ const title='<span data-app-i18n="pipelineSettings.incomingRoles">流入岗位</span>';
+ const empty='<p class="state-panel-empty" data-app-i18n="pipelineSettings.noIncomingRoles">尚未配置流入此状态的岗位。</p>';
+ return '<div class="state-panel">'+RunTeamsAssetOverview.section(title,'',roleRows.join('')||empty)+'</div>';
 }
 function positionMarkup(asset,key,locked){
  const p=state(current()),position=asset.pipeline.positions.find(row=>row.key===key),node=position||asset.pipeline.states?.find(row=>row.key===key);
  if(!node)return '<p data-app-i18n="pipelineEditor.stepRemoved">已移除环节。</p>';
- const member=position&&memberFor(p,position),skill=position&&skillFor(p,position,asset);
- const work=skill?skillContractMarkup(key,skill,skillOutputUsage(p,asset,position,skill)):'';
- const facts=position?.kind==='employee'&&!member?'<p class="help" data-app-i18n="pipelineEditor.assigneeUnavailable">负责员工暂不可用</p>':!position?`<div class="node-contract"><div class="node-section-head"><span><b data-app-i18n="pipelineSettings.taskCount">任务数量</b></span></div><p>${current().data.workflows.filter(row=>row.cursor_key===key).length}</p></div>`:'';
+ if(!position)return statePanelMarkup(asset.pipeline,node);
+ const member=memberFor(p,position);
+ const facts=position.kind==='employee'&&!member?'<p class="help" data-app-i18n="pipelineEditor.assigneeUnavailable">负责员工暂不可用</p>':'';
  const entry=positionConfigurationEntry(current(),position);
  const config=entry?RunTeamsEmployeeConfiguration.inlineParts(entry.key):null;
- if(!position)return facts;
- return `<div class="settings-section-stack">${facts}${work}${config?'<div class="position-configuration settings-section-stack">'+config.body+'</div>':''}${routeRows(asset,position,locked,{flat:true})}</div>`;
+ return `<div class="settings-section-stack">${facts}${config?'<div class="position-configuration settings-section-stack">'+config.body+'</div>':''}${routeRows(asset,position,locked,{flat:true})}</div>`;
 }
 function options(items,value){return items.map(([key,label,labelKey,vars])=>`<option value="${esc(key)}" ${key===value?'selected':''}${labelKey?` data-app-i18n="${esc(labelKey)}"`:''}${vars?` data-app-i18n-vars="${esc(JSON.stringify(vars))}"`:''}>${esc(label)}</option>`).join('');}
 function add(kind,{choiceIndex=0,name,stateKind='done',immediate=false}={}){
@@ -1362,6 +1295,21 @@ async function configureWork(original,authorizationContext){
  const ref=original.snapshot.package?.reference;
  const employee=state(s).data.employees.find(e=>JSON.stringify(e.reference)===JSON.stringify(ref));
  if(employee)return RunTeamsEmployeeConfiguration.open({...memberConfigurationEntry(s,employee),authorizationContext});
+}
+async function configureChat(panel,key,isCurrent){
+ const reference=panel.context?.source_pipeline_workspace;
+ const stillHere=()=>isCurrent()&&S.conversationPanel===panel;
+ if(!reference||!stillHere())return false;
+ const data=await host().request('settings',{reference});
+ if(!stillHere())return false;
+ const pipeline=data.asset.pipeline;
+ const s={reference,data:{name:pipeline.name},panels:{data}};
+ const position=key&&pipeline.positions.find(item=>item.key===key&&item.kind==='employee');
+ const member=position&&memberFor(state(s),position);
+ const entry=key?(member&&memberConfigurationEntry(s,member)):ownConfigurationEntry(s);
+ if(!entry)return false;
+ await RunTeamsEmployeeConfiguration.open(entry,{returnToChat:true});
+ return true;
 }
 async function configureOwn(authorizationContext){
  const s=current();if(!s)return;
@@ -1871,5 +1819,5 @@ function toggleStandard(button){
  if(RunTeamsAssetOverview.pipeline()&&!state(current()).settingsEdit)RunTeamsEmployeeDrawerHeader.toggleSection(button,S.sel.standardSections);
 }
 function overviewVersion(){const s=current();if(!s||!RunTeamsAssetOverview.pipeline())return;const action=window.RunTeamsPipelineMarket?.headerAction?.(s);if(action&&!action.disabled&&!action.passive)action.onPress();}
-window.RunTeamsSourcePipelinePanels={loadSettingsData,editStandard,toggleStandard,overviewVersion,openTaskReport,mountSigningConfiguration,resumeSigning,openSigningConversation,taskConfigurationDraft,leaveTaskConfiguration,saveTaskConfiguration,reloadTaskConfiguration,toggleTaskConfigurationSection,addStageMenu,columns,columnClick,columnAvatar,columnMenu,position,retryPositionRuntime,setRoute,routeMenu,togglePositionSection,toggleRouteConditions,positionSkillHint,dismissSkillHint,programContext,authorizeWork,configureWork,configureOwn,workSettings:runId=>{const original=workAuthorizationContext(runId);if(original)return configureWork(original,RunTeamsWorkAuthorization.state({panel:original,privateWork:original,pipeline:false}));},settings,startSettingsEdit,updateSettingsEdit,finishSettingsEdit,rename,read,drawer,changed,save,receipt,retryCommittedRefresh,cancel,readEmployeeChoices,configurationRequest,holdTextField,workDrawer,flow,retryFlow,answer,inputDraft};
+window.RunTeamsSourcePipelinePanels={loadSettingsData,editStandard,toggleStandard,overviewVersion,openTaskReport,mountSigningConfiguration,resumeSigning,openSigningConversation,taskConfigurationDraft,leaveTaskConfiguration,saveTaskConfiguration,reloadTaskConfiguration,toggleTaskConfigurationSection,addStageMenu,columns,columnClick,columnAvatar,columnMenu,position,retryPositionRuntime,setRoute,routeMenu,togglePositionSection,toggleRouteConditions,programContext,authorizeWork,configureWork,configureOwn,configureChat,workSettings:runId=>{const original=workAuthorizationContext(runId);if(original)return configureWork(original,RunTeamsWorkAuthorization.state({panel:original,privateWork:original,pipeline:false}));},settings,startSettingsEdit,updateSettingsEdit,finishSettingsEdit,rename,read,drawer,changed,save,receipt,retryCommittedRefresh,cancel,readEmployeeChoices,configurationRequest,holdTextField,workDrawer,flow,retryFlow,answer,inputDraft};
 })();

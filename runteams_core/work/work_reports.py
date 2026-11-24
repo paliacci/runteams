@@ -83,6 +83,24 @@ def catalog(core, *, reference=None, workflow_id=None, chat_id=None):
     return items
 
 
+def pinned_work_versions(connection, workflow_id, chat_id):
+    """Capture direct-work report pins inside the work completion transaction."""
+    rows = connection.execute(
+        "SELECT id,name,meta_json FROM artifacts WHERE trashed_at IS NULL "
+        "AND json_extract(meta_json,'$.work_report.schema')=? "
+        "AND json_extract(meta_json,'$.work_report.workflow_id')=? "
+        "AND json_extract(meta_json,'$.work_report.chat_id')=? "
+        "AND json_extract(meta_json,'$.work_report.employee_run_id') IS NULL ORDER BY id DESC",
+        (SCHEMA, workflow_id, chat_id))
+    by_root = {}
+    for row in rows:
+        meta = json.loads(row['meta_json'])
+        root = meta.get('revision_of') or row['id']
+        by_root.setdefault(root, {'id': root, 'name': row['name'], 'artifact_id': row['id'],
+                                  'revision': meta.get('revision'), 'sha256': meta.get('sha256')})
+    return list(by_root.values())
+
+
 def reference(item):
     return {key:item[key] for key in ('id','revision','name','updated_at','document_key')}
 
@@ -380,16 +398,18 @@ def apply_to_delivery(core, delivery, reports=None):
     return delivery
 
 
-def standalone_results(core, employee_reference):
+def standalone_results(reports, employee_reference):
+    from runteams_core.employees.employee_references import matching_references
     results=[]
-    for report in catalog(core,reference=employee_reference):
-        if report['binding'].get('workflow_id'):continue
-        results.append({'key':'report-'+str(report['id']),'workflow_id':None,
-            'title':report['name'],'state':'recorded','summary':report['summary'],
-            'created_at':report['binding'].get('created_at',report['updated_at']),'updated_at':report['updated_at'],
-            'origin':{'kind':'employee_chat','chat_id':report['binding']['chat_id']},
-            'report_document':reference(report),'contributions':[],'attempts':[],
-            'outputs':[],'references':[]})
+    with matching_references([employee_reference]) as matches:
+        for report in reports:
+            if not matches(report['binding'].get('employee_reference')) or report['binding'].get('workflow_id'):continue
+            results.append({'key':'report-'+str(report['id']),'workflow_id':None,
+                'title':report['name'],'state':'recorded','summary':report['summary'],
+                'created_at':report['binding'].get('created_at',report['updated_at']),'updated_at':report['updated_at'],
+                'origin':{'kind':'employee_chat','chat_id':report['binding']['chat_id']},
+                'report_document':reference(report),'contributions':[],'attempts':[],
+                'outputs':[],'references':[]})
     return results
 
 

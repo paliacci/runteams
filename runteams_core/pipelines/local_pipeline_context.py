@@ -5,7 +5,7 @@ class LocalPipelineContext(BoundPipelineContext):
     def rented_catalog(self):
         self._check();return []
 
-    def acquired_employee_catalog(self):
+    def acquired_employee_choices(self, project):
         self._check();return [],[]
 
     def create_downloaded(self,*args):

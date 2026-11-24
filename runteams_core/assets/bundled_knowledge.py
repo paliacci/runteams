@@ -48,6 +48,13 @@ def _add(items, reference, rows, folder, name=None):
         items[key] = {**row, 'file': folder / row['sha256'], 'employee_name': name or row.get('employee_name')}
 
 
+def source_items(reference, rows, folder):
+    """Index bundled files by the same source IDs used by the asset knowledge drawer."""
+    items = {}
+    _add(items, reference, rows, folder)
+    return items
+
+
 def team_catalog(reference):
     """Collect the team's own and declared members' bundled files from the same revision."""
     from runteams_core.employees.employee_context import current

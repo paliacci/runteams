@@ -187,6 +187,9 @@ def _compile_checked_source(files, *, schema_validator=None, source_index=None):
     if 'automation.templates.json' in files:
         from runteams_core.automation.automation_template_contract import index as automation_index
         automation_index(files)
+    if 'publication-exclusions.json' in files:
+        from runteams_core.authoring.source.publication_exclusions import index as exclusion_index
+        exclusion_index(files)
     if project['schema']=='runteams.creator-project/2':
         project={**project,**{k:project.get(k,[]) for k in ('operations','data_models','migrations','connections')}}
         project['entrypoints']={**project['entrypoints'],'pipelines':project['entrypoints'].get('pipelines',[]),

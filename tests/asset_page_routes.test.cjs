@@ -69,3 +69,23 @@ test('opening an employee keeps the employee URL, selecting a conversation opens
     assert.ok(locations.every(path => path === expected));
   }
 });
+
+test('a document revision keeps its version when converted between public and internal routes', () => {
+  const host = {
+    location: {origin: 'http://localhost'},
+    RunTeamsPageRouteContract: JSON.parse(fs.readFileSync('contracts/page-routes.json')),
+    RunTeamsHost: {routes: {preview: () => null, resolve: () => null}},
+  };
+  vm.runInNewContext(fs.readFileSync('web/ui/page-routes.js', 'utf8'), {window: host, URL});
+  const routes = host.RunTeamsRoutes;
+  const publicId = 'local-' + 'f'.repeat(32);
+  routes.installDevice([{resource: 'documents', id: '79', public_id: publicId}], 'test-library');
+  const path = '/documents/' + publicId + '?revision=80#section';
+  assert.equal(routes.toPublic('/docs?document=79&revision=80#section'), path);
+  assert.equal(routes.resolve(path).documentId, 79);
+  assert.equal(routes.resolve(path).revisionId, 80);
+  assert.equal(routes.resolve(path).anchor, 'section');
+  assert.equal(routes.isDeviceRoute(path), true);
+  assert.throws(() => routes.resolve(path.replace('revision=80', 'revision=0')));
+  assert.throws(() => routes.resolve(path.replace('revision=80', 'revision=80&revision=81')));
+});

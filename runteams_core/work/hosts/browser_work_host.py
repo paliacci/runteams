@@ -4,6 +4,7 @@ from runteams_core.foundation.resources import root as resource_root
 Private owner/control descriptors stay in this process. Each mounted page gets a
 separate asset origin; only its trusted parent relays SDK calls to this service.
 """
+from runteams_core.foundation.contracts import FrozenRuntimeChanged
 import contextvars
 import http.client
 import re
@@ -280,6 +281,7 @@ def handle(handler):
                 handler.server.browser_work_host=BrowserWorkHost(handler.server.creator_router(),agent_interaction.scope)
             host_service=handler.server.browser_work_host
         return handler._json(host_service.call(value,origin))
+    except FrozenRuntimeChanged:return handler._json({'error':'原工作使用的运行资源与当前版本不一致。','code':'work_runtime_changed'},409)
     except WorkClientExpired:return handler._json({'error':'工作界面已失效，请重新打开。','code':'work_client_expired'},403)
     except PermissionError:return handler._json({'error':'工作界面已失效，请重新打开。'},403)
     except (ValueError,TypeError,KeyError):return handler._json({'error':'工作界面请求无效。'},400)

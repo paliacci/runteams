@@ -105,12 +105,15 @@ class Documents(RepositoryService):
         if not value:
             return None
         rows = self._document_rows(connection)
+        ownership = self._document_employee_owner()
         candidates = []
         for row in rows:
             meta = self._decode_meta(row["meta_json"])
             if meta.get("source") != "agent_chat":
                 continue
-            owner=self._document_employee_owner().get('employee_reference')
+            if meta.get('pipeline_reference') != ownership.get('pipeline_reference'):
+                continue
+            owner=ownership.get('employee_reference')
             if owner is not None or meta.get('employee_reference') is not None:
                 from runteams_core.employees.employee_references import same
                 if owner is None or meta.get('employee_reference') is None or not same(owner,meta['employee_reference']):continue
@@ -276,11 +279,20 @@ class Documents(RepositoryService):
             row = connection.execute("SELECT * FROM artifacts WHERE id=? AND trashed_at IS NULL", (int(document_id),)).fetchone()
         if row is None:
             return None
-        item = self.document_detail(document_id, include_content=False)
         saved = self._decode_meta(row["meta_json"])
+        if not self.is_document_artifact(saved, row["name"]):
+            return None
+        item = self.document_detail(document_id, include_content=False)
+        if item is None:
+            return None
+        path = str(saved.get("path") or "")
+        is_current = item["id"] == int(row["id"])
         item.update({"id": int(row["id"]), "name": row["name"], "created_at": row["created_at"],
                      "revision": int(saved.get("revision") or 1), "content": self._read_document_body(row),
-                     "editable": False})
+                     "path": path, "size": int(saved.get("size") or 0),
+                     "source": str(saved.get("source") or "employee"),
+                     "content_model": saved.get("content_model") or self.document_model_for_path(path or row["name"]),
+                     "data_view": None, "editable": False, "is_current_revision": is_current})
         return item
 
     def _document_chain(self, connection, artifact_id):
@@ -492,27 +504,33 @@ class Documents(RepositoryService):
             self._delete_artifact_files([str(previous)])
         return {"id": int(latest["id"]), "created_revision": False}
 
-    def revert_document(self, artifact_id):
-        """把旧的一版重新放到链尾：读的是服务器上那一版的字节，不信客户端传来的内容。"""
-        with self.repository.connect() as connection:
-            row = connection.execute(
-                "SELECT * FROM artifacts WHERE id=?", (int(artifact_id),)).fetchone()
-            if not row:
+    def revert_document(self, artifact_id, *, expected_current_revision=None):
+        """Read the chosen version from storage and append its content to the same chain."""
+        with self.repository.definition_lock(), self.repository.connect() as connection:
+            chain = self._document_chain(connection, artifact_id)
+            row = next((item for item in chain if int(item['id']) == int(artifact_id)), None)
+            if row is None:
                 raise ContractError("文档不存在")
+            latest = chain[-1]
+            current = self._decode_meta(latest['meta_json'])
+            revision = int(current.get('revision') or len(chain))
+            if expected_current_revision is not None and expected_current_revision != revision:
+                raise ContractError('文档已被更新，请重新读取版本后再恢复。')
             meta = self._decode_meta(row["meta_json"])
+            if not self.is_document_artifact(meta, row['name']):
+                raise ContractError("证据与交付附件只读，不能当作文档修订")
+            filename = str(meta.get("path") or row["name"] or "document.md")
+            if meta.get('content_model') != 'rich-document' and not self.is_document(filename):
+                raise ContractError("这类文件不能在产品内编辑，请用系统应用打开")
+            text = self._read_document_body(row)
+            if expected_current_revision is not None and meta.get('sha256') and meta['sha256'] != hashlib.sha256(text.encode()).hexdigest():
+                raise ContractError('原修订的内容校验无法通过，请核对文档文件。')
             created_at = str(row["created_at"] or "")
-        filename = str(meta.get("path") or row["name"] or "document.md")
-        if not self.is_document(filename):
-            raise ContractError("这类文件不能在产品内编辑，请用系统应用打开")
-        try:
-            text = Path(row["ref"]).read_text(encoding="utf-8")
-        except (OSError, UnicodeDecodeError):
-            raise ContractError("这一版的文件读不出来，可能已经被移动或删除")
-        # 备注用时间指认那一版，不用序号——序号只是链上的位置，不是这份内容的身份
-        return self.create_document_revision(
-            artifact_id, text, note="恢复自 {}".format(created_at) if created_at else "恢复历史版本")
+            note = "恢复自 {}".format(created_at) if created_at else "恢复历史版本"
+            return self.create_document_revision(artifact_id, text, note=note,
+                                                 force_new=expected_current_revision is not None)
 
-    def create_document_revision(self, artifact_id, content, note=""):
+    def create_document_revision(self, artifact_id, content, note="", *, force_new=False):
         """Save a human edit as a new revision; the earlier bytes stay readable."""
         with self.repository.connect() as c:
             rich_chain=self._document_chain(c,artifact_id)
@@ -521,7 +539,7 @@ class Documents(RepositoryService):
             latest=rich_chain[-1];m=self._decode_meta(latest['meta_json'])
             value=rich_documents.validate(content)
             result=rich_documents.write(self,name=latest['name'],document=value,
-                document_id=artifact_id,base_revision=int(m.get('revision') or 1))
+                document_id=artifact_id,base_revision=int(m.get('revision') or 1),note=note,force_new=force_new)
             if result.get('conflict'):raise ContractError(result['error'])
             return result['id']
         if not isinstance(content, str):
@@ -570,7 +588,7 @@ class Documents(RepositoryService):
                 meta.update({"path": "{}.md".format(key),
                              "document_key": key, "source": "agent_chat",
                              "data_view": copy.deepcopy(latest_meta.get("data_view")),
-                             **{key:latest_meta[key] for key in ("employee_reference","workflow_id","work_report") if key in latest_meta}})
+                             **{key:latest_meta[key] for key in ("employee_reference","pipeline_reference","workflow_id","work_report") if key in latest_meta}})
             elif latest_meta.get("source") == employee_documents.SOURCE:
                 # A human edit stays in the employee's namespace so the next
                 # run keeps maintaining the same chain from this revision.

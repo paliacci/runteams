@@ -8,9 +8,21 @@
   // These POST endpoints only read a verified workspace or its original receipt.
   // Commands and endpoints that also accept mutations keep the write barrier.
   const pipelineReads=new Set(['ui-state-read','catalog','trash-catalog','workspace','creation-choices','settings','history','records','state','contract','work','operation','control-operation','edit-operation','flow-operation'].map(action=>'/api/device/work/source-pipelines/'+action));
-  function isRead(path,method='GET'){
+  function isPanelList(path,body){
+    if(path!=='/api/device/work/source-pipelines/asset-knowledge'&&path!=='/api/mcp-connections')return false;
+    if(typeof body==='string'){
+      try{body=JSON.parse(body);}catch{return false;}
+    }
+    if(!body||typeof body!=='object'||Array.isArray(body))return false;
+    const fields=Object.keys(body);
+    if(path==='/api/mcp-connections')return body.action==='employee-apps-read'&&fields.length===2&&fields.includes('employee');
+    const owner=fields.filter(key=>key==='chat'||key==='reference');
+    return owner.length===1&&fields.every(key=>key===owner[0]||key==='expanded')&&
+      (!fields.includes('expanded')||typeof body.expanded==='boolean');
+  }
+  function isRead(path,method='GET',body){
     return method==='GET'||method==='POST'&&(
-      /^\/api\/assets\/read\/[a-z-]+$/.test(path)||pipelineReads.has(path)||
+      /^\/api\/assets\/read\/[a-z-]+$/.test(path)||pipelineReads.has(path)||isPanelList(path,body)||
       /^\/api\/pipeline-work\/(?:contract|operation|control-operation|schedule-operation)$/.test(path));
   }
   let version=0,deviceVersion=0;
@@ -31,7 +43,7 @@
     }catch(error){clearTimeout(timer);}
   }
   async function request(path,options={},scope=''){
-    const method=options.method||'GET',read=isRead(path,method);
+    const method=options.method||'GET',read=isRead(path,method,options.body);
     const url=new URL(path,'http://localhost');url.searchParams.sort();
     // Preferences and read-only runtime probes do not invalidate unrelated reads.
     if(!read&&options.invalidates!==false&&!/^\/api\/channel\/\d+\/probe$/.test(url.pathname)){if(options.device)deviceVersion++;else version++;flights.clear();}

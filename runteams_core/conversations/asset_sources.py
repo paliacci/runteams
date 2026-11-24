@@ -5,6 +5,7 @@ from pathlib import Path
 import base64
 import hashlib
 import io
+import json
 import os
 import tempfile
 import secrets
@@ -18,21 +19,6 @@ from runteams_core.storage import device_data
 FORMATS = {'.md', '.markdown', '.txt', '.pdf', '.csv', '.json', '.srt', '.vtt'} | office_text.FORMATS
 CATALOG_SIZE = 12
 EXCERPT_SIZE = 4000
-
-
-def capture(connection, chat_id, items):
-    from runteams_core.conversations import asset_memory, chat_attachments
-    files = [item for item in items if item.get('kind') == 'file'
-             and Path(item.get('name', '')).suffix.lower() in knowledge_archive.TYPES]
-    if not files:
-        return
-    binding = asset_memory._binding(chat_id)
-    if not binding or not binding['writable']:
-        return
-    for item in files:
-        name = item['name']
-        raw = Path(chat_attachments.path_for(chat_id, item)).read_bytes()
-        _store(connection, binding['bank'], name, raw, readable_pages(name, raw))
 
 
 def _pages(name, raw):
@@ -70,12 +56,72 @@ def readable_pages(name, raw):
 
 def _store(connection, bank, name, raw, pages):
     source = connection.execute(
-        'INSERT INTO asset_sources(bank,name,original,pages) VALUES(?,?,?,?) '
-        'ON CONFLICT(bank,name) DO UPDATE SET original=excluded.original,pages=excluded.pages '
-        'RETURNING id', (bank, name, raw, len(pages))).fetchone()[0]
+        'INSERT INTO asset_sources(id,bank,name,original,pages,revision) VALUES(?,?,?,?,?,lower(hex(randomblob(16)))) '
+        'ON CONFLICT(bank,name) DO UPDATE SET original=excluded.original,pages=excluded.pages,revision=excluded.revision '
+        'RETURNING id', (_new_id(), bank, name, raw, len(pages))).fetchone()[0]
     connection.execute('DELETE FROM asset_source_pages WHERE source_id=?', (source,))
     connection.executemany('INSERT INTO asset_source_pages(source_id,page,text) VALUES(?,?,?)',
                            ((source, i, page) for i, page in enumerate(pages, 1)))
+    return source
+
+
+def _new_id():
+    # Keep identifiers distinct after deletion and exactly representable in browser clients.
+    return (1 << 52) + secrets.randbits(52)
+
+
+def _available_bundled(connection, bank, bundled):
+    if not bundled:
+        return {}
+    excluded = {r[0] for r in connection.execute('SELECT source FROM asset_bundled_exclusions WHERE bank=?', (bank,))}
+    return {key: row for key, row in bundled.items() if key not in excluded}
+
+
+def _bundled_record(bank, source, bundled):
+    if source not in (bundled or {}):
+        raise ValueError('资料不属于当前资产版本。')
+    with device_data.connect(readonly=True) as c:
+        row = _available_bundled(c, bank, {source: bundled[source]}).get(source)
+    if row is None:
+        raise ValueError('资料已从当前资产知识库移除。')
+    return row
+
+
+def _prior_source(connection, bank, source, revision, bundled):
+    if isinstance(source, str):
+        row = _available_bundled(connection, bank, bundled).get(source)
+        if row is None:
+            raise ValueError('随包资料已变化，请重新读取资料目录。')
+        return {'id': source, 'name': row['path'], 'origin': 'bundled'}
+    row = connection.execute(
+        'SELECT id,name FROM asset_sources WHERE bank=? AND id=? AND revision=?',
+        (bank, source, revision)).fetchone()
+    if row is None:
+        raise ValueError('个人资料已变化，请重新读取资料目录。')
+    return {**dict(row), 'origin': 'personal'}
+
+
+def apply_chat_change(connection, bank, operation, action, staged, *, source=None, revision=None, bundled=None):
+    prior = _prior_source(connection, bank, source, revision, bundled) if source is not None else None
+    names = [name for name, _, _ in staged]
+    if len(set(names)) != len(names):
+        raise ValueError('所选附件中有同名文件，请先明确需要加入的版本。')
+    for name in names:
+        row = connection.execute('SELECT id FROM asset_sources WHERE bank=? AND name=?', (bank, name)).fetchone()
+        if row is not None and (prior is None or row['id'] != prior['id']):
+            raise ValueError(f'已有同名个人资料「{name}」，请明确要替换的资料。')
+
+    if prior and prior['origin'] == 'bundled':
+        connection.execute('INSERT INTO asset_bundled_exclusions(bank,source) VALUES(?,?)', (bank, source))
+    elif prior:
+        connection.execute('DELETE FROM asset_sources WHERE bank=? AND id=?', (bank, source))
+
+    added = [{'id': _store(connection, bank, name, raw, pages), 'name': name, 'pages': len(pages)}
+             for name, raw, pages in staged]
+    result = {'action': action, 'added': added, 'removed': prior}
+    connection.execute('INSERT INTO asset_source_actions(operation,result) VALUES(?,?)',
+                       (operation, json.dumps(result, ensure_ascii=False)))
+    return result
 
 
 UPLOAD_CHUNK = 2 * 1024 * 1024
@@ -88,9 +134,10 @@ def _save_upload(bank, name, stream, size, replace):
         if not replace and c.execute('SELECT 1 FROM asset_sources WHERE bank=? AND name=?', (bank,name)).fetchone():
             return {'duplicate': True}
         source = c.execute(
-            'INSERT INTO asset_sources(bank,name,original,pages) VALUES(?,?,zeroblob(?),0) '
-            'ON CONFLICT(bank,name) DO UPDATE SET original=excluded.original,pages=0 RETURNING id',
-            (bank, name, size)).fetchone()[0]
+            'INSERT INTO asset_sources(id,bank,name,original,pages,revision) '
+            'VALUES(?,?,?,zeroblob(?),0,lower(hex(randomblob(16)))) '
+            'ON CONFLICT(bank,name) DO UPDATE SET original=excluded.original,pages=0,revision=excluded.revision RETURNING id',
+            (_new_id(), bank, name, size)).fetchone()[0]
         stream.seek(0)
         with c.blobopen('asset_sources', 'original', source) as blob:
             knowledge_archive.copy_checked(stream, blob, size)
@@ -176,16 +223,19 @@ def _upload(bank, args):
     return result
 
 
-def catalog(bank, offset=0, *, bundled=None, limit=CATALOG_SIZE):
-    bundled = bundled or {}
+def catalog(bank, offset=0, *, bundled=None, limit=CATALOG_SIZE, include_personal=True):
     with device_data.connect(readonly=True) as c:
-        count = c.execute('SELECT count(*) FROM asset_sources WHERE bank=?', (bank,)).fetchone()[0]
+        bundled = _available_bundled(c, bank, bundled)
+        count = 0
+        rows = []
+        if include_personal:
+            count = c.execute('SELECT count(*) FROM asset_sources WHERE bank=?', (bank,)).fetchone()[0]
+            rows = c.execute(
+                "SELECT s.id,s.name,s.pages,s.revision,substr(p.text,1,160) AS preview,'personal' AS origin FROM asset_sources s "
+                'LEFT JOIN asset_source_pages p ON p.source_id=s.id AND p.page=1 WHERE s.bank=? '
+                'ORDER BY s.name,s.id LIMIT ? OFFSET ?', (bank, -1 if limit is None else limit, offset)).fetchall()
         if limit is None:
             limit = count + len(bundled)
-        rows = c.execute(
-            "SELECT s.id,s.name,s.pages,substr(p.text,1,160) AS preview,'personal' AS origin FROM asset_sources s "
-            'LEFT JOIN asset_source_pages p ON p.source_id=s.id AND p.page=1 WHERE s.bank=? '
-            'ORDER BY s.name,s.id LIMIT ? OFFSET ?', (bank, limit, offset)).fetchall()
     items = [dict(r) for r in rows]
     start = max(0, offset-count)
     keys = sorted(bundled, key=lambda k: (bundled[k]['path'], k))
@@ -199,9 +249,7 @@ def catalog(bank, offset=0, *, bundled=None, limit=CATALOG_SIZE):
 
 def excerpt(bank, source, page, offset, *, bundled=None):
     if isinstance(source, str):
-        row = (bundled or {}).get(source)
-        if row is None:
-            raise ValueError('资料不属于当前资产版本。')
+        row = _bundled_record(bank, source, bundled)
         name = row['path']
         pages = []
         from runteams_core.conversations.chat_attachments import MAX_FILE_BYTES
@@ -216,12 +264,12 @@ def excerpt(bank, source, page, offset, *, bundled=None):
         if not 1 <= page <= len(pages) or offset > len(pages[page-1]):
             raise ValueError('原文位置无效。')
         text = pages[page-1]
-        return {'name':name,'pages':len(pages),'page':page,'offset':offset,'length':len(text),
+        return {'name':name,'revision':row['sha256'],'pages':len(pages),'page':page,'offset':offset,'length':len(text),
                 'text':text[offset:offset+EXCERPT_SIZE],
                 'next_offset':offset+EXCERPT_SIZE if offset+EXCERPT_SIZE<len(text) else None}
     with device_data.connect(readonly=True) as c:
         row = c.execute(
-            'SELECT s.name,s.pages,p.page,substr(p.text,?,?) AS text,length(p.text) AS length '
+            'SELECT s.name,s.revision,s.pages,p.page,substr(p.text,?,?) AS text,length(p.text) AS length '
             'FROM asset_sources s LEFT JOIN asset_source_pages p ON p.source_id=s.id AND p.page=? '
             'WHERE s.bank=? AND s.id=?',
             (offset + 1, EXCERPT_SIZE, page, bank, source)).fetchone()
@@ -235,31 +283,30 @@ def excerpt(bank, source, page, offset, *, bundled=None):
 
 @contextmanager
 def _original_source(bank, source, bundled):
-    record = bundled.get(source)
-    if isinstance(source, str) and not record:
-        raise ValueError('资料不属于当前资产版本。')
+    record = _bundled_record(bank, source, bundled) if isinstance(source, str) else None
     if record:
         name, size, sha = record['path'], record['size'], record['sha256']
         reader = knowledge_archive.regular(record['file'])
     else:
         with device_data.connect(readonly=True) as c:
-            row = c.execute('SELECT name,length(original) FROM asset_sources WHERE bank=? AND id=?',(bank,source)).fetchone()
+            row = c.execute('SELECT name,length(original),revision FROM asset_sources WHERE bank=? AND id=?',(bank,source)).fetchone()
             if not row:
                 raise ValueError('资料不存在。')
-            name, size = row
+            name, size, revision = row
             with c.blobopen('asset_sources', 'original', source, readonly=True) as blob:
                 sha = knowledge_archive.copy_checked(blob, None, size)
                 blob.seek(0)
-                yield name, size, sha, blob
+                yield name, size, sha, revision, blob
             return
     with reader as src:
-        yield name, size, sha, src
+        yield name, size, sha, sha, src
 
 
 def original(bank, source, bundled, directory, *, for_work=False):
     """Write one authorized, verified original without following links or replacing existing work."""
-    with _original_source(bank, source, bundled) as (name, size, sha, src):
-        return _write_original(src, name, size, sha, directory, for_work)
+    with _original_source(bank, source, bundled) as (name, size, sha, revision, src):
+        result = _write_original(src, name, size, sha, directory, for_work)
+        return {**result, 'revision': revision}
 
 
 def _write_original(src, name, size, sha, directory, for_work=False):
@@ -301,7 +348,7 @@ def open_original(bank, source, bundled):
 
     image_types = {'.png':'image/png', '.jpg':'image/jpeg', '.jpeg':'image/jpeg',
                    '.webp':'image/webp', '.gif':'image/gif'}
-    with _original_source(bank, source, bundled) as (name, size, sha, stream):
+    with _original_source(bank, source, bundled) as (name, size, sha, _, stream):
         knowledge_archive.file_name(name)
         suffix = Path(name).suffix.lower()
         if size <= MAX_FILE_BYTES and suffix in (image_types.keys() | (FORMATS - {'.pdf'})):

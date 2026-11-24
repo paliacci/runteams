@@ -14,7 +14,7 @@ for (const organization of [false, true]) {
    workspaceAccountCacheToken: () => scope, refreshBotList() {}, deviceChatRemember() {}, addEventListener() {},
    RunTeamsHost: {session: {workspace: () => organization, actor: () => scope}},
    api: async url => {
-    const local = url.endsWith('?view=local');
+    const local = url.includes('?view=');
     if (local) localReads++;
     else fullReads++;
     return {schema: 'runteams.employee-directory/v1', items: [], activity: {chats: [], workflows: []},
@@ -71,7 +71,7 @@ test('employee link waits for the existing cloud directory read', async () => {
   deviceChatRemember() {}, addEventListener() {}, refreshBotList() {},
   RunTeamsHost: {assets: {remember() {}}, session: {workspace: () => false, actor: () => 'actor', ready: () => true}},
   api: async url => {
-   if (url.endsWith('?view=local')) return receipt([]);
+   if (url.includes('?view=')) return receipt([]);
    fullReads++;
    return new Promise(resolve => { releaseCloud = resolve; });
   },
@@ -104,4 +104,78 @@ test('employee link waits for the existing cloud directory read', async () => {
  releaseCloud(receipt([{...employee, asset: {id: 52, reference: reference(52)}}]));
  assert.equal(await previousAccount, null);
  assert.equal(directory.current().length, 0);
+});
+
+test('installation labels require a directory that includes downloads for this account', async () => {
+ let account = 'first', errors = {downloads: {error: 'offline'}};
+ const context = {
+  S: {booting: true, localLibrary: {library_id: 'library'}}, _workspaceBusinessGeneration: 1,
+  workspaceAccountCacheToken: () => account, deviceChatRemember() {}, addEventListener() {},
+  RunTeamsHost: {session: {workspace: () => false}},
+  api: async () => ({schema: 'runteams.employee-directory/v1', items: [], activity: {chats: [], workflows: []}, errors}),
+ };
+ context.window = context;
+ vm.runInNewContext(source, context);
+ const directory = context.RunTeamsEmployeeDirectory;
+ assert.equal(directory.downloadsReady(), false);
+ await directory.refresh();
+ assert.equal(directory.downloadsReady(), false);
+ errors = {};
+ await directory.refresh();
+ assert.equal(directory.downloadsReady(), true, 'a confirmed empty directory counts');
+ account = 'second';
+ assert.equal(directory.downloadsReady(), false);
+});
+
+test('employee sidebar waits for a confirmed directory outcome', () => {
+ const html = fs.readFileSync(path.join(__dirname, '../web/index.html'), 'utf8');
+ const start = html.indexOf('function botListRowsMarkup()');
+ const render = html.slice(start, html.indexOf('\n}', start) + 2);
+ const startup = html.slice(html.indexOf('function botListStartupError()'), html.indexOf('async function retryBotList()'));
+ let reading = false;
+ const context = {
+  S: {coreTeamLoaded: false, coreTeamError: ''},
+  RunTeamsEmployeeDirectory: {current: () => [], pinnedKeys: () => [], isLoading: () => reading},
+  RunTeamsHost: {}, botListVisibleEmployees: () => [], botListEmployeeRows: () => '',
+  botListSearchQuery: () => '', railListSkeleton: () => 'loading',
+  RunTeamsLoadFailure: {pending: () => '', markup: ({error}) => error},
+  RunTeamsEmptyStates: {markup: () => 'empty'},
+ };
+ vm.runInNewContext(startup + render, context);
+ assert.equal(context.botListRowsMarkup(), 'loading');
+ reading = true;
+ assert.equal(context.botListRowsMarkup(), 'loading');
+ reading = false;
+ context.S.coreTeamError = 'offline';
+ assert.equal(context.botListRowsMarkup(), 'offline');
+ context.S.coreTeamError = '';
+ context.S.workspaceStartup = {pending: true, errorStage: 'account', error: 'session unavailable'};
+ assert.equal(context.botListRowsMarkup(), 'session unavailable');
+ context.S.workspaceStartup = null;
+ context.S.coreTeamLoaded = true;
+ assert.equal(context.botListRowsMarkup(), 'empty');
+});
+
+test('first personal roster includes cloud employees before painting or revalidating', async () => {
+ const asset = {key:'cloud', record:{name:'Cloud'}, asset:{}, open:{}};
+ const local = {key:'local', record:{name:'Local'}, open:{}};
+ for (const checked of [true, false]) {
+  const paths = [];
+  const context = {S:{booting:true}, _workspaceBusinessGeneration:1, workspaceAccountCacheToken:()=>'account',
+   RunTeamsHost:{session:{workspace:()=>false,actor:()=>'account'}}, deviceChatRemember(){}, addEventListener(){},
+   api:async url=>{
+    paths.push(url);
+    const startup = url.endsWith('?view=startup');
+    return {schema:'runteams.employee-directory/v1', items:startup?[local,asset]:[local], catalog_checked:checked,
+     activity:{chats:[],workflows:[]}, errors:startup?{}:{assets:{error:'offline'}}};
+   }};
+  context.window=context;
+  vm.runInNewContext(source,context);
+  await context.RunTeamsEmployeeDirectory.refresh({localFirst:true});
+  await new Promise(setImmediate);
+  assert.equal(paths[0],'/api/employee-directory?view=startup');
+  assert.equal(paths.length,checked?1:2);
+  assert.deepEqual(Array.from(context.RunTeamsEmployeeDirectory.current(),row=>row.key),['local','cloud']);
+  if (!checked) assert.equal(context.S.coreTeamError,'offline');
+ }
 });

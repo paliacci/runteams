@@ -55,19 +55,16 @@
 :is(.right-detail-scroll,.right-detail-body)[data-fade-top]{--drawer-fade-top:min(16px,25%)}
 :is(.right-detail-scroll,.right-detail-body)[data-fade-bottom]{--drawer-fade-bottom:min(16px,25%)}
 
-/* Shared section chrome for employee, pipeline and position settings. */
+/* Section headers shared by settings, asset overviews and task details. */
 .settings-section-stack{display:grid;gap:16px;align-content:start;min-width:0}
 .drawer-settings-section{--settings-section-motion-ms:180;min-width:0}
-.settings-section-toggle,.settings-section-label,
-.employee-configuration-drawer:not(.core-position-detail-drawer) .work-authorization-settings>.employee-sdk-connection-heading{
- min-height:32px;padding:5px 10px;border-radius:6px;background:var(--surface-subtle);
+.settings-section-bar,.settings-section-toggle,.settings-section-label{border-radius:6px;background:var(--surface-subtle)}
+.settings-section-heading,.configuration-surface .group>.settings-section-heading{margin:0}
+.settings-section-toggle,.settings-section-label,.settings-section-bar>.settings-section-title{
+ display:flex;align-items:center;gap:8px;min-width:0;min-height:32px;margin:0;padding:5px 10px;
+ font:inherit;font-size:calc(13px * var(--interface-font-scale,1));line-height:20px;font-weight:600;color:var(--text-secondary);text-align:start;
 }
-.settings-section-heading,.settings-section-label,.configuration-surface .group>.settings-section-heading{margin:0}
-.settings-section-toggle,.settings-section-label{
- display:flex;align-items:center;gap:8px;width:100%;min-width:0;color:var(--detail-text-primary);
- font:inherit;font-size:var(--detail-section-size);font-weight:var(--detail-section-weight);line-height:var(--detail-section-line);text-align:start;
-}
-h2.settings-section-heading>.settings-section-toggle{font-size:15px;line-height:22px}
+.settings-section-toggle,.settings-section-label{width:100%}
 .settings-section-title{flex:1;min-width:0;overflow-wrap:anywhere}
 .settings-section-label{overflow-wrap:anywhere}
 .settings-section-toggle>.i{width:14px;height:14px;color:var(--detail-text-secondary);opacity:0;transition:opacity 100ms ease,transform calc(var(--settings-section-motion-ms) * 1ms) ease}
@@ -79,6 +76,8 @@ h2.settings-section-heading>.settings-section-toggle{font-size:15px;line-height:
 @media (hover:none){.settings-section-toggle>.i{opacity:1}}
 @media (prefers-reduced-motion:reduce){.settings-section-toggle>.i{transition:none}}
 
-.settings-section-bar{display:flex;align-items:center;gap:4px;padding-inline-end:4px;border-radius:6px;background:var(--surface-subtle)}
+.settings-section-bar{display:flex;align-items:center;gap:4px}
 .settings-section-bar>.settings-section-heading{flex:1;min-width:0}
 .settings-section-bar>.settings-section-heading>.settings-section-toggle{background:transparent}
+.settings-section-bar .settings-section-action{min-width:48px;min-height:32px;margin:0;padding:0 10px;border-radius:6px;font-size:calc(12px * var(--interface-font-scale,1));font-weight:400;line-height:18px;color:var(--text-secondary);text-align:end}
+.settings-section-bar .settings-section-action:hover:not(:disabled){color:var(--text-primary)}

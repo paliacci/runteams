@@ -3,11 +3,13 @@
 Reading/opening this workspace never builds an employee, admits work, resumes a
 pipeline or mutates its source. The work ledger remains the board's only truth.
 """
-from runteams_core.conversations.page_paths import asset_key, short_ids
+from runteams_core.conversations.page_paths import asset_key, page_id, short_ids
 from runteams_core.pipelines import pipeline_references
 import copy
 import json
 import uuid
+
+from runteams_core.pipelines.pipeline_choice_index import ChoiceIndex
 
 from runteams_core.storage import device_data
 from runteams_core.pipelines import source_pipeline_work as work, source_pipeline_control as control
@@ -35,7 +37,9 @@ def _definition(ref):
 
 
 def _pipeline_definition(files, path):
-    asset = strict_json(files[path])
+    asset = strict_json(files.get(path, b'{}'))
+    if not isinstance(asset, dict):
+        raise ValueError('智能体团队源码格式无效。')
     from runteams_core.authoring.creator_definitions import validate_author
     validate_author('pipeline', asset)
     return asset
@@ -53,19 +57,22 @@ def catalog(core):
         page = store.list(after)
         for item in page['items']:
             try:
-                revisions = Revisions(store, item['id'])
-                with revisions.locked():
-                    revision = revisions._head()
-                    files = revisions._files(revision)
-                project = strict_json(files['project.json'])
-                for path in project['entrypoints'].get('pipelines', []):
-                    if (item['id'], path) in removed:
-                        continue
-                    ref = pipeline_references.reference(item['id'], path)
-                    asset = _pipeline_definition(files, path)
-                    avatar_src = image_src(source_fields(asset, files))
-                    rows.append({'reference': ref, 'name': asset['pipeline']['name'], 'revision': revision,
-                                 'allowed_modes': allowed_modes(ref), **({'avatar_src': avatar_src} if avatar_src else {})})
+                revisions = Revisions(store, item['id'], display_only=True)
+                with revisions.current_snapshot(display_only=True) as (revision, files):
+                    project = strict_json(files.get('project.json', b'{}'))
+                    if not isinstance(project, dict) or not isinstance(project.get('entrypoints'), dict):
+                        raise ValueError('智能体团队工程入口无效。')
+                    paths = project['entrypoints'].get('pipelines', [])
+                    if not isinstance(paths, list) or any(not isinstance(path, str) for path in paths):
+                        raise ValueError('智能体团队工程入口无效。')
+                    for path in paths:
+                        if (item['id'], path) in removed:
+                            continue
+                        ref = pipeline_references.reference(item['id'], path)
+                        asset = _pipeline_definition(files, path)
+                        avatar_src = image_src(source_fields(asset, files))
+                        rows.append({'reference': ref, 'name': asset['pipeline']['name'], 'revision': revision,
+                                     'allowed_modes': allowed_modes(ref), **({'avatar_src': avatar_src} if avatar_src else {})})
             except (ValueError, OSError, ContractError) as exc:
                 errors.append({'source_id': item['id'], 'error': str(exc)})
         after = page['next_cursor']
@@ -147,12 +154,33 @@ def workspace(core, ref, active_ids=(), *, background_revision=None):
                               'card_actions': capabilities(row, snapshot, active_ids),
                               'retry_mode': retry_mode(row['state'],row['cursor_key'],snapshot,positions,
                                                        active=row['id'] in active, launch_error=error)})
-    return {'reference': ref, 'name': asset['pipeline']['name'], 'description': asset.get('description', ''), 'source_revision': revision,
+    with device_data.connect(readonly=True) as connection:
+        ui = _ui(connection, ref)
+        chat_id = _existing_chat_id(connection, ref) if background_revision is None else None
+    board_chat = None
+    if chat_id is not None:
+        from runteams_core.storage import product_store
+        session = product_store.get_chat(chat_id, include_messages=False)
+        if session and session['context'].get(CONTEXT) == ref:
+            board_chat = {key: session[key] for key in ('id', 'public_id', 'owner_path', 'storage_scope')}
+    return {'reference': ref, **({'page_id': page_id(ref)} if background_revision is None else {}),
+            'name': asset['pipeline']['name'], 'description': asset.get('description', ''), 'source_revision': revision,
             **({'avatar': icon['avatar'], 'avatar_src': image_src(icon)} if icon else {}),
             **(display_fields(asset, files=files) if revision != background_revision else {}),
             'pipeline': copy.deepcopy(asset['pipeline']), 'programs_available': bool(asset.get('programs')),
             'runtime': runtime, 'workflows': workflows,
-            'ui': preferences(ref), 'allowed_modes': allowed_modes(ref), 'storage_scope': 'device'}
+            **({'board_chat': board_chat} if board_chat else {}),
+            'ui': ui, 'allowed_modes': allowed_modes(ref), 'storage_scope': 'device'}
+
+
+def _existing_chat_id(connection, ref, discussion_id=None):
+    rows = connection.execute(
+        "SELECT id,context_json FROM chats WHERE kind='general' AND subject_type='workspace' "
+        "AND json_extract(context_json,'$.source_pipeline_workspace.source_id')=? "
+        "AND json_extract(context_json,'$.source_pipeline_workspace.pipeline_source')=? "
+        "AND json_extract(context_json,'$.source_pipeline_discussion') IS ? ORDER BY created_at,id",
+        (ref['source_id'], ref['pipeline_source'], discussion_id))
+    return next((row['id'] for row in rows if json.loads(row['context_json']).get(CONTEXT) == ref), None)
 
 
 def conversation(core, ref, runtime, *, discussion_id=None):
@@ -173,15 +201,10 @@ def conversation(core, ref, runtime, *, discussion_id=None):
     # immutable binding; there is no second authoritative chat-id index.
     with work.source(ref).locked():
         with device_data.connect(readonly=True) as connection:
-            ids = [row[0] for row in connection.execute(
-                "SELECT id FROM chats WHERE kind='general' AND subject_type='workspace' "
-                "AND json_extract(context_json,'$.source_pipeline_workspace.source_id')=? "
-                "AND json_extract(context_json,'$.source_pipeline_workspace.pipeline_source')=? "
-                "AND json_extract(context_json,'$.source_pipeline_discussion') IS ? ORDER BY created_at,id",
-                (ref['source_id'], ref['pipeline_source'], discussion_id))]
-        for identifier in ids:
+            identifier = _existing_chat_id(connection, ref, discussion_id)
+        if identifier is not None:
             session = product_store.get_chat(identifier)
-            if session['context'].get(CONTEXT) == ref:
+            if session and session['context'].get(CONTEXT) == ref:
                 return {'session': session, 'storage_scope': 'device'}
         context = {'context_type': 'general', CONTEXT: ref}
         if discussion_id:
@@ -224,36 +247,122 @@ def skill_description(bundle):
             'routes': list(dict.fromkeys(value for value in routes if isinstance(value, str) and value.strip()))}
 
 
+def _staffing_rows(scope, source_id, employees):
+    from runteams_core.assets.source_links import source_key
+    from runteams_core.employees.employee_references import SOURCE_SCHEMA, checked_source_reference
+    from runteams_core.foundation.identity.work_identity import source_scope
+    for path, name in employees:
+        ref = checked_source_reference({'schema': SOURCE_SCHEMA, 'source_id': source_id,
+            'employee_source': path, **source_scope(scope)}, scope)
+        yield {'key': source_key(source_id, path), 'source': {'reference': ref}, 'record': {'name': name}}
+
+
+def index_saved_project(store, scope, source_id):
+    from runteams_core.employees.employee_directory import staffing_project
+    with store.reading_project() as reader:
+        _, employees, _ = staffing_project(reader, source_id)
+    _read_source_choices(store, scope, _staffing_rows(scope, source_id, employees), [])
+
+
+def source_staffing_entries(*, errors):
+    from runteams_core.employees.employee_directory import apply_source_visibility, staffing_project
+    if not device_data.personal():
+        return []
+    scope = device_data.identity()
+    store = current_store(scope['cache_scope'])
+    index = ChoiceIndex(store.root, scope, 'staffing-projects/1')
+    rows, groups = [], {}
+    for source_id in store.identities():
+        try:
+            stamp = Revisions.display_fingerprint(store, source_id)
+            signature = digest(stamp)
+            cached = index.previous.get(source_id)
+            if cached and cached[0] == signature:
+                _, employees, memberships = cached
+                index.updated[source_id] = cached
+            else:
+                with store.reading_project() as reader:
+                    revision, employees, memberships = staffing_project(reader, source_id)
+                if revision == stamp[0]:
+                    index.updated[source_id] = [signature, employees, memberships]
+            for key, owners in memberships.items():
+                groups.setdefault(key, {}).update(owners)
+            rows.extend(_staffing_rows(scope, source_id, employees))
+        except (ValueError, OSError) as exc:
+            errors[source_id] = {'error': str(exc)}
+    apply_source_visibility(rows, groups)
+    store.check_scope()
+    index.save()
+    return [row for row in rows if not row.get('trashed')]
+
+
+def _employee_choices(employee):
+    for bundle in employee['asset']['skill_bundles']:
+        skill = skill_description(bundle)
+        if not skill: continue
+        yield {'reference': employee['reference'], 'revision': employee['revision'],
+            'dependency': employee['dependency'], 'version': employee['version'], 'origin': employee['origin'],
+            'project_name': employee.get('project_name', ''),
+            'employee_name': employee['asset']['employee']['name'], 'skill_key': bundle['package_key'],
+            'skill_name': skill['name'], 'skill': skill}
+
+
+def _source_choices(entries, errors):
+    entries = list(entries)
+    if not entries:
+        return []
+    scope = device_data.identity()
+    store = current_store(scope['cache_scope'])
+    return _read_source_choices(store, scope, entries, errors)
+
+
+def _read_source_choices(store, scope, entries, errors):
+    from runteams_core.employees.source_employee_runtime import describe_current_source
+    choices, projects, catalogs = [], {}, {}
+    for entry in entries:
+        ref = entry['source']['reference']
+        source_id, path = ref['source_id'], ref['employee_source']
+        key = source_id + ":" + path
+        try:
+            if source_id not in projects:
+                stamp = Revisions.display_fingerprint(store, source_id)
+                index = ChoiceIndex(store.root, scope, 'source-roles/2/' + source_id)
+                projects[source_id] = (stamp, digest(stamp), index)
+            stamp, signature, index = projects[source_id]
+            cached = index.previous.get(key)
+            if isinstance(cached, list) and len(cached) == 2 and cached[0] == signature and isinstance(cached[1], list):
+                rows = cached[1]
+                index.updated[key] = cached
+            else:
+                employee = describe_current_source(ref, store, scope, catalogs)
+                revision = employee['revision']
+                employee.update(origin='创作', version='修订 ' + revision.removeprefix('r-')[:8],
+                    dependency={'kind':'source', 'source_id':source_id, 'employee_source':path,
+                                'revision':revision, 'skills':[unit['key'] for unit in employee['skills']]})
+                rows = list(_employee_choices(employee))
+                if revision == stamp[0]:
+                    index.updated[key] = [signature, rows]
+            choices.extend(rows)
+        except (ValueError, OSError, PermissionError) as exc:
+            errors.append({'employee': entry['record']['name'], 'error': str(exc)})
+    store.check_scope()
+    for _, _, index in projects.values():
+        index.save()
+    return choices
+
+
 def creation_choices(core):
     """Actual source and complete signed employee versions, without dispatch."""
     core._actor()
-    from runteams_core.employees.employee_directory import local_entries
-    from runteams_core.employees.source_employee_runtime import describe, units
-    choices, errors, employees = [], [], []
-    source_errors = {}
-    catalog_cache = {}
-    for entry in local_entries(errors=source_errors):
-        try:
-            employee = describe(entry['source']['reference'], catalog_cache=catalog_cache)
-            employee.update(origin='创作', version='修订 ' + employee['revision'].removeprefix('r-')[:8],
-                dependency={'kind': 'source', 'source_id': employee['reference']['source_id'],
-                            'employee_source': employee['reference']['employee_source'], 'revision': employee['revision'],
-                            'skills': [unit['key'] for unit in units(employee['asset'])]})
-            employees.append(employee)
-        except (ValueError, OSError, PermissionError) as exc:
-            errors.append({'employee': entry['record']['name'], 'error': str(exc)})
-    errors.extend({'employee': key, 'error': str(value)} for key, value in source_errors.items())
     from runteams_core.pipelines.pipeline_context import current
-    downloaded, failures = current().acquired_employee_catalog(); employees.extend(downloaded); errors.extend(failures)
-    for employee in employees:
-        for bundle in employee['asset']['skill_bundles']:
-            skill = skill_description(bundle)
-            if not skill: continue
-            choices.append({'reference': employee['reference'], 'revision': employee['revision'],
-                'dependency': employee['dependency'], 'version': employee['version'], 'origin': employee['origin'],
-                'project_name': employee.get('project_name', ''),
-                'employee_name': employee['asset']['employee']['name'], 'skill_key': bundle['package_key'],
-                'skill_name': skill['name'], 'skill': skill})
+    scope = device_data.identity()
+    errors, source_errors = [], {}
+    choices = _source_choices(source_staffing_entries(errors=source_errors), errors)
+    errors.extend({'employee': key, 'error': str(value)} for key, value in source_errors.items())
+    downloaded, failures = current().acquired_employee_choices(_employee_choices)
+    choices.extend(downloaded)
+    errors.extend(failures)
+    device_data.check(scope)
     return {'items': choices, 'errors': errors, 'storage_scope': 'device'}
 
 

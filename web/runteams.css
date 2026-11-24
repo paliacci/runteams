@@ -2987,23 +2987,6 @@ button.docs-title-open{padding:4px 0;text-align:start}
 .core-position-detail-drawer .node-position-runtime-status{white-space:nowrap}
 .core-position-detail-drawer .node-skill-panel{display:flex;flex-direction:column;gap:10px;padding-top:2px}
 .core-position-detail-drawer .node-skill-static{display:flex;align-items:flex-start;gap:8px;width:100%;margin:0;padding:0}
-.core-position-detail-drawer .node-skill-groups{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:8px 10px;align-items:start}
-.core-position-detail-drawer .node-skill-group{display:contents}
-.core-position-detail-drawer .node-skill-group>.node-requirement-label{padding-top:4px}
-.core-position-detail-drawer .node-skill-fields{position:relative;list-style:none;display:flex;flex-wrap:wrap;align-items:flex-start;gap:5px;margin:0;padding:0}
-.core-position-detail-drawer .node-skill-field{min-width:0;max-width:100%}
-.core-position-detail-drawer .node-skill-tag{display:block;max-width:100%;padding:3px 8px;border:1px solid transparent;border-radius:6px;background:var(--surface-subtle);color:var(--detail-text-primary);font:inherit;font-size:var(--detail-label-size);line-height:var(--detail-label-line);text-align:left;overflow-wrap:anywhere}
-.core-position-detail-drawer button.node-skill-tag{cursor:help}
-.core-position-detail-drawer button.node-skill-tag:is(:hover,:focus-visible){background:var(--hover)}
-.core-position-detail-drawer .node-skill-tag:focus-visible{outline:1px solid var(--text-secondary);outline-offset:2px}
-.core-position-detail-drawer .node-skill-tag>small{margin-inline-start:5px;color:var(--detail-text-secondary);font-size:0.9em}
-.core-position-detail-drawer .node-skill-output-fields{display:grid;min-width:0;gap:4px}
-.core-position-detail-drawer .node-skill-hint{position:absolute;z-index:3;inset-inline-start:0;top:var(--skill-hint-anchor,100%);box-sizing:border-box;width:min(290px,100%);display:grid;gap:4px;padding:7px 9px;border:1px solid var(--border-default);border-radius:8px;background:var(--surface);box-shadow:0 4px 14px rgb(26 36 56 / 10%);color:var(--detail-text-secondary);font-size:var(--detail-label-size);line-height:var(--detail-label-line);overflow-wrap:anywhere;visibility:hidden}
-.core-position-detail-drawer .node-skill-hint-above>.node-skill-hint{transform:translateY(-100%)}
-.core-position-detail-drawer .node-skill-field:not(.node-skill-hint-dismissed):is(:hover,:has(>button:focus-visible))>.node-skill-hint{visibility:visible}
-.core-position-detail-drawer .node-skill-contract:has(.node-skill-field:hover) .node-skill-field:not(:hover)>.node-skill-hint{visibility:hidden}
-@media (hover:none){.core-position-detail-drawer .node-skill-field:not(.node-skill-hint-dismissed):focus-within>.node-skill-hint{visibility:visible}}
-.core-position-detail-drawer .node-skill-fields-empty{padding:4px 0;color:var(--detail-text-secondary);font-size:var(--detail-label-size)}
 .core-position-detail-drawer .node-skill-panel .employee-skills-section{margin:0}
 .core-position-detail-drawer .node-skill-panel .employee-skills-section>h3,
 .core-position-detail-drawer .node-skill-panel .employee-skills-usage,
@@ -3614,9 +3597,9 @@ button.docs-title-open{padding:4px 0;text-align:start}
 .body.conversation-drawer-under-header>#rgPipelineHead .conversation-panel-header{border-bottom:1px solid transparent!important}
 .body.pipeline-layout[data-detail-open="true"] .vhead,
 .body.conversation-drawer-under-header[data-detail-open="true"]>#rgPipelineHead .conversation-panel-header{border-bottom-color:var(--line)!important}
-.body.pipeline-layout>#rgDrawer>.right-detail-drawer{border-left:1px solid var(--line)!important;box-shadow:none!important;background:var(--panel)}
+.overview-pending-workspace>.overview-pending-drawer,
+.body:is(.pipeline-layout,.conversation-drawer-under-header)>#rgDrawer>.right-detail-drawer{border-left:1px solid var(--workspace-divider,var(--line))!important;box-shadow:none!important;background:var(--panel)}
 .body.pipeline-layout>#rgDrawer:before{display:none!important}
-.body.conversation-drawer-under-header>#rgDrawer>.right-detail-drawer{border-left:1px solid var(--line)!important;box-shadow:none!important;background:var(--panel)}
 .vhead .pipeline-head-actions{gap:4px}
 .vhead .pipeline-head-actions .pipeline-workers-trigger,
 .vhead .pipeline-head-actions .pipeline-activity-trigger,

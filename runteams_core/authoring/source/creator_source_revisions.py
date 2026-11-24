@@ -52,13 +52,39 @@ class Revisions:
             os.close(fd)
 
     def _head(self):
+        return self._read_head(self.root, self.identity)
+
+    @staticmethod
+    def _read_head(root, identity):
         try:
-            head = strict_json(_read(self.root / 'head.json', 1024))
+            head = strict_json(_read(root / 'head.json', 1024))
         except FileNotFoundError:
-            return self.identity
+            return identity
         if not isinstance(head, dict) or set(head) != {'revision'} or not REV.fullmatch(str(head['revision'])):
             raise ValueError('源码修订记录无效。')
         return head['revision']
+
+    @classmethod
+    def display_fingerprint(cls, store, identity):
+        """Detect a different head or replaced display inputs, including a library restore."""
+        root = store._directory(identity)
+        head = cls._read_head(root, identity)
+        paths = [root / 'draft.json']
+        directory = root
+        if head != identity:
+            directory = root / 'revisions' / head
+            if directory.parent.is_symlink() or directory.is_symlink():
+                raise ValueError('源码修订目录无效。')
+            # Opening an edited project also verifies its original archive.
+            paths.extend((root / 'source.zip', directory / 'revision.json'))
+        paths.append(directory / 'source.zip')
+        stamps = []
+        for path in paths:
+            info = path.lstat()
+            if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+                raise ValueError('本机源码文件无效。')
+            stamps.append((info.st_dev, info.st_ino, info.st_size, info.st_ctime_ns, info.st_mtime_ns))
+        return head, tuple(stamps)
 
     def _revision_metadata(self, revision):
         if not isinstance(revision, str) or not REV.fullmatch(revision):
@@ -229,7 +255,8 @@ class Revisions:
             finally:
                 if os.path.exists(name):
                     os.unlink(name)
-            return {'revision': revision, 'source': source, 'original_revision': self.identity}
+        self.store.index_saved_project(self.identity)
+        return {'revision': revision, 'source': source, 'original_revision': self.identity}
 
     def snapshot(self, destination):
         """Copy only committed reachable revisions, under the same writer lock."""

@@ -414,7 +414,8 @@ def stage_snapshot(package, context, configuration):
     return frozen
 
 
-def create(core, data):
+def create(core, data, *, rerun=None, repeat_order=None, prepare_inputs=None,
+           expected_revision=None, schedule_origin=None):
     core._actor(); key, request = _request(data)
     previous = _receipt(core, key, request)
     if previous is not None:
@@ -427,6 +428,8 @@ def create(core, data):
         raise ContractError('智能体团队已暂停，不能开始新工作。')
     with revisions.locked():
         revision = revisions._head()
+    if expected_revision is not None and revision != expected_revision:
+        raise ContractError('智能体团队源码已有更新，请重新核对本次工作。')
     candidate = active['bundle']
     if not candidate or candidate['revision'] != revision:
         candidate = control.prepare_bundle(ref, key, revision)
@@ -454,10 +457,35 @@ def create(core, data):
             from runteams_core.pipelines import source_pipeline_flow as flow
             bundle=control.read(core,request['reference'],connection)['bundle']
             cursor=request.get('start_column_key') or workflow_policy.start_position(context['asset']['pipeline'])
-            frozen,payload=flow.initial(core,connection,selected,bundle,request['payload'],cursor)
-            now = utc_now(); encoded = canonical(frozen).decode()
-            task_id = connection.execute('INSERT INTO tasks(employee_reference,title,payload_json,state,start_column_key,pipeline_snapshot_json,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?)',
-                (canonical(package['reference']).decode(), request['title'], canonical(payload).decode(), 'ready', cursor, encoded, now, now)).lastrowid
+            now = utc_now()
+            initial_input = request['payload']
+            if prepare_inputs is not None:
+                task_id = connection.execute(
+                    'INSERT INTO tasks(employee_reference,title,payload_json,state,start_column_key,created_at,updated_at) '
+                    'VALUES(?,?,?,?,?,?,?)',
+                    (canonical(package['reference']).decode(), request['title'], canonical(initial_input).decode(),
+                     'ready', cursor, now, now)).lastrowid
+                initial_input = prepare_inputs(task_id)
+            frozen, payload = flow.initial(core, connection, selected, bundle, initial_input, cursor)
+            frozen['initial_pipeline_input'] = copy.deepcopy(initial_input)
+            if rerun is not None:
+                frozen['rerun'] = {key: rerun[key] for key in ('source_run_key', 'knowledge')}
+            if repeat_order is not None:
+                frozen['repeat_order'] = repeat_order
+            if schedule_origin is not None:
+                frozen['schedule_origin'] = schedule_origin
+            elif rerun is None:
+                frozen['manual_order'] = True
+            encoded = canonical(frozen).decode()
+            if prepare_inputs is not None:
+                connection.execute('UPDATE tasks SET payload_json=?,pipeline_snapshot_json=? WHERE id=?',
+                                   (canonical(payload).decode(), encoded, task_id))
+            else:
+                task_id = connection.execute(
+                    'INSERT INTO tasks(employee_reference,title,payload_json,state,start_column_key,pipeline_snapshot_json,created_at,updated_at) '
+                    'VALUES(?,?,?,?,?,?,?,?)',
+                    (canonical(package['reference']).decode(), request['title'], canonical(payload).decode(),
+                     'ready', cursor, encoded, now, now)).lastrowid
             identifier = connection.execute('INSERT INTO workflow_runs(task_id,state,available_at,cursor_key,snapshot_json,created_at,updated_at) VALUES(?,?,?,?,?,?,?)',
                 (task_id, 'ready', now, cursor, encoded, now, now)).lastrowid
             entry = _entry(context['asset'], cursor)
@@ -474,6 +502,9 @@ def create(core, data):
                 {'task_id': task_id, 'pipeline_reference': request['reference'], 'position_key': cursor}, connection=connection)
             core.repository.event('source-pipeline-operation:' + key, 'pipeline.work_admitted',
                 {'request_sha256': digest(request), 'workflow_id': identifier}, connection=connection)
+            if rerun is not None:
+                from runteams_core.automation.automation_rerun import record
+                record(core, connection, rerun, identifier, task_id, request['title'])
             from runteams_core.pipelines.pipeline_task_report import sync
             sync(core, connection, identifier)
     return _project(core, request, identifier, key)

@@ -9,19 +9,28 @@
  const refKey=ref=>ref?.pipeline_source?RunTeamsSourcePipelines.referenceKey(ref):RunTeamsEmployeeDirectory.referenceKey(ref);
  const scope=()=>`${_workspaceBusinessGeneration}:${workspaceAccountCacheToken()}`;
  const operationKey=target=>'runteams.employee-schedule-operation:'+workspaceDeviceStorageScope()+':'+target.key;
+ function panelReference(panel){
+  const bound=window.RunTeamsEmployeeDirectory?.panelReference(panel);
+  if(bound||panel?.kind!=='employee_design'||panel.storage_scope!=='device')return bound;
+  const ref=panel.authoringEmployeeReference,context=panel.context;
+  const deviceScope=S.localLibrary?.cache_scope||RunTeamsHost.session.deviceScope(S);
+  if(ref?.schema==='runteams.local-employee-reference/1'&&deviceScope&&context?.creator_local_scope===deviceScope&&
+     ref.source_id===context.creator_local_source_id&&ref.employee_source===context.creator_employee_source)return ref;
+  return null;
+ }
  function eligible(panel=S.conversationPanel){
   if(pipelineOwner()?.data&&!RunTeamsHost.session.workspace(S)&&(S.localLibrary||RunTeamsHost.session.ready(S)))return true;
-  const reference=window.RunTeamsEmployeeDirectory?.panelReference(panel);
+  const reference=panelReference(panel);
   if(S.localLibrary&&reference&&(reference.schema!=='runteams.local-employee-reference/1'||reference.storage_kind!=='local'||reference.library_id!==S.localLibrary.library_id))return false;
   return !!panel&&!RunTeamsHost.session.workspace(S)&&!panel.loading&&!panel.error&&!panel.debug_preview&&!!(S.localLibrary||RunTeamsHost.session.ready(S))&&!!window.RunTeamsEmployeeDirectory&&(RunTeamsEmployeeDirectory.employeePanel(panel)||panel.kind==='employee_design'&&!!panel.context?.creator_local_source_id);
  }
- function identity(panel=S.conversationPanel){const owner=pipelineOwner();if(owner)return JSON.stringify(['pipeline',owner.reference]);const c=panel?.context||{};return JSON.stringify([panel?.id,panel?.kind,RunTeamsEmployeeDirectory.referenceKey(RunTeamsEmployeeDirectory.panelReference(panel)),c.creator_local_source_id,c.creator_employee_source]);}
+ function identity(panel=S.conversationPanel){const owner=pipelineOwner();if(owner)return JSON.stringify(['pipeline',owner.reference]);const c=panel?.context||{};return JSON.stringify([panel?.id,panel?.kind,RunTeamsEmployeeDirectory.referenceKey(panelReference(panel)),c.creator_local_source_id,c.creator_employee_source]);}
  function target(panel=S.conversationPanel){
   const owner=pipelineOwner();if(owner?.data&&eligible(panel))return {pipeline:true,owner,key:'pipeline:'+RunTeamsSourcePipelines.key(owner.reference),reference:owner.reference,source:null,chat:null};
   if(!eligible(panel))return null;
   const directory=RunTeamsEmployeeDirectory,row=directory.forPanel(panel);
   if(row)return row.work?.history_only?null:{key:row.key,reference:row.source?.reference||row.reference,source:row.source||null,chat:panel.id};
-  const reference=directory.panelReference(panel);
+  const reference=panelReference(panel);
   // A verified local binding already carries the original source identity.
   // This key is the existing receipt namespace, never execution authority.
   if(reference?.schema==='runteams.local-employee-reference/1'&&directory.referenceKey(reference))return {key:'source:'+reference.source_id+':'+reference.employee_source,reference,source:null,chat:panel.id};

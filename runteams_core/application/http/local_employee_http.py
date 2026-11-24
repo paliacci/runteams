@@ -1,13 +1,17 @@
 """Library ingress to canonical employee services, with no account RPCs."""
 import json,re
 
+_TRASH_PATHS = {'/api/device/work/source-employees/' + action for action in ('trash', 'restore')}
 _LOCAL_REFERENCE_PATHS = {'/api/local-references/' + action for action in ('pick', 'confirm', 'paste', 'drop', 'prepare')}
 
 def handles(path):
-    return path in _LOCAL_REFERENCE_PATHS or path in {'/api/employee-configuration/pick-location','/api/employee-directory','/api/employee-directory/open','/api/employee-workbench/prepare','/api/employee-configuration/resources','/api/employee-configuration/resources/import','/api/device/work/results','/api/device/work/files'} or bool(re.fullmatch(r'/api/chat/[1-9][0-9]*/(?:employee-configuration|employee-mcp|pipeline-mcp|pipeline-work|work)',path) or re.fullmatch(r'/api/device/work/chats/[1-9][0-9]*',path) or re.fullmatch(r'/api/(?:core|device/work)/workflows/[1-9][0-9]*(?:/(?:cancel|retry))?',path))
+    return path in _TRASH_PATHS or path in _LOCAL_REFERENCE_PATHS or path in {'/api/employee-configuration/pick-location','/api/employee-directory','/api/employee-directory/open','/api/employee-workbench/prepare','/api/employee-configuration/resources','/api/employee-configuration/resources/import','/api/device/work/results','/api/device/work/files'} or bool(re.fullmatch(r'/api/chat/[1-9][0-9]*/(?:employee-configuration|employee-mcp|pipeline-mcp|pipeline-work|work)',path) or re.fullmatch(r'/api/device/work/chats/[1-9][0-9]*',path) or re.fullmatch(r'/api/(?:core|device/work)/workflows/[1-9][0-9]*(?:/(?:cancel|retry))?',path))
 
 def dispatch(runtime,method,path,data):
     from runteams_core.employees.employee_directory import read, open_entry, with_activity
+    if method == 'POST' and path in _TRASH_PATHS:
+        from runteams_core.employees.source_employee_trash import change
+        return change(path.rsplit('/', 1)[1], data)
     if path=='/api/employee-directory' and method=='GET' and data in ({},{'view':'local'}):
         directory=read()
         if not data:return directory

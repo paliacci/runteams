@@ -6,11 +6,14 @@ coincidences. This read model neither owns definitions nor grants execution.
 """
 
 from contextlib import nullcontext
+from copy import deepcopy
+import stat
 import json
 from pathlib import Path
 import sqlite3
 
 from runteams_core.storage import device_data
+from runteams_core.employees import source_employee_trash
 from runteams_core.assets import source_links
 from runteams_core.conversations.page_paths import asset_key, short_ids, page_id
 from runteams_core.authoring.creator_contracts import canonical, strict_json
@@ -56,12 +59,17 @@ def _overview_capabilities(files, directories):
     return capabilities
 
 
-def _source_entries(store,source_id,revision,sessions,created_at,files,pipeline_memberships,include_background=False):
+def _employee_project(files):
     project=strict_json(files.get('project.json',b'null'))
     if (not isinstance(project,dict) or project.get('schema')!='runteams.creator-project/2'
             or not isinstance(project.get('entrypoints'),dict) or not isinstance(project['entrypoints'].get('employees'),list)
             or any(not isinstance(path,str) for path in project['entrypoints']['employees'])):
         raise ValueError('员工工程入口无效，请在原工程中修正。')
+    return project
+
+
+def _source_entries(store,source_id,revision,sessions,created_at,files,pipeline_memberships,include_background=False):
+    project = _employee_project(files)
     from runteams_core.assets.skills.skill_metadata import declared_environment
     from runteams_core.employees.employee_references import source_reference
     paths=project['entrypoints']['employees'];bound=source_links.links(store,source_id)
@@ -96,6 +104,22 @@ def _source_entries(store,source_id,revision,sessions,created_at,files,pipeline_
     if pipeline_memberships is not None:
         _collect_pipeline_memberships(source_id, project['entrypoints'].get('pipelines'), files, pipeline_memberships)
     return entries
+
+
+def staffing_project(store, source_id):
+    """Read only employee identities and team membership for the first-role picker."""
+    revisions = Revisions(store, source_id, display_only=True)
+    with revisions.current_snapshot(display_only=True) as (revision, files):
+        paths = _employee_project(files)['entrypoints']
+        employees = []
+        for path in paths['employees']:
+            employee = strict_json(files.get(path, b'null'))
+            if not isinstance(employee, dict) or not isinstance(employee.get('name'), str) or not employee['name'].strip():
+                raise ValueError('员工资源身份无效，请在原工程中修正。')
+            employees.append([path, employee['name']])
+        groups = {}
+        _collect_pipeline_memberships(source_id, paths.get('pipelines'), files, groups)
+    return revision, employees, groups
 
 
 def _collect_pipeline_memberships(source_id, paths, files, groups):
@@ -136,39 +160,168 @@ def for_session(session, *, include_background=False):
     selected=context.get('creator_employee_source')
     rows=[row for row in rows if row['source']['path']==selected]
     if len(rows)!=1:raise ValueError('员工源码入口不匹配。')
-    return {**rows[0], 'page_id': page_id(rows[0]['key'])}
+    entry = rows[0]
+    if _hidden_source_employee(store, entry['key']):
+        entry['trashed'] = True
+    return {**entry, 'page_id': page_id(entry['key'])}
 
 
-def local_entries(*,errors=None):
-    if not device_data.personal():return []
-    scope=device_data.identity();store=current_store(scope['cache_scope'])
-    # Conversations only supply a navigation target, never employee identity.
-    with device_data.connect(readonly=True) as connection:
-        sessions=[{'id':row['id'],'updated_at':row['updated_at'],'context':json.loads(row['context_json'] or '{}')}
-                  for row in connection.execute("SELECT id,updated_at,context_json FROM chats WHERE kind='employee_design'")]
+def _hidden_team_members(store, source_id, hidden_paths):
+    revisions = Revisions(store, source_id, display_only=True)
+    with revisions.current_snapshot(display_only=True) as (_, files):
+        paths = _employee_project(files)['entrypoints'].get('pipelines')
+        groups = {}
+        if isinstance(paths, list):
+            selected = [path for path in paths if isinstance(path, str) and path in hidden_paths]
+            _collect_pipeline_memberships(source_id, selected, files, groups)
+        return groups
+
+
+# Only membership is reusable. Direct trash and the latest hidden-team set
+# are read on every request. A single immutable snapshot bounds retained data.
+_hidden_members_snapshot = None
+
+
+def _hidden_team_member_keys(store, paths):
+    global _hidden_members_snapshot
+    def fingerprint():
+        return (store.root, tuple((source, tuple(sorted(paths[source])), Revisions.display_fingerprint(store, source))
+                                  for source in sorted(paths)))
+
+    store.check_scope()
+    before = fingerprint()
+    snapshot = _hidden_members_snapshot
+    if snapshot is not None and snapshot[0] == before:
+        store.check_scope()
+        return snapshot[1]
+    members = frozenset(key for source, selected in paths.items()
+                        for key in _hidden_team_members(store, source, selected))
+    if before == fingerprint():
+        store.check_scope()
+        _hidden_members_snapshot = before, members
+    else:
+        # A concurrent edit can change ownership. Reconcile through the roster.
+        raise ValueError('员工所属团队已变化。')
+    return members
+
+
+def _hidden_source_employee(store, key):
+    from runteams_core.pipelines import source_pipeline_trash
+    if key in source_employee_trash.hidden_keys():
+        return True
+    hidden = source_pipeline_trash.hidden_source_references()
+    paths = {}
+    for ref in hidden:
+        source_id = ref['source_id']
+        paths.setdefault(source_id, set()).add(ref['pipeline_source'])
+    try:
+        if not paths or key not in _hidden_team_member_keys(store, paths):
+            store.check_scope()
+            return False
+    except PermissionError:
+        raise
+    except (ValueError, OSError):
+        pass
+    # Another active team may still own this employee.
+    return any(row['key'] == key and row.get('trashed') for row in local_entries(errors={}))
+
+
+_roster_snapshot = None
+
+
+def _roster_inputs(store):
+    try:
+        inputs = []
+        for key in store.identities():
+            link = store._directory(key) / source_links.LINK
+            try:
+                info = link.lstat()
+            except FileNotFoundError:
+                stamp = None
+            else:
+                if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+                    return None
+                stamp = info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns
+            inputs.append((key, Revisions.display_fingerprint(store, key), stamp))
+        return inputs
+    except (ValueError, OSError):
+        # Let the normal catalog read report missing or invalid source data.
+        return None
+
+
+def _roster_sources(store, scope, errors):
+    global _roster_snapshot
+    inputs = _roster_inputs(store)
+    signature = (store.root, scope, inputs)
+    snapshot = _roster_snapshot
+    if inputs is not None and snapshot is not None and snapshot[0] == signature:
+        return deepcopy(snapshot[1])
+    complete = True
     rows=[];after=None
     groups = {}
     while True:
         page=store.list(after)
         for source in page['items']:
             try:
-                rows.extend(source_entries(store,source['id'],sessions=sessions,display_only=True,
+                rows.extend(source_entries(store,source['id'],display_only=True,
                                            pipeline_memberships=groups))
             except (ValueError,OSError) as exc:
                 if errors is None:raise
+                complete=False
                 errors[source['id']]={'error':str(exc)}
         after=page['next_cursor']
         if after is None:break
+    if complete and inputs is not None and inputs == _roster_inputs(store):
+        store.check_scope()
+        _roster_snapshot = signature, deepcopy((rows, groups))
+    return rows, groups
+
+
+def local_entries(*,errors=None):
+    if not device_data.personal():return []
+    scope=device_data.identity();store=current_store(scope['cache_scope'])
+    rows, groups = _roster_sources(store, scope, errors)
+    # The latest conversation and trash state are independent of source revisions.
+    latest = {}
+    with device_data.connect(readonly=True) as connection:
+        for row in connection.execute("SELECT id,context_json FROM chats WHERE kind='employee_design' ORDER BY updated_at,id"):
+            context = json.loads(row['context_json'] or '{}')
+            if isinstance(context, dict):
+                source_id = context.get('creator_local_source_id')
+                path = context.get('creator_employee_source')
+                if isinstance(source_id, str) and isinstance(path, str):
+                    latest[source_id, path] = row['id'], context.get('creator_source_target')
     for row in rows:
-        if row['key'] in groups:
-            row['pipeline_groups'] = list(groups[row['key']].values())
+        source = row['source']
+        source['chat_id'], source['target'] = latest.get((source['id'], source['path']), (None, None))
+    apply_source_visibility(rows, groups)
     device_data.check(scope);return rows
+
+
+def apply_source_visibility(rows, groups):
+    from runteams_core.pipelines import source_pipeline_trash
+    hidden_groups = source_pipeline_trash.hidden_source_keys() if groups else set()
+    hidden = source_employee_trash.hidden_keys()
+    for row in rows:
+        if row['key'] in hidden:
+            row['trashed'] = True
+        if row['key'] in groups:
+            memberships = groups[row['key']]
+            active = [group for key, group in memberships.items() if key not in hidden_groups]
+            row['pipeline_groups'] = active or list(memberships.values())
+            if not active:
+                row['trashed'] = True
 
 
 def assemble(sources,assets,works):
     """Join sources and installed employees under their stable page identities."""
+    # A trashed author's source must not hide a separately installed market copy.
+    installed_market_refs = {source_links.reference_key(work['native_asset']['employee_reference'])
+                             for work in works if (work.get('origin') or {}).get('kind') == 'marketplace'}
     rows={};by_ref={}
     for source in sources:
+        if source.get('trashed') and not source.get('pipeline_groups') and source['reference'] and source_links.reference_key(source['reference']) in installed_market_refs:
+            continue
         key=source['key']
         if key in rows:raise ValueError('员工源码身份重复。')
         rows[key]=dict(source)
@@ -195,7 +348,7 @@ def assemble(sources,assets,works):
     ids = short_ids(asset_key(row['key']) for row in rows.values())
     for row in rows.values():
         row['page_id'] = ids[asset_key(row['key'])]
-    return sorted(rows.values(),key=lambda row:(str(row.get('updated_at','')),row['key']),reverse=True)
+    return sorted((row for row in rows.values() if not row.get('trashed')),key=lambda row:(str(row.get('updated_at','')),row['key']),reverse=True)
 
 
 def read(**kwargs):
@@ -271,6 +424,8 @@ def open_entry(data):
         entry=next((row for row in source_entries(store,parts[1]) if row['key']==key),None)
     except FileNotFoundError:
         entry=None
+    if entry and _hidden_source_employee(store, key):
+        raise ValueError('这名员工已移到垃圾箱，请先恢复。')
     if entry is None:raise PermissionError('员工不存在或当前账号不可访问。')
     from runteams_core.authoring.creator_local_authoring import session_for
     from runteams_core.employees.employee_session_view import public_session

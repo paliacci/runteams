@@ -704,6 +704,26 @@ class EmployeeMCPWork:
     def app_call(self, chat, package, binding, name, arguments, key, session):
         return self.call(chat,package,name,arguments,key,source='app',expected_session=session)
 
+    def discover_for_chat(self, chat_id):
+        items=[]
+        with self.inspect_work(chat_id) as (_,packages,work,binding):
+            if not self.suspended(work):
+                for package in packages:
+                    if not self.enabled(binding,package):continue
+                    tools=self.session(chat_id,package).list_tools()
+                    views = []
+                    for tool in tools:
+                        meta = tool.get('_meta', {})
+                        ui = meta.get('ui', {})
+                        if not ui.get('resourceUri') or 'app' not in ui.get('visibility', ['model', 'app']):
+                            continue
+                        view = {'id': digest({'tool': tool['name']}), 'title': tool.get('title') or tool['name'],
+                                'capabilities': ['mcp.tools.call']}
+                        views.append(view)
+                    if views:items.append({'installation_id':str(uuid.uuid5(uuid.NAMESPACE_URL,digest(binding.__dict__)+package)),
+                        'release_digest':binding.release_digest,'views':views})
+        return {'items':items,'authority':'device-owned-mcp-work','chat_id':chat_id}
+
     def native_owner(self):
         with self.lock:
             self.check()
@@ -844,26 +864,7 @@ class _MCPOwner(NativeWorkOwner):
             self.host.check();value=action();self.host.check();return value
 
     def discover(self, chat_id, workspace=''):
-        def read():
-            items=[]
-            with self.host.inspect_work(chat_id) as (_,packages,work,binding):
-                if not self.host.suspended(work):
-                    for package in packages:
-                        if not self.host.enabled(binding,package):continue
-                        tools=self.host.session(chat_id,package).list_tools()
-                        views = []
-                        for tool in tools:
-                            meta = tool.get('_meta', {})
-                            ui = meta.get('ui', {})
-                            if not ui.get('resourceUri') or 'app' not in ui.get('visibility', ['model', 'app']):
-                                continue
-                            view = {'id': digest({'tool': tool['name']}), 'title': tool.get('title') or tool['name'],
-                                    'capabilities': ['mcp.tools.call']}
-                            views.append(view)
-                        if views:items.append({'installation_id':str(uuid.uuid5(uuid.NAMESPACE_URL,digest(binding.__dict__)+package)),
-                            'release_digest':binding.release_digest,'views':views})
-            return {'items':items,'authority':'device-owned-mcp-work','chat_id':chat_id}
-        return self._call(workspace,read)
+        return self._call(workspace,lambda:self.host.discover_for_chat(chat_id))
 
     def _close_work(self,chat):
         if self.host.closed:return self.host.close_work(chat)

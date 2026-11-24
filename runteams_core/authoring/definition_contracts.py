@@ -9,7 +9,9 @@ from runteams_core.foundation.resources import root as resource_root
 import copy
 import base64
 import hashlib
+from collections import OrderedDict
 from functools import lru_cache
+from threading import Lock
 import json
 from pathlib import Path, PurePosixPath
 
@@ -63,7 +65,24 @@ def _relative(path):
         raise ContractError("包内路径无效：" + path)
 
 
+@lru_cache(maxsize=128)
+def _checked_schema_json(raw):
+    _check_business_schema(json.loads(raw))
+
+
 def _business_schema(schema):
+    # Cache only successful checks of small JSON documents. Non-JSON Python
+    # values keep the original validator semantics (e.g. tuples, integer keys).
+    try:
+        raw = json.dumps(schema, ensure_ascii=True, allow_nan=False, separators=(',', ':'))
+    except (TypeError, ValueError, OverflowError):
+        return _check_business_schema(schema)
+    if len(raw) <= 16384 and json.loads(raw) == schema:
+        return _checked_schema_json(raw)
+    return _check_business_schema(schema)
+
+
+def _check_business_schema(schema):
     try:
         Draft202012Validator.check_schema(schema)
     except SchemaError as error:
@@ -157,8 +176,48 @@ def marketplace_employee_validation_view(value):
         'runtime_requirement': without_retired_runtime_limit(employee['runtime_requirement'])}}
 
 
+@lru_cache(maxsize=128)
+def _definition_validator(kind):
+    return Draft202012Validator(definition_schema(kind))
+
+
+# Only retain immutable copies of ordinary JSON scalar values. Equality includes
+# every path, declared attribute and encoded byte, including their order.
+_bundle_proofs = OrderedDict()
+_bundle_lock = Lock()
+_bundle_budget = 16 * 1024 * 1024
+
+
+def _bundle_key(bundle):
+    if (type(bundle) is not dict or bundle.keys() != {'package_key', 'digest', 'files'}
+            or type(bundle['package_key']) is not str or type(bundle['digest']) is not str
+            or type(bundle['files']) is not list or not 1 <= len(bundle['files']) <= 1024):
+        return None
+    rows = []
+    weight = len(bundle['package_key']) + len(bundle['digest'])
+    for file in bundle['files']:
+        if type(file) is not dict or file.keys() != {'path', 'size', 'sha256', 'content_base64'}:
+            return None
+        path, size, sha, body = file['path'], file['size'], file['sha256'], file['content_base64']
+        if type(path) is not str or type(size) is not int or type(sha) is not str or type(body) is not str:
+            return None
+        weight += 256 + 4 * len(path) + len(sha) + len(body)
+        if weight > _bundle_budget:
+            return None
+        rows.append((path, size, sha, body))
+    return (bundle['package_key'], bundle['digest'], tuple(rows)), weight
+
+
 def validate_definition(kind, value):
     """Validate without coercing types, adding defaults or dropping fields."""
+    if kind == 'portable_skill_bundle':
+        value = copy.deepcopy(value)
+    proof = _bundle_key(value) if kind == 'portable_skill_bundle' else None
+    if proof is not None:
+        with _bundle_lock:
+            if proof[0] in _bundle_proofs:
+                _bundle_proofs.move_to_end(proof[0])
+                return value
     candidate = value
     if kind in ('runtime', 'runtime_snapshot', 'portable_runtime', 'release_runtime'):
         candidate = without_retired_runtime_limit(value)
@@ -166,14 +225,15 @@ def validate_definition(kind, value):
         candidate = {**value, 'runtime': without_retired_runtime_limit(value['runtime'])}
     elif kind == 'marketplace_employee_asset':
         candidate = marketplace_employee_validation_view(value)
-    errors = sorted(Draft202012Validator(definition_schema(kind)).iter_errors(candidate),
+    errors = sorted(_definition_validator(kind).iter_errors(candidate),
                     key=lambda error: str(list(error.absolute_path)))
     if errors:
         error = errors[0]
         path = "/".join(str(item) for item in error.absolute_path) or kind
         raise ContractError(path + "：" + error.message)
     # Immutable release and asset bytes remain intact for digest verification.
-    result = copy.deepcopy(value if kind in ('employee_release', 'marketplace_employee_asset') else candidate)
+    result = value if kind == 'portable_skill_bundle' else copy.deepcopy(
+        value if kind in ('employee_release', 'marketplace_employee_asset') else candidate)
     if kind == "work":
         _work(result)
     elif kind in ("skill_extension", "skill_revision"):
@@ -238,6 +298,12 @@ def validate_definition(kind, value):
             tree.update(len(content).to_bytes(8, "big")); tree.update(content)
         if tree.hexdigest() != result["digest"]:
             raise ContractError("技能包内容摘要不匹配")
+        if proof is not None:
+            with _bundle_lock:
+                _bundle_proofs[proof[0]] = proof[1]
+                _bundle_proofs.move_to_end(proof[0])
+                while len(_bundle_proofs) > 128 or sum(_bundle_proofs.values()) > _bundle_budget:
+                    _bundle_proofs.popitem(last=False)
     elif kind == "marketplace_employee_asset":
         refs = result["employee"]["skill_refs"]
         _unique(refs, "package_key", "可移植技能引用")

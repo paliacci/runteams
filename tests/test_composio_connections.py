@@ -162,6 +162,48 @@ class ComposioConnectionsTests(unittest.TestCase):
             self.assertEqual(request.call_count, 3)
         activity.request_user_input.assert_not_called()
 
+    def test_disconnect_checks_message_and_exact_binding_before_local_removal(self):
+        from runteams_core.storage import product_store
+        row = {'provider': 'composio', 'id': 'slack', 'name': 'Slack', 'account': {'name': 'Team', 'id': 'ca_own'}}
+        turn = self.turn([row], Mock())
+        message = '请解除这个员工的 Slack 绑定'
+        turn.source_message = (5, 'test-epoch', 7)
+        self.enterContext(patch.object(product_store, 'get_chat', return_value={'id': 5}))
+        self.enterContext(patch.object(product_store, 'get_chat_message', return_value={'role': 'user', 'text': message}))
+        self.enterContext(patch.object(employee_applications, '_reference', return_value=self.employee))
+        self.enterContext(patch.object(employee_applications.device_data, 'epoch', return_value='test-epoch'))
+        def inspect():
+            return turn.list()['applications'][0]['binding_revision']
+
+        identifier = 'composio:slack'
+        other = {**self.employee, 'source_id': 'b' * 64}
+        employee_applications.bindings({'action': 'employee-apps-set', 'employee': other, 'row': row, 'remove': False})
+        args = {'operation': 'disconnect', 'application': identifier, 'binding_revision': inspect(), 'intent': message}
+        with self.assertRaises(PermissionError):
+            turn.execute({**args, 'intent': '旧消息要求移除'}, {})
+        changed = {**row, 'account': {'name': 'Other', 'id': 'ca_second'}}
+        self.settings('set', row=changed, remove=False)
+        with self.assertRaises(employee_applications.AccountRequired):
+            turn.execute(args, {})
+        self.assertEqual(self.settings('read')['applications'], [changed])
+        args['binding_revision'] = inspect()
+        calls = len(self.calls)
+        self.assertEqual(turn.execute(args, {})['state'], 'disconnected')
+        self.assertEqual(turn.execute(args, {})['state'], 'already_disconnected')
+        self.assertEqual(self.settings('read')['applications'], [])
+        self.assertEqual(employee_applications.bindings({'action': 'employee-apps-read', 'employee': other})['applications'], [row])
+        self.assertEqual(len(self.calls), calls)
+        self.settings('set', row=changed, remove=False)
+        with self.assertRaises(employee_applications.AccountRequired):
+            turn.execute(args, {})
+        args['binding_revision'] = inspect()
+        self.assertEqual(turn.execute(args, {})['state'], 'disconnected')
+
+    def test_sdk_turn_cannot_remove_employee_bindings(self):
+        turn = self.turn([], None)
+        with self.assertRaises(PermissionError):
+            turn.execute({'operation': 'disconnect', 'application': 'mcp:sample'}, {'sdk_operation_id': 'not-chat'})
+
     def test_employee_must_save_its_connection_before_calling_even_with_a_device_account(self):
         activity = Mock()
         turn = self.turn([], activity)

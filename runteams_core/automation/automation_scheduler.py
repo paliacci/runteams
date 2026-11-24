@@ -14,6 +14,17 @@ class AutomationScheduler:
         self.scope=scope;self.operation_scope=operation_scope;self.dispatch_enabled=dispatch_enabled
         self._active={};self._lock=threading.Lock();self._wake=threading.Event();self._stopping=threading.Event();self._thread=None;self.cloud_error=''
 
+        for backend in self.backends:
+            if hasattr(backend, 'signal_occurrence_stop'):
+                backend.signal_occurrence_stop = lambda identifier, store=backend: self.cancel_occurrence(store, identifier)
+
+    def cancel_occurrence(self, backend, identifier):
+        with self._lock:
+            control = self._active.get((id(backend), identifier))
+            if control:
+                control['cancel'].set()
+        self.wake()
+
     def _bound(self,method,*args):
         with self.scope():return method(*args)
 

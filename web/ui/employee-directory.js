@@ -3,12 +3,13 @@
  'use strict';
  const cloudRefreshInterval=5*60*1000,cloudRetryInterval=60*1000;
  let items=[],scope='',pending=null,cloudPending=null,cloudRefresh=null,sequence=0,activationSequence=0;
- let activity=null,activityReadAt=0;
- let localError='',cloudError='';
+ let activity=null,activityReadAt=0,installations=[];
+ let localError='',cloudError='',downloadsScope='';
  const token=()=>`${_workspaceBusinessGeneration}:${workspaceAccountCacheToken()}`;
  const current=()=>scope===token()?items:[];
+ const downloadsReady=()=>downloadsScope===token();
  const isLoading=()=>pending?.scope===token()||cloudPending?.scope===token();
- function reset(){items=[];scope='';pending=null;cloudPending=null;cloudRefresh=null;activity=null;activityReadAt=0;localError='';cloudError='';sequence++;activationSequence++;}
+ function reset(){items=[];scope='';downloadsScope='';installations=[];pending=null;cloudPending=null;cloudRefresh=null;activity=null;activityReadAt=0;localError='';cloudError='';sequence++;activationSequence++;}
  const showErrors=()=>{S.coreTeamError=[localError,cloudError].filter(Boolean).join('；');};
  function install(rows,expected){
   if(expected!==token())return false;
@@ -22,10 +23,11 @@
   const flight=local?pending:cloudPending;
   if(flight?.scope===expected&&flight.sequence===sequence)return flight.promise;
   const own=sequence,started=Date.now();
+  const startup=local&&!S.localLibrary&&!S.coreTeamLoaded;
   const refresh=local?null:{scope:expected,nextAt:Infinity};
   if(refresh)cloudRefresh=refresh;
   const promise=(async()=>{
-   const reply=await api(local?'/api/employee-directory?view=local':'/api/employee-directory',undefined,undefined,
+   const reply=await api(local?(startup?'/api/employee-directory?view=startup':'/api/employee-directory?view=local'):'/api/employee-directory',undefined,undefined,
     {readCurrent:true,readPriority:options.readPriority});
    if(expected!==token()||own!==sequence)return;
    if(reply.error||reply.schema!=='runteams.employee-directory/v1')throw Error(reply.error||'员工目录没有载入');
@@ -40,14 +42,18 @@
      : reply.errors?.assets?.error||'';
    }
    // An independent local refresh must not discard already displayed cloud rows.
-   if(!local||!current().some(row=>row.asset)){
+   if(startup)cloudError=reply.errors?.assets?.error||'';
+   const hasCloudRows=current().some(row=>row.asset);
+   if(startup||(!local&&!reply.errors?.assets)||!hasCloudRows){
     install(reply.items,expected);
+    downloadsScope=reply.errors?.downloads?'':expected;
+    installations=reply.installations||[];
    }
    if(refresh&&!reply.errors?.assets)refresh.nextAt=Date.now()+cloudRefreshInterval;
    showErrors();
-   if(!local||S.localLibrary||current().length)S.coreTeamLoaded=true;
+   if(startup||!local||S.localLibrary||current().length)S.coreTeamLoaded=true;
    S.deviceSessionActor=String(S.localLibrary?.library_id||RunTeamsHost.session.actor(S)||'');
-   return {employees:assets(),items:current(),errors:reply.errors};
+   return {employees:assets(),items:current(),errors:reply.errors,catalogChecked:startup&&reply.catalog_checked===true};
   })().finally(()=>{
    if(refresh?.nextAt===Infinity)refresh.nextAt=Date.now()+cloudRetryInterval;
    if(local&&pending?.promise===promise)pending=null;
@@ -70,6 +76,10 @@
   }
   const local=await readDirectory(expected,options,true);
   if(expected!==token()||!local||S.localLibrary)return local;
+  if(local.catalogChecked){
+   cloudRefresh={scope:expected,nextAt:Date.now()+(local.errors?.assets?cloudRetryInterval:cloudRefreshInterval)};
+   return local;
+  }
   if(!options.localFirst&&options.readPriority!=='background'){
    if(!S.booting)refreshBotList();
    return readDirectory(expected,options,false);
@@ -97,13 +107,14 @@
   return find();
  }
  function accept(entry){
-  if(!entry||(!S.localLibrary&&!RunTeamsHost.session.ready(S))||RunTeamsHost.session.workspace(S))return;
+  if(!entry||entry.trashed||(!S.localLibrary&&!RunTeamsHost.session.ready(S))||RunTeamsHost.session.workspace(S))return;
   // A confirmed creation carries the backend's exact directory projection.
   // It does not derive employee identity from a conversation title or chat ID.
   const rows=current(),same=(a,b)=>{const identity=referenceKey(a);return !!identity&&identity===referenceKey(b);},prior=rows.find(row=>row.key===entry.key||same(row.reference,entry.reference));sequence++;
-  const next=prior?{...prior,key:entry.key,source:entry.source,record:{...prior.record,name:entry.record.name,avatar:entry.record.avatar,avatar_src:entry.record.avatar_src||null}}:entry;
+  const next=prior?{...prior,key:entry.key,source:entry.source,record:{...prior.record,name:entry.record.name,avatar:entry.record.avatar,avatar_src:entry.record.avatar_src||null}}:{...entry,membershipPending:true};
   const updated=prior?rows.filter(row=>row===prior||row.key!==entry.key).map(row=>row===prior?next:row):[next,...rows];
   install(updated,token());
+  if(!prior)void refresh().catch(()=>{});
  }
  const downloaded=()=>current().map(row=>row.work).filter(row=>row&&!row.history_only);
  const assets=()=>current().filter(row=>row.asset||row.work).map(row=>row.record);
@@ -203,6 +214,30 @@
   if(c.creator_local_source_id)return current().find(row=>row.source?.id===c.creator_local_source_id&&row.source.path===c.creator_employee_source)||null;
   // Numeric IDs are restricted to the acquired-asset adapter, never source identity.
   return panel.kind==='general'&&c.context_type==='worker'?assetEntry(panel.employee_id||c.target_employee_id):null;
+ }
+ // The chat receipt may arrive before the directory. Keep it local to the
+ // hydrated panel and let the first directory response supersede it, even if empty.
+ const sessionEntries=new WeakMap();
+ function rememberSessionEntry(panel,entry){
+  const source=entry?.source,ref=source?.reference,c=panel.context;
+  if(panel.kind!=='employee_design'||panel.storage_scope!=='device'||!entry?.record?.name||
+     entry.trashed||entry.work?.history_only||!source?.id||!source.path||
+     entry.key!=='source:'+source.id+':'+source.path||!referenceKey(ref)||
+     ref.schema!=='runteams.local-employee-reference/1'||ref.source_id!==source.id||
+     ref.employee_source!==source.path||source.id!==c.creator_local_source_id||source.path!==c.creator_employee_source)return;
+  sessionEntries.set(panel,{entry,scope:token()});
+ }
+ function overviewEntry(panel=S.conversationPanel){
+  const row=forPanel(panel),expected=token();
+  if(row||scope===expected||panel!==S.conversationPanel||!panel||panel.loading||panel.error||
+     panel.employee_error||panel.debug_preview||RunTeamsHost.session.workspace(S))return row;
+  const receipt=sessionEntries.get(panel);
+  const deviceScope=S.localLibrary?.cache_scope||RunTeamsHost.session.deviceScope(S);
+  if(receipt?.scope!==expected||!deviceScope||panel.context.creator_local_scope!==deviceScope)return null;
+  const ref=receipt.entry.source.reference,bound=panelReference(panel);
+  if(bound&&referenceKey(bound)!==referenceKey(ref))return null;
+  if(S.localLibrary&&(ref.storage_kind!=='local'||ref.library_id!==S.localLibrary.library_id))return null;
+  return receipt.entry;
  }
  function matches(entry,panel){
   const found=forPanel(panel);return !!entry&&!!found&&found.key===entry.key;
@@ -309,25 +344,47 @@
   }
   refreshBotList();
  }
+ function localEmployee(entry){
+  return !entry?.pipeline_groups?.length&&!RunTeamsHost.session.workspace(S)&&entry?.source?.reference?.schema==='runteams.local-employee-reference/1';
+ }
+ function refreshAfterMutation(){sequence++;return refresh();}
+ function trashEmployee(entry,expected,paired){
+  const {key,record,source}=entry;
+  confirmModal(`将「${record.name}」移到垃圾箱？`,'员工会从列表移除。已有对话、任务和流水线岗位会保留，可以从垃圾箱恢复员工。',async()=>{
+   if(token()!==expected||!localEmployee(entryFor(key)))return;
+   try{
+    const result=await api('/api/device/work/source-employees/trash','POST',{reference:source.reference});
+    if(token()!==expected)return;
+    if(result?.trashed!==true)throw Error(result?.error||'未能确认垃圾箱状态。');
+    const selected=activeRailMode()==='assistant'&&forPanel(S.conversationPanel)?.key===key&&S.surface!=='source-pipeline';
+    items=current().filter(row=>row.key!==key);
+    sequence++;
+    refreshBotList();
+    if(selected)await openTrash();
+    else if(S.surface==='trash')await refreshTrash();
+    if(token()!==expected)return;
+    await refresh();
+    if(token()===expected)toast('已移到垃圾箱','ok','pipelineBoard.trashed');
+   }catch(error){if(token()===expected)toast(error.message,'err');}
+  },true,{titleKey:paired?'assetActions.trashOriginalTitle':'employeeSettings.trashTitle',titleVars:{name:record.name},messageKey:paired?'assetActions.trashOriginalDetails':'employeeSettings.trashDetails',action:'移到垃圾箱',actionKey:'pipelineBoard.trash',focusCancel:true});
+ }
  function rowMenu(event,key){
   event.preventDefault();event.stopPropagation();const entry=entryFor(key);if(!entry)return;
   const expected=token(),grouped=!!entry.pipeline_groups?.length,panel=S.conversationPanel;
   const currentEntry=()=>expected===token()&&entryFor(key);
   const currentPanel=()=>currentEntry()&&S.conversationPanel===panel&&forPanel(panel)?.key===key&&S.surface!=='source-pipeline';
-  const items=[];
+  const button=event.currentTarget;
+  const items=[{label:'打开',labelKey:'employeeSettings.open',icon:'eye',fn:()=>{const target=button.isConnected?button:document.querySelector(`.bot-list-row[data-employee-key="${CSS.escape(key)}"]`);if(currentEntry()&&target)botListOpen(target);}}];
   if(currentPanel()&&window.RunTeamsCreatorWork?.hasWorkbench(panel)){
    items.push({label:'工作台',labelKey:'employeeWork.title',icon:'clipboard-check',fn:()=>{if(currentPanel())RunTeamsCreatorWork.showPanel();}});
   }
-  if(!grouped||currentPanel()){
-   items.push({label:'设置',labelKey:'employeeSettings.trigger',icon:'settings',fn:()=>{if(currentEntry())return currentPanel()?RunTeamsEmployeeAutomation.sourceSettings():settings(key);}});
-  }
-  if(!grouped){
+  if(!grouped&&!entry.membershipPending){
    const pinned=pinnedKeys().has(key);
    items.push({label:pinned?'取消置顶':'置顶',labelKey:pinned?'conversationDetail.unpin':'conversationDetail.pin',icon:pinned?'pin-off':'pin',fn:()=>togglePin(key,expected)});
-   const uninstall=RunTeamsHost.assets.uninstallAction?.('employee',entry);
+   const original=localEmployee(entry),uninstall=RunTeamsHost.assets.uninstallAction?.('employee',entry,original);
+   if(original)items.push({label:uninstall?'将创作原件移到垃圾箱':'移到垃圾箱',labelKey:uninstall?'assetActions.trashOriginal':'pipelineBoard.trash',icon:'trash',fn:()=>{const row=currentEntry();if(localEmployee(row))trashEmployee(row,expected,!!uninstall);}});
    if(uninstall)items.push({...uninstall,fn:()=>{const row=currentEntry();if(row&&!row.pipeline_groups?.length)uninstall.fn();}});
   }
-  if(!items.length)return;
   openMenu(event.currentTarget,items,{variant:'workerAction',dismissOnScroll:'#rgRail .bot-list-scroll',...(event.type==='contextmenu'?{at:{x:event.clientX,y:event.clientY}}:{})});
  }
  function sessionTitle(row,panel=S.conversationPanel){
@@ -378,6 +435,6 @@
   accept(session.employee);
  }
  const sourceFor=value=>(entryFor(value)||assetEntry(value))?.source||null;
- window.RunTeamsEmployeeDirectory=Object.freeze({entryFor,assetEntry,resolveAsset,forPanel,panelReference,referenceKey,references,matches,employeePanel,status,statuses,paintStatus,rowMenu,pinnedKeys,sourceFor,refresh,isLoading,accept,current,assets,downloaded,assetIdentity,upsertAsset,open,settings,finishCreation,sessions,sessionMenu,newSession,pageRoute,openPage,workConversation,forgetConversation,reset});
+ window.RunTeamsEmployeeDirectory=Object.freeze({entryFor,assetEntry,resolveAsset,forPanel,overviewEntry,rememberSessionEntry,panelReference,referenceKey,references,matches,employeePanel,status,statuses,paintStatus,rowMenu,pinnedKeys,sourceFor,refresh,refreshAfterMutation,isLoading,accept,current,assets,downloaded,downloadsReady,installations:()=>downloadsReady()?installations:[],assetIdentity,upsertAsset,open,settings,finishCreation,sessions,sessionMenu,newSession,pageRoute,openPage,workConversation,forgetConversation,reset});
  window.addEventListener('runteams:business-scope-changed',reset);
 })();

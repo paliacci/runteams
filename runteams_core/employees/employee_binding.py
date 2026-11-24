@@ -117,8 +117,13 @@ def public(session):
 def document_owner(session):
     binding=resolve(session) if (session.get('subject_type')=='employee' or
                                session.get('kind')=='employee_design') else None
-    marker=document_ownership._document_owner.set({'employee_reference':binding['reference'],
-        'workflow_id':(session.get('context') or {}).get('employee_work',{}).get('workflow_id')} if binding else None)
+    context = session.get('context') or {}
+    owner = {'employee_reference': binding['reference'],
+             'workflow_id': context.get('employee_work', {}).get('workflow_id')} if binding else None
+    if not owner and context.get('source_pipeline_workspace'):
+        from runteams_core.pipelines.pipeline_context import current
+        owner = {'pipeline_reference': current().binding(session['id'])}
+    marker = document_ownership._document_owner.set(owner)
     try:yield
     finally:document_ownership._document_owner.reset(marker)
 

@@ -89,6 +89,23 @@ function localConversationId(value=global.location.href){
  return /^[0-9][a-z][a-z0-9]{6}$/.test(id)?id:'';
 }
 function localConversationRoute(value){return !!localConversationId(value);}
+// The same pipeline URL pattern serves the board's dock and standalone discussions.
+const pipelineViews=new Map();
+function rememberPipelineChatView(session){
+ if(!session?.context?.source_pipeline_workspace||!session.owner_path||!session.public_id)return;
+ const key=session.owner_path+'/chats/'+session.public_id,view=session.context.source_pipeline_discussion?'discussion':'board';
+ if(pipelineViews.get(key)===view)return;
+ pipelineViews.set(key,view);
+ try{global.sessionStorage.setItem('runteams.pipeline-chat-view:'+key,view);}catch{}
+}
+function pipelineChatView(value=global.location.href){
+ const route=global.RunTeamsRoutes?.preview?.(value);
+ if(route?.kind!=='chat'||!route.ownerPath?.startsWith('/pipelines/'))return '';
+ const key=route.ownerPath+'/chats/'+localConversationId(value);
+ let view=pipelineViews.get(key);
+ if(!view){try{view=global.sessionStorage.getItem('runteams.pipeline-chat-view:'+key);}catch{}}
+ return view==='board'||view==='discussion'?view:'pending';
+}
 function conversationPendingHeader({route,layout='',failed=false}={}){
  const id=localConversationId(route);
  const saved=id&&global.RunTeamsBoot?.savedWorkspaceWindows()?.find(row=>localConversationId(row.route)===id);
@@ -101,7 +118,7 @@ function conversationPendingHeader({route,layout='',failed=false}={}){
  const heading=`<span class="conversation-panel-heading"><h2 id="conversation_panel_title" class="conversation-panel-name"${label?` data-app-i18n="${label}"`: ''}>${esc(title)}</h2></span>`;
  return global.RunTeamsShell.pageHeader(heading,'',employee);
 }
-const localLayouts=new Map(),localLayoutReads=new Map();
+const localLayouts=new Map();
 const validConversationLayout=layout=>['history','general','employee','pipeline','create-employee'].includes(layout);
 function localLayoutStorageKey(id){
  const scope=global.RunTeamsDeviceDisplay?.scope;
@@ -114,6 +131,8 @@ function rememberConversationLayouts(receipt){
   const key=localLayoutStorageKey(id);
   try{if(key&&global.sessionStorage.getItem(key)!==layout)global.sessionStorage.setItem(key,layout);}catch{}
  }
+ const id=global.location&&localConversationId(global.location.href);
+ if(id&&receipt?.conversation_layouts?.[id]&&global.document)repaintLocalConversation(id);
 }
 function localConversationLayout(value){
  const id=localConversationId(value);
@@ -140,38 +159,9 @@ function repaintLocalConversation(id){
  const current=global.location.href;
  const pending=global.document.querySelector(`[data-local-conversation-pending="${id}"]`);
  if(!pending||localConversationId(current)!==id||!localLayouts.has(id))return;
+ // Keep the initial loading indicator until the transcript is available.
+ if(localLayouts.get(id)==='history')return;
  pending.outerHTML=page(global.RunTeamsRoutes.preview(current),{route:current});
-}
-function requestConversationLayout(value){
- const id=localConversationId(value),scope=global.RunTeamsDeviceDisplay?.scope;
- if(!id||!scope||localLayoutReads.get(id)?.scope===scope)return;
- const headers={'X-RunTeams-Device-Scope':scope};
- const read=path=>global.fetch(path,{headers}).then(response=>response.ok?response.json():null);
- const entry={scope,started:Date.now(),used:false};
- entry.session=read('/api/device/page-ids').then(receipt=>{
-   if(global.RunTeamsDeviceDisplay?.scope!==scope||!receipt)return null;
-   const row=receipt.items?.find(item=>item.resource==='chats'&&item.public_id===id);
-   const route=global.RunTeamsRoutes.preview(value);
-   if(!row||!/^\d+$/.test(row.id)||route.kind==='chat'&&route.ownerPath!==row.owner_path)return null;
-   rememberConversationLayouts(receipt);
-   repaintLocalConversation(id);
-   return read('/api/chat/'+row.id+'?messages_limit=30');
-  }).then(session=>{
-   if(global.RunTeamsDeviceDisplay?.scope!==scope||session?.storage_scope!=='device'||session.public_id!==id||!Array.isArray(session.messages))return null;
-   rememberLocalSessionLayout(session);
-   repaintLocalConversation(id);
-   return session;
-  }).catch(()=>null).finally(()=>{
-   global.setTimeout(()=>{if(localLayoutReads.get(id)===entry)localLayoutReads.delete(id);},5000);
-  });
- localLayoutReads.set(id,entry);
-}
-async function takeLocalConversation(id,scope){
- const key=localConversationId(),entry=localLayoutReads.get(key);
- if(!entry||entry.used||entry.scope!==scope||Date.now()-entry.started>5000)return null;
- entry.used=true;
- const session=await entry.session;
- return String(session?.id)===String(id)&&key===localConversationId()&&global.RunTeamsDeviceDisplay?.scope===scope?session:null;
 }
 function pipelinePendingHeader(failed=false){
  if(!failed)return global.RunTeamsSkeletons.workspaceHeader({pipeline:true});
@@ -205,7 +195,13 @@ function documentSkeleton({header=true,count=6,labelKey='documentList.loading'}=
  return shape('文档列表',`<div class="docs-table docs-table--selectable">${columns}${rows}</div>`,labelKey);
 }
 function page(value,options={}){
- const kind=global.RunTeamsSkeletons.normalize(value),region=global.RunTeamsSkeletons.region;
+ const normalized=global.RunTeamsSkeletons.normalize(value),region=global.RunTeamsSkeletons.region;
+ const view=normalized==='conversation'&&!options.error?pipelineChatView(options.route):'';
+ const kind=view==='board'?'pipeline':normalized;
+ if(view==='pending'){
+  // Until the session identifies its destination, show only the header shared by both.
+  return `<div class="pending-page" data-pending-page="conversation">${global.RunTeamsSkeletons.workspaceHeader({pipeline:true})}</div>`;
+ }
  const extension=global.RunTeamsHost.pages.render(kind,options);if(extension!==null)return extension;
  let failed=false;const body=(html)=>{if(options.error&&failed)return '';if(options.error)failed=true;return data(html,{...options,pageKind:kind});},rows=(label,count=3,key)=>shape(label,Array.from({length:count},()=>`<div class="route-sk-row" data-skeleton-row inert>${line('avatar')}<div class="route-sk-copy-group">${line('name')}${line('copy')}</div></div>`).join(''),key);
  const fields=(labels)=>labels.map(label=>`<div class="field"><label>${label}</label>${options.error?'':shape(label,line(label==='详细介绍'?'editor':'field'))}</div>`).join('');
@@ -232,7 +228,6 @@ function page(value,options={}){
   const localId=localConversationId(options.route);
   if(!options.error&&(options.conversationLayout!==undefined||localId)){
    const layout=options.conversationLayout??localConversationLayout(options.route);
-   if(localId)requestConversationLayout(options.route);
    if(layout!=='history'){
     const header=conversationPendingHeader({route:options.route,layout});
     const content=layout?conversationWelcome(layout,header):conversationAwaitingLocal(header);
@@ -245,7 +240,7 @@ function page(value,options={}){
  }
 }
 function fail(root,options){
- const workspace=root.querySelector('.conversation-workspace-main[data-pending-page],.pending-pipeline[data-pending-page="pipeline"]');
+ const workspace=root.querySelector('[data-pending-page="conversation"],.conversation-workspace-main[data-pending-page],.pending-pipeline[data-pending-page="pipeline"]');
  if(workspace){workspace.outerHTML=page(workspace.dataset.pendingPage,options);return;}
  const regions=[...root.querySelectorAll('[data-pending-data]')];regions.forEach((region,i)=>{region.innerHTML=i?'':error(options);});root.querySelectorAll('.route-sk-region,.workspace-header-loading').forEach(region=>region.remove());}
 function title(kind){const extra=global.RunTeamsHost.pages.title(kind);if(extra!==null)return extra;return ({'conversation-new':'新对话',conversation:'对话','employee-examples':'员工',docs:'文档','document-reader':'文档',pipeline:'智能体团队','pipeline-new':'新建智能体团队',trash:'垃圾箱','employee-settings':'员工设置','run-detail':'工作记录','design-system':'设计系统'})[kind]||'工作区';}
@@ -270,5 +265,5 @@ function restore(saved){
  if(next!==saved.node)next.replaceWith(saved.node);saved.node.focus({preventScroll:true});if(saved.start!==null)saved.node.setSelectionRange(saved.start,saved.end);
 }
 
-global.RunTeamsStaticPages={composer,conversationWelcome,conversationWelcomeContent,conversationWelcomeOptions,conversationAwaitingLocal,conversationPendingHeader,localConversationRoute,localConversationLayout,rememberConversationLayouts,rememberLocalSessionLayout,takeLocalConversation,captureComposer,restoreComposer,runtimePending,page,title,fail,error,keys,icon,search,documentHeader,documentSkeleton,values,set,select,choose,capture,restore,connect:callback=>{change=callback;},reset:()=>{for(const key of Object.keys(values))delete values[key];}};
+global.RunTeamsStaticPages={pipelineChatView,rememberPipelineChatView,composer,conversationWelcome,conversationWelcomeContent,conversationWelcomeOptions,conversationAwaitingLocal,conversationPendingHeader,localConversationRoute,localConversationLayout,rememberConversationLayouts,rememberLocalSessionLayout,captureComposer,restoreComposer,runtimePending,page,title,fail,error,keys,icon,search,documentHeader,documentSkeleton,values,set,select,choose,capture,restore,connect:callback=>{change=callback;},reset:()=>{for(const key of Object.keys(values))delete values[key];}};
 })(window);

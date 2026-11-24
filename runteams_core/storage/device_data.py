@@ -12,6 +12,8 @@ import sqlite3
 from runteams_core.conversations.page_paths import chat_key, short_ids
 import stat
 import secrets
+import re
+import uuid
 import threading
 
 from runteams_core.storage import local_database
@@ -20,7 +22,7 @@ from runteams_core.conversations.workspace_context import selected
 
 _active = ContextVar('device_data_connection', default=None)
 _schema_lock = threading.RLock()
-SCHEMA_VERSION = 7
+SCHEMA_VERSION = 8
 LOCAL_CHAT_ID_MIN = 2**48
 
 
@@ -63,6 +65,13 @@ def check(expected):
         raise PermissionError('账户或工作区已变化，请重新打开。')
 
 
+def _knowledge_schema(version):
+    knowledge = (resource_root() / 'contracts/device-asset-knowledge.sql').read_text()
+    if version < 8:
+        knowledge = knowledge.split('ALTER TABLE asset_sources', 1)[0]
+    return knowledge if version >= 7 else knowledge.replace('pages >= 0', 'pages > 0')
+
+
 def schema(version=SCHEMA_VERSION):
     directory = resource_root() / 'contracts'
     business = (directory / 'cloud-business-transaction.sql').read_text()
@@ -75,8 +84,7 @@ def schema(version=SCHEMA_VERSION):
         'device-creator-work.sql', 'device-runtime-links.sql'))
     statements.append((directory / 'device-collections.sql').read_text())
     if version >= 6:
-        knowledge = (directory / 'device-asset-knowledge.sql').read_text()
-        statements.append(knowledge if version >= 7 else knowledge.replace('pages >= 0', 'pages > 0'))
+        statements.append(_knowledge_schema(version))
     return '\n'.join(statements)
 
 
@@ -87,7 +95,7 @@ def _initialize(c):
         if version == SCHEMA_VERSION:
             verify(c, schema())
             return
-        if version not in (0, 5, 6) or (version == 0 and c.execute(
+        if version not in (0, 5, 6, 7) or (version == 0 and c.execute(
                 "SELECT 1 FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' LIMIT 1").fetchone()):
             raise ValueError('本机数据版本不受支持，原资料保持不变。')
         c.execute('PRAGMA journal_mode=WAL')
@@ -97,21 +105,8 @@ def _initialize(c):
             version = c.execute('PRAGMA user_version').fetchone()[0]
             if version == SCHEMA_VERSION:
                 verify(c, schema())
-            elif version == 6:
-                verify(c, schema(6))
-                c.execute('ALTER TABLE asset_source_pages RENAME TO old_source_pages')
-                c.execute('ALTER TABLE asset_sources RENAME TO old_sources')
-                knowledge = (resource_root() / 'contracts/device-asset-knowledge.sql').read_text()
-                execute(c, knowledge[knowledge.index('CREATE TABLE asset_sources'):])
-                c.execute('INSERT INTO asset_sources SELECT * FROM old_sources')
-                c.execute('INSERT INTO asset_source_pages SELECT * FROM old_source_pages')
-                c.execute('DROP TABLE old_source_pages')
-                c.execute('DROP TABLE old_sources')
-                c.execute('PRAGMA user_version=' + str(SCHEMA_VERSION))
-                verify(c, schema())
-            elif version == 5:
-                verify(c, schema(5))
-                execute(c, (resource_root() / 'contracts/device-asset-knowledge.sql').read_text())
+            elif version in (5, 6, 7):
+                _upgrade_knowledge(c, version)
                 c.execute('PRAGMA user_version=' + str(SCHEMA_VERSION))
                 verify(c, schema())
             elif version == 0 and not c.execute(
@@ -127,6 +122,23 @@ def _initialize(c):
         except BaseException:
             c.rollback()
             raise
+
+
+def _upgrade_knowledge(c, version):
+    from runteams_core.storage.device_schema import execute, verify
+    verify(c, schema(version))
+    knowledge = _knowledge_schema(7)
+    if version == 5:
+        execute(c, knowledge)
+    elif version == 6:
+        c.execute('ALTER TABLE asset_source_pages RENAME TO old_source_pages')
+        c.execute('ALTER TABLE asset_sources RENAME TO old_sources')
+        execute(c, knowledge[knowledge.index('CREATE TABLE asset_sources'):])
+        c.execute('INSERT INTO asset_sources SELECT * FROM old_sources')
+        c.execute('INSERT INTO asset_source_pages SELECT * FROM old_source_pages')
+        c.execute('DROP TABLE old_source_pages')
+        c.execute('DROP TABLE old_sources')
+    execute(c, _knowledge_schema(SCHEMA_VERSION)[len(knowledge):])
 
 
 @contextmanager
@@ -180,19 +192,34 @@ def connect(*, readonly=False):
         notify_saved(scope)
 
 
-def page_ids():
+def page_ids(public_chat=None):
     if not personal():
         raise PermissionError('请在个人工作区打开本机对话。')
-    scope = identity()
+    binding = _binding()
+    scope = dict(binding.scope)
+    key = None
+    where = 'WHERE i.deleted=0'
+    params = ()
+    if public_chat is not None:
+        from runteams_core.storage.page_id_store import lookup
+        if not isinstance(public_chat, str) or not re.fullmatch(r'[0-9][a-z][a-z0-9]{6}', public_chat):
+            raise ValueError('本机对话链接无效。')
+        key = lookup(root(), public_chat)
+        # The owning library can rebuild a missing index from its durable chat IDs.
+        if key is not None:
+            where += ' AND i.identity=?'
+            params = (str(uuid.UUID(key[5:])) if re.fullmatch(r'chat:[a-f0-9]{32}', key) else '',)
     with connect(readonly=True) as c:
         rows = c.execute(
             'SELECT i.chat_id,i.identity,c.kind,c.context_json,'
             'EXISTS(SELECT 1 FROM chat_messages m WHERE m.chat_id=i.chat_id) AS has_messages '
-            'FROM device_chat_index i JOIN chats c ON c.id=i.chat_id WHERE i.deleted=0'
+            'FROM device_chat_index i JOIN chats c ON c.id=i.chat_id ' + where, params
         ).fetchall()
     from runteams_core.conversations.page_paths import chat_owner_paths
+    ids = {key:public_chat} if key is not None else short_ids(chat_key(row['identity']) for row in rows)
+    if public_chat is not None:
+        rows = [row for row in rows if ids[chat_key(row['identity'])] == public_chat]
     contexts = [json.loads(row['context_json'] or '{}') for row in rows]
-    ids = short_ids(chat_key(row['identity']) for row in rows)
     items, layouts = [], {}
     for row, context, owner in zip(rows, contexts, chat_owner_paths(contexts), strict=True):
         public_id = ids[chat_key(row['identity'])]
@@ -206,7 +233,8 @@ def page_ids():
             layouts[public_id] = ('pipeline' if context.get('source_pipeline_workspace') else
                                   'employee' if context.get('context_type') == 'worker' else
                                   'create-employee' if context.get('purpose') == 'create-employee' else 'general')
-    return {'version':1,'library_id':_binding().library_id,
+    check(scope)
+    return {'version':1,'library_id':binding.library_id,
         **({'account_id':scope['account_id']} if 'account_id' in scope else {}),
         'items':items, 'conversation_layouts':layouts}
 

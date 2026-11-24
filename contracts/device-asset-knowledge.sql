@@ -13,3 +13,11 @@ CREATE TABLE asset_source_pages(
  page INTEGER NOT NULL,
  text TEXT NOT NULL,
  PRIMARY KEY(source_id,page));
+ALTER TABLE asset_sources ADD COLUMN revision TEXT NOT NULL DEFAULT '';
+CREATE TABLE asset_bundled_exclusions(
+ bank TEXT NOT NULL,
+ source TEXT NOT NULL,
+ PRIMARY KEY(bank,source));
+CREATE TABLE asset_source_actions(
+ operation TEXT PRIMARY KEY,
+ result TEXT NOT NULL);

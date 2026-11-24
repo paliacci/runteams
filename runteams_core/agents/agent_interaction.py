@@ -82,6 +82,20 @@ class TurnQuestions:
                 return None
             return {'answers': deepcopy(request['answers'])}
 
+    def answered_option(self, request_id, question_id, label):
+        """Check that the current turn accepted exactly one of its displayed options."""
+        with self.lock:
+            request = self.requests.get(request_id)
+            if self.closed or self.cancel.is_set() or not request or not request['answers']:
+                return False
+            prompts = request['prompt']['questions']
+            if len(prompts) != 1 or prompts[0]['id'] != question_id:
+                return False
+            question = prompts[0]
+            return (not question['multiSelect'] and not question['isSecret']
+                    and request['answers'][question_id]['answers'] == [label]
+                    and any(option['label'] == label for option in question['options']))
+
     def expire(self, request_id):
         with self.lock:
             request = self.requests.get(request_id)
