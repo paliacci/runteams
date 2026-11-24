@@ -6968,11 +6968,13 @@ async function loadConversationPanelSession(id,options={}){
   const targetSnapshot=_workspaceStateByKey.get('chat:'+id);
   const cached=cachedConversationPanel(id),cachedAllowed=!options.refresh&&cached&&!cached.loading;
   if(cachedAllowed){S.conversationPanel=cached;if(!cached.busy)restoreConversationPanelDraft(cached);mount(cached,{save:false,expand:options.expand});if(changingChat&&options.restoreWorkspace!==false)restoreConversationWorkspace(cached,targetSnapshot);if(options.render!==false)render();if(options.focus!==false&&!cached.busy)setTimeout(()=>document.getElementById("conversation_box")?.focus(),30);return cached;}
-  const employeeListKey=options.employeeKey||RunTeamsEmployeeDirectory.forPanel(summary)?.key||RunTeamsEmployeeDirectory.forPanel(cached)?.key||
-    RunTeamsEmployeeDirectory.entryFor(workspaceEmployeeWindowIdentity('chat:'+id)?.reference)?.key||
-    (String(current?.id)===String(id)?current?.employeeListKey:undefined);
-  S.conversationPanel={...conversationPanelLoadingState({id,title:options.title||(summary&&summary.title)||"正在准备",railHosted:true}),loading:true,loadingLayout:employeeOpen?.layout,employeeListKey,retry:{id,title:options.title||(summary&&summary.title)||""}};mount(S.conversationPanel,{expand:options.expand});
-  if(options.render!==false)render();
+  if(!options.session?.id||options.session.error){
+    const employeeListKey=options.employeeKey||RunTeamsEmployeeDirectory.forPanel(summary)?.key||RunTeamsEmployeeDirectory.forPanel(cached)?.key||
+      RunTeamsEmployeeDirectory.entryFor(workspaceEmployeeWindowIdentity('chat:'+id)?.reference)?.key||
+      (String(current?.id)===String(id)?current?.employeeListKey:undefined);
+    S.conversationPanel={...conversationPanelLoadingState({id,title:options.title||(summary&&summary.title)||"正在准备",railHosted:true}),loading:true,loadingLayout:employeeOpen?.layout,employeeListKey,retry:{id,title:options.title||(summary&&summary.title)||""}};mount(S.conversationPanel,{expand:options.expand});
+    if(options.render!==false)render();
+  }
   let session;try{session=options.session||await readConversationSession(id);}catch(error){session={error:error.status===404?"这段对话已不存在":error.message||error};}if(sequence!==_conversationPanelLoadSequence||!stillHere())return;
   if(session.error||!session.id){S.conversationPanel={...S.conversationPanel,loading:false,error:session.error||"这段对话已不存在"};rememberConversationPanel();if(options.render!==false)render();return;}
   S.conversationPanel=conversationPanelFromSession(session,{railHosted:options.railHosted!==false});restoreConversationPanelDraft();mount(S.conversationPanel,{save:false,expand:options.expand});if(changingChat&&options.restoreWorkspace!==false)restoreConversationWorkspace(S.conversationPanel,targetSnapshot);
