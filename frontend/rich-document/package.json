@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "vite build && node publish.mjs"
+    "build": "vite build && node publish.mjs",
+    "test": "node check.mjs && node host-check.mjs && node autosave-check.mjs && node data-model-check.mjs && node reply-check.mjs && node outline-check.mjs"
   },
   "dependencies": {
     "@blocknote/core": "0.56.0",

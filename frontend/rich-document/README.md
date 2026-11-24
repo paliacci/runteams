@@ -18,11 +18,7 @@ From this directory:
 ```sh
 npm ci --ignore-scripts
 npm run build
-node check.mjs
-node host-check.mjs
-node autosave-check.mjs
-node data-model-check.mjs
-node reply-check.mjs
+npm test
 ```
 
 The build publishes assets under `web/rich-document/dist` and replaces the entry only after assets exist. Old hashed assets stay available for open readers. A new frame under an old host asks the user to refresh before editing; it never silently mixes incompatible save protocols. The shared chat renderer is still built from its existing, unchanged source; laboratory boot, fixtures, browser-local storage and test banners are not shipped.

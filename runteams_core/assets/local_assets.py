@@ -3,9 +3,7 @@
 
 Grants themselves (path, identity, exclusions) live in the shell's
 ``product_store.local_asset_grants`` table, on this machine only.  This
-module never imports the shell: the caller (``runteams_core.agent_runtime``)
-injects a ``grant_resolver`` callable, the same pattern already used for
-credentials and Agent Channels.
+module receives grant information from its caller.
 
 Two access modes, chosen by what the bound directory actually is:
 - ``git``: ``git clone --local`` to the commit captured at preflight time,
