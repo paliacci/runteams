@@ -86,8 +86,8 @@ def _run_json(argv, env, timeout=12, cwd=None):
         return None, None
 
 
-def _read_plugin_json(channel, executable, env, timeout=15, cwd=None):
-    """Read the official catalog without requesting a forced refresh.
+def _read_plugin_json(channel, executable, env, timeout=15, cwd=None, *, force_refetch=False):
+    """Read the official catalog, optionally fetching fresh remote data.
 
     The app-server result remains the authority for installed/enabled state.
     Older CLIs retain their existing JSON command as a compatibility fallback.
@@ -96,7 +96,7 @@ def _read_plugin_json(channel, executable, env, timeout=15, cwd=None):
     argv = [executable] + list(model_channels.provider_info(channel.get("provider"))["plugin_list_args"])
     if channel.get("provider") == "codex":
         try:
-            params = {"forceRefetch": False}
+            params = {"forceRefetch": force_refetch}
             if cwd:
                 params["cwds"] = [os.path.realpath(cwd)]
             value = model_channels._codex_app_server_request(
@@ -120,12 +120,36 @@ def _read_plugin_json(channel, executable, env, timeout=15, cwd=None):
             state = "partial" if value.get("marketplaceLoadErrors") else "ready"
             if state == "partial" and not value["marketplaces"]:
                 state = "error"
-            return {"installed": installed, "available": available, "_read_state": state}, subprocess.CompletedProcess(argv, 0)
+            return {"installed": installed, "available": available, "_read_state": state,
+                    "_marketplaces": [market["name"] for market in value["marketplaces"]]}, subprocess.CompletedProcess(argv, 0)
         except (OSError, RuntimeError, ValueError, subprocess.SubprocessError):
             pass
     if cwd:
         return _run_json(argv, env, timeout, cwd)
     return _run_json(argv, env, timeout)
+
+
+def _read_tools_plugin_json(channel, executable, env, timeout, cwd, refresh, previous):
+    expected = {row["marketplace"] for row in (previous or {}).get("plugins", []) if row.get("marketplace")}
+
+    def reported_markets(data):
+        if isinstance(data, dict) and "_marketplaces" in data:
+            return set(data["_marketplaces"])
+        return {row.get("marketplaceName") or row.get("marketplace")
+                for row in _plugin_items(data) if isinstance(row, dict)}
+
+    data, result = _read_plugin_json(channel, executable, env, timeout, cwd, force_refetch=refresh)
+    if not expected or expected.issubset(reported_markets(data)):
+        return data, result
+    # Reconfirm an entire missing installed source once. A native listing can
+    # confirm removal. Older CLI fallback listings can contain only local rows.
+    data, result = _read_plugin_json(channel, executable, env, timeout, cwd, force_refetch=True)
+    if data is not None and not expected.issubset(reported_markets(data)):
+        if isinstance(data, list):
+            data = {"installed": data}
+        if isinstance(data, dict) and "_marketplaces" not in data:
+            data = {**data, "_read_state": "partial"}
+    return data, result
 
 
 def _plugin_id(item):
@@ -1047,6 +1071,7 @@ def inventory(channel, refresh=False, workspace_root="", status_only=False, *, m
     key = profile + ("tools" if tools_only else "menu" if menu_only else status_only,)
     with _CACHE_LOCK:
         cached = _CACHE.get(key)
+        previous = cached[1] if cached and tools_only else None
         if menu_only:
             cached = max((entry for entry in (cached, _CACHE.get(profile + (False,))) if entry),
                          default=None, key=lambda entry: entry[0])
@@ -1079,8 +1104,13 @@ def inventory(channel, refresh=False, workspace_root="", status_only=False, *, m
             return _run_json(argv, env, timeout, workspace_root)
         return _run_json(argv, env, timeout)
     def valid_json(args, timeout, key):
-        data, result = (_read_plugin_json(channel, executable, env, timeout, workspace_root or None)
-                        if key == "plugins" else channel_json(args, timeout))
+        if key != "plugins":
+            data, result = channel_json(args, timeout)
+        elif tools_only and channel.get("provider") == "codex":
+            data, result = _read_tools_plugin_json(channel, executable, env, timeout,
+                                                   workspace_root or None, refresh, previous)
+        else:
+            data, result = _read_plugin_json(channel, executable, env, timeout, workspace_root or None)
         valid = (isinstance(data, list) or isinstance(data, dict) and
                  any(field in data for field in (("installed", "plugins", "available") if key == "plugins" else ("servers",))))
         if result is not None and result.returncode != 0:

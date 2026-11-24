@@ -60,3 +60,23 @@ class CapabilityMenuTests(unittest.TestCase):
                 probe.assert_called_with(channel, account_summary=False)
                 self.assertEqual(plugins.call_count, 2)
             capabilities.invalidate_channel(channel)
+
+    def test_tools_rechecks_a_disappearing_market_and_accepts_confirmed_removal(self):
+        prior = {"plugins": [{"marketplace": "remote"}]}
+        local = {"installed": [], "_marketplaces": ["local"]}
+        complete = {"installed": [{"id": "p"}], "_marketplaces": ["local", "remote"]}
+        for confirmation, expected in ((local, local), (complete, complete),
+                                       ({"installed": []}, {"installed": [], "_read_state": "partial"})):
+            with self.subTest(confirmation=confirmation), patch.object(
+                    capabilities, "_read_plugin_json", side_effect=[(local, None), (confirmation, None)]) as read:
+                data, _ = capabilities._read_tools_plugin_json({}, "codex", {}, 15, None, False, prior)
+                self.assertEqual(data, expected)
+                self.assertEqual([call.kwargs["force_refetch"] for call in read.call_args_list], [False, True])
+
+    def test_tools_manual_refresh_accepts_uninstall_in_reported_market(self):
+        data = {"installed": [], "_marketplaces": ["remote"]}
+        with patch.object(capabilities, "_read_plugin_json", return_value=(data, None)) as read:
+            found, _ = capabilities._read_tools_plugin_json(
+                {}, "codex", {}, 15, None, True, {"plugins": [{"marketplace": "remote"}]})
+            self.assertEqual(found, data)
+            read.assert_called_once_with({}, "codex", {}, 15, None, force_refetch=True)
