@@ -73,19 +73,23 @@ def _picker_candidates():
     configured = os.environ.get("RUNTEAMS_ATTACHMENT_PICKER")
     if configured:
         yield os.path.abspath(os.path.expanduser(configured))
-    if getattr(sys, "frozen", False):
+    if sys.platform == "darwin" and getattr(sys, "frozen", False):
         resources = os.path.dirname(os.path.dirname(sys.executable))
         yield os.path.join(resources, "RunTeamsPicker.app", "Contents", "MacOS", "RunTeamsPicker")
         yield os.path.join(resources, "RunTeamsPicker")
 
 
 def native_picker_path():
-    if sys.platform != "darwin":
+    if sys.platform not in ("darwin", "win32"):
         return ""
     for path in _picker_candidates():
         if os.path.isfile(path) and os.access(path, os.X_OK):
             return path
     return ""
+
+
+def _picker_command(executable):
+    return [executable, "--picker"] if sys.platform == "win32" else [executable]
 
 
 def native_picker_available():
@@ -230,7 +234,7 @@ def pick_native_paths(kind=None, *, cancel_event=None, work_folder=False):
     process = None
     deadline = time.monotonic() + 600
     try:
-        arguments = [picker]
+        arguments = _picker_command(picker)
         if kind:
             arguments.extend(["--files-only" if kind == "file" else "--folders-only", "--single"])
         if work_folder:
@@ -278,7 +282,7 @@ def native_reference_paths(source):
     if not picker:
         raise ValueError('无法读取本地路径，请从＋选择文件或文件夹')
     try:
-        result = subprocess.run([picker, '--clipboard' if source == 'paste' else '--drop'],
+        result = subprocess.run([*_picker_command(picker), '--clipboard' if source == 'paste' else '--drop'],
                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=5)
         if result.returncode:
             raise ValueError('无法读取本地路径，请重试')
@@ -350,8 +354,16 @@ def _cleanup_asset_picks():
 def choose_location(kind, prompt):
     if kind not in ('file', 'folder'):
         raise ValueError("位置类型无效。")
+    if sys.platform == "win32":
+        paths = pick_native_paths(kind)
+        if not paths:
+            return None
+        exists = os.path.isfile if kind == "file" else os.path.isdir
+        if len(paths) != 1 or not os.path.isabs(paths[0]) or not exists(paths[0]):
+            raise ValueError("所选位置不可用。")
+        return paths[0]
     if sys.platform != "darwin":
-        raise ValueError("请在 macOS 桌面端选择位置。")
+        raise ValueError("请在桌面端选择位置。")
     script = f"""on run argv
 activate
 return POSIX path of (choose {kind} with prompt (item 1 of argv))

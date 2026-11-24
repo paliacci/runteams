@@ -45,3 +45,19 @@ class ConfigurationLocationTests(unittest.TestCase):
         self.assertIsNone(chat_attachments.choose_location('folder', 'Choose folder'))
         with self.assertRaises(ValueError):
             chat_attachments.choose_location('other', '')
+
+    @patch.object(chat_attachments.sys, 'platform', 'win32')
+    def test_windows_picker_uses_installed_host_and_checks_returned_path(self):
+        with tempfile.TemporaryDirectory() as directory:
+            selected = Path(directory) / '员工 资料.txt'
+            selected.touch()
+            with patch.dict('os.environ', {'RUNTEAMS_ATTACHMENT_PICKER': str(selected)}), patch('os.access', return_value=True):
+                self.assertEqual(chat_attachments.native_picker_path(), str(selected))
+                self.assertEqual(chat_attachments._picker_command(str(selected)), [str(selected), '--picker'])
+            with patch.object(chat_attachments, 'pick_native_paths', return_value=[str(selected)]) as pick:
+                self.assertEqual(chat_attachments.choose_location('file', 'Choose file'), str(selected))
+                pick.assert_called_once_with('file')
+                with self.assertRaises(ValueError):
+                    chat_attachments.choose_location('folder', 'Choose folder')
+            with patch.object(chat_attachments, 'pick_native_paths', return_value=[]):
+                self.assertIsNone(chat_attachments.choose_location('folder', 'Choose folder'))
