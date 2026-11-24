@@ -487,7 +487,7 @@ function deviceConversationVisible(){
 }
 async function refreshDeviceDirectory(options={}){
  const generation=_workspaceBusinessGeneration,token=workspaceAccountCacheToken(),actor=S.localLibrary?.library_id||String(RunTeamsHost.session.actor(S)||'');
- const current=()=>generation===_workspaceBusinessGeneration&&token===workspaceAccountCacheToken()&&!RunTeamsHost.session.workspace(S);
+ const current=()=>(!options.isCurrent||options.isCurrent())&&generation===_workspaceBusinessGeneration&&token===workspaceAccountCacheToken()&&!RunTeamsHost.session.workspace(S);
  if(!options.identityReady){
   const query=options.publicChat?'?chat='+encodeURIComponent(options.publicChat):'';
   const value=await api('/api/device/page-ids'+query);if(!current())return;
@@ -7998,7 +7998,7 @@ async function openMarkdownLink(value,options={}){
     if(!id||!known){
       const local=target.href.startsWith('runteams:')?'/docs?document='+id:RunTeamsRoutes.unmount(target.href);
       if((/^\/documents\/local-/.test(local)||id)&&!RunTeamsHost.session.workspace(S)){
-        await refreshDeviceDirectory({identityOnly:true});
+        await refreshDeviceDirectory({identityOnly:true,isCurrent:current});
       }else await RunTeamsHost.routes.readIndex?.({force:true});
       if(!current()||location.href!==source)return false;
       id=documentInternalLinkId(target.href);
