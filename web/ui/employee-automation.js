@@ -245,7 +245,7 @@
  function automationContent(s){
   const list=s.items.length?`<div class="employee-automation-list" aria-busy="${s.busy}">${s.items.map(item=>row(item,s)).join('')}</div>`:'';
   let content=list;
-  if(s.error&&!loading){
+  if(s.error&&!s.loading){
    const noteKey=s.hasRead?(list?'scheduledAutomation.cached':'scheduledAutomation.cachedEmpty'):undefined;
    content=RunTeamsLoadFailure.markup({variant:'local',title:'无法载入自动化',titleKey:'automationList.readFailed',note:noteKey?(list?'正在显示上次载入的计划。':'上次载入时还没有计划。'):'',noteKey,labelKey:'employeeHistory.retry',busyLabelKey:'automationList.loading',retry:'RunTeamsEmployeeAutomation.refresh()'})+list;
   }else if(s.unavailable)content=RunTeamsEmptyStates.markup('automations',{
