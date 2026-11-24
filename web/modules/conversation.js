@@ -1385,10 +1385,11 @@ async function conversationDrop(event,surface){
 }
 
 /* module-function:conversationNativeLocalDrop */
-async function conversationNativeLocalDrop(paths,x,y){
+async function conversationNativeLocalDrop(paths,x,y,isCurrent=()=>true){
+  if(!isCurrent())return;
   const composer=document.elementFromPoint(x,y)?.closest('.ccomposer[data-local-references="true"]');if(!composer)return;
   const surface=composer.dataset.conversationSurface,panel=S.conversationPanel;if(panel?.busy)return;
-  try{await prepareConversationLocalReferences(surface,await api("/api/local-references/prepare","POST",{paths}),panel);}catch(error){toast(error.message||"无法添加本地引用。请重试。","err",error.message?undefined:"localReference.addFailed");}
+  try{await prepareConversationLocalReferences(surface,await api("/api/local-references/prepare","POST",{paths}),panel,isCurrent);}catch(error){if(isCurrent())toast(error.message||"无法添加本地引用。请重试。","err",error.message?undefined:"localReference.addFailed");}
 }
 
 function addConversationFolderDraftAttachments(surface,paths){

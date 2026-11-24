@@ -6536,8 +6536,8 @@ function addConversationLocalReferences(surface,items,panel=S.conversationPanel)
   if(next.filter(item=>item.kind!=="folder_path").length>10){toast("每次最多添加 10 项内容。","err","localReference.limit");return;}
   setConversationAttachments(surface,next);refreshConversationDraftItems(surface);
 }
-async function prepareConversationLocalReferences(surface,out,panel){
-  if(surface==="panel"&&(S.conversationPanel!==panel||panel?.busy))return;
+async function prepareConversationLocalReferences(surface,out,panel,isCurrent=()=>true){
+  if(!isCurrent()||(surface==="panel"&&(S.conversationPanel!==panel||panel?.busy)))return;
   if(out.error){toast(out.error,"err",out.error==="无法读取本地路径，请从＋选择文件或文件夹"?"localReference.pathMissing":undefined);return;}
   const ready=out.references||[],pending=out.pending||[];
   const current=conversationAttachments(surface);
@@ -6546,11 +6546,11 @@ async function prepareConversationLocalReferences(surface,out,panel){
     // Choosing, dropping or pasting is the user's explicit selection.
     // Register only identities here; task confirmation still gates content use.
     const confirmed=await api("/api/local-references/confirm","POST",{tokens:pending.map(item=>item.token)});
-    if(surface==="panel"&&(S.conversationPanel!==panel||panel?.busy))return;
+    if(!isCurrent()||(surface==="panel"&&(S.conversationPanel!==panel||panel?.busy)))return;
     if(confirmed.error){toast(confirmed.error,"err");return;}
     ready.push(...(confirmed.references||[]));S.localAssetGrants=null;
   }
-  if(surface==="panel"&&(S.conversationPanel!==panel||panel?.busy))return;
+  if(!isCurrent()||(surface==="panel"&&(S.conversationPanel!==panel||panel?.busy)))return;
   addConversationLocalReferences(surface,ready,panel);
 }
 async function readConversationLocalReferenceEvent(surface,source){
