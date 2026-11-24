@@ -5,14 +5,13 @@ The editor and the turn commit to the same revision ledger. A competing edit
 causes a conflict; interrupted/uncommitted files remain available for recovery.
 """
 from contextlib import contextmanager
-import fcntl
 import os
 from pathlib import Path
 import shutil
-import stat
 import tempfile
 import uuid
 
+from runteams_core.foundation import file_locks
 from runteams_core.authoring.creator_contracts import canonical, strict_json, read_folder, tree, digest
 from runteams_core.authoring.source.creator_local_source import current_store, _read, _sync
 from runteams_core.authoring.source.creator_source_revisions import Revisions, SourceConflict
@@ -176,14 +175,11 @@ def _finish(revisions, root):
 def workspace(session):
     revisions = source(session)
     root = _work_root(revisions, session['id'])
-    fd = os.open(root/'turn.lock',os.O_CREAT|os.O_RDWR|os.O_NOFOLLOW|os.O_NONBLOCK,0o600)
     try:
-        if not stat.S_ISREG(os.fstat(fd).st_mode) or os.fstat(fd).st_nlink != 1:
-            raise ValueError('创作锁文件无效。')
-        try:
-            fcntl.flock(fd,fcntl.LOCK_EX|fcntl.LOCK_NB)
-        except BlockingIOError:
-            raise SourceConflict('这段创作正在执行，请等待当前回复结束。') from None
+        fd = file_locks.acquire(root / 'turn.lock', blocking=False)
+    except BlockingIOError:
+        raise SourceConflict('这段创作正在执行，请等待当前回复结束。') from None
+    try:
         if (root/'pending.json').exists() or (root/'pending.json').is_symlink():
             # Resume the retained native folder so the Agent can finish or fix
             # invalid edits. A conflicting editor revision is still protected.
@@ -232,10 +228,11 @@ def workspace(session):
 def recover(session, base_revision):
     revisions = source(session)
     root = _work_root(revisions,session['id'])
-    fd=os.open(root/'turn.lock',os.O_CREAT|os.O_RDWR|os.O_NOFOLLOW,0o600)
     try:
-        try:fcntl.flock(fd,fcntl.LOCK_EX|fcntl.LOCK_NB)
-        except BlockingIOError:raise SourceConflict('Agent 仍在处理，请稍后恢复。') from None
+        fd = file_locks.acquire(root / 'turn.lock', blocking=False)
+    except BlockingIOError:
+        raise SourceConflict('Agent 仍在处理，请稍后恢复。') from None
+    try:
         if not (root/'pending.json').exists():return revisions.current()
         pending=_pending(root)
         if revisions.current()['revision'] != base_revision:
@@ -293,11 +290,11 @@ def pending_changes(store, identity):
     for root in sorted(parent.iterdir()):
         if not root.name.isdigit() or root.is_symlink():raise ValueError('本机创作目录无效。')
         if not (root/'pending.json').exists():continue
-        fd=os.open(root/'turn.lock',os.O_CREAT|os.O_RDWR|os.O_NOFOLLOW,0o600)
         try:
-            try:fcntl.flock(fd,fcntl.LOCK_EX|fcntl.LOCK_NB)
-            except BlockingIOError:
-                result.append({'session_id':int(root.name),'state':'running'});continue
+            fd = file_locks.acquire(root / 'turn.lock', blocking=False)
+        except BlockingIOError:
+            result.append({'session_id':int(root.name),'state':'running'});continue
+        try:
             _pending(root)
             try:after={f['path']:f['sha256'] for f in tree(read_folder(root/'source'))['files']}
             except ValueError:
@@ -318,10 +315,11 @@ def snapshot_work(revisions, destination):
     for root in sorted(parent.iterdir()):
         if not root.name.isdigit() or root.is_symlink():raise ValueError('本机创作目录无效。')
         if not (root/'pending.json').exists():continue
-        fd=os.open(root/'turn.lock',os.O_CREAT|os.O_RDWR|os.O_NOFOLLOW,0o600)
         try:
-            try:fcntl.flock(fd,fcntl.LOCK_EX|fcntl.LOCK_NB)
-            except BlockingIOError:raise ValueError('创作仍在修改源码，请稍后重新备份。') from None
+            fd = file_locks.acquire(root / 'turn.lock', blocking=False)
+        except BlockingIOError:
+            raise ValueError('创作仍在修改源码，请稍后重新备份。') from None
+        try:
             pending=_pending(root);files=read_folder(root/'source')
             target=Path(destination)/'authoring'/root.name
             for name,body in [('pending.json',canonical(pending)),*[('source/'+p,b) for p,b in files.items()]]:

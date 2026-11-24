@@ -31,7 +31,7 @@ jobs:
             ${{ runner.temp }}/core-ci/wheels/*.whl
             ${{ runner.temp }}/core-ci/verification.json
             ${{ runner.temp }}/core-ci/sdk-clients/*.json
-  process-tree:
+  native-runtime:
     strategy:
       matrix:
         os: [macos-latest, windows-latest]
@@ -43,3 +43,4 @@ jobs:
         with:
           python-version: '3.12'
       - run: python -B -m unittest discover -s tests -p test_process_tree.py
+      - run: python -B -m unittest discover -s tests -p test_file_locks.py

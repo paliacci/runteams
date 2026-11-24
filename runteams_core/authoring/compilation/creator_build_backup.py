@@ -1,5 +1,4 @@
 """Device backup closure for source trials; no work content enters asset export."""
-import fcntl
 import os
 from pathlib import Path
 

@@ -5,7 +5,6 @@ invisible; retries use the original operation identity and exact input.
 """
 from contextlib import contextmanager
 from datetime import datetime, timezone
-import fcntl
 import hashlib
 import os
 from pathlib import Path
@@ -14,6 +13,7 @@ import shutil
 import stat
 import tempfile
 
+from runteams_core.foundation import file_locks
 from runteams_core.authoring.creator_contracts import canonical, digest, source_files, strict_json, tree
 from runteams_core.authoring.source.creator_local_source import _read, _sync
 from runteams_core.authoring.source.creator_source_archive import display_files, inspect, pack
@@ -40,11 +40,8 @@ class Revisions:
     @contextmanager
     def locked(self):
         self.store.check_scope()
-        fd = os.open(self.root / '.edit-lock', os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW | os.O_NONBLOCK, 0o600)
+        fd = file_locks.acquire(self.root / '.edit-lock')
         try:
-            if not stat.S_ISREG(os.fstat(fd).st_mode) or os.fstat(fd).st_nlink != 1:
-                raise ValueError('源码锁文件无效。')
-            fcntl.flock(fd, fcntl.LOCK_EX)
             self.store.check_scope()
             yield
             self.store.check_scope()

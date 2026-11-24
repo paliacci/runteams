@@ -1,18 +1,17 @@
 """Revision-bound local build jobs and immutable results; no cloud authority."""
 import contextvars
 from datetime import datetime, timezone
-import fcntl
 import os
 from pathlib import Path
 import re
 import shutil
 import signal
-import stat
 import subprocess
 import tempfile
 import threading
 import time
 
+from runteams_core.foundation import file_locks
 from runteams_core.authoring.creator_contracts import CreatorContractError, canonical, contract, digest, relative, strict_json, tree
 from runteams_core.foundation.content_hashes import sha256 as sha
 from runteams_core.authoring.compilation.creator_build_tools import directory, load
@@ -29,12 +28,7 @@ _slot = threading.BoundedSemaphore(1)
 class LocalBuilds(BuildArtifacts):
 
     def lock(self):
-        fd=os.open(self.root / '.lock',os.O_CREAT|os.O_RDWR|os.O_NOFOLLOW|os.O_NONBLOCK,0o600)
-        try:
-            if not stat.S_ISREG(os.fstat(fd).st_mode):raise ValueError('构建记录无效，请保留源码后重新打开。')
-            fcntl.flock(fd,fcntl.LOCK_EX|fcntl.LOCK_NB)
-            return fd
-        except BaseException:os.close(fd);raise
+        return file_locks.acquire(self.root / '.lock', blocking=False)
 
 
     def read(self, key):
