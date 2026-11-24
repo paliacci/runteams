@@ -44,6 +44,7 @@ jobs:
           python-version: '3.12'
       - run: python -B -m unittest discover -s tests -p test_process_tree.py
       - run: python -B -m unittest discover -s tests -p test_file_locks.py
+      - run: python -B -m unittest discover -s tests -p test_library_first_open.py
       - name: Provision and verify the Windows x64 MCP runtime
         if: runner.os == 'Windows'
         shell: pwsh

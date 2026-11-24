@@ -1,11 +1,12 @@
 """Shared durable backup files, SQLite snapshots and bounded ZIP transport."""
 import hashlib
-import json
 import os
 from pathlib import Path, PureWindowsPath
 import shutil
 import sqlite3
 import zipfile
+
+from runteams_core.foundation.durable_files import publish_json
 
 MAX_ARCHIVE = 512 * 1024 * 1024
 MAX_EXPANDED = 2 * 1024 * 1024 * 1024
@@ -19,18 +20,11 @@ def sync_directory(path):
 
 
 def write_json(path, value):
-    descriptor=os.open(path,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
-    with os.fdopen(descriptor,'w') as handle:
-        json.dump(value,handle,ensure_ascii=False,sort_keys=True)
-        handle.flush();os.fsync(handle.fileno())
+    publish_json(path, value)
 
 
 def replace_json(path, value):
-    import uuid
-    temporary=path.with_name('.pending-'+uuid.uuid4().hex)
-    try:
-        write_json(temporary,value);os.replace(temporary,path);sync_directory(path.parent)
-    finally:temporary.unlink(missing_ok=True)
+    publish_json(path, value, replace=True)
 
 
 def safe_name(name):

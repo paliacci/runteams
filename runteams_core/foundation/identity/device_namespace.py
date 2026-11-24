@@ -5,10 +5,10 @@ No cloud history import, database schema change, directory move, or data deletio
 """
 import hashlib
 import json
-import os
 from pathlib import Path
 import re
 from urllib.parse import urlsplit
+from runteams_core.foundation.durable_files import publish_json
 import uuid
 
 SCHEMA='runteams.device-deployment/v1'
@@ -40,7 +40,7 @@ def _read(path):
     if path.is_symlink():raise ValueError('本机数据身份文件无效。')
     if not path.exists():return None
     if path.stat().st_size>8192:raise ValueError('本机数据身份文件无效。')
-    value=json.loads(path.read_text())
+    value=json.loads(path.read_text(encoding='utf-8'))
     if (set(value)!={'schema','deployment_id','account_id','storage_namespace','storage_service_url'}
             or value['schema']!=SCHEMA or not isinstance(value['account_id'],str) or not value['account_id']
             or not isinstance(value['storage_service_url'],str) or not value['storage_service_url']
@@ -52,15 +52,10 @@ def _read(path):
 
 def _publish(path,record):
     """Publish a complete immutable record; concurrent losers read the winner."""
-    temporary=path.with_name(path.name+'.'+uuid.uuid4().hex)
-    descriptor=os.open(temporary,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
     try:
-        with os.fdopen(descriptor,'w') as handle:
-            json.dump(record,handle,ensure_ascii=False,sort_keys=True)
-            handle.flush();os.fsync(handle.fileno())
-        try:os.link(temporary,path)
-        except FileExistsError:pass
-    finally:temporary.unlink(missing_ok=True)
+        publish_json(path, record)
+    except FileExistsError:
+        pass
     if _read(path)!=record:raise PermissionError('本机数据已绑定其他服务或账户。')
 
 

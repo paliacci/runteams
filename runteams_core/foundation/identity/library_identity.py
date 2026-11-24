@@ -2,6 +2,7 @@
 from pathlib import Path
 import shutil
 import uuid
+from runteams_core.foundation.durable_files import publish_json
 from runteams_core.storage.backups import backup_files as disk
 from runteams_core.storage.local_library import _read, SCHEMA
 
@@ -17,7 +18,7 @@ def identity(root, initial):
     path=root/MARKER
     if not path.exists() and not path.is_symlink():
         if (root/ORIGIN).exists() or (root/ORIGIN).is_symlink():raise ValueError('接续资料库身份缺失，原文件已保留。')
-        try:disk.write_json(path,{'schema':SCHEMA,'library_id':str(uuid.UUID(initial))});disk.sync_directory(root)
+        try:publish_json(path,{'schema':SCHEMA,'library_id':str(uuid.UUID(initial))})
         except FileExistsError:pass
     return _read(path)
 

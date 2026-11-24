@@ -1,11 +1,11 @@
 """Stable local library identity. No account, service URL or cloud fallback."""
 import hashlib
 import json
-import os
 import stat
 from pathlib import Path
 import uuid
 
+from runteams_core.foundation.durable_files import publish_json
 from runteams_core.storage.storage_context import StorageBinding
 
 SCHEMA = 'runteams.local-library/1'
@@ -125,24 +125,10 @@ class LocalLibrary:
         base = private_directory(base)
         marker = base / '.local-library.json'
         if not marker.exists() and not marker.is_symlink():
-            temporary = base / ('.library-' + uuid.uuid4().hex)
-            descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
             try:
-                with os.fdopen(descriptor, 'w') as stream:
-                    json.dump({'schema': SCHEMA, 'library_id': str(uuid.uuid4())}, stream)
-                    stream.flush()
-                    os.fsync(stream.fileno())
-                try:
-                    os.link(temporary, marker)
-                except FileExistsError:
-                    pass
-                directory = os.open(base, os.O_RDONLY)
-                try:
-                    os.fsync(directory)
-                finally:
-                    os.close(directory)
-            finally:
-                temporary.unlink(missing_ok=True)
+                publish_json(marker, {'schema': SCHEMA, 'library_id': str(uuid.uuid4())})
+            except FileExistsError:
+                pass
         library_id = _read(marker)
         scope=scope_for(library_id)
         directory=private_directory(private_directory(base/'libraries')/scope['storage_namespace'])
