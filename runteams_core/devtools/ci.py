@@ -1,11 +1,14 @@
 """The core CI entry: source boundary, deterministic wheel and installed mainline."""
 import argparse
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
 from .build_wheel import ROOT, build
-from .verify_sdist import verify as verify_sdist
+from .community_source import stage
+from .verify_sdist import verify as verify_sdist, verify_rebuilt_wheel
 from .check_source import check
 from .check_repository import check as check_repository
 
@@ -28,6 +31,14 @@ def main():
     wheel = next((output / 'wheels').glob('runteams_core-*.whl'))
     verify_sdist(ROOT, wheel, report['core_build']['source_date_epoch'])
     report['sdist_matches_wheel'] = True
+    with tempfile.TemporaryDirectory(dir=output) as directory:
+        export = Path(directory) / 'source'
+        result = stage(export, ROOT)
+        if result['audit']['source_imports_outside_candidate']:
+            raise ValueError('Community export omits imported source modules')
+        env = dict(os.environ, SOURCE_DATE_EPOCH=str(report['core_build']['source_date_epoch']), PYTHONHASHSEED='0')
+        verify_rebuilt_wheel(export, wheel, Path(directory), env)
+    report['community_export_matches_wheel'] = True
     tests = ROOT / 'tests'
     node_tests = sorted([*tests.rglob('*.test.cjs'), *tests.rglob('*.test.mjs')])
     subprocess.run(['node', '--test', *node_tests], cwd=ROOT, check=True)

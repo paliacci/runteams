@@ -21,12 +21,16 @@ def verify(root, wheel, epoch):
             for name in source.getnames():
                 if {'node_modules', '__pycache__', '.build'} & set(Path(name).parts):
                     raise ValueError(f'Development files in source distribution: {name}')
-        subprocess.run([sys.executable, '-I', '-m', 'pip', 'wheel', '--no-deps',
-                        '--no-build-isolation', '--no-cache-dir', '--wheel-dir', directory,
-                        archive], cwd=output, env=env, check=True)
-        rebuilt = output / wheel.name
-        if hashlib.sha256(wheel.read_bytes()).digest() != hashlib.sha256(rebuilt.read_bytes()).digest():
-            raise ValueError(f'Source distribution produced a different wheel: {wheel.name}')
+        verify_rebuilt_wheel(archive, wheel, output, env)
+
+
+def verify_rebuilt_wheel(source, wheel, output, env):
+    subprocess.run([sys.executable, '-I', '-m', 'pip', 'wheel', '--no-deps',
+                    '--no-build-isolation', '--no-cache-dir', '--wheel-dir', str(output),
+                    str(source)], cwd=output, env=env, check=True)
+    rebuilt = output / wheel.name
+    if hashlib.sha256(wheel.read_bytes()).digest() != hashlib.sha256(rebuilt.read_bytes()).digest():
+        raise ValueError(f'{source.name} produced a different wheel: {wheel.name}')
 
 
 if __name__ == '__main__':
