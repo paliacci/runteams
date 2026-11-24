@@ -7,11 +7,12 @@
 import json
 import os
 import queue
-import signal
 import subprocess
 import threading
 import time
 
+from runteams_core.foundation import process_tree
+from runteams_core.foundation.process_tree import stop as _stop_process
 from runteams_core.agents.adapters.adapter_codex import CodexAdapter
 from runteams_core.agents.models import model_channels
 from runteams_core.agents.adapters.adapter_base import AGENT_AUTHORITY_PROFILES, EXECUTION_INTERNAL_ANALYSIS, validate_execution_profile
@@ -120,23 +121,6 @@ def _is_protocol_item(value):
     return _item_type(value) in ("usermessage", "reasoning", "plan", "contextcompaction")
 
 
-def _stop_process(process):
-    try:
-        if os.name != "nt":
-            os.killpg(os.getpgid(process.pid), signal.SIGTERM)
-        else:
-            process.terminate()
-        process.wait(timeout=1)
-    except Exception:
-        try:
-            if os.name != "nt":
-                os.killpg(os.getpgid(process.pid), signal.SIGKILL)
-            else:
-                process.kill()
-        except Exception:
-            pass
-
-
 def _sandbox_settings(execution_profile, cwd):
     """Translate RunTeams' explicit execution profile to App Server settings."""
     execution_profile = validate_execution_profile(execution_profile)
@@ -188,9 +172,9 @@ def run_turn(channel, thread_id, message, developer_instructions, *, model="", e
     def start_process():
         if before_start is not None:
             before_start()
-        return subprocess.Popen(
+        return process_tree.start(
             argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-            text=True, env=env, cwd=cwd, bufsize=1, start_new_session=(os.name != "nt"))
+            text=True, env=env, cwd=cwd, bufsize=1)
 
     # External session credentials and per-turn employee MCP bridges have their
     # own lifetime; do not keep those processes beyond their original scope.

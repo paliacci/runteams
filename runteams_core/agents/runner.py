@@ -4,19 +4,19 @@
 这是本项目的"壁垒"部分:每一行都是 solo-company 用真实事故换来的可靠性知识。
 它不关心底层是哪家 CLI(那交给 adapter),只负责把一个子进程**干净地跑完或干净地杀掉**:
 
-- start_new_session + 进程组清杀:Agent 派生的后台子进程(孤儿)会被整组杀干净。
+- 托管进程树清理:Agent 派生的后台子进程(孤儿)会被整组杀干净。
   (旧实现只 p.kill() 杀主进程,孤儿继续空转拖满超时=整条线卡死,2026-07-23 事故根因。)
 - 代理剥离:代理会 mangle 流式长连接 = connection closed mid-response 的真凶。
 - stderr 单独抽干:防管道塞满死锁。
 - 超时看门狗:Popen 逐行读没内建 timeout,靠独立线程硬杀。
 """
 import os
-import signal
 import subprocess
 import threading
 import time
 from dataclasses import dataclass, field
 
+from runteams_core.foundation import process_tree
 from runteams_core.agents.environment import cli_compatibility
 from runteams_core.foundation.errors import Cancelled
 from runteams_core.agents.adapters.adapter_base import validate_execution_profile
@@ -66,32 +66,10 @@ def run_agent(adapter, prompt, *, execution_profile, mode="judge", model,
     compatibility = cli_compatibility.check(adapter.name, argv[0], env)
     if not compatibility["compatible"]:
         raise RuntimeError(compatibility["detail"])
-    # start_new_session=True:Agent 及其派生子进程自成进程组，超时可整组杀干净。
     if before_start is not None:
         before_start()
-    p = subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                         text=True, env=env, cwd=cwd, bufsize=1, start_new_session=True)
-    try:
-        pgid = os.getpgid(p.pid)
-    except Exception:
-        pgid = None
-
-    def _killtree():
-        try:
-            if os.name == "nt":
-                # Windows 没有 POSIX 进程组信号；taskkill /T 会连同 CLI 派生进程一起结束。
-                subprocess.run(["taskkill", "/PID", str(p.pid), "/T", "/F"],
-                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
-            elif pgid is not None:
-                os.killpg(pgid, signal.SIGKILL)
-            else:
-                p.kill()
-        except Exception:
-            try:
-                p.kill()
-            except Exception:
-                pass
-
+    p = process_tree.start(argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                         text=True, env=env, cwd=cwd, bufsize=1)
     killed = {"timeout": False, "cancelled": False}
     state_lock = threading.Lock()
 
@@ -100,7 +78,7 @@ def run_agent(adapter, prompt, *, execution_profile, mode="judge", model,
             if killed["cancelled"]:
                 return
             killed["timeout"] = True
-        _killtree()
+        process_tree.stop(p, grace=0)
 
     finished = threading.Event()
     def _watch_timeout():
@@ -159,7 +137,7 @@ def run_agent(adapter, prompt, *, execution_profile, mode="judge", model,
                     if killed["timeout"]:
                         return
                     killed["cancelled"] = True
-                _killtree()
+                process_tree.stop(p, grace=0)
                 return
 
     cancel_watcher = threading.Thread(target=_watch_cancel, daemon=True)
@@ -214,15 +192,13 @@ def run_agent(adapter, prompt, *, execution_profile, mode="judge", model,
         except Exception:
             pass
         finished.set()
-        et.join(timeout=2)
+        # Release inherited pipes held by descendants before joining readers.
         try:
+            process_tree.stop(p, grace=0)
+        finally:
+            et.join(timeout=2)
             p.stdout.close()
             p.stderr.close()
-        except Exception:
-            pass
-        # Agent 已退出，但违规开启的后台孤儿可能还活着；整组补杀一次。
-        if not killed["timeout"] and not killed["cancelled"]:
-            _killtree()
 
     if killed["cancelled"]:
         raise Cancelled(system_text('stopped', language))

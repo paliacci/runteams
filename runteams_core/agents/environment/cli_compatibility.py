@@ -2,6 +2,8 @@
 
 import subprocess
 
+from runteams_core.foundation import process_tree
+
 
 _PROFILES = {
     "codex": {
@@ -29,7 +31,7 @@ _PROFILES = {
 
 
 def _run(argv, env, timeout=8):
-    return subprocess.run(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+    return process_tree.run(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                           text=True, env=env, timeout=timeout)
 
 

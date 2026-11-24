@@ -11,10 +11,10 @@ import json
 import os
 from pathlib import Path
 import queue
-import signal
 import stat
 import subprocess
 import sys
+from runteams_core.foundation import process_tree
 from runteams_core.foundation.resources import root as resource_root
 import threading
 
@@ -145,31 +145,6 @@ def _environment(node, work):
     return env
 
 
-def _signal_work_group(group, action):
-    try:
-        os.killpg(group, action)
-    except ProcessLookupError:
-        return
-    except PermissionError:
-        # Darwin can return EPERM for a group containing only zombies after
-        # the managed leader has exited. A failed signal is NOT proof of exit.
-        # Confirm the actual kernel process states; live/unknown members still
-        # propagate the original error, so pause cannot claim a false stop.
-        try:
-            result = subprocess.run(['/bin/ps','-axo','pgid=,stat='],
-                capture_output=True, timeout=3, env={'PATH':os.defpath,'LC_ALL':'C'})
-            if result.returncode or len(result.stdout)>1024*1024:
-                raise ValueError('unavailable_process_inventory')
-            for line in result.stdout.decode('ascii').splitlines():
-                fields=line.split()
-                if len(fields)!=2 or not fields[0].isdigit() or not fields[1][0].isalpha():
-                    raise ValueError('invalid_process_inventory')
-                if int(fields[0])==group and not fields[1].startswith('Z'):
-                    raise ValueError('live_process_group')
-        except (OSError,ValueError,subprocess.TimeoutExpired):
-            raise PermissionError('mcp_process_group_stop_unconfirmed') from None
-
-
 class EmployeeMCP:
     """One worker per work; close from the existing owner on disable/logout.
 
@@ -259,9 +234,11 @@ class EmployeeMCP:
             if self.bundle.manifest['server']['type']=='node' and 'RUNTEAMS_CONNECTION_HOST' in env:
                 args=['--require',str(Path(__file__).with_name('native_connection_host.cjs')),*args]
             try:
-                self.process = subprocess.Popen([str(node), str(worker)], stdin=subprocess.PIPE,
-                    stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, cwd=self.work_root,
-                    env=env, start_new_session=os.name != 'nt')
+                with self.close_lock:
+                    if self.closed:
+                        raise MCPError('mcp_work_closed')
+                    self.process = process_tree.start([str(node), str(worker)], stdin=subprocess.PIPE,
+                        stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, cwd=self.work_root, env=env)
             except BaseException:
                 self.credential_lease=None;self.environment_stack.close()
                 raise
@@ -425,26 +402,13 @@ class EmployeeMCP:
                     self.cleanup_complete = True
                     return
                 try:
-                    if os.name == 'nt':
-                        subprocess.run(['taskkill', '/PID', str(process.pid), '/T', '/F'],
-                                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=3)
-                    else:
-                        _signal_work_group(process.pid, signal.SIGTERM)
-                    process.wait(timeout=1)
-                except (ProcessLookupError, subprocess.TimeoutExpired):
-                    pass
+                    process_tree.stop(process)
                 finally:
-                    # Still kill descendants if the helper exited before its children.
-                    try:
-                        if os.name != 'nt':
-                            _signal_work_group(process.pid, signal.SIGKILL)
-                        process.wait(timeout=3)
-                    finally:
-                        for stream in (process.stdin, process.stdout):
-                            try:
-                                stream.close()
-                            except OSError:
-                                pass
+                    for stream in (process.stdin, process.stdout):
+                        try:
+                            stream.close()
+                        except OSError:
+                            pass
                 self.cleanup_complete = True
             finally:
                 self.credential_lease=None

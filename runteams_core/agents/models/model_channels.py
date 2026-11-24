@@ -9,12 +9,12 @@ import queue
 import threading
 import time
 import math
-import signal
 import tempfile
 import re
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 
+from runteams_core.foundation import process_tree
 from runteams_core.agents.environment import cli_compatibility, cli_discovery
 from runteams_core.agents.adapters.adapter_claude import ClaudeCodeAdapter, resolve_claude
 from runteams_core.agents.adapters.adapter_codex import CodexAdapter, resolve_codex
@@ -108,7 +108,7 @@ def _probe_env(channel):
 
 
 def _run(argv, env, timeout=8, cwd=None):
-    return subprocess.run(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+    return process_tree.run(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                           text=True, env=env, timeout=timeout, cwd=cwd)
 
 
@@ -121,10 +121,9 @@ def _plan_label(plan):
 
 def _codex_app_server_request(executable, env, method, params=None, timeout=5):
     """调用 Codex 官方 app-server 的单个 JSONL 请求。"""
-    p = subprocess.Popen([executable, "app-server", "--listen", "stdio://"],
+    p = process_tree.start([executable, "app-server", "--listen", "stdio://"],
                          stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-                         text=True, env=env, bufsize=1,
-                         start_new_session=(os.name != "nt"))
+                         text=True, env=env, bufsize=1)
     lines = queue.Queue()
 
     def read_stdout():
@@ -168,18 +167,10 @@ def _codex_app_server_request(executable, env, method, params=None, timeout=5):
         return {}
     finally:
         try:
-            p.terminate()
-            p.wait(timeout=1)
-        except Exception:
-            try:
-                p.kill()
-            except Exception:
-                pass
-        for stream in (p.stdin, p.stdout):
-            try:
-                stream.close()
-            except Exception:
-                pass
+            process_tree.stop(p)
+        finally:
+            p.stdin.close()
+            p.stdout.close()
 
 
 def _codex_account(executable, env, timeout=5):
@@ -297,12 +288,11 @@ def _claude_usage_auth_error(path):
 
 def _claude_cli_usage_query(executable, env, timeout, diagnostic_path):
     """Read the official CLI's get_usage control response without a model turn."""
-    process = subprocess.Popen(
+    process = process_tree.start(
         [executable, "--input-format", "stream-json", "--output-format", "stream-json",
          "--verbose", "--no-session-persistence", "--debug-file", diagnostic_path, "-p"],
         stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-        text=True, env=env, cwd=tempfile.gettempdir(), bufsize=1,
-        start_new_session=(os.name != "nt"))
+        text=True, env=env, cwd=tempfile.gettempdir(), bufsize=1)
     lines = queue.Queue()
 
     def read_stdout():
@@ -356,25 +346,11 @@ def _claude_cli_usage_query(executable, env, timeout, diagnostic_path):
         raise UsageQueryError("cli_exit", "Claude Code 额度查询未完成，请检查 CLI 后重试") from None
     finally:
         try:
-            if process.poll() is None:
-                if os.name != "nt":
-                    os.killpg(process.pid, signal.SIGTERM)
-                else:
-                    process.terminate()
-            process.wait(timeout=1)
-        except (OSError, subprocess.TimeoutExpired):
-            try:
-                if os.name != "nt":
-                    os.killpg(process.pid, signal.SIGKILL)
-                else:
-                    process.kill()
-                process.wait(timeout=1)
-            except (OSError, subprocess.TimeoutExpired):
-                pass
-        reader.join(timeout=0.2)
-        for stream in (process.stdin, process.stdout):
-            if stream:
-                stream.close()
+            process_tree.stop(process)
+        finally:
+            reader.join(timeout=0.2)
+            process.stdin.close()
+            process.stdout.close()
 
 
 def _usage_reset_time(value):
@@ -586,9 +562,9 @@ def _claude_models(channel, timeout=8):
     argv = [executable, "--print", "--input-format", "stream-json",
             "--output-format", "stream-json", "--verbose",
             "--no-session-persistence"]
-    p = subprocess.Popen(argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+    p = process_tree.start(argv, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                          stderr=subprocess.DEVNULL, text=True, env=_probe_env(channel),
-                         bufsize=1, start_new_session=(os.name != "nt"))
+                         bufsize=1)
     lines = queue.Queue()
 
     def read_stdout():
@@ -650,18 +626,10 @@ def _claude_models(channel, timeout=8):
         return models
     finally:
         try:
-            p.terminate()
-            p.wait(timeout=1)
-        except Exception:
-            try:
-                p.kill()
-            except Exception:
-                pass
-        for stream in (p.stdin, p.stdout):
-            try:
-                stream.close()
-            except Exception:
-                pass
+            process_tree.stop(p)
+        finally:
+            p.stdin.close()
+            p.stdout.close()
 
 
 def _fallback_models():

@@ -31,3 +31,15 @@ jobs:
             ${{ runner.temp }}/core-ci/wheels/*.whl
             ${{ runner.temp }}/core-ci/verification.json
             ${{ runner.temp }}/core-ci/sdk-clients/*.json
+  process-tree:
+    strategy:
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -B -m unittest discover -s tests -p test_process_tree.py

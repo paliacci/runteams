@@ -9,7 +9,6 @@ import os
 import plistlib
 import re
 import shutil
-import signal
 import subprocess
 import sys
 import tempfile
@@ -18,6 +17,7 @@ import time
 import uuid
 from pathlib import Path
 
+from runteams_core.foundation import process_tree
 from runteams_core.agents.environment import cli_compatibility
 
 _PROVIDERS = {
@@ -154,19 +154,8 @@ def _command(argv, env, timeout, cwd=None):
     # Private files bound output memory and keep shell startup chatter/CLI logs
     # out of public diagnostics. Kill the whole probe group on timeout.
     with tempfile.TemporaryFile() as output:
-        process = subprocess.Popen(argv, env=env, cwd=cwd, stdin=subprocess.DEVNULL,
-                                   stdout=output, stderr=subprocess.STDOUT,
-                                   start_new_session=(os.name != 'nt'))
-        try:
-            process.wait(timeout=timeout)
-        except subprocess.TimeoutExpired:
-            if os.name != 'nt':
-                try: os.killpg(process.pid, signal.SIGKILL)
-                except ProcessLookupError: pass
-            else:
-                process.kill()
-            process.wait()
-            raise
+        process = process_tree.run(argv, env=env, cwd=cwd, stdin=subprocess.DEVNULL,
+                                   stdout=output, stderr=subprocess.STDOUT, timeout=timeout)
         output.seek(0)
         text = output.read(65536).decode('utf-8', errors='replace')
         return subprocess.CompletedProcess(argv, process.returncode, text, '')
