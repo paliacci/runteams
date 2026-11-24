@@ -13,6 +13,13 @@ function context(){
 }
 (async()=>{
  const local=context();
+ const initial=local.RunTeamsHost.session.headers(local.S);
+ local.S.localLibrary.generation=2;
+ assert.equal(initial['X-RunTeams-Library-Generation'],1);
+ assert.equal(local.RunTeamsHost.session.preloadScope(),'');
+ let call;local.api=(...args)=>{call=args;return {ok:true};};
+ assert.equal((await local.RunTeamsHost.session.workAuthorization('/work',{action:'save'})).ok,true);
+ assert.deepEqual(call,['/work','POST',{action:'save'}]);
  assert.equal(local.normalizeSettingsTab('constructor'),'general');assert.equal(local.normalizeSettingsTab('__proto__'),'general');
  assert.equal(local.normalizeSettingsTab('unregistered'),'general');
  let reads=0,writes=0;

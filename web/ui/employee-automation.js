@@ -83,7 +83,9 @@
  }
  async function readSchedules(s,options){
   const defer=()=>options.background&&scheduleMenuOpen();
-  s.refreshing=true;if(!options.silent){s.loading=true;paint();}
+  s.refreshing=true;
+  if(options.silent)decorateHeader();
+  else{s.loading=true;paint();}
   try{
    if(!RunTeamsWorkState.ready)await RunTeamsWorkState.connect();if(!valid(s))return;
    let t=target();
@@ -147,7 +149,7 @@
   const heading={toolbar:RunTeamsEmployeeDrawerHeader.markup('automation'),intro:empty?'':`<section class="workspace-detail-head detail-drawer-intro">${loading?RunTeamsSkeletons.drawerHeading({description:true}):detailDrawerHeading('自动化',description,'','',{titleKey:'pipelineBoard.automation',descriptionKey})}</section>`};
   const list=s.items.length?`<div class="employee-automation-list" aria-busy="${s.busy}">${s.items.map(item=>row(item,s)).join('')}</div>`:'';
   let content=list;
-  if(s.error){
+  if(s.error&&!loading){
    const noteKey=s.hasRead?(list?'scheduledAutomation.cached':'scheduledAutomation.cachedEmpty'):undefined;
    content=RunTeamsLoadFailure.markup({variant:'local',title:'无法载入自动化',titleKey:'automationList.readFailed',note:noteKey?(list?'正在显示上次载入的计划。':'上次载入时还没有计划。'):'',noteKey,labelKey:'employeeHistory.retry',busyLabelKey:'automationList.loading',retry:'RunTeamsEmployeeAutomation.refresh()'})+list;
   }else if(loading)content=RunTeamsSkeletons.region('employee-automations',3,'automationList.loading');
