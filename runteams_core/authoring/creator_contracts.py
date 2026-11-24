@@ -5,6 +5,7 @@ import hashlib
 import json
 import math
 import os
+from runteams_core.foundation import regular_files
 from pathlib import Path
 import re
 import stat
@@ -108,12 +109,13 @@ def source_files(value):
 
 def read_folder(folder):
     root = Path(folder)
-    if root.is_symlink() or not root.is_dir():
+    if not root.is_dir() or regular_files.is_link(root.lstat()):
         raise CreatorContractError('invalid_root')
     files,total = {},0
     for path in sorted(root.rglob('*')):
-        mode = path.lstat().st_mode
-        if stat.S_ISLNK(mode):
+        info = path.lstat()
+        mode = info.st_mode
+        if regular_files.is_link(info):
             raise CreatorContractError('invalid_path')
         if stat.S_ISDIR(mode):
             continue
@@ -121,7 +123,7 @@ def read_folder(folder):
             raise CreatorContractError('invalid_path')
         if len(files) >= MAX_FILES or path.stat().st_size > MAX_BYTES-total:
             raise CreatorContractError('asset_limit')
-        fd=os.open(path,os.O_RDONLY|os.O_NOFOLLOW|os.O_NONBLOCK)
+        fd=regular_files.open_readonly(path)
         with os.fdopen(fd,'rb') as stream:
             info=os.fstat(stream.fileno())
             if not stat.S_ISREG(info.st_mode) or info.st_nlink!=1:

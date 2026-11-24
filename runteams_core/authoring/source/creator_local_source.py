@@ -8,6 +8,7 @@ from contextlib import contextmanager
 import errno
 import hashlib
 import os
+from runteams_core.foundation import regular_files
 from pathlib import Path
 import re
 import shutil
@@ -30,7 +31,7 @@ def _hash(value):
 
 def _read(path, limit):
     for _ in range(3):
-        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        fd = regular_files.open_readonly(path)
         with os.fdopen(fd, 'rb') as stream:
             info = os.fstat(stream.fileno())
             # Atomic status replacement may unlink the descriptor between open

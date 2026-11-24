@@ -24,7 +24,7 @@ def make(key,name,libraries):
         'skills/worker/runteams.json':canonical({'schema':'runteams.package-extension/v3','display_name':name,'work':work,'tools':[],'execution':{}}),
         'skills/worker/mcp/manifest.json':canonical({'manifest_version':'0.3','name':key,'display_name':name,'version':'1.0.0',
             'description':'Editable local employee program','author':{'name':'Creator'},'server':{'type':'node','entry_point':'server.cjs'},
-            'compatibility':{'platforms':['darwin'],'architectures':['arm64']}}),
+            'compatibility':{'platforms':['darwin','win32'],'architectures':['arm64','x86_64']}}),
         'skills/worker/mcp/server.cjs':b'''const {McpServer,StdioServerTransport,registerAppTool,registerAppResource,z}=require('./vendor/server.cjs');
 const fs=require('node:fs'),path=require('node:path');
 const server=new McpServer({name:'employee-local-tools',version:'1.0.0'});

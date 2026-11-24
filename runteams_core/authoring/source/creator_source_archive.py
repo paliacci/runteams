@@ -3,6 +3,7 @@ from contextlib import contextmanager
 import hashlib
 import io
 import os
+from runteams_core.foundation import regular_files
 from pathlib import Path
 import stat
 import zipfile
@@ -109,7 +110,7 @@ def display_files(path, source):
         raise CreatorContractError('archive_integrity')
     expected = {item['path']: item for item in entries}
     try:
-        with os.fdopen(os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK), 'rb') as stream:
+        with os.fdopen(regular_files.open_readonly(path), 'rb') as stream:
             info = os.fstat(stream.fileno())
             if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or info.st_size > MAX_BYTES + 1024 * 1024:
                 raise CreatorContractError('invalid_archive')
