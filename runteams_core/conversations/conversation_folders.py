@@ -211,8 +211,9 @@ def snapshot(source, destination, scope, check):
             if root.is_symlink() or any(p.is_symlink() for p in root.rglob('*')):
                 raise ValueError('工作文件夹记录不能包含符号链接。')
             check()
-            with _lease(root):
-                shutil.copytree(root, Path(destination) / 'conversation-folders')
+            with file_locks.held(root / '.lock'):
+                shutil.copytree(root, Path(destination) / 'conversation-folders',
+                                ignore=shutil.ignore_patterns('.lock'))
             from runteams_core.storage.backups.library_backup import folders
             folders(Path(destination),source_root=Path(source))
             check()
