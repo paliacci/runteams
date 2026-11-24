@@ -5,6 +5,7 @@ from pathlib import Path
 import subprocess
 import sys
 from .build_wheel import ROOT, build
+from .verify_sdist import verify as verify_sdist
 from .check_source import check
 from .check_repository import check as check_repository
 
@@ -25,6 +26,10 @@ def main():
     interpreter = output / 'environment' / ('Scripts/python.exe' if sys.platform == 'win32' else 'bin/python')
     subprocess.run([sys.executable, '-m', 'venv', str(output / 'environment')], check=True)
     wheel = next((output / 'wheels').glob('runteams_core-*.whl'))
+    verify_sdist(ROOT, wheel, report['core_build']['source_date_epoch'])
+    report['sdist_matches_wheel'] = True
+    subprocess.run(['node', '--test', *sorted((ROOT / 'tests/community').glob('*.test.mjs'))],
+                   cwd=ROOT, check=True)
     from .check_ui_boundary import check_wheel
     report['wheel_ui_boundary'] = check_wheel(wheel)
     subprocess.run([sys.executable, '-B', '-m', 'unittest', 'discover', '-s',

@@ -1607,14 +1607,19 @@ async function api(path, method, body, options={}){
 }
 async function streamApi(path,body,onEvent){
   const generation=typeof _workspaceBusinessGeneration==='undefined'?null:_workspaceBusinessGeneration,owner=typeof workspaceAccountCacheToken==='function'?workspaceAccountCacheToken():null;
+  const current=()=>owner!==null&&owner===workspaceAccountCacheToken()&&generation===(typeof _workspaceBusinessGeneration==='undefined'?null:_workspaceBusinessGeneration);
   let accepted=false;
-  const deliver=event=>{if(event.type==='accepted')accepted=true;onEvent(event);};
+  const deliver=event=>{
+    if(event.type==='accepted')accepted=true;
+    if(event.type==='result'&&Array.isArray(event.device_page_ids)&&current())deviceChatRemember(event);
+    onEvent(event);
+  };
   try{
     const provider=RunTeamsHost.lifecycle;
     return await provider.stream(path,body,deliver);
   }catch(error){
-    const chat=path.match(/^\/api\/chat\/([1-9][0-9]*)\/stream$/)?.[1],current=owner!==null&&owner===workspaceAccountCacheToken()&&generation===(typeof _workspaceBusinessGeneration==='undefined'?null:_workspaceBusinessGeneration);
-    if(current&&chat&&!accepted&&error.status===422&&error.message_persisted!==true&&error.agent_started!==true&&['employee_configuration_required','employee_configuration_invalid'].includes(error.code)&&error.fields&&typeof error.fields==='object'&&!Array.isArray(error.fields))
+    const chat=path.match(/^\/api\/chat\/([1-9][0-9]*)\/stream$/)?.[1];
+    if(current()&&chat&&!accepted&&error.status===422&&error.message_persisted!==true&&error.agent_started!==true&&['employee_configuration_required','employee_configuration_invalid'].includes(error.code)&&error.fields&&typeof error.fields==='object'&&!Array.isArray(error.fields))
       try{error.configurationRequired=(await globalThis.RunTeamsEmployeeConfiguration?.required(error,chat))===true;}catch{}
     throw error;
   }

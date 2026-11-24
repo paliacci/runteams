@@ -163,6 +163,12 @@
       "module": "runteams_core.devtools.verify_install",
       "command": true,
       "description": "Verify the installed community mainline in a fresh, disposable local library."
+    },
+    {
+      "path": "runteams_core/devtools/verify_sdist.py",
+      "module": "runteams_core.devtools.verify_sdist",
+      "command": true,
+      "description": "Rebuild a wheel from the source distribution and compare it to the checkout build."
     }
   ]
 }
