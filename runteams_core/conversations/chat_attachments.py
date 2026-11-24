@@ -806,14 +806,9 @@ def reveal_file(chat_id, attachment_id):
         raise ValueError("请选择文件附件。")
     if not os.path.isfile(path):
         raise ValueError("附件文件已移动或不存在。")
-    if sys.platform == "darwin":
-        command = ["/usr/bin/open", "-R", path]
-    elif sys.platform == "win32":
-        command = ["explorer", "/select,", path]
-    else:
-        command = ["xdg-open", os.path.dirname(path)]
+    from runteams_core.foundation import file_manager
     try:
-        subprocess.run(command, check=True, capture_output=True, timeout=10)
+        file_manager.reveal(path)
     except (OSError, subprocess.SubprocessError) as exc:
         raise ValueError("无法在文件管理器中定位附件。") from exc
     return {"revealed": True}

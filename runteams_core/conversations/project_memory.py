@@ -228,23 +228,9 @@ class MemoryStore:
             lock_path = root/'.lock'
             if lock_path.is_symlink() or lock_path.exists() and not lock_path.is_file():
                 raise MemoryError('项目记忆锁文件无效。')
-            fd = os.open(lock_path, os.O_RDWR | os.O_CREAT | getattr(os, 'O_NOFOLLOW', 0), 0o600)
-            locked = False
-            try:
-                if os.name == 'nt':
-                    import msvcrt
-                    if not os.fstat(fd).st_size:os.write(fd, b'0')
-                    os.lseek(fd, 0, os.SEEK_SET);msvcrt.locking(fd, msvcrt.LK_LOCK, 1)
-                else:
-                    import fcntl
-                    fcntl.flock(fd, fcntl.LOCK_EX)
-                locked = True
+            from runteams_core.foundation import file_locks
+            with file_locks.held(lock_path):
                 yield root
-            finally:
-                if locked and os.name == 'nt':
-                    os.lseek(fd, 0, os.SEEK_SET);msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
-                elif locked:fcntl.flock(fd, fcntl.LOCK_UN)
-                os.close(fd)
 
     def change(self, arguments, source):
         _source(source)

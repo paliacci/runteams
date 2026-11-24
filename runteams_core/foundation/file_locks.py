@@ -1,23 +1,25 @@
-"""Exclusive locks on dedicated files, held until the returned descriptor closes."""
+"""File locks held until the returned descriptor closes."""
+from contextlib import contextmanager
 import errno
 import os
 import stat
 import time
 
 
-def _open_windows_lock(path, blocking):
+def _open_windows_lock(path, blocking, readonly):
     import _winapi
     import msvcrt
 
     # A synchronous handle with no sharing excludes other owners even when
     # the file is empty. Crashes release it without a separate cleanup step.
-    open_always = 4
+    access = _winapi.GENERIC_READ if readonly else _winapi.GENERIC_READ | _winapi.GENERIC_WRITE
+    share = 1 if readonly else 0  # FILE_SHARE_READ
+    disposition = 3 if readonly else 4  # OPEN_EXISTING / OPEN_ALWAYS
     open_reparse_point = 0x00200000
     while True:
         try:
             handle = _winapi.CreateFile(
-                os.fsdecode(path), _winapi.GENERIC_READ | _winapi.GENERIC_WRITE,
-                0, _winapi.NULL, open_always, open_reparse_point, _winapi.NULL,
+                os.fsdecode(path), access, share, 0, disposition, open_reparse_point, 0,
             )
             break
         except OSError as exc:
@@ -33,12 +35,12 @@ def _open_windows_lock(path, blocking):
         raise
 
 
-def acquire(path, *, blocking=True):
-    """Open or create a regular lock file and take exclusive ownership."""
+def acquire(path, *, blocking=True, readonly=False):
+    """Writers create the lock file. Readers share an existing regular file."""
     if os.name == 'nt':
-        fd = _open_windows_lock(path, blocking)
+        fd = _open_windows_lock(path, blocking, readonly)
     else:
-        flags = os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK
+        flags = (os.O_RDONLY if readonly else os.O_RDWR | os.O_CREAT) | os.O_NOFOLLOW | os.O_NONBLOCK
         fd = os.open(path, flags, 0o600)
     try:
         info = os.fstat(fd)
@@ -47,8 +49,18 @@ def acquire(path, *, blocking=True):
             raise ValueError('锁文件无效。')
         if os.name != 'nt':
             import fcntl
-            fcntl.flock(fd, fcntl.LOCK_EX if blocking else fcntl.LOCK_EX | fcntl.LOCK_NB)
+            mode = fcntl.LOCK_SH if readonly else fcntl.LOCK_EX
+            fcntl.flock(fd, mode if blocking else mode | fcntl.LOCK_NB)
         return fd
     except BaseException:
         os.close(fd)
         raise
+
+
+@contextmanager
+def held(path, *, readonly=False):
+    descriptor = acquire(path, readonly=readonly)
+    try:
+        yield
+    finally:
+        os.close(descriptor)

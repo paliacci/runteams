@@ -4,6 +4,8 @@ Actual verification/execution happens in agent_python, invoked through the
 official CLI's terminal and therefore subject to its existing execution policy.
 """
 from contextlib import contextmanager
+from runteams_core.foundation import file_locks
+from runteams_core.foundation.durable_files import publish_json
 from copy import deepcopy
 import hashlib
 import json
@@ -120,7 +122,6 @@ class BindingStore:
 
     @contextmanager
     def locked(self, readonly=False):
-        import fcntl
         if not readonly:
             _directory(self.root)
         lock = self.root / (self.key + '.lock')
@@ -128,14 +129,8 @@ class BindingStore:
             # Restored records do not carry ephemeral lock files. Atomic JSON
             # reads plus a read-only claim lock need no metadata creation.
             lock = self.claim
-        descriptor = os.open(lock,
-            (os.O_RDONLY if readonly else os.O_CREAT | os.O_RDWR) | os.O_NOFOLLOW, 0o600)
-        try:
-            fcntl.flock(descriptor, fcntl.LOCK_SH if readonly else fcntl.LOCK_EX)
+        with file_locks.held(lock, readonly=readonly):
             yield
-        finally:
-            fcntl.flock(descriptor, fcntl.LOCK_UN)
-            os.close(descriptor)
 
     def load(self):
         if (self.claim.is_symlink() or not self.claim.is_file() or self.claim.stat().st_size != 64
@@ -144,7 +139,7 @@ class BindingStore:
         if self.path.is_symlink() or not self.path.is_file() or self.path.stat().st_size > 2 * 1024 * 1024:
             raise EnvironmentError('原工作环境记录缺失或损坏，不能自动重选。')
         try:
-            value = json.loads(self.path.read_text())
+            value = json.loads(self.path.read_text(encoding='utf-8'))
             contract = value['contract']
             if (value['schema'] != SCHEMA or contract['work_key'] != self.key
                     or digest(contract) != value['binding_id']):
@@ -154,15 +149,7 @@ class BindingStore:
             raise EnvironmentError('原工作环境记录损坏，不能自动重选。') from None
 
     def save(self, value):
-        tmp = self.path.with_name(self.path.name + '.' + uuid.uuid4().hex)
-        descriptor = os.open(tmp, os.O_CREAT | os.O_EXCL | os.O_WRONLY | os.O_NOFOLLOW, 0o600)
-        try:
-            with os.fdopen(descriptor, 'w') as stream:
-                json.dump(value, stream, ensure_ascii=False, sort_keys=True)
-                stream.flush(); os.fsync(stream.fileno())
-            os.replace(tmp, self.path)
-        finally:
-            tmp.unlink(missing_ok=True)
+        publish_json(self.path, value, replace=True)
 
     def _new(self, cwd, source=None, previous=None, reason='initial_selection', executable=None):
         discovered = agent_environment.describe(cwd)
@@ -200,7 +187,7 @@ class BindingStore:
                 if self.claim.exists() or self.claim.is_symlink():
                     raise EnvironmentError('原工作环境记录已丢失，不能自动重选。')
                 record = self._new(cwd)
-                descriptor = os.open(self.claim, os.O_CREAT | os.O_EXCL | os.O_WRONLY | os.O_NOFOLLOW, 0o600)
+                descriptor = os.open(self.claim, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
                 with os.fdopen(descriptor, 'w') as stream:
                     stream.write(self.key); stream.flush(); os.fsync(stream.fileno())
                 self.save(record)

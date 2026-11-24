@@ -8,6 +8,8 @@ import subprocess
 import threading
 import uuid
 
+from runteams_core.foundation import file_locks
+from runteams_core.foundation.durable_files import publish_json
 from runteams_core.storage import device_data
 
 _lock = threading.RLock()
@@ -40,18 +42,6 @@ def context_key(item):
 
 
 @contextmanager
-def _lease(root):
-    import fcntl
-    descriptor = os.open(root / '.lock', os.O_CREAT | os.O_RDWR | os.O_NOFOLLOW, 0o600)
-    try:
-        fcntl.flock(descriptor, fcntl.LOCK_EX)
-        yield
-    finally:
-        fcntl.flock(descriptor, fcntl.LOCK_UN)
-        os.close(descriptor)
-
-
-@contextmanager
 def records(expected=None):
     scope = device_data.identity()
     if expected is not None:
@@ -60,26 +50,18 @@ def records(expected=None):
     root.mkdir(mode=0o700, exist_ok=True)
     if root.is_symlink():
         raise ValueError('工作文件夹记录目录无效。')
-    with _lock, _lease(root):
+    with _lock, file_locks.held(root / '.lock'):
         path = root / 'folders.json'
         if path.is_symlink():
             raise ValueError('工作文件夹记录无效。')
-        value = json.loads(path.read_text()) if path.exists() else {'defaults': {}, 'chats': {}}
+        value = json.loads(path.read_text(encoding='utf-8')) if path.exists() else {'defaults': {}, 'chats': {}}
         if not isinstance(value, dict) or set(value) != {'defaults', 'chats'} or any(not isinstance(value[k], dict) for k in value):
             raise ValueError('工作文件夹记录无效，请核对本机数据。')
         before = json.dumps(value, sort_keys=True)
         yield value
         device_data.check(scope)
         if json.dumps(value, sort_keys=True) != before:
-            temp = root / (uuid.uuid4().hex + '.tmp')
-            try:
-                with temp.open('x') as stream:
-                    os.chmod(temp, 0o600)
-                    json.dump(value, stream, ensure_ascii=False)
-                    stream.flush();os.fsync(stream.fileno())
-                os.replace(temp, path)
-            finally:
-                temp.unlink(missing_ok=True)
+            publish_json(path, value, replace=True)
 
 
 def original(item):
@@ -197,16 +179,11 @@ def open_folder(chat_id, selection_id, *, expected=None):
             raise ValueError('工作文件夹已变化或不可用，请重新读取。')
         path = choice['path']
     device_data.check(scope)
-    import sys
-    if sys.platform == 'darwin':
-        result = subprocess.run(['open', path], capture_output=True, timeout=10)
-    elif sys.platform == 'win32':
-        os.startfile(path)
-        return {'opened': True}
-    else:
-        result = subprocess.run(['xdg-open', path], capture_output=True, timeout=10)
-    if result.returncode:
-        raise ValueError('工作文件夹未能打开，请重试。')
+    from runteams_core.foundation import file_manager
+    try:
+        file_manager.open_path(path)
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise ValueError('工作文件夹未能打开，请重试。') from exc
     return {'opened': True}
 
 

@@ -7946,7 +7946,7 @@ function markdownLinkTarget(value,replyFiles=false){
     const file=url.protocol==='file:'&&(!url.hostname||url.hostname==='localhost');
     if(!file&&(url.origin!==location.origin||!['http:','https:'].includes(url.protocol)))return null;
     const path=decodeURIComponent(url.pathname);
-    if(file||/^\/(?:Users|Volumes|private|tmp|var|home|mnt|media|opt|etc|usr|Library|Applications|System)\//.test(path)){
+    if(file||/^\/(?:[A-Za-z]:|Users|Volumes|private|tmp|var|home|mnt|media|opt|etc|usr|Library|Applications|System)\//.test(path)){
       if(url.search||path.includes('\u0000'))return null;
       return {kind:'file',path,href:path.split('/').map(encodeURIComponent).join('/')};
     }

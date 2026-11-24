@@ -51,6 +51,22 @@ class FileLockTests(unittest.TestCase):
             os.close(acquire(path, blocking=False))
             self.assertEqual(path.read_bytes(), b'')
 
+    def test_readers_share_existing_record_and_exclude_writers(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / '旧资料.lock'
+            with self.assertRaises(FileNotFoundError):
+                acquire(path, readonly=True)
+            path.write_text('legacy', encoding='utf-8')
+            reader = acquire(path, readonly=True)
+            try:
+                os.close(acquire(path, readonly=True, blocking=False))
+                with self.assertRaises(BlockingIOError):
+                    acquire(path, blocking=False)
+                self.assertEqual(path.read_text(encoding='utf-8'), 'legacy')
+            finally:
+                os.close(reader)
+            os.close(acquire(path, blocking=False))
+
     def test_reject_hard_link(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'data'

@@ -343,8 +343,7 @@ def _viewer_directory():
 def open_original(bank, source, bundled):
     """Preview readable content in the drawer's overlay, or open the verified file locally."""
     from runteams_core.conversations.chat_attachments import MAX_FILE_BYTES
-    import subprocess
-    import sys
+    from runteams_core.foundation import file_manager
 
     image_types = {'.png':'image/png', '.jpg':'image/jpeg', '.jpeg':'image/jpeg',
                    '.webp':'image/webp', '.gif':'image/gif'}
@@ -367,11 +366,7 @@ def open_original(bank, source, bundled):
         directory.mkdir(mode=0o700, exist_ok=True)
         path = _write_original(stream, name, size, sha, directory)['path']
     os.chmod(path, 0o400)
-    if sys.platform == 'win32':
-        os.startfile(path)
-    else:
-        opener = 'open' if sys.platform == 'darwin' else 'xdg-open'
-        subprocess.run([opener, path], check=True, timeout=15, capture_output=True)
+    file_manager.open_path(path)
     return {'kind':'opened'}
 
 

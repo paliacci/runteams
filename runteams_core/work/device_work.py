@@ -134,26 +134,15 @@ class _WorkLock:
             _directory(path.parent)
             if path.is_symlink():
                 raise ContractError('本机工作锁路径无效。')
-            fd = os.open(path, os.O_RDWR | os.O_CREAT, 0o600)
-            with os.fdopen(fd, 'a+b') as handle:
-                if os.name == 'nt':
-                    import msvcrt
-                    if path.stat().st_size == 0:
-                        handle.write(b'0'); handle.flush()
-                    handle.seek(0)
-                    msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
-                else:
-                    import fcntl
-                    fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+            from runteams_core.foundation import file_locks
+            with file_locks.held(path):
                 self.local.depth = 1
                 try:
                     yield
                     storage.check_scope()
                 finally:
                     self.local.depth = 0
-                    if os.name == 'nt':
-                        handle.seek(0)
-                        msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+
 
 
 class DeviceWorkStorage:
