@@ -106,3 +106,15 @@ class CapabilityMenuTests(unittest.TestCase):
                 item = {**row, "version": version}
                 capabilities._tools_cli_plugin_labels(channel, [item])
                 self.assertEqual(item.get("displayName"), label)
+
+    def test_installed_view_uses_native_installed_method_and_scoped_cli_fallback(self):
+        channel = {"provider": "codex"}
+        with patch.object(capabilities.model_channels, "_codex_app_server_request",
+                          return_value={"marketplaces": []}) as rpc:
+            data, _ = capabilities._read_plugin_json(channel, "codex", {}, installed_only=True)
+            rpc.assert_called_once_with("codex", {}, "plugin/installed", {}, timeout=8)
+            self.assertEqual(data["_read_state"], "ready")
+        with patch.object(capabilities.model_channels, "_codex_app_server_request", return_value={}), \
+             patch.object(capabilities, "_run_json", return_value=([], None)) as cli:
+            capabilities._read_plugin_json(channel, "codex", {}, installed_only=True)
+            cli.assert_called_once_with(["codex", "plugin", "list", "--json"], {}, 15)

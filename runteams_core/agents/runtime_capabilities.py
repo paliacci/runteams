@@ -86,7 +86,7 @@ def _run_json(argv, env, timeout=12, cwd=None):
         return None, None
 
 
-def _read_plugin_json(channel, executable, env, timeout=15, cwd=None, *, force_refetch=False):
+def _read_plugin_json(channel, executable, env, timeout=15, cwd=None, *, force_refetch=False, installed_only=False):
     """Read the official catalog, optionally fetching fresh remote data.
 
     The app-server result remains the authority for installed/enabled state.
@@ -94,13 +94,16 @@ def _read_plugin_json(channel, executable, env, timeout=15, cwd=None, *, force_r
     This does not invoke install/enable commands or change channel settings.
     """
     argv = [executable] + list(model_channels.provider_info(channel.get("provider"))["plugin_list_args"])
+    if installed_only:
+        argv.remove("--available")
     if channel.get("provider") == "codex":
         try:
-            params = {"forceRefetch": force_refetch}
+            method = "plugin/installed" if installed_only else "plugin/list"
+            params = {} if installed_only else {"forceRefetch": force_refetch}
             if cwd:
                 params["cwds"] = [os.path.realpath(cwd)]
             value = model_channels._codex_app_server_request(
-                executable, env, "plugin/list", params, timeout=min(8, timeout))
+                executable, env, method, params, timeout=min(8, timeout))
             if not isinstance(value, dict) or not isinstance(value.get("marketplaces"), list) or not isinstance(value.get("marketplaceLoadErrors", []), list):
                 raise ValueError("Invalid plugin catalog")
             installed, available = [], []
@@ -168,7 +171,7 @@ def _tools_cli_plugin_labels(channel, data):
                 row["displayName"] = label.strip()
 
 
-def _read_tools_plugin_json(channel, executable, env, timeout, cwd, refresh, previous):
+def _read_tools_plugin_json(channel, executable, env, timeout, cwd, refresh, previous, *, installed_only=False):
     expected = {row["marketplace"] for row in (previous or {}).get("plugins", []) if row.get("marketplace")}
 
     def reported_markets(data):
@@ -177,10 +180,11 @@ def _read_tools_plugin_json(channel, executable, env, timeout, cwd, refresh, pre
         return {row.get("marketplaceName") or row.get("marketplace")
                 for row in _plugin_items(data) if isinstance(row, dict)}
 
-    data, result = _read_plugin_json(channel, executable, env, timeout, cwd, force_refetch=refresh)
+    options = {"installed_only": True} if installed_only else {}
+    data, result = _read_plugin_json(channel, executable, env, timeout, cwd, force_refetch=refresh, **options)
     if expected and not expected.issubset(reported_markets(data)):
         # Confirm a whole missing source once. CLI fallback can omit remote markets.
-        data, result = _read_plugin_json(channel, executable, env, timeout, cwd, force_refetch=True)
+        data, result = _read_plugin_json(channel, executable, env, timeout, cwd, force_refetch=True, **options)
         if data is not None and not expected.issubset(reported_markets(data)):
             if isinstance(data, list):
                 data = {"installed": data}
@@ -1084,7 +1088,7 @@ def _diagnostics(data):
     return result
 
 
-def inventory(channel, refresh=False, workspace_root="", status_only=False, *, menu_only=False, tools_only=False):
+def inventory(channel, refresh=False, workspace_root="", status_only=False, *, menu_only=False, tools_only=False, installed_only=False):
     """返回脱敏、可序列化的 Channel 能力清单。"""
     base = {"schema_version": SCHEMA_VERSION, "provider": channel.get("provider"),
             "checked_at": int(time.time()), "status": "missing", "runtime": {},
@@ -1106,7 +1110,8 @@ def inventory(channel, refresh=False, workspace_root="", status_only=False, *, m
                       if str(workspace_root or "").strip() else "")
     workspace_root = workspace_root if os.path.isdir(workspace_root) else ""
     profile = _cache_key(channel, executable, workspace_root)
-    key = profile + ("tools" if tools_only else "menu" if menu_only else status_only,)
+    tools_only = tools_only or installed_only
+    key = profile + ("installed" if installed_only else "tools" if tools_only else "menu" if menu_only else status_only,)
     with _CACHE_LOCK:
         cached = _CACHE.get(key)
         previous = cached[1] if cached and tools_only else None
@@ -1146,9 +1151,10 @@ def inventory(channel, refresh=False, workspace_root="", status_only=False, *, m
             data, result = channel_json(args, timeout)
         elif tools_only and channel.get("provider") == "codex":
             data, result = _read_tools_plugin_json(channel, executable, env, timeout,
-                                                   workspace_root or None, refresh, previous)
+                                                   workspace_root or None, refresh, previous, installed_only=installed_only)
         else:
-            data, result = _read_plugin_json(channel, executable, env, timeout, workspace_root or None)
+            options = {"installed_only": True} if installed_only else {}
+            data, result = _read_plugin_json(channel, executable, env, timeout, workspace_root or None, **options)
         valid = (isinstance(data, list) or isinstance(data, dict) and
                  any(field in data for field in (("installed", "plugins", "available") if key == "plugins" else ("servers",))))
         if result is not None and result.returncode != 0:
@@ -1170,7 +1176,9 @@ def inventory(channel, refresh=False, workspace_root="", status_only=False, *, m
             plugin_data = plugin_read.result()
             mcp_data = mcp_read.result()
             doctor_data = doctor_read.result()[0] if doctor_read else None
-    base["plugins"], base["available_plugins"] = (_plugins(plugin_data) if codex else _plugins_with_official_catalog(channel, plugin_data))
+    if installed_only and isinstance(plugin_data, dict):
+        plugin_data = {**plugin_data, "available": []}
+    base["plugins"], base["available_plugins"] = (_plugins(plugin_data) if codex or installed_only else _plugins_with_official_catalog(channel, plugin_data))
     try:
         base["skills"] = _skills(channel, plugin_data, workspace_root)
         base["read_states"]["skills"] = ("partial" if base["read_states"]["plugins"] != "ready" or any(item.get("error") for item in base["skills"]) else "ready")
@@ -1302,15 +1310,17 @@ def _status_rank(value):
     return {"blocked": 3, "warning": 2, "ready": 1}.get(value, 0)
 
 
-def environment_summary(channels, refresh=False, workspace_root="", status_only=False, *, menu_only=False, tools_only=False):
+def environment_summary(channels, refresh=False, workspace_root="", status_only=False, *, menu_only=False, tools_only=False, installed_only=False):
     """Aggregate channel-owned assets without reading employee-domain records."""
     channels = list(channels or [])
     found = {}
     if channels:
         with ThreadPoolExecutor(max_workers=min(4, len(channels))) as pool:
             options = {"menu_only": True} if menu_only else ({"status_only": True} if status_only else {})
-            if tools_only:
+            if tools_only or installed_only:
                 options["tools_only"] = True
+            if installed_only:
+                options["installed_only"] = True
             jobs = {pool.submit(inventory, channel, refresh, workspace_root, **options): channel for channel in channels}
             for job in as_completed(jobs):
                 channel = jobs[job]

@@ -260,7 +260,7 @@
    if(includeModels&&!models)return null;
    return {channels:state.channels,providers:state.providerCatalog,catalog:models};
   }
-  async function extensions(force,{settings=false}={}){
+  async function extensions(force,{settings=false,catalog=false}={}){
    if(force)firstCapabilityPage=null;
    const context=contextSignature(state,getScope());
    for(let attempt=0;attempt<2;attempt++){
@@ -272,7 +272,7 @@
     }
     const select=settings?extensionCandidates:connectedIds;
     const params=new URLSearchParams({channel_ids:select(state).join(',')});
-    if(settings)params.set('view','tools');
+    if(settings)params.set('view',catalog?'tools':'tools-installed');
     if(force)params.set('refresh','1');
     const value=await read('extensions',query('/api/environment',params),{},select);
     if(context!==contextSignature(state,getScope()))return null;
