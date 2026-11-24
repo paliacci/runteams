@@ -56,6 +56,9 @@ def main():
                     str(ROOT / 'tests'), '-p', 'test_library_settings.py'], cwd=output, check=True)
     report['library_settings_transactions'] = True
     subprocess.run([str(interpreter), '-I', '-B', '-m', 'unittest', 'discover', '-s',
+                    str(ROOT / 'tests'), '-p', 'test_work_ui_state.py'], cwd=output, check=True)
+    report['work_ui_state_recovery'] = True
+    subprocess.run([str(interpreter), '-I', '-B', '-m', 'unittest', 'discover', '-s',
                     str(ROOT / 'tests'), '-p', 'test_local_storage_read_failures.py'], cwd=output, check=True)
     report['local_storage_read_failures'] = True
     subprocess.run([str(interpreter), '-I', '-B', '-m', 'unittest', 'discover', '-s',
