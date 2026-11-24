@@ -29,6 +29,7 @@ def main():
     subprocess.run([sys.executable, '-B', '-m', 'unittest', 'discover', '-s',
                     str(ROOT / 'tests'), '-p', 'test_ui_boundary.py'], cwd=ROOT, check=True)
     subprocess.run(['node', str(ROOT / 'tests/ui_host_ports.test.cjs')], cwd=ROOT, check=True)
+    subprocess.run(['node', str(ROOT / 'tests/shared_empty_states.test.cjs')], cwd=ROOT, check=True)
     subprocess.run(['node', str(ROOT / 'tests/configuration_form.test.cjs')], cwd=ROOT, check=True)
     subprocess.run(['node', str(ROOT / 'tests/pipeline_task_configuration.test.cjs')], cwd=ROOT, check=True)
     report['ui_host_contract_tests'] = True

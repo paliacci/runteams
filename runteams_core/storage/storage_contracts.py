@@ -1,7 +1,6 @@
 """Transport-independent storage errors and row values shared by local/native ports."""
 from runteams_core.foundation.contracts import ContractError
 
-FILE_PREFIX = 'supabase-file://sha256/'
 CHUNK_SIZE = 1024 * 1024
 
 class BusinessCloudError(ContractError):

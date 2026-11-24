@@ -13,7 +13,7 @@ function messageMarkup(value){
 }
 const fieldErrorMarkup=value=>RunTeamsConfigurationFields.errorMarkup(value);
 const scope=()=>workspaceAccountCacheToken();
-const deviceScope=()=>S.localLibrary?.cache_scope||RunTeamsHost.session.deviceScope(S);
+const deviceScope=()=>RunTeamsHost.employeeConfiguration.scope(S);
 const owned=s=>s&&s.scope===scope()&&s.deviceScope===deviceScope()&&sessions.get(s.cacheKey)===s&&(!s.entry.chat_id||workTarget()?.key===s.entry.key);
 const inlineGroup=()=>S.sel&&inlineGroups.get(S.sel);
 function current(node){
@@ -86,19 +86,17 @@ async function request(s,method='GET',body=null,receipt=false){
  const query=new URLSearchParams();if(sourceTarget(s)&&method==='GET')query.set('employee_source',s.entry.source.path);
  if(receipt)query.set('operation_id',s.pending.operation_id);
  const target=url(s)+(query.size?'?'+query:'');
- if(s.entry.pipeline_reference||S.localLibrary){
-  let value;
-  try{
-   value=s.entry.pipeline_reference?await RunTeamsSourcePipelinePanels.configurationRequest(s,method,body,receipt):await api(target,method,body||undefined);
-  }catch(error){throw responseError(error,error.status,method,receipt);}
-  if(!owned(s))throw Error('资料库已改变。');
-  if(value?.error)throw responseError(value,value.status,method,receipt);
-  return value;
+ let value;
+ try{
+  value=s.entry.pipeline_reference
+   ?await RunTeamsSourcePipelinePanels.configurationRequest(s,method,body,receipt)
+   :await RunTeamsHost.employeeConfiguration.request(target,method,body,s.deviceScope);
+ }catch(error){
+  if(!owned(s))throw Error('账户或员工已改变。');
+  throw responseError(error,error.status,method,receipt);
  }
- let response,value;try{response=await fetch(target,{method,headers:{'X-RunTeams-Device-Scope':s.deviceScope,...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{})});value=await response.json();}
- catch(error){throw messageError(unavailableMessage(method,receipt));}
- if(!owned(s))throw Error('账户已改变。');
- if(!response.ok||value?.error)throw responseError(value,response.status,method,receipt);
+ if(!owned(s))throw Error('账户或员工已改变。');
+ if(value?.error)throw responseError(value,value.status,method,receipt);
  return value;
 }
 async function read(s=active){if(s?.credentialQueue)await s.credentialQueue;if(!owned(s)||s.loading)return;s.loading=true;s.error='';paint(s);
@@ -382,10 +380,17 @@ async function receipt(s=current()){if(!s?.pending||s.saving)return;
 function resourceTarget(s){return s.entry.chat_id?{chat_id:s.entry.chat_id}:s.entry.pipeline_reference?{pipeline_reference:JSON.stringify(s.entry.pipeline_reference),...(!s.entry.pipeline_own?{employee_source:s.entry.source.path}:{})}:s.entry.source?{source_id:s.entry.source.id,employee_source:s.entry.source.path}:{employee_id:Number(s.entry.work?.id||s.entry.asset?.id)};}
 async function resourceRequest(s,field,body=null){
  const target='/api/employee-configuration/resources',params={...resourceTarget(s),field};
- if(S.localLibrary)return api(target+(body?'':'?'+new URLSearchParams(params)),body?'POST':'GET',body||undefined);
- let response,value;try{response=await fetch(target+(body?'':'?'+new URLSearchParams(params)),{method:body?'POST':'GET',headers:{'X-RunTeams-Device-Scope':s.deviceScope,...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{})});value=await response.json();}
- catch(error){throw messageError(body?message('collectionUnconfirmed','尚未确认数据集合是否创建。你可以核对创建结果。'):message('resourcesUnavailable','无法读取资料。请重试。'));}
- if(!owned(s))throw Error('账户已改变。');if(!response.ok||value.error)throw Error(value.error||'数据集合暂时不可用。');return value;
+ let value;
+ try{
+  value=await RunTeamsHost.employeeConfiguration.request(target+(body?'':'?'+new URLSearchParams(params)),
+   body?'POST':'GET',body,s.deviceScope);
+ }catch(error){
+  if(!owned(s))throw Error('账户或员工已改变。');
+  if(error.status)throw error;
+  throw messageError(body?message('collectionUnconfirmed','尚未确认数据集合是否创建。你可以核对创建结果。'):message('resourcesUnavailable','无法读取资料。请重试。'));
+ }
+ if(!owned(s))throw Error('账户或员工已改变。');
+ return value;
 }
 function chooseConnection(s,key){
  const field=s&&rows(s).find(f=>f.key===key),selection=s?.data?.connection_fields?.[key];if(!s||!field||!selection||s.saving||s.resourceBusy||s.pending||s.loading)return;

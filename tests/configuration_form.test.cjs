@@ -8,7 +8,7 @@ const c={structuredClone,console,Set,Map,requestAnimationFrame:fn=>fn(),crypto:{
  RunTeamsWorkAuthorization:{settings:()=>''},RunTeamsSkeletons:{region:()=>''}};
 c.window=c;vm.createContext(c);
 const load=name=>vm.runInContext(fs.readFileSync(`web/ui/${name}.js`,'utf8'),c);
-load('configuration-form');load('configuration-fields');
+load('host');load('configuration-form');load('configuration-fields');
 const header=fs.readFileSync('web/ui/employee-drawer-header.js','utf8');
 vm.runInContext(header.slice(header.indexOf(' function section('),header.indexOf(' function toggleSection('))+';RunTeamsEmployeeDrawerHeader={section};',c);
 const employee=fs.readFileSync('web/ui/employee-configuration.js','utf8');
@@ -126,24 +126,25 @@ f.holdInput(focusInput,()=>true,()=>paints++);blur({relatedTarget:null});assert.
  // Exercise the real employee adapter too: response loss and exact receipt recovery.
  const cache=new Map(),http=[];let lose=true;
  const native={schema:'runteams.employee-configuration-state/1',reference:{source:'fixture'},revision:0,definition_sha256:'definition',definition:{groups:[group]},values:{},states:{},bindings:{}};
- Object.assign(c,{URLSearchParams,workspaceAccountCacheToken:()=> 'account',RunTeamsHost:{session:{deviceScope:()=> 'device'}},render(){},
+ c.S.localLibrary={cache_scope:'device'};
+ Object.assign(c,{URLSearchParams,workspaceAccountCacheToken:()=> 'account',render(){},
   RunTeamsBusinessStorage:{setItem:(key,value)=>cache.set(key,value),removeItem:key=>cache.delete(key)},
-  fetch:async(url,options)=>{
-   http.push({url,options});
-   if(options.method==='POST'){
-    const body=JSON.parse(options.body);native.values=body.values;native.bindings=body.bindings;native.revision++;
+  api:async(url,method,body)=>{
+   http.push({url,method,body});
+   if(method==='POST'){
+    native.values=body.values;native.bindings=body.bindings;native.revision++;
     if(lose){lose=false;throw Error('response lost');}
    }
-   return {ok:true,status:200,json:async()=>String(url).includes('operation_id=')?{state:'confirmed',result:structuredClone(native)}:structuredClone(native)};
+   return String(url).includes('operation_id=')?{state:'confirmed',result:structuredClone(native)}:structuredClone(native);
   }});
  c.document.querySelector=()=>null;
  const employeeSession={...employeeState({key:'fixture',source:{id:'source',path:'employees/fixture.json'}}),cacheKey:'scope-key',scope:'account',deviceScope:'device',data:structuredClone(native),draft:{app_id:'saved'},bindings:{token:{schema:'runteams.configuration-credential/1',key:'TOKEN_REFERENCE'}}};
  c.installEmployeeSession(employeeSession);c.S.sel={type:'employee-configuration',id:'fixture'};
  await c.employeeTransaction(employeeSession);
  assert.ok(employeeSession.pending);assert.equal(employeeSession.data.revision,0);
- assert.deepEqual(JSON.parse(http[0].options.body).bindings,{token:{key:'TOKEN_REFERENCE'}},'Save contains only the credential binding reference');
+ assert.deepEqual(JSON.parse(JSON.stringify(http[0].body.bindings)),{token:{key:'TOKEN_REFERENCE'}},'Save contains only the credential binding reference');
  assert.ok(cache.size);await c.employeeTransaction(employeeSession,true);
  assert.equal(employeeSession.pending,null);assert.equal(employeeSession.data.values.app_id,'saved');assert.equal(employeeSession.data.revision,1);assert.equal(cache.size,0);
- assert.equal(http.filter(item=>item.options.method==='POST').length,1,'Receipt recovery must not duplicate a save');
+ assert.equal(http.filter(item=>item.method==='POST').length,1,'Receipt recovery must not duplicate a save');
  console.log('Four-panel composition, constraints, draft/focus handling, shared transaction faults and real employee/task adapter recovery passed.');
 })().catch(error=>{console.error(error);process.exitCode=1;});

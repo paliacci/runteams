@@ -17,7 +17,15 @@
   pages:{normalize:()=>null,render:()=>null,title:()=>null,error:()=>null},
   routes:{preview:()=>null,resolve:()=>null,apply:async()=>false,restored:async()=>false,independent:no},
   resources:{tree:()=>null,detail:()=>null,origin:empty,publication:empty},
-  pipeline:{creationModeControl:empty,readCreationMode:nothing},
+  employeeConfiguration:{
+   scope:state=>state.localLibrary?.cache_scope||'',
+   request:(target,method,body)=>api(target,method,body??undefined)
+  },
+  pipeline:{
+   positionRuntime:(request,body)=>request('position-runtime',body),
+   referenceFields:ref=>ref?.schema==='runteams.local-pipeline-reference/1'&&ref.storage_kind==='local'
+    ?['schema','source_id','pipeline_source','storage_kind','library_id']:null,
+   creationModeControl:empty,readCreationMode:nothing},
   assets:{remember:nothing,reset:nothing,marketRows:empty,placeholderEmployee:no,placeholderPipeline:no},
   workspace:{savedScope:()=>undefined,savedWindows:()=>undefined,storage:()=>null,reset:nothing},
   sidebar:{context:()=>({signedIn:false}),authority:nothing,authorityFailed:nothing},

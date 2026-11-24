@@ -374,7 +374,7 @@ def materialize(item, chat_id, *, configuration_snapshot=None):
     import base64
     from runteams_core.employees.employee_workspaces import workspace, skill_root
     from runteams_core.assets.manifest_files import ManifestFiles
-    from runteams_core.assets.cloud_files import materialize_tree
+    from runteams_core.assets.file_trees import materialize_tree
     path=workspace(chat_id);root=skill_root(path,item['active_release']['digest']);skills=[]
     asset=package_asset(item['local_package'])
     for bundle in asset['skill_bundles']:

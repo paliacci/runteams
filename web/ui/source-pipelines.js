@@ -6,8 +6,8 @@
  const scope=()=>JSON.stringify([_workspaceBusinessGeneration,workspaceAccountCacheToken(),workspaceDeviceStorageScope()]);
  const durableScope=()=>workspaceDeviceStorageScope();
  const referenceKey=ref=>{
-  if(!ref||!['runteams.local-pipeline-reference/1','runteams.rented-pipeline-reference/1'].includes(ref.schema))return '';
-  const fields=['schema','source_id','pipeline_source',...(ref.storage_kind==='local'?['storage_kind','library_id']:['account_id','deployment_id','storage_namespace'])];
+  const fields=RunTeamsHost.pipeline.referenceFields(ref);
+  if(!fields)return '';
   return fields.every(field=>typeof ref[field]==='string'&&ref[field])?JSON.stringify(fields.map(field=>ref[field])):'';
  };
  const entryToken=path=>btoa(unescape(encodeURIComponent(path))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');

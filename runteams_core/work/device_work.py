@@ -334,7 +334,7 @@ class DeviceWorkStorage:
             if isinstance(item, list):
                 return [convert(child) for child in item]
             if isinstance(item, str) and item.startswith(prefix) and not any(c in item for c in ('\n', '\r', '\0')):
-                from runteams_core.assets.cloud_files import safe_relative
+                from runteams_core.assets.file_trees import safe_relative
                 relative = Path(item).relative_to(root).as_posix()
                 safe_relative(relative)
                 return FILE_PREFIX + relative
@@ -345,7 +345,7 @@ class DeviceWorkStorage:
     def file_path(self, reference):
         if not isinstance(reference, str) or not reference.startswith(FILE_PREFIX):
             return reference
-        from runteams_core.assets.cloud_files import safe_relative
+        from runteams_core.assets.file_trees import safe_relative
         relative = safe_relative(reference[len(FILE_PREFIX):])
         self.check_scope()
         root = Path(self.path).parent
