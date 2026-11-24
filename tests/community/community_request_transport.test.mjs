@@ -2,7 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
-import {installSharedTransport} from './community_transport_fixture.mjs';
+import {installSharedTransport, sharedTransport} from './community_transport_fixture.mjs';
 
 const library='11111111-1111-4111-8111-111111111111';
 function clock() {
@@ -162,4 +162,48 @@ test('a requested backup is protected while its original work UI prerequisite is
     release();assert.deepEqual(await backup,{state:'completed'});assert.equal(posts,1);
     assert.equal(window.RunTeamsLocalDesktop.checkClose(),'ready');
   }finally{delete globalThis.RunTeamsWorkState;}
+});
+
+function heldFetch(){
+  const calls=[],release=new Map();
+  return {calls,release,fetch:(path,{signal})=>{calls.push(path);return new Promise((resolve,reject)=>{
+    release.set(path,()=>resolve(Response.json({})));signal.addEventListener('abort',()=>reject(Object.assign(Error('abort'),{name:'AbortError'})));
+  });}};
+}
+test('slow runtime probes cannot occupy the slots for employee content',async()=>{
+  const h=heldFetch(),s=sharedTransport(h.fetch),paths=['/api/model-catalog','/api/channels','/api/environment','/api/channel-usage'];
+  const probes=paths.map(path=>s.request(path));const employee=s.request('/api/assets/read/employee-catalog',{method:'POST',body:'{}'});
+  await tick();assert.ok(h.calls.includes('/api/assets/read/employee-catalog'));assert.equal(h.calls.filter(path=>paths.includes(path)).length,2);
+  h.release.get('/api/assets/read/employee-catalog')();await employee;
+  h.release.get(paths[0])();h.release.get(paths[1])();await tick();h.release.get(paths[2])();h.release.get(paths[3])();await Promise.all(probes);
+});
+test('background capacity cannot hold foreground reads, and joined reads are promoted',async()=>{
+  const h=heldFetch(),s=sharedTransport(h.fetch);
+  const first=s.request('/background-one',{readPriority:'background'}),waiting=s.request('/visible',{readPriority:'background'});
+  await tick();assert.deepEqual(h.calls,['/background-one']);
+  const foreground=s.request('/visible');await tick();assert.deepEqual(h.calls,['/background-one','/visible']);
+  h.release.get('/visible')();await Promise.all([waiting,foreground]);h.release.get('/background-one')();await first;
+  assert.equal(h.calls.filter(x=>x==='/visible').length,1);
+});
+test('queued reads expire within the original deadline without being sent later',async()=>{
+  const h=heldFetch(),timers=clock(),s=sharedTransport(h.fetch,timers),active=[0,1,2,3].map(n=>s.request('/read/'+n));
+  const queued=s.request('/read/queued').catch(error=>error.code);await tick();assert.equal(h.calls.length,4);
+  assert.equal(timers.pending.get(5).ms,30000);timers.pending.get(5).fn();assert.equal(await queued,'read_timeout');
+  for(let n=0;n<4;n++)h.release.get('/read/'+n)();await Promise.all(active);await tick();assert.equal(h.calls.length,4);
+});
+test('scope reset cancels queued reads immediately and does not dispatch stale work',async()=>{
+  const h=heldFetch(),s=sharedTransport(h.fetch),reads=[0,1,2,3,4].map(n=>s.request('/read/'+n).catch(error=>error.code));
+  await tick();s.reset();const codes=await Promise.all(reads);assert.ok(codes.every(code=>code==='request_superseded'));assert.equal(h.calls.length,4);
+});
+test('runtime and foreground lanes preserve per-body deduplication and read limits',async()=>{
+  let active=0,peak=0,calls=0;
+  const s=sharedTransport(async()=>{calls++;active++;peak=Math.max(peak,active);await tick();active--;return Response.json({});});
+  await Promise.all(Array.from({length:12},(_,n)=>s.request('/read/'+n)));
+  assert.equal(peak,4);assert.equal(calls,12);
+  await Promise.all([s.request('/api/assets/read/employee-summary',{method:'POST',body:'{"id":1}'}),s.request('/api/assets/read/employee-summary',{method:'POST',body:'{"id":1}'}),s.request('/api/assets/read/employee-summary',{method:'POST',body:'{"id":2}'})]);
+  assert.equal(calls,14);
+});
+test('write timeout remains unknown and never retries a mutation',async()=>{
+  const h=heldFetch(),timers=clock(),s=sharedTransport(h.fetch,timers),write=s.request('/write',{method:'POST'}).catch(error=>error.code);
+  assert.equal(timers.pending.get(1).ms,120000);timers.fire(120000);assert.equal(await write,'mutation_outcome_unknown');assert.deepEqual(h.calls,['/write']);
 });
