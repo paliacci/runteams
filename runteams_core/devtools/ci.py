@@ -38,6 +38,7 @@ def main():
     subprocess.run([sys.executable, '-B', '-m', 'unittest', 'discover', '-s', str(ROOT / 'tests'), '-p', 'test_language*.py'], cwd=ROOT, check=True)
     subprocess.run(['node', '--test', str(ROOT / 'tests/language_transport.test.cjs')], cwd=ROOT, check=True)
     subprocess.run([sys.executable, '-B', '-m', 'unittest', 'discover', '-s', str(ROOT / 'tests'), '-p', 'test_pipeline_*.py'], cwd=ROOT, check=True)
+    subprocess.run([sys.executable, '-B', '-m', 'unittest', 'tests.test_creator_validation_worker'], cwd=ROOT, check=True)
     report['communication_language_tests'] = True
     subprocess.run([sys.executable, '-B', '-m', 'runteams_core.devtools.build_employee_avatar_catalog', '--check'], cwd=ROOT, check=True)
     subprocess.run(['node', '--test', str(ROOT / 'tests/employee_avatar_live.test.cjs')], cwd=ROOT, check=True)
