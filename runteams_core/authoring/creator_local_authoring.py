@@ -67,7 +67,7 @@ def _initial_runtime(runtime, product, device_data):
     return None, '', ''
 
 
-def session_for(store, identity, scope, runtime, *, employee_source=None, title=None, operation_id=None):
+def session_for(store, identity, scope, runtime, *, employee_source=None, title=None, operation_id=None, message_limit=None):
     import json
     from runteams_core.storage import product_store as product
     from runteams_core.storage import device_data
@@ -85,11 +85,8 @@ def session_for(store, identity, scope, runtime, *, employee_source=None, title=
                 or str(uuid.UUID(operation_id)) != operation_id):
             raise ValueError('新对话操作编号无效。')
         receipt_key = 'employee-conversation-open:' + operation_id
-    # Run native metadata reads before taking the device write lock.
-    channel_id, model, effort = _initial_runtime(runtime, product, device_data)
-    # The receipt and the chat share the same transaction. Reopening a
-    # particular employee never depends on the latest SDK build or package.
-    with device_data.connect() as connection:
+
+    def existing(connection):
         if receipt_key:
             receipt = connection.execute('SELECT value FROM device_settings WHERE key=?',
                                          (receipt_key,)).fetchone()
@@ -97,7 +94,7 @@ def session_for(store, identity, scope, runtime, *, employee_source=None, title=
                 previous = json.loads(receipt[0])
                 if previous['target'] != target:
                     raise ValueError('新对话请求已绑定另一名员工。')
-                session = product.get_chat(previous['chat_id'])
+                session = product.get_chat(previous['chat_id'], message_limit=message_limit)
                 if not session:
                     raise ValueError('这段对话已移除，请重新发起新对话。')
                 return session
@@ -106,7 +103,7 @@ def session_for(store, identity, scope, runtime, *, employee_source=None, title=
                 current = connection.execute('SELECT value FROM device_settings WHERE key=?',
                                              (current_key,)).fetchone()
                 if current:
-                    session = product.get_chat(json.loads(current[0]))
+                    session = product.get_chat(json.loads(current[0]), message_limit=message_limit)
                     context = (session or {}).get('context') or {}
                     if (session and session['kind'] == 'employee_design'
                             and context.get('creator_local_scope') == scope
@@ -121,7 +118,21 @@ def session_for(store, identity, scope, runtime, *, employee_source=None, title=
                         or context.get('creator_local_scope') != scope):
                     continue
                 if context.get('creator_employee_source') == employee_source:
-                    return product.get_chat(row['id'])
+                    return product.get_chat(row['id'], message_limit=message_limit)
+        return None
+
+    with device_data.connect(readonly=True) as connection:
+        session = existing(connection)
+        if session is not None:
+            return session
+
+    # Only creation needs model discovery. Recheck the receipt after discovery
+    # because another request may have created the conversation in the meantime.
+    channel_id, model, effort = _initial_runtime(runtime, product, device_data)
+    with device_data.connect() as connection:
+        session = existing(connection)
+        if session is not None:
+            return session
         context = {'context_type': 'worker', 'intent': 'create', 'phase': 'design',
                    'label': title or original['project']['name'], 'creator_local_source_id': identity,
                    'creator_local_scope': scope, 'creator_authoring': True}
@@ -136,7 +147,7 @@ def session_for(store, identity, scope, runtime, *, employee_source=None, title=
                                'ON CONFLICT(key) DO UPDATE SET value=excluded.value',
                                (current_key, json.dumps(chat_id)))
         store.check_scope()
-        return product.get_chat(chat_id)
+        return product.get_chat(chat_id, message_limit=message_limit)
 
 
 def _work_root(revisions, session_id):

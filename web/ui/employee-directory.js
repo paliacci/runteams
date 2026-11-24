@@ -173,7 +173,7 @@
    let operation;
    if(newSession){operation=localStorage.getItem(receiptKey)||crypto.randomUUID();localStorage.setItem(receiptKey,operation);}
    const config=defaultChatConfig(null),runtime={channel_id:config.channel_id,model:config.model,reasoning_effort:config.reasoning_effort};
-   const reply=await api('/api/employee-directory/open','POST',{key,runtime,...(newSession?{operation_id:operation}:{})});
+   const reply=await api('/api/employee-directory/open','POST',{key,runtime,view:'conversation',...(newSession?{operation_id:operation}:{})});
    if(!ownsOpen())return;
    if(reply.error||!reply.session)throw Error(reply.error||'员工暂时无法打开');
    const session=reply.session;
@@ -188,7 +188,7 @@
    S.chats=[{...existing,...summary},...(S.chats||[]).filter(row=>String(row.id)!==String(session.id))];
    deviceChatRemember(session);
    RunTeamsStaticPages.rememberLocalSessionLayout(session);
-   accept(session.employee);await openRailConversationSession(session.id,{device:true,employeeKey:key,employeeHome:!newSession});
+   accept(session.employee);await openRailConversationSession(session.id,{device:true,employeeKey:key,employeeHome:!newSession,session});
    if(expected!==token()||String(S.conversationPanel?.id)!==String(session.id))return;
    // The chat loader restores this conversation's own drawer. A new session starts closed.
   })();openings.set(requestKey,{sequence,pending,task});

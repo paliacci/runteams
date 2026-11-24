@@ -7180,7 +7180,7 @@ async function openRailConversationSession(id,options={}){
   const knownOwner=options.ownerPath||employeePage;
   const home=options.employeeHome&&employeePage;
   const target=home|| (knownOwner?knownOwner+'/chats/'+Number(id):(dedicated?`/chat/${Number(id)}`:routeWithRailState(location.pathname+location.search,id)));
-  const suffix=options.session?location.search+location.hash:'';
+  const suffix=options.session&&!employeePage?location.search+location.hash:'';
   setAppUrl(target+suffix,!!options.replace);
   const workspacePromise=dedicated?Promise.resolve(true):restoreWorkspaceForRailChat(options);
   const loaded=await loadConversationPanelSession(id,{session:options.session,railHosted:true,focus:options.focus!==false,employeeKey:options.employeeKey});

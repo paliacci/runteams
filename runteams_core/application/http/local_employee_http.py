@@ -19,7 +19,8 @@ def dispatch(runtime,method,path,data):
             active=runtime.active.copy()
         return with_activity(directory, {cid:bool(turn['cancel'].questions.pending(turn['cancel'].questions.owner))
                                          for cid,turn in active.items() if not turn['cancel'].is_set()})
-    if path=='/api/employee-directory/open' and method=='POST':return open_entry(data)
+    if path=='/api/employee-directory/open' and method=='POST':
+        return open_entry(data, present_conversation=runtime.opened_conversation)
     if path=='/api/employee-workbench/prepare' and method=='POST':
         return runtime.employee_mcp_work().prepare_workbench(data)
     work=re.fullmatch(r'/api/(?:chat/([1-9][0-9]*)/work|device/work/chats/([1-9][0-9]*))',path)

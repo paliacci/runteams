@@ -409,9 +409,12 @@ def with_activity(directory, active_turns):
     return {**directory,'activity':{'chats':chats,'workflows':workflows},'device_page_ids':links}
 
 
-def open_entry(data):
-    if (not isinstance(data,dict) or set(data)-{'key','runtime','operation_id'} or not {'key','runtime'}<=set(data) or not isinstance(data['runtime'],dict)
+def open_entry(data, *, present_conversation=None):
+    if (not isinstance(data,dict) or set(data)-{'key','runtime','operation_id','view'} or not {'key','runtime'}<=set(data) or not isinstance(data['runtime'],dict)
             or set(data['runtime'])-{'channel_id','model','reasoning_effort'}):raise ValueError('员工入口参数无效。')
+    conversation = data.get('view') == 'conversation'
+    if 'view' in data and (not conversation or present_conversation is None):
+        raise ValueError('员工入口视图无效。')
     key=data['key']
     parts=key.split(':',2) if isinstance(key,str) else []
     if len(parts)!=3 or parts[0]!='source':
@@ -428,5 +431,5 @@ def open_entry(data):
     from runteams_core.employees.employee_session_view import public_session
     session = session_for(store, entry['source']['id'], scope['cache_scope'], data['runtime'],
                           employee_source=entry['source']['path'], title=entry['record']['name'],
-                          operation_id=data.get('operation_id'))
-    return {'session':public_session(session)}
+                          operation_id=data.get('operation_id'), message_limit=30 if conversation else None)
+    return {'session': present_conversation(session) if conversation else public_session(session)}

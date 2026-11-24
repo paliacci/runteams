@@ -324,12 +324,18 @@ class LocalRuntime:
 
     def chat(self, chat_id, data=None, *, include_live=True):
         from runteams_core.storage import device_data
-        from runteams_core.employees.employee_session_view import work_session_record
         if not device_data.contains(chat_id):
             raise KeyError('本机对话不存在。')
         data = data or {}
         value = self.store.get_chat(chat_id, message_limit=int(data['messages_limit']) if 'messages_limit' in data else None,
                                     message_cursor=data.get('cursor'))
+        return self._chat_state(chat_id, value, include_live)
+
+    def opened_conversation(self, value):
+        return self.public_chat(self._chat_state(value['id'], value, include_live=True))
+
+    def _chat_state(self, chat_id, value, include_live):
+        from runteams_core.employees.employee_session_view import work_session_record
         if not value or (value['subject_type'] != 'workspace' and not work_session_record(value)) or value['scope_type'] != 'global' :
             raise KeyError('普通本机对话不存在。')
         self.pipeline_chat(value)
