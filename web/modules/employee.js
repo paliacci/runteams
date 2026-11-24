@@ -247,12 +247,7 @@ window.RunTeamsWorkAuthorization=(()=>{
  async function request(s,body,observe=false){
   assertCurrent(s);
   const path=`/api/chat/${s.chat}/${s.pipeline?'pipeline-mcp':'employee-mcp'}${observe?'?observe=1':''}`;
-  let value;
-  if(S.localLibrary)value=await api(path,body?'POST':'GET',body||undefined);
-  else{
-   const response=await RunTeamsRequests.request(path,{method:body?'POST':'GET',device:true,readCurrent:!body,headers:{'Content-Type':'application/json','X-RunTeams-Device-Scope':s.deviceScope},...(body?{body:JSON.stringify(body)}:{})},s.deviceScope);
-   value=JSON.parse(response.text);if(response.status!==200)throw Error(text('unavailable','无法读取工作授权，请重试。'));
-  }
+  const value=await RunTeamsHost.session.workAuthorization(path,body,s.deviceScope);
   assertCurrent(s);if(value.error)throw Error(value.error);return value;
  }
  const services=s=>(s.data?.connection_services||[]).flatMap(service=>service.connections.map(row=>({...row,package:service.package,program_name:service.program_name,credential_names:service.credential_names})));

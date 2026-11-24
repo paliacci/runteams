@@ -4,7 +4,9 @@
  const empty=()=>'',nothing=()=>{},no=()=>false;
  const ports={
   lifecycle:{blocked:no,initial:no,initialize:nothing,initialState:()=>({}),beforeRender:no,afterRender:nothing,startMonitor:nothing,pollNotifications:nothing},
-  session:{ready:state=>!!state.localLibrary,workspace:empty,
+  session:{workAuthorization:(path,body)=>api(path,body?'POST':'GET',body||undefined),
+   preloadScope:empty,
+   ready:state=>!!state.localLibrary,workspace:empty,
    cacheToken:state=>JSON.stringify([state.localLibrary?.library_id||'',state.localLibrary?.generation||0]),
    actor:state=>state.localLibrary?.library_id||'',epoch:state=>state.localLibrary?.generation||0,deviceScope:()=>'',issuer:()=>'',
    libraryId:state=>state.localLibrary?.library_id||'',headers:state=>({'X-RunTeams-Library':state.localLibrary?.library_id||'','X-RunTeams-Library-Generation':state.localLibrary?.generation||0}),

@@ -69,7 +69,7 @@ function conversationPendingHeader({route,layout='',failed=false}={}){
 const localLayouts=new Map(),localLayoutReads=new Map();
 const validConversationLayout=layout=>['history','general','employee','pipeline','create-employee'].includes(layout);
 function localLayoutStorageKey(id){
- const scope=global.RunTeamsDeviceDisplay?.scope;
+ const scope=global.RunTeamsHost?.session.preloadScope();
  return scope&&id?'runteams.local-conversation-layout.v1:'+scope+':'+id:'';
 }
 function rememberConversationLayouts(receipt){
@@ -107,20 +107,19 @@ function repaintLocalConversation(id){
  pending.outerHTML=page(global.RunTeamsRoutes.preview(current),{route:current});
 }
 function requestConversationLayout(value){
- const id=localConversationId(value),scope=global.RunTeamsDeviceDisplay?.scope;
+ const id=localConversationId(value),scope=global.RunTeamsHost?.session.preloadScope();
  if(!id||!scope||localLayoutReads.get(id)?.scope===scope)return;
- const headers={'X-RunTeams-Device-Scope':scope};
- const read=path=>global.fetch(path,{headers}).then(response=>response.ok?response.json():null);
+ const read=path=>global.RunTeamsHost.session.preloadRead(path,scope);
  const entry={scope,started:Date.now(),used:false};
  entry.session=read('/api/device/page-ids').then(receipt=>{
-   if(global.RunTeamsDeviceDisplay?.scope!==scope||!receipt)return null;
+   if(global.RunTeamsHost?.session.preloadScope()!==scope||!receipt)return null;
    rememberConversationLayouts(receipt);
    repaintLocalConversation(id);
    const row=receipt.items?.find(item=>item.resource==='chats'&&item.public_id===id);
    if(!row||!/^\d+$/.test(row.id))return null;
    return read('/api/chat/'+row.id+'?messages_limit=30');
   }).then(session=>{
-   if(global.RunTeamsDeviceDisplay?.scope!==scope||session?.storage_scope!=='device'||session.public_id!==id||!Array.isArray(session.messages))return null;
+   if(global.RunTeamsHost?.session.preloadScope()!==scope||session?.storage_scope!=='device'||session.public_id!==id||!Array.isArray(session.messages))return null;
    rememberLocalSessionLayout(session);
    repaintLocalConversation(id);
    return session;
@@ -134,10 +133,10 @@ async function takeLocalConversation(id,scope){
  if(!entry||entry.used||entry.scope!==scope||Date.now()-entry.started>5000)return null;
  entry.used=true;
  const session=await entry.session;
- return String(session?.id)===String(id)&&key===localConversationId()&&global.RunTeamsDeviceDisplay?.scope===scope?session:null;
+ return String(session?.id)===String(id)&&key===localConversationId()&&global.RunTeamsHost?.session.preloadScope()===scope?session:null;
 }
 function pipelineViewKey(route){
- const scope=global.RunTeamsDeviceDisplay?.scope||global.document.querySelector('meta[name="runteams-library-id"]')?.content;
+ const scope=global.RunTeamsHost?.session.preloadScope()||global.document.querySelector('meta[name="runteams-library-id"]')?.content;
  const path=new URL(global.RunTeamsRoutes.unmount(route||global.location.href),global.location.origin).pathname;
  return scope&&/^\/pipelines\/local\/[a-f0-9]{64}\/[A-Za-z0-9_-]+$/.test(path)?'runteams.pipeline-view.v1:'+scope+':'+path:'';
 }
