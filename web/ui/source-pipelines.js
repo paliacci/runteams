@@ -608,15 +608,20 @@
     await routeRead;
     if(token!==scope())return;
    }
-   void refreshDeviceDirectory({readPriority:'background'}).catch(()=>{});
-   // The device directory owns chats. A direct board read still needs sidebar rows.
-   void refreshWorkspaceNavigation({chats:false,employees:!visibleEmployees,pipelines:!board||!catalogState().ready,readPriority:'background'}).catch(()=>{});
    void Promise.allSettled([accountSettingsReadPreferences(),modelChannelData().configuration(true)]).then(results=>{
     if(token!==scope())return;const reply=results[1].status==='fulfilled'?results[1].value:null;
     if(reply&&!reply.error){S.channels=reply.channels||[];S.providerCatalog=reply.providers||[];if(reply.catalog?.channels){S.modelCatalog=reply.catalog.channels;S.modelCatalogReady=true;}}
     render();
    });
-   if(!board&&!creating)await applyAppRoute({initial:true});
+   if(!board&&!creating){
+    // openPage resolves the employee and their own conversation from the directory.
+    // Keep this foreground read ahead of the unrelated sidebar lists.
+    await applyAppRoute({initial:true});
+    if(token!==scope())return;
+   }
+   void refreshDeviceDirectory({readPriority:'background'}).catch(()=>{});
+   // The device directory owns chats. A direct board read still needs sidebar rows.
+   void refreshWorkspaceNavigation({chats:false,employees:!visibleEmployees&&(kind!=='employee-work'||!S.coreTeamLoaded),pipelines:!board||!catalogState().ready,readPriority:'background'}).catch(()=>{});
    RunTeamsRequests.finishPage(measurement,'settled');
   }catch(error){S.booting=true;S.bootError=error;renderBootShell(S.bootRoute,error);}
  }
