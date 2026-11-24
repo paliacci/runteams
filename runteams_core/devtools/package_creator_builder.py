@@ -5,6 +5,7 @@ if not __package__:
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import argparse
+import platform
 from pathlib import Path
 import shutil
 import sys
@@ -19,7 +20,9 @@ def package(output, tools):
     output = Path(output).resolve()
     if output.exists(): raise ValueError('output_exists')
     output.mkdir(parents=True, mode=0o700)
-    config = {'schema':'runteams.platform-builder/2', 'platform':'darwin-arm64'}
+    arch = platform.machine().lower()
+    arch = {'x86_64': 'x64', 'amd64': 'x64', 'aarch64': 'arm64'}.get(arch, arch)
+    config = {'schema':'runteams.platform-builder/2', 'platform': f'{sys.platform}-{arch}'}
     for name in ('esbuild',):
         source = Path(tools[name])
         if source.is_symlink() or not source.is_file(): raise ValueError('invalid_tool')
