@@ -80,7 +80,7 @@
 <link rel="stylesheet" href="/ui/work-records.css?v=records-full-hover-meta-20261028-1.shared-header-20261104.task-record-content-20261105.shared-execution-ui-20261105.5.full-width-hover-20261105.task-detail.section-actions.shared-row-hover.drawer-row-gap.execution-list-footer.task-report.delivery-rows.delivery-description.handoff-context.execution-detail-layout.2.execution-outcome-titles.execution-runtime-header.execution-two-lines.execution-shared-sections.execution-report-scroll.delivery-role-heading.execution-compact-header.execution-record-readonly.2.execution-detail-skeleton.drawer-loading-skeletons">
 <script src="/ui/work-records.js?v=unified-task-detail-20261110.employee-task-context-20261110.2.record-no-chat-link-20261110.work-record-origin-progress-20261104.shared-header-20261104.work-drawer-copy-20261105.shared-execution-ui-20261105.5.task-detail.section-actions.execution-context.shared-row-hover.task-deliveries.execution-list-footer.drawer-section-footer.task-report.task-report-entry.delivery-rows.delivery-description.handoff-context.authoring-records.authoring-records-route.execution-detail-layout.2.execution-work-title.execution-outcome-titles.2.execution-runtime-header.execution-role-meta.execution-two-lines.execution-shared-sections.delivery-role-heading.execution-compact-header.execution-record-readonly.2.execution-detail-skeleton.current-execution-history.section-footer-right.execution-state-receipts.grouped-record-time.pipeline-live-activity.current-wait-in-heading.inline-work-activity.activity-stream.parked-summary.awaiting-progress"></script>
 <link rel="stylesheet" href="/ui/rich-documents.css?v=20261030-4.execution-report-scroll.execution-detail-skeleton">
-<script src="/ui/rich-documents.js?v=document-create-copy-20261104.document-list-export-20261104.document-reader-copy-20261105.execution-report-scroll.2.execution-detail-skeleton"></script>
+<script src="/ui/rich-documents.js?v=document-create-copy-20261104.document-list-export-20261104.document-reader-copy-20261105.execution-report-scroll.2.execution-detail-skeleton.reader-host-1"></script>
 <link rel="stylesheet" href="/ui/creator-author.css?v=employee-markdown-padding-20261028-2.employee-resource-default-20261105.resource-settings-heading-20261105.resource-disclosure-label.consolidated" />
 <script src="/ui/creator-author.js?v=pipeline-version-copy-20261104.employee-resource-default-20261105.resource-settings-back-20261105.creator-draft-receipt-20261105.work-authorization-20261105.drawer-inline-actions.cloud-asset-history-20261112.hide-empty-history.resource-folders-collapsed.consolidated.scoped-requests"></script>
 <link rel="stylesheet" href="/ui/employee-automation.css?v=input-state-uniform-20261028-1.shared-row-hover.drawer-row-gap">
@@ -2598,29 +2598,6 @@ async function openDocumentReader(doc,options={}){
 function documentPreviewFilename(doc){
   return doc.name||String(doc.path||"").split(/[/\\]/).pop()||"";
 }
-function documentReaderTitleAttributes(parts,tooltip=false){
-  return parts.titleKey?` data-app-i18n="${parts.titleKey}"${tooltip?` data-app-i18n-title="${parts.titleKey}"`:""}`:"";
-}
-function documentPaperHeadMarkup(){
-  const state=S.docReader;
-  if(!state)return "";
-  const doc=state.doc,parts=documentTitleParts();
-  if(state.status==="loading"||docKind(doc)==="markdown")return `<h1 id="doc_paper_title" title="${esc(parts.title)}"${documentReaderTitleAttributes(parts,true)}>${esc(parts.title)}</h1>`;
-  const employee=RunTeamsEmployeeDirectory.assets().find(item=>Number(item.id)===Number(doc.employee_id));
-  const edited=documentReaderRevisions().slice(-1)[0]?.created_at||doc.created_at;
-  const filename=String(doc.path||doc.name||"").trim(),extension=docSuffix(doc).replace(/^\./,"").toUpperCase();
-  const kindKey="fileBrowser.kind."+docKind(doc),formatLabel=extension||RunTeamsLocale.t(kindKey,{},docKindLabel(doc));
-  const modeKey=doc.editable?"editable":"readOnly",mode=doc.editable?"可编辑":"只读";
-  const typeChip=`<span class="doc-paper-kind"${filename?` data-app-i18n-title="fileBrowser.${modeKey}Format" data-app-i18n-vars="${esc(JSON.stringify({filename}))}" title="${esc(filename)}"`:''}><span${extension?'':` data-app-i18n="${kindKey}"`}>${esc(formatLabel)}</span> <span data-app-i18n="fileBrowser.${modeKey}">${mode}</span></span>`;
-  const lineage=Number(doc.workflow_id)&&doc.task_title
-    ?`<i aria-hidden="true"></i><button type="button" class="doc-paper-run" title="打开运行记录" data-app-i18n-title="fileBrowser.openRun" data-app-i18n="fileBrowser.fromTask" data-app-i18n-vars="${esc(JSON.stringify({name:doc.task_title}))}" onclick="documentReaderOpenRun()">来自 ${esc(doc.task_title)}</button>`:"";
-  return `<h1 id="doc_paper_title" title="${esc(parts.title)}"${documentReaderTitleAttributes(parts,true)}>${esc(parts.title)}</h1><div class="doc-paper-byline"><span class="doc-paper-author">${workerAvatarMarkup(employee||{})}<b>${documentVersionAuthor(false,doc)}</b></span><i aria-hidden="true"></i>${typeChip}<i aria-hidden="true"></i><span class="doc-paper-facts"><span data-app-i18n="fileBrowser.lastEdited">最后编辑</span> <span data-document-date="${esc(edited||"")}">${esc(docsTime(edited))}</span></span>${lineage}</div>`;
-}
-function documentDisplayTitle(doc){
-  const file=doc?.task_input||doc?.work_artifact;
-  const title=file?documentPreviewFilename(doc):doc?.name;
-  return {title:title||(file?'未命名文件':'未命名文档'),titleKey:title?'':file?'workRecordDetail.untitledFile':'documentList.untitled'};
-}
 function documentTitleParts(){
   const state=S.docReader;
   const fallback={...documentDisplayTitle(state?.doc),body:state?.text||""};
@@ -2631,11 +2608,6 @@ function documentTitleParts(){
   const match=markdown.match(/^\s*#\s+(.+?)\s*(?:\n|$)/);
   if(!match)return {...fallback,body:markdown};
   return {title:match[1],body:markdown.slice(match[0].length)};
-}
-/* 正文从状态渲染：页面按 HTML 字符串重绘，异步塞进去的内容会被冲掉。 */
-function documentReaderSkeletonMarkup(title=false,file=false,labelKey=file?'workRecordDetail.loading':'documentReader.opening'){
-  const label=window.RunTeamsLocale?.t(labelKey,{},file?'正在读取文件…':'正在打开文档')??'正在加载…';
-  return `<div class="doc-reader-skeleton" role="status" aria-label="${esc(label)}" data-app-i18n-aria-label="${labelKey}" aria-busy="true">${title?'<span class="skeleton-block doc-skeleton-title" aria-hidden="true"></span>':""}<div class="doc-skeleton-section" aria-hidden="true"><span class="skeleton-block"></span><span class="skeleton-block"></span><span class="skeleton-block short"></span></div><div class="doc-skeleton-section" aria-hidden="true"><span class="skeleton-block heading"></span><span class="skeleton-block"></span><span class="skeleton-block"></span><span class="skeleton-block short"></span></div><div class="doc-skeleton-section" aria-hidden="true"><span class="skeleton-block"></span><span class="skeleton-block short"></span></div></div>`;
 }
 function pdfPreviewMarkup(url,name){
   return `<section class="pdf-preview" data-pdf-preview data-pdf-url="${esc(url)}" role="group" aria-label="${esc(name||'PDF 预览')}"${name?'':' data-app-i18n-aria-label="workRecordDetail.pdfPreview"'}>
@@ -3596,12 +3568,6 @@ function retryDocumentTableSave(){
   saveDocumentTableEdit();
 }
 /* 阅读器占满主内容区：顶栏只放导航与动作，文档标题在正文区顶部，像一份正经文档。 */
-function documentReaderBackMarkup(doc){
-  const returnsToSource=!!(doc.work_return_url||doc.task_input_return_url);
-  const label=returnsToSource?"返回":"返回文档列表";
-  const labelKey=returnsToSource?"documentReader.backToSource":"documentReader.back";
-  return `<button type="button" class="doc-reader-back" aria-label="${label}" data-app-i18n-aria-label="${labelKey}" onclick="closeDocumentReader()">${ICON("chev")}<span data-app-i18n="${returnsToSource?labelKey:"documentList.title"}">${returnsToSource?"返回":"文档"}</span></button>`;
-}
 function documentReaderMain(){
   const state=S.docReader;
   if(!state)return docsMain();
@@ -3715,17 +3681,6 @@ function documentReaderActionsMarkup(doc){
   return `<button data-menu-trigger="quiet" type="button" class="doc-reader-more" title="文档设置" aria-label="文档设置" data-app-i18n-title="documentReader.settings" data-app-i18n-aria-label="documentReader.settings" aria-haspopup="menu" aria-expanded="false" onclick="documentReaderMoreMenu(event)">${ICON("settings")}</button>`;
 }
 
-function documentReaderMoreMenu(event){
-  event.preventDefault();event.stopPropagation();
-  const doc=S.docReader?.doc;
-  if(!doc||doc.work_artifact)return;
-  const rich=!!S.docReader?.richToken;
-  const items=[{label:"历史版本",labelKey:"employeeHistory.title",icon:"clock",selected:!!S.docVersionsOpen,fn:()=>rich?toggleRichDocumentVersions():toggleDocumentVersions()},
-               {label:"导出",labelKey:"documentReader.export",icon:"download",fn:()=>rich&&doc.content_model==='rich-document'?RunTeamsRichDocuments.exportCurrent():exportCoreArtifact(S.docReader?.doc)}];
-  if(doc.source!=="pipeline_task_report")items.push({label:"移到垃圾箱",labelKey:"documentList.trash",icon:"trash",fn:()=>trashDocumentFromReader()});
-  if(S.docReader?.saveStatus==="error"&&(rich||docKind(doc)==='table'))items.push({divider:true},{label:"重试保存",labelKey:"employeeSettings.retrySave",icon:"refresh",fn:()=>rich?RunTeamsRichDocuments.retrySave():retryDocumentTableSave()});
-  openMenu(event.currentTarget,items,{variant:"compactSelect",align:"right",...(event.type==="contextmenu"?{at:{x:event.clientX,y:event.clientY},align:"left"}:{})});
-}
 async function navigateDocumentInternal(id){
   const targetId=Number(id),current=S.docReader;
   if(!current||!Number.isInteger(targetId)||targetId<=0)return;

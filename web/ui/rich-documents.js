@@ -242,3 +242,53 @@
  window.addEventListener('runteams:business-scope-will-change',()=>{creation=null;syncCreateButton();reports.clear();for(const item of pending.values())item.done(false);pending.clear();});
  window.RunTeamsRichDocuments=Object.freeze({supported,main,reportMarkup,flush,create,createButtonMarkup,loaded,retry,exportCurrent,exportSaved,retrySave,toggleOutline,jumpOutline});
 })();
+
+function documentReaderTitleAttributes(parts,tooltip=false){
+  return parts.titleKey?` data-app-i18n="${parts.titleKey}"${tooltip?` data-app-i18n-title="${parts.titleKey}"`:""}`:"";
+}
+
+function documentDisplayTitle(doc){
+  const file=doc?.task_input||doc?.work_artifact;
+  const title=file?documentPreviewFilename(doc):doc?.name;
+  return {title:title||(file?'未命名文件':'未命名文档'),titleKey:title?'':file?'workRecordDetail.untitledFile':'documentList.untitled'};
+}
+
+function documentReaderBackMarkup(doc){
+  const returnsToSource=!!(doc.work_return_url||doc.task_input_return_url);
+  const label=returnsToSource?"返回":"返回文档列表";
+  const labelKey=returnsToSource?"documentReader.backToSource":"documentReader.back";
+  return `<button type="button" class="doc-reader-back" aria-label="${label}" data-app-i18n-aria-label="${labelKey}" onclick="closeDocumentReader()">${ICON("chev")}<span data-app-i18n="${returnsToSource?labelKey:"documentList.title"}">${returnsToSource?"返回":"文档"}</span></button>`;
+}
+
+function documentReaderSkeletonMarkup(title=false,file=false,labelKey=file?'workRecordDetail.loading':'documentReader.opening'){
+  const label=window.RunTeamsLocale?.t(labelKey,{},file?'正在读取文件…':'正在打开文档')??'正在加载…';
+  return `<div class="doc-reader-skeleton" role="status" aria-label="${esc(label)}" data-app-i18n-aria-label="${labelKey}" aria-busy="true">${title?'<span class="skeleton-block doc-skeleton-title" aria-hidden="true"></span>':""}<div class="doc-skeleton-section" aria-hidden="true"><span class="skeleton-block"></span><span class="skeleton-block"></span><span class="skeleton-block short"></span></div><div class="doc-skeleton-section" aria-hidden="true"><span class="skeleton-block heading"></span><span class="skeleton-block"></span><span class="skeleton-block"></span><span class="skeleton-block short"></span></div><div class="doc-skeleton-section" aria-hidden="true"><span class="skeleton-block"></span><span class="skeleton-block short"></span></div></div>`;
+}
+
+function documentPaperHeadMarkup(){
+  const state=S.docReader;
+  if(!state)return "";
+  const doc=state.doc,parts=documentTitleParts();
+  if(state.status==="loading"||docKind(doc)==="markdown")return `<h1 id="doc_paper_title" title="${esc(parts.title)}"${documentReaderTitleAttributes(parts,true)}>${esc(parts.title)}</h1>`;
+  const employee=RunTeamsEmployeeDirectory.assets().find(item=>Number(item.id)===Number(doc.employee_id));
+  const edited=documentReaderRevisions().slice(-1)[0]?.created_at||doc.created_at;
+  const filename=String(doc.path||doc.name||"").trim(),extension=docSuffix(doc).replace(/^\./,"").toUpperCase();
+  const kindKey="fileBrowser.kind."+docKind(doc),formatLabel=extension||RunTeamsLocale.t(kindKey,{},docKindLabel(doc));
+  const modeKey=doc.editable?"editable":"readOnly",mode=doc.editable?"可编辑":"只读";
+  const typeChip=`<span class="doc-paper-kind"${filename?` data-app-i18n-title="fileBrowser.${modeKey}Format" data-app-i18n-vars="${esc(JSON.stringify({filename}))}" title="${esc(filename)}"`:''}><span${extension?'':` data-app-i18n="${kindKey}"`}>${esc(formatLabel)}</span> <span data-app-i18n="fileBrowser.${modeKey}">${mode}</span></span>`;
+  const lineage=Number(doc.workflow_id)&&doc.task_title
+    ?`<i aria-hidden="true"></i><button type="button" class="doc-paper-run" title="打开运行记录" data-app-i18n-title="fileBrowser.openRun" data-app-i18n="fileBrowser.fromTask" data-app-i18n-vars="${esc(JSON.stringify({name:doc.task_title}))}" onclick="documentReaderOpenRun()">来自 ${esc(doc.task_title)}</button>`:"";
+  return `<h1 id="doc_paper_title" title="${esc(parts.title)}"${documentReaderTitleAttributes(parts,true)}>${esc(parts.title)}</h1><div class="doc-paper-byline"><span class="doc-paper-author">${workerAvatarMarkup(employee||{})}<b>${documentVersionAuthor(false,doc)}</b></span><i aria-hidden="true"></i>${typeChip}<i aria-hidden="true"></i><span class="doc-paper-facts"><span data-app-i18n="fileBrowser.lastEdited">最后编辑</span> <span data-document-date="${esc(edited||"")}">${esc(docsTime(edited))}</span></span>${lineage}</div>`;
+}
+
+function documentReaderMoreMenu(event){
+  event.preventDefault();event.stopPropagation();
+  const doc=S.docReader?.doc;
+  if(!doc||doc.work_artifact)return;
+  const rich=!!S.docReader?.richToken;
+  const items=[{label:"历史版本",labelKey:"employeeHistory.title",icon:"clock",selected:!!S.docVersionsOpen,fn:()=>rich?toggleRichDocumentVersions():toggleDocumentVersions()},
+               {label:"导出",labelKey:"documentReader.export",icon:"download",fn:()=>rich&&doc.content_model==='rich-document'?RunTeamsRichDocuments.exportCurrent():exportCoreArtifact(S.docReader?.doc)}];
+  if(doc.source!=="pipeline_task_report")items.push({label:"移到垃圾箱",labelKey:"documentList.trash",icon:"trash",fn:()=>trashDocumentFromReader()});
+  if(S.docReader?.saveStatus==="error"&&(rich||docKind(doc)==='table'))items.push({divider:true},{label:"重试保存",labelKey:"employeeSettings.retrySave",icon:"refresh",fn:()=>rich?RunTeamsRichDocuments.retrySave():retryDocumentTableSave()});
+  openMenu(event.currentTarget,items,{variant:"compactSelect",align:"right",...(event.type==="contextmenu"?{at:{x:event.clientX,y:event.clientY},align:"left"}:{})});
+}
