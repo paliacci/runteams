@@ -1,3 +1,5 @@
+import json
+from pathlib import Path
 import subprocess
 import sys
 import tempfile
@@ -80,3 +82,24 @@ class CapabilityMenuTests(unittest.TestCase):
                 {}, "codex", {}, 15, None, True, {"plugins": [{"marketplace": "remote"}]})
             self.assertEqual(found, data)
             read.assert_called_once_with({}, "codex", {}, 15, None, force_refetch=True)
+
+    def test_cli_fallback_uses_only_unambiguous_installed_plugin_labels(self):
+        with tempfile.TemporaryDirectory() as profile:
+            channel = {"provider": "codex", "config_dir": profile}
+            directory = Path(profile) / "plugins/cache/market/writer"
+            def manifest(version, label):
+                path = directory / version / ".codex-plugin" / "plugin.json"
+                path.parent.mkdir(parents=True)
+                path.write_text(json.dumps({"name": "writer", "interface": {"displayName": label}}))
+            manifest("1", "Writer One")
+            row = {"name": "writer", "marketplaceName": "market", "enabled": False}
+            available = dict(row)
+            data = {"installed": [dict(row)], "available": [available]}
+            capabilities._tools_cli_plugin_labels(channel, data)
+            self.assertEqual(data["installed"][0], {**row, "displayName": "Writer One"})
+            self.assertEqual(available, row)
+            manifest("2", "Writer Two")
+            for version, label in [(None, None), ("2", "Writer Two"), ("../2", None), ("unknown", None)]:
+                item = {**row, "version": version}
+                capabilities._tools_cli_plugin_labels(channel, [item])
+                self.assertEqual(item.get("displayName"), label)

@@ -129,6 +129,44 @@ def _read_plugin_json(channel, executable, env, timeout=15, cwd=None, *, force_r
     return _run_json(argv, env, timeout)
 
 
+def _tools_cli_plugin_labels(channel, data):
+    # The JSON CLI fallback can omit the interface present in plugin/list.
+    # Only decorate rows the CLI reported installed. Cache contents alone do
+    # not confirm installation, enabled state, or which skills are available.
+    if not isinstance(data, (list, dict)) or isinstance(data, dict) and "_marketplaces" in data:
+        return
+    if channel.get("provider") != "codex":
+        return
+    cache = Path(model_channels.config_directory(channel)) / "plugins" / "cache"
+    for row in _plugin_items(data):
+        if not isinstance(row, dict) or row.get("installed") is False or row.get("displayName"):
+            continue
+        name = row.get("name")
+        market = row.get("marketplaceName") or row.get("marketplace")
+        version = row.get("version")
+        parts = (market, name, version) if version else (market, name)
+        if not all(isinstance(part, str) and re.fullmatch(r"[\w-][\w.+-]*", part) for part in parts):
+            continue
+        directory = cache / market / name
+        try:
+            if version:
+                manifest = directory / version / ".codex-plugin" / "plugin.json"
+            else:
+                matches = list(directory.glob("*/.codex-plugin/plugin.json"))
+                if len(matches) != 1:
+                    continue
+                manifest = matches[0]
+            if not manifest.resolve().is_relative_to(cache.resolve()) or manifest.stat().st_size > 512 * 1024:
+                continue
+            info = json.loads(manifest.read_bytes())
+        except (OSError, ValueError, RuntimeError):
+            continue
+        if isinstance(info, dict) and info.get("name") == name and isinstance(info.get("interface"), dict):
+            label = info["interface"].get("displayName")
+            if isinstance(label, str) and label.strip():
+                row["displayName"] = label.strip()
+
+
 def _read_tools_plugin_json(channel, executable, env, timeout, cwd, refresh, previous):
     expected = {row["marketplace"] for row in (previous or {}).get("plugins", []) if row.get("marketplace")}
 
@@ -139,16 +177,15 @@ def _read_tools_plugin_json(channel, executable, env, timeout, cwd, refresh, pre
                 for row in _plugin_items(data) if isinstance(row, dict)}
 
     data, result = _read_plugin_json(channel, executable, env, timeout, cwd, force_refetch=refresh)
-    if not expected or expected.issubset(reported_markets(data)):
-        return data, result
-    # Reconfirm an entire missing installed source once. A native listing can
-    # confirm removal. Older CLI fallback listings can contain only local rows.
-    data, result = _read_plugin_json(channel, executable, env, timeout, cwd, force_refetch=True)
-    if data is not None and not expected.issubset(reported_markets(data)):
-        if isinstance(data, list):
-            data = {"installed": data}
-        if isinstance(data, dict) and "_marketplaces" not in data:
-            data = {**data, "_read_state": "partial"}
+    if expected and not expected.issubset(reported_markets(data)):
+        # Confirm a whole missing source once. CLI fallback can omit remote markets.
+        data, result = _read_plugin_json(channel, executable, env, timeout, cwd, force_refetch=True)
+        if data is not None and not expected.issubset(reported_markets(data)):
+            if isinstance(data, list):
+                data = {"installed": data}
+            if isinstance(data, dict) and "_marketplaces" not in data:
+                data = {**data, "_read_state": "partial"}
+    _tools_cli_plugin_labels(channel, data)
     return data, result
 
 
