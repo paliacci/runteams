@@ -50,10 +50,13 @@ def main(argv=None):
     # One process opens exactly one library; bind host/runtime paths before imports.
     os.environ['RUNTEAMS_DATA'] = str(args.data_dir.expanduser().resolve())
     port = args.port if args.port is not None else (0 if args.owner_stdin else 8792)
+    application = None
     try:
         application = LocalApplication(args.data_dir)
         server = LocalServer(application, port)
     except (OSError, ValueError) as error:
+        if application is not None:
+            application.close()
         parser.exit(2, '无法打开本机资料库或监听端口：' + str(error) + '\n')
 
     def stop(signum, frame):

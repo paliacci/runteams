@@ -30,13 +30,17 @@ class LocalServer(ThreadingHTTPServer):
     allow_reuse_address = True  # Restart after closed HTTP connections; never SO_REUSEPORT.
 
     def __init__(self, application, port):
-        self.application = application
+        self.application = None
         self.session_token = secrets.token_urlsafe(32)
         self.browser_token = secrets.token_urlsafe(32)
+        # TCPServer calls server_close() if binding or listening fails.
+        # The caller owns the application until the listener is ready.
         super().__init__(('127.0.0.1', port), LocalHandler)
+        self.application = application
 
     def server_close(self):
-        self.application.close()
+        if self.application is not None:
+            self.application.close()
         super().server_close()
 
     def serve_forever(self, poll_interval=0.5):
