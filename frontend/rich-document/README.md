@@ -27,7 +27,7 @@ node reply-check.mjs
 
 The build publishes assets under `web/rich-document/dist` and replaces the entry only after assets exist. Old hashed assets stay available for open readers. A new frame under an old host asks the user to refresh before editing; it never silently mixes incompatible save protocols. The shared chat renderer is still built from its existing, unchanged source; laboratory boot, fixtures, browser-local storage and test banners are not shipped.
 
-Backend checks include `tests.test_rich_documents`, `tests.test_rich_document_assets`, `tests.test_work_reports`, `tests.test_device_work_retention`, and the document window checks and `tests.test_document_engine_retirement`. DOM checks use actual React/BlockNote with geometry stubs; real browser evidence is recorded separately. Current verification and scoped recovery patch: `design/evidence/document-lab-integration-20261030/`.
+The [desktop package check](../../tests/check_packaged_document.py) creates a document through the packaged local server and reads it back. The DOM checks above run React and BlockNote with geometry stubs.
 
 Only the local source service was updated. No cloud deployment, installer rebuild, employee/model execution, original report rewrite or automatic migration of laboratory test copies was performed.
 

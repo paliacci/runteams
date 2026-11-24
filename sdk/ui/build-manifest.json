@@ -6,7 +6,7 @@
   "files": {
     "dist/foundation/theme.css": {
       "source": "sdk/ui/foundation/theme.css",
-      "sha256": "75c8252114020bca5c5bcf43fd228106747fab052b44f97bdc6855cdfdf008d3"
+      "sha256": "6f98da805b3fa47f240ce78c5f7e18248cb787cd3da7f2d92ef4fd50d4834e24"
     },
     "dist/components/index.js": {
       "source": "web/ui/kit/components/index.js",

@@ -83,8 +83,8 @@
     "installed-app-and-real-account-acceptance"
   ],
   "canonicalSources": [
-    "design/ui-tokens.json",
-    "packages/ui-components/"
+    "sdk/ui/foundation/theme.css",
+    "web/ui/kit/components"
   ],
   "entry": "index.js",
   "types": "index.d.ts",

@@ -71,7 +71,9 @@ def check(root, namespace):
     documents = ['README.md', 'CONTRIBUTING.md', 'SECURITY.md', 'CHANGELOG.md',
                  'docs/architecture.md', 'docs/development.md', 'docs/releasing.md']
     if namespace == 'runteams_core':
-        documents.append('docs/core-domains.md')
+        documents.extend(['docs/core-domains.md', 'sdk/README.md', 'sdk/mcp-host/README.md',
+                          'contracts/creator-system/README.md', 'contracts/creator-system/mcp-v1/AUTHORING.md',
+                          'frontend/rich-document/README.md'])
     for name in documents:
         path = root / name
         if not path.is_file():

@@ -19,6 +19,7 @@ def main():
     from .command_inventory import inventory
     if json.loads((ROOT / 'tooling/commands.json').read_text()) != inventory(ROOT, 'runteams_core'):
         raise ValueError('Canonical command inventory changed')
+    subprocess.run([sys.executable, '-B', ROOT / 'sdk/ui/build.py', '--check'], check=True)
     report = {'repository': check_repository(ROOT, 'runteams_core'),
               'source': check(), 'core_build': build(output / 'wheels')}
     interpreter = output / 'environment' / ('Scripts/python.exe' if sys.platform == 'win32' else 'bin/python')

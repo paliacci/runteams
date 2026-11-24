@@ -138,7 +138,7 @@ relabelled historical lab tests. This closes the basic local process-crash item;
 it does not prove external supplier effects, UI/chat recovery, product task retry
 integration, full machine power loss or distribution behavior. Those remain pending.
 
-Implementation state and remaining work: `design/CREATOR_SYSTEM_IMPLEMENTATION.md`.
+Current project, dependency and release formats are documented in the [MCP Apps authoring guide](mcp-v1/AUTHORING.md).
 
 ## Native connection transport foundation
 
@@ -250,7 +250,7 @@ Those remain pending; no production surface or deployment has been changed.
 
 Current desktop/creator/CreatorWebHost.swift passes actual sender/epoch/physical-slot/deadline/revocation/hang/flood/remount probes with these signed UI artifacts. Its default UI method set is empty; the engineering context.read callback is synthetic, not a cloud/context SDK implementation. The installed application/build script does not yet load it. Current cloud UI authority, protected Chat snapshots and UI-to-business wiring remain pending. No frozen machine contract is changed.
 
-Independent nonpersistent stores/views are tested on the recorded macOS. WKProcessPool multi-instance configuration has no isolation effect according to the current Apple SDK/documentation; no universal process allocation or memory/capacity guarantee is implied. See desktop/creator/README.md and design/evidence/creator-formal-native-ui-20261021/verification.json.
+Independent nonpersistent stores/views are tested on the recorded macOS. WKProcessPool multi-instance configuration has no isolation effect according to the current Apple SDK/documentation; no universal process allocation or memory/capacity guarantee is implied. The [desktop WebView host](../../desktop/creator/CreatorWebHost.swift) configures each view and its website data store.
 
 ## Formal cloud UI context source (2026-10-21)
 
@@ -289,4 +289,4 @@ POST `projects/{id}/product-installations` accepts only release_id, original ope
 
 ## 当前新创作合同：独立业务与完整随包员工（2026-10-21）
 
-用户最新决定覆盖前文 /2 新创作入口和独立技能安装映射要求。当前 employee-source/3、pipeline-source/3、package-extension/v3、skill-revision/v3、work-unit/3、employee-release/v4；规范见 ../../design/CREATOR_EMPLOYEE_BUNDLE_CONTRACT.md。新编译 target 为 employee-bundle/v1。员工版本自带完整技能资源，安装不创建全局技能记录，运行/恢复/导出不回查外部产品技能。旧 schema 与已冻结合同只保留历史校验，不自动改写历史发布。SDK v1/FROZEN 与历史实验文件不改，官方 Runtime 扩展基线不变。
+用户最新决定覆盖前文 /2 新创作入口和独立技能安装映射要求。当前 employee-source/3、pipeline-source/3、package-extension/v3、skill-revision/v3、work-unit/3、employee-release/v4；源码与技能随包规则见[员工工程说明](AUTHORING.md)。新编译 target 为 employee-bundle/v1。员工版本自带完整技能资源，安装不创建全局技能记录，运行/恢复/导出不回查外部产品技能。旧 schema 与已冻结合同只保留历史校验，不自动改写历史发布。SDK v1/FROZEN 与历史实验文件不改，官方 Runtime 扩展基线不变。
