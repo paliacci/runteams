@@ -29,6 +29,10 @@ manifest = {
     'canonicalFoundation': foundation.relative_to(ROOT).as_posix(),
     'files': {},
 }
+catalog_path = package / 'catalog.json'
+catalog = json.loads(catalog_path.read_text())
+catalog['canonicalSources'] = [manifest['canonicalFoundation'], manifest['canonicalComponents']]
+emit(catalog_path, (json.dumps(catalog, indent=2, ensure_ascii=False) + '\n').encode())
 for name, source in files.items():
     data = source.read_bytes()
     emit(package / 'dist' / name, data)

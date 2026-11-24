@@ -1,78 +1,55 @@
-"""Exact employee dependencies; author declarations never grant access.
-
-Compilation is pure. Only the device host resolves declared pins through the
-original source store or complete signed downloads. No employee is copied,
-installed, upgraded or dispatched by this module.
-"""
+"""Resolve exact pipeline employee dependencies through the active host."""
+from runteams_core.authoring.creator_contracts import CreatorContractError
 from runteams_core.pipelines import pipeline_dependency_contracts
-import copy
-from pathlib import Path
-
-from runteams_core.authoring.creator_contracts import CreatorContractError, digest, relative
+from runteams_core.pipelines.pipeline_context import current
 
 
+class SourceMember:
+    def __init__(self, source_id, path, pinned_revision=None):
+        self.source_id = source_id
+        self.path = path
+        self.pinned_revision = pinned_revision
+
+    def reference(self):
+        from runteams_core.employees import source_employee_runtime as employee
+        return employee.reference(self.source_id, self.path)
+
+    def describe(self, revision):
+        from runteams_core.employees import source_employee_runtime as employee
+        return employee.describe(self.reference(), revision=self.pinned_revision or revision)
+
+    def prepare(self, description, operation, runtime_selection):
+        from runteams_core.employees import source_employee_runtime as employee
+        return employee.prepare(description['reference'], operation, revision=description['revision'],
+                                runtime_selection=runtime_selection)
 
 
-
-
-
-
-
-
-
-
-
-
-
+def _resolve(pipeline, member):
+    pin = pipeline_dependency_contracts.checked(member['dependency']) if 'dependency' in member else None
+    return current().member_assets(pipeline, member, pin), pin
 
 
 def member_reference(pipeline, member):
-    from runteams_core.employees import source_employee_runtime as employee
-    from runteams_core.assets import rented_references
-    from runteams_core.pipelines.pipeline_context import current
-    if 'dependency' not in member:
-        return (current().rented_member_reference(pipeline,member) if rented_references.is_rented(pipeline)
-                else employee.reference(pipeline['source_id'], member['source']))
-    pin = pipeline_dependency_contracts.checked(member['dependency'])
-    if pin['kind'] == 'source': return employee.reference(pin['source_id'], pin['employee_source'])
-    return current().acquired_member_reference(pin)
+    assets, _ = _resolve(pipeline, member)
+    return assets.reference()
 
 
-def describe(pipeline, member, revision):
-    from runteams_core.employees import source_employee_runtime as employee
-    from runteams_core.assets import rented_references
-    from runteams_core.pipelines.pipeline_context import current
-    if 'dependency' not in member:
-        ref = (current().rented_member_reference(pipeline,member) if rented_references.is_rented(pipeline)
-               else employee.reference(pipeline['source_id'], member['source']))
-        if rented_references.is_rented(pipeline):
-            package = current().rented_member_package(ref,revision)
-            result = {'reference': ref, 'revision': revision, 'asset': current().rented_package_asset(package)}
-        else:
-            result = employee.describe(ref, revision=revision)
-    else:
-        if rented_references.is_rented(pipeline):
-            raise PermissionError('租用智能体团队不能改绑本机员工。')
-        pin = pipeline_dependency_contracts.checked(member['dependency'])
-        if pin['kind'] == 'source':
-            result = employee.describe(employee.reference(pin['source_id'], pin['employee_source']), revision=pin['revision'])
-        else:
-            result = current().acquired_member_description(pin)
+def _description(assets, pin, revision):
+    result = assets.describe(revision)
+    if pin is not None:
+        from runteams_core.employees import source_employee_runtime as employee
         actual = [unit['key'] for unit in employee.units(result['asset'])]
         if sorted(actual) != sorted(pin['skills']):
             raise CreatorContractError('employee_dependency_contract_changed', '所选员工版本的技能与岗位声明不一致，请重新选择。')
     return result
 
 
+def describe(pipeline, member, revision):
+    assets, pin = _resolve(pipeline, member)
+    return _description(assets, pin, revision)
+
+
 def prepare(pipeline, member, operation, revision, *, runtime_selection=None):
-    from runteams_core.employees import source_employee_runtime as employee
-    from runteams_core.assets import rented_references
-    from runteams_core.pipelines.pipeline_context import current
-    description = describe(pipeline, member, revision)
-    if 'dependency' in member and member['dependency']['kind'] == 'download':
-        options = {'runtime_selection': runtime_selection} if runtime_selection is not None else {}
-        return current().acquired_member_package(member['dependency'], **options)
-    if rented_references.is_rented(pipeline):
-        return current().rented_member_package(description['reference'],description['revision'])
-    options = {'runtime_selection': runtime_selection} if runtime_selection is not None else {}
-    return employee.prepare(description['reference'], operation, revision=description['revision'], **options)
+    assets, pin = _resolve(pipeline, member)
+    description = _description(assets, pin, revision)
+    return assets.prepare(description, operation, runtime_selection)

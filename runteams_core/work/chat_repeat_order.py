@@ -364,7 +364,7 @@ def _ask(core, ask, plan, operation, policy):
 
 
 def _copy_files(core, turn, task_id, plan, operation):
-    from runteams_core.assets.cloud_files import decode_tree, materialize_tree, tree_bytes
+    from runteams_core.assets.file_trees import decode_tree, materialize_tree, tree_bytes
     from runteams_core.conversations.chat_attachments import snapshot_tree
     payload = copy.deepcopy(plan['payload'])
     for copy_ in plan['copies']:

@@ -74,11 +74,7 @@ def _knowledge_schema(version):
 
 def schema(version=SCHEMA_VERSION):
     directory = resource_root() / 'contracts'
-    business = (directory / 'cloud-business-transaction.sql').read_text()
-    statements = [(directory / 'device-user-data.sql').read_text()]
-    for table in ('chats', 'chat_messages'):
-        start = business.index('CREATE TABLE ' + table + '(')
-        statements.append(business[start:business.index(';', start)+1])
+    statements = [(directory / name).read_text() for name in ('device-user-data.sql', 'chat-tables.sql')]
     statements.append('CREATE INDEX device_messages_chat ON chat_messages(chat_id,id);')
     statements.extend((directory / name).read_text() for name in (
         'device-creator-work.sql', 'device-runtime-links.sql'))

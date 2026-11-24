@@ -4,7 +4,9 @@
  const empty=()=>'',nothing=()=>{},no=()=>false;
  const ports={
   lifecycle:{blocked:no,initial:no,initialize:nothing,initialState:()=>({}),beforeRender:no,afterRender:nothing,startMonitor:nothing,pollNotifications:nothing},
-  session:{ready:state=>!!state.localLibrary,workspace:empty,
+  session:{workAuthorization:(path,body)=>api(path,body?'POST':'GET',body||undefined),
+   preloadScope:empty,
+   ready:state=>!!state.localLibrary,workspace:empty,
    cacheToken:state=>JSON.stringify([state.localLibrary?.library_id||'',state.localLibrary?.generation||0]),
    actor:state=>state.localLibrary?.library_id||'',epoch:state=>state.localLibrary?.generation||0,deviceScope:()=>'',issuer:()=>'',
    libraryId:state=>state.localLibrary?.library_id||'',headers:state=>({'X-RunTeams-Library':state.localLibrary?.library_id||'','X-RunTeams-Library-Generation':state.localLibrary?.generation||0}),
@@ -17,7 +19,15 @@
   pages:{normalize:()=>null,render:()=>null,title:()=>null,error:()=>null},
   routes:{preview:()=>null,resolve:()=>null,apply:async()=>false,restored:async()=>false,independent:no},
   resources:{tree:()=>null,detail:()=>null,origin:empty,publication:empty},
-  pipeline:{creationModeControl:empty,readCreationMode:nothing},
+  employeeConfiguration:{
+   scope:state=>state.localLibrary?.cache_scope||'',
+   request:(target,method,body)=>api(target,method,body??undefined)
+  },
+  pipeline:{
+   positionRuntime:(request,body)=>request('position-runtime',body),
+   referenceFields:ref=>ref?.schema==='runteams.local-pipeline-reference/1'&&ref.storage_kind==='local'
+    ?['schema','source_id','pipeline_source','storage_kind','library_id']:null,
+   creationModeControl:empty,readCreationMode:nothing},
   assets:{remember:nothing,reset:nothing,marketRows:empty,placeholderEmployee:no,placeholderPipeline:no},
   workspace:{savedScope:()=>undefined,savedWindows:()=>undefined,storage:()=>null,reset:nothing},
   sidebar:{context:()=>({signedIn:false}),authority:nothing,authorityFailed:nothing},

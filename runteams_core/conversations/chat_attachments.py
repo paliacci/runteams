@@ -764,7 +764,7 @@ def snapshot_tree(chat_id, item):
     """Read the exact managed attachment tree, with the picker snapshot limits."""
     import re
     from pathlib import Path
-    from runteams_core.assets.cloud_files import tree_bytes
+    from runteams_core.assets.file_trees import tree_bytes
 
     identifier = item.get('id') or ''
     if not re.fullmatch(r'[a-f0-9]{24}', identifier):

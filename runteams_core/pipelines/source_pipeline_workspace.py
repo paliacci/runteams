@@ -5,6 +5,7 @@ pipeline or mutates its source. The work ledger remains the board's only truth.
 """
 from runteams_core.conversations.page_paths import asset_key, page_id, short_ids
 from runteams_core.pipelines import pipeline_references
+from runteams_core.pipelines.pipeline_context import current
 import copy
 import json
 import uuid
@@ -19,10 +20,6 @@ from runteams_core.authoring.source.creator_local_source import current_store
 from runteams_core.authoring.source.creator_source_revisions import Revisions
 
 CONTEXT = 'source_pipeline_workspace'
-
-def allowed_modes(ref):
-    from runteams_core.assets.rented_references import is_rented
-    return ['renter'] if is_rented(ref) else ['creator']
 
 
 def _definition(ref):
@@ -72,14 +69,14 @@ def catalog(core):
                         asset = _pipeline_definition(files, path)
                         avatar_src = image_src(source_fields(asset, files))
                         rows.append({'reference': ref, 'name': asset['pipeline']['name'], 'revision': revision,
-                                     'allowed_modes': allowed_modes(ref), **({'avatar_src': avatar_src} if avatar_src else {})})
+                                     'allowed_modes': current().allowed_modes(ref), **({'avatar_src': avatar_src} if avatar_src else {})})
             except (ValueError, OSError, ContractError) as exc:
                 errors.append({'source_id': item['id'], 'error': str(exc)})
         after = page['next_cursor']
         if after is None:
             break
     from runteams_core.pipelines.pipeline_context import current
-    rows.extend(current().rented_catalog())
+    rows.extend(current().additional_pipelines())
     ids = short_ids(asset_key(row['reference']) for row in rows)
     for row in rows:
         row['page_id'] = ids[asset_key(row['reference'])]
@@ -95,7 +92,7 @@ def _ui(connection, ref):
     row = connection.execute('SELECT value FROM device_settings WHERE key=?', (_key(ref),)).fetchone()
     value = json.loads(row[0]) if row else {'view': 'board', 'revision': 0}
     # Older workspaces may have stored a manual mode. Ownership now determines it.
-    return {**value, 'mode': allowed_modes(ref)[0]}
+    return {**value, 'mode': current().allowed_modes(ref)[0]}
 
 
 def preferences(ref, data=None):
@@ -106,7 +103,7 @@ def preferences(ref, data=None):
         if data is not None:
             fields = set(data) - {'reference', 'expected_revision'}
             if (not fields or fields - {'mode', 'view'} or type(data.get('expected_revision')) is not int or
-                    'mode' in fields and data['mode'] not in allowed_modes(ref) or
+                    'mode' in fields and data['mode'] not in current().allowed_modes(ref) or
                     'view' in fields and data['view'] not in ('board', 'conversation')):
                 raise ContractError('智能体团队显示设置无效。')
             patch = {field: data[field] for field in fields}
@@ -170,7 +167,7 @@ def workspace(core, ref, active_ids=(), *, background_revision=None):
             'pipeline': copy.deepcopy(asset['pipeline']), 'programs_available': bool(asset.get('programs')),
             'runtime': runtime, 'workflows': workflows,
             **({'board_chat': board_chat} if board_chat else {}),
-            'ui': ui, 'allowed_modes': allowed_modes(ref), 'storage_scope': 'device'}
+            'ui': ui, 'allowed_modes': current().allowed_modes(ref), 'storage_scope': 'device'}
 
 
 def _existing_chat_id(connection, ref, discussion_id=None):
@@ -392,8 +389,7 @@ def create(core, data):
         if not isinstance(end_name, str) or not end_name.strip() or len(end_name.strip()) > 160:
             raise ContractError('请填写不超过 160 字的结束位置名称。')
     if 'dependency' in data:
-        from runteams_core.pipelines.pipeline_context import current
-        return current().create_downloaded(core,data)
+            return current().create_downloaded(core,data)
     from runteams_core.employees.source_employee_runtime import source
     from runteams_core.authoring.source.creator_source_import import validate_source
     from runteams_core.authoring.creator_conversation_assets import compile_catalog

@@ -1,4 +1,4 @@
-include VERSION
+include VERSION CONTRIBUTING.md SECURITY.md
 recursive-include requirements *.txt
 recursive-include docs/legal *
 recursive-include contracts *
@@ -7,8 +7,14 @@ recursive-include sdk *
 recursive-include agent_skills *
 recursive-include builtin_skills *
 recursive-include frontend *
-recursive-include dependencies *.json
-recursive-include supabase *.sql
 recursive-include desktop *
 recursive-include runtime *.rs *.toml *.lock *.plist *.js
+recursive-include tooling *
+recursive-include .github/workflows *.yml
+recursive-include runteams_creator_dev *.txt
+recursive-include tests *
+prune **/node_modules
+prune **/.build
+prune **/build
+prune **/__pycache__
 global-exclude *.pyc *.db *.sqlite3 .DS_Store

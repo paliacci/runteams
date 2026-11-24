@@ -1,0 +1,11 @@
+<!doctype html>
+<meta charset="utf-8">
+<script src="/creator-app.js"></script>
+<script>
+(async () => {
+  const app = new RunTeamsMCP.App({name: 'core-webview-check', version: '1.0.0'}, {});
+  await app.connect();
+  const result = await app.callServerTool({name: 'read_marker', arguments: {}});
+  await app.callServerTool({name: 'confirm_marker', arguments: {marker: result.structuredContent.marker}});
+})();
+</script>

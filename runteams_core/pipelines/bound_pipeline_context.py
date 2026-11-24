@@ -12,6 +12,29 @@ class BoundPipelineContext:
             raise PermissionError('智能体团队工作提供者已变化，请重新打开。')
 
 
+    def allowed_modes(self, reference):
+        self._check()
+        from runteams_core.pipelines.pipeline_references import REFERENCE
+        if reference.get('schema') != REFERENCE:
+            raise PermissionError('当前宿主不提供此流水线。')
+        return ['creator']
+
+    def additional_pipelines(self):
+        self._check()
+        return []
+
+    def member_assets(self, pipeline, member, pin):
+        self._check()
+        from runteams_core.pipelines.pipeline_references import REFERENCE
+        from runteams_core.pipelines.pipeline_employee_dependencies import SourceMember
+        if pipeline.get('schema') != REFERENCE:
+            raise PermissionError('当前宿主不提供此流水线。')
+        if pin is None:
+            return SourceMember(pipeline['source_id'], member['source'])
+        if pin['kind'] == 'source':
+            return SourceMember(pin['source_id'], pin['employee_source'], pin['revision'])
+        raise PermissionError('本机资料库只使用自己的源码员工。')
+
     def binding(self, chat_id):
         self._check()
         from runteams_core.pipelines.pipeline_chat_binding import reference

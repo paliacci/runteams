@@ -6,8 +6,11 @@ const dom=new JSDOM('<!doctype html><main id="mount"></main>',{url:'http://127.0
 let account='account-one',requests=[],resolveSave;
 const state={doc:{id:123,name:'研究汇报',content_model:'rich-document',editable:true,revision:1},status:'ready',text:'{"schema":"runteams.rich-document/1","blocks":[],"sources":{}}'};
 const S={docReader:state,docOutlineCollapsed:false};const context={window,document:window.document,location:window.location,MutationObserver:window.MutationObserver,localStorage:window.localStorage,DOC_OUTLINE_KEY:'outline-test',crypto:globalThis.crypto,matchMedia:()=>({matches:false}),S,workspaceAccountCacheToken:()=>account,esc:String,ICON:name=>`<svg data-icon="${name}"></svg>`,documentReaderActionsMarkup:()=>'<button class="doc-reader-more" aria-label="文档设置"></button>',documentReaderVersionsMarkup:()=>'',setTimeout,clearTimeout,render(){},watchNativeDocumentReady(){},flushNativeDocument:()=>Promise.resolve(true),loadDocumentRevisions(){},closeDocumentReader(){},toggleRichDocumentVersions(){},toast(){},openMarkdownLink(){},api:async(...args)=>{requests.push(args);return new Promise(resolve=>resolveSave=resolve);}};
-context.RunTeamsLocale={language:'zh-CN',onChange(){},apply(){}};
-context.RunTeamsHost={session:{workspace:state=>Boolean(state.activeOrganization)}};
+window.localStorage.setItem('runteams_language_preference','zh-CN');
+for(const name of ['locale-zh-cn','locale','host']){
+ vm.runInNewContext(await fs.readFile(new URL('../../web/ui/'+name+'.js',import.meta.url),'utf8'),context);
+}
+Object.assign(context,{RunTeamsLocale:window.RunTeamsLocale,RunTeamsHost:window.RunTeamsHost});
 vm.runInNewContext(await fs.readFile(new URL('../../web/ui/rich-documents.js',import.meta.url),'utf8'),context);
 window.document.getElementById('mount').innerHTML=window.RunTeamsRichDocuments.main(state);
 const frame=window.document.getElementById('rich_document_frame'),replies=[];frame.contentWindow.postMessage=data=>replies.push(data);

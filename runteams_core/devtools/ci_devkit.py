@@ -36,6 +36,9 @@ def main():
     runtime = output / 'runtime'
     run('npm-install', ['npm', 'ci', '--ignore-scripts', '--no-audit', '--no-fund'], ROOT / 'sdk/mcp-host')
     run('libraries-build', [node, ROOT / 'sdk/mcp-host/build.mjs', host])
+    run('host-presentation', [node, ROOT / 'runteams_core/devtools/check_mcp_host_presentation.cjs',
+                              host / 'app-host.js'])
+    run('native-webview', [sys.executable, '-B', ROOT / 'tests/check_mcp_webview.py', host])
     prepare(node, host, runtime, node_license=node.parent.parent / 'LICENSE')
     esbuild = ROOT / 'sdk/mcp-host/node_modules/@esbuild/darwin-arm64/bin/esbuild'
     kit = output / 'workspace'
@@ -49,7 +52,7 @@ def main():
         run(name, [sys.executable, '-B', kit / 'runteams.py', *command], kit)
     archive = sdk_archive(esbuild.parent, output / 'runteams-devkit.zip',
                           runtime_root=runtime, libraries=host)
-    report = {'target': 'darwin-arm64', 'steps': [name for name, _ in commands],
+    report = {'target': 'darwin-arm64', 'steps': ['host-presentation', 'native-webview', *(name for name, _ in commands)],
               'archive': archive, 'real_model_or_account': False}
     (output / 'verification.json').write_text(json.dumps(report, indent=2) + '\n')
     print(json.dumps(report))

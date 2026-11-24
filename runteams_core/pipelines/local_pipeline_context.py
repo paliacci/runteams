@@ -2,9 +2,6 @@
 from runteams_core.pipelines.bound_pipeline_context import BoundPipelineContext
 
 class LocalPipelineContext(BoundPipelineContext):
-    def rented_catalog(self):
-        self._check();return []
-
     def acquired_employee_choices(self, project):
         self._check();return [],[]
 
@@ -15,24 +12,6 @@ class LocalPipelineContext(BoundPipelineContext):
         self._check();raise PermissionError('本机资料库不提供租用资产授权。')
 
     def rented_context(self,*args):
-        self._check();raise PermissionError('本机资料库不提供租用资产授权。')
-
-    def acquired_member_reference(self,*args):
-        self._check();raise PermissionError('本机资料库不提供取得资产授权。')
-
-    def acquired_member_description(self,*args):
-        self._check();raise PermissionError('本机资料库不提供取得资产授权。')
-
-    def acquired_member_package(self,*args):
-        self._check();raise PermissionError('本机资料库不提供取得资产授权。')
-
-    def rented_member_reference(self,*args):
-        self._check();raise PermissionError('本机资料库不提供租用资产授权。')
-
-    def rented_member_package(self,*args):
-        self._check();raise PermissionError('本机资料库不提供租用资产授权。')
-
-    def rented_package_asset(self,*args):
         self._check();raise PermissionError('本机资料库不提供租用资产授权。')
 
     def rented_history(self,*args):

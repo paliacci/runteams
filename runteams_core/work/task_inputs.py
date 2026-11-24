@@ -21,6 +21,14 @@ def _device_storage(core_root):
     return storage if isinstance(storage, DeviceWorkStorage) else None
 
 
+def _task_file_trees():
+    from runteams_core.storage.storage_context import current_provider
+    factory = getattr(current_provider(), 'task_file_trees', None)
+    if factory is None:
+        raise ValueError('当前宿主不提供外部任务文件存储')
+    return factory()
+
+
 def _cloud(core_root):
     from runteams_core.storage.business_storage import storage_for
     storage = storage_for(Path(core_root)/'runteams.db')
@@ -65,19 +73,18 @@ def _consume(core_root, task_id, tokens):
     # the core only keeps the resulting stable snapshot references.
     from runteams_core.conversations import chat_attachments
 
-    from runteams_core.assets.cloud_files import put_tree
     storage = _device_storage(core_root)
     cloud = None if storage is not None else _cloud(core_root)
     def finalize(items):
         for item in items:
             path = task_root(core_root, task_id)/item['id']
             if storage is not None:
-                from runteams_core.assets.cloud_files import tree_bytes
+                from runteams_core.assets.file_trees import tree_bytes
                 sha = hashlib.sha256(tree_bytes(path)).hexdigest()
                 item['ref'] = 'device-input://{}/{}/{}'.format(int(task_id), item['id'], sha)
                 storage.check_scope()
             else:
-                item['ref'] = put_tree(cloud, path)
+                item['ref'] = _task_file_trees().put_tree(cloud, path)
         return items
     saved = chat_attachments.consume_native_to(task_root(core_root, task_id), tokens, finalize=finalize)
     result = []
@@ -92,7 +99,7 @@ def _consume(core_root, task_id, tokens):
 
 def copy_chat_attachment(core_root, task_id, chat_id, item, *, operation_id):
     """Pin an accepted chat upload to the task before the next visit can run."""
-    from runteams_core.assets.cloud_files import decode_tree, materialize_tree
+    from runteams_core.assets.file_trees import decode_tree, materialize_tree
     from runteams_core.conversations import chat_attachments
 
     storage = _device_storage(core_root)
@@ -135,28 +142,33 @@ def _safe_destination_name(value, fallback):
 
 
 def _source_for_item(core_root, task_id, item):
-    from runteams_core.assets.cloud_files import TREE_PREFIX, restore_tree
     storage = _device_storage(core_root)
     local = LOCAL_INPUT_REF.fullmatch(str(item.get('ref') or ''))
     if local is not None:
         if storage is None or int(local[1]) != int(task_id) or local[2] != item.get('id'):
             raise ValueError('本机任务资料引用无效')
         item_root = task_root(core_root, task_id) / local[2]
-        from runteams_core.assets.cloud_files import tree_bytes
+        from runteams_core.assets.file_trees import tree_bytes
         if hashlib.sha256(tree_bytes(item_root)).hexdigest() != local[3]:
             raise ValueError('本机任务资料内容校验失败')
     else:
         if str(item.get('ref') or '').startswith('device-input://'):
             raise ValueError('本机任务资料引用无效')
-        if not str(item.get('ref') or '').startswith(TREE_PREFIX):
+        reference = str(item.get('ref') or '')
+        if not reference or reference.startswith('artifact://') or '://' not in reference:
             return None
         if storage is not None:
-            raise ValueError('本机工作不能读取尚未取得的云端任务资料')
+            if '://sha256/' in reference:
+                raise ValueError('本机工作不能读取尚未取得的云端任务资料')
+            return None
+        trees = _task_file_trees()
+        if not trees.accepts(reference):
+            return None
         identifier = str(item.get('id') or '')
         if not re.fullmatch(r'[a-f0-9]{24}', identifier):
             raise ValueError('任务资料标识无效')
         item_root = task_root(core_root, task_id) / identifier
-        restore_tree(_cloud(core_root), item['ref'], item_root)
+        trees.restore_tree(_cloud(core_root), reference, item_root)
     candidates = sorted(item_root.iterdir())
     if not candidates:
         raise ValueError("任务资料「{}」内容为空".format(item.get("name") or "未命名资料"))

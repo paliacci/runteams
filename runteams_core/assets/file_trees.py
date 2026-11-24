@@ -1,16 +1,10 @@
 """Portable immutable trees; only verified bytes are materialized on a host."""
 import base64
-import hashlib
 import json
 from pathlib import Path
-import re
-import shutil
 import tempfile
 
 from runteams_core.foundation.contracts import ContractError
-
-TREE_PREFIX = 'supabase-tree://sha256/'
-SKILL_PREFIX = 'supabase-skill://sha256/'
 
 
 def safe_relative(value):
@@ -75,14 +69,3 @@ def materialize_tree(files, target):
         except FileExistsError:
             return materialize_tree(files,target)
     return target
-
-
-def put_tree(cloud,directory):
-    return cloud.put_bytes(tree_bytes(directory)).replace('supabase-file://', 'supabase-tree://',1)
-
-
-def restore_tree(cloud,ref,target):
-    if not re.fullmatch(re.escape(TREE_PREFIX)+'[a-f0-9]{64}',str(ref)):
-        raise ContractError('云端文件包引用无效。')
-    body=cloud.read_bytes(str(ref).replace('supabase-tree://','supabase-file://',1))
-    return materialize_tree(decode_tree(body),target)

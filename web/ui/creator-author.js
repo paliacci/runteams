@@ -3,11 +3,10 @@
 'use strict';
 let state=null,operationOwner=null,operationMarkup='',mountedPreview=null;
 const scope=()=>workspaceAccountCacheToken();
-const deviceScope=()=>S.localLibrary?JSON.stringify([S.localLibrary.library_id,S.localLibrary.generation]):RunTeamsHost.session.deviceScope(S);
+const deviceScope=()=>JSON.stringify(RunTeamsHost.session.headers(S));
 let sourceActions=null;
 const extension=()=>sourceActions?.enabled()?sourceActions:null;
 function attachSourceActions(create){if(sourceActions||typeof create!=='function')throw Error('Source actions already composed');sourceActions=create({current,valid,busy,repaint,localCall,closeHistory,openOperation,syncOperationDialog,buildLocal,sync});}
-const sourceHeaders=s=>s.library?{'X-RunTeams-Library':s.library.library_id,'X-RunTeams-Library-Generation':s.library.generation}:{'X-RunTeams-Device-Scope':s.deviceScope||''};
 const panel=()=>S.conversationPanel?.kind==='employee_design'&&S.conversationPanel.context?.creator_local_source_id?S.conversationPanel:null;
 const current=()=>state&&valid(state)&&S.sel?.type==='creator-assets'&&S.sel.id===state.session&&(!state.settingsEntry||S.sel===state.settingsSelection)?state:null;
 const valid=s=>s===state&&s.scope===scope()&&s.deviceScope===deviceScope()&&(s.standalone||s.session===panel()?.id&&(!s.sourceId||s.sourceId===panel()?.context.creator_local_source_id));
@@ -15,7 +14,7 @@ const busy=s=>!!(s.loading||s.saving||s.pending||s.exporting||s.buildSending||ex
 const repaint=()=>{render();syncOperationDialog();};
 const localPath='/api/creator-source/drafts';
 async function localCall(s,suffix='',options={}){
- const response=await fetch(localPath+suffix,{...options,credentials:'same-origin',cache:'no-store',redirect:'error',headers:{...sourceHeaders(s),...options.headers}});
+ const response=await fetch(localPath+suffix,{...options,credentials:'same-origin',cache:'no-store',redirect:'error',headers:{...s.headers,...options.headers}});
  const value=await response.json();if(!response.ok||value.error)throw Object.assign(Error(value.error||'本机源码未能读取'),{rejected:response.status>=400&&response.status<500,code:value.code,receipt:value.receipt});return value;
 }
 function knowledgeOwner(s){
@@ -36,7 +35,7 @@ async function attachKnowledge(){
 let importing=false;
 function choosePackage(){
  if(importing)return;
- const owner=deviceScope(),headers=sourceHeaders({library:S.localLibrary,deviceScope:owner});
+ const owner=deviceScope(),headers=RunTeamsHost.session.headers(S);
  const input=document.createElement('input');input.type='file';input.accept='.zip';
  input.onchange=async()=>{
   const file=input.files[0];if(!file||owner!==deviceScope()||importing)return;
@@ -60,7 +59,7 @@ async function exportSource(){
  const s=current();if(!s?.localDraft||!s.revision||busy(s)||s.editing)return;
  const id=s.localDraft.id,revision=s.revision,request=new AbortController();s.exportRequest=request;s.exporting=true;s.error='';repaint();
  try{
-  const response=await fetch(localPath+'/'+id+'/export?revision='+encodeURIComponent(revision)+(s.employeeSource?'&entry='+encodeURIComponent(s.employeeSource):''),{signal:request.signal,credentials:'same-origin',cache:'no-store',redirect:'error',headers:sourceHeaders(s)});
+  const response=await fetch(localPath+'/'+id+'/export?revision='+encodeURIComponent(revision)+(s.employeeSource?'&entry='+encodeURIComponent(s.employeeSource):''),{signal:request.signal,credentials:'same-origin',cache:'no-store',redirect:'error',headers:s.headers});
   if(!valid(s)||s.localDraft?.id!==id||s.revision!==revision)return;
   if(!response.ok){s.error='无法导出源码包。请重试。';return;}
   if(response.headers.get('Content-Type')!=='application/zip'||response.headers.get('X-RunTeams-Source-Revision')!==revision){s.error='无法确认源码版本。请刷新后重试。';return;}
@@ -116,7 +115,7 @@ async function openEmployee(id,{onBack=null,settings=null,entry=null}={}){
  id=Number(id);const local=entry?entry.source:RunTeamsEmployeeDirectory.sourceFor(id);
  if(!id||entry&&(!entry.asset||Number(entry.asset.id)!==id)||!local&&!employeeCanEdit(entry?.asset||employeeSummary(id))||current()?.editing||current()&&busy(current()))return;
  const selection='employee:'+id;
- state={standalone:true,assetRecordId:id,employeeSource:local?.path,session:selection,scope:scope(),deviceScope:deviceScope(),library:S.localLibrary?{library_id:S.localLibrary.library_id,generation:S.localLibrary.generation}:null,files:[],resourceFolders:[],activeFile:'',file:null,error:'',loading:true,localSession:true,configurationReturn:onBack,settingsEntry:settings};
+ state={standalone:true,assetRecordId:id,employeeSource:local?.path,session:selection,scope:scope(),deviceScope:deviceScope(),headers:RunTeamsHost.session.headers(S),library:S.localLibrary?{library_id:S.localLibrary.library_id,generation:S.localLibrary.generation}:null,files:[],resourceFolders:[],activeFile:'',file:null,error:'',loading:true,localSession:true,configurationReturn:onBack,settingsEntry:settings};
  const s=state,configuration=selectResources(s);
  if(local){extension()?.source(s,local);s.loading=false;await openLocal(local.id);return configuration;}
  try{const result=await RunTeamsHost.assets.authoring(id,draftRuntimeConfig());if(!valid(s))return;
@@ -132,7 +131,7 @@ async function openSource(source,{onBack=null,settings=null}={}){
  const session=settings
   ?JSON.stringify(['employee-settings',S.conversationPanel?.id??S.conversationPanel?.newDraftKey,settings.key,source.id,source.path])
   :'source:'+source.id+':'+source.path;
- if(!state||state.session!==session||state.scope!==scope()||state.deviceScope!==deviceScope())state={standalone:true,session,sourceId:source.id,employeeSource:source.path,scope:scope(),deviceScope:deviceScope(),library:S.localLibrary?{library_id:S.localLibrary.library_id,generation:S.localLibrary.generation}:null,files:[],resourceFolders:[],activeFile:'',file:null,error:'',localSession:true};
+ if(!state||state.session!==session||state.scope!==scope()||state.deviceScope!==deviceScope())state={standalone:true,session,sourceId:source.id,employeeSource:source.path,scope:scope(),deviceScope:deviceScope(),headers:RunTeamsHost.session.headers(S),library:S.localLibrary?{library_id:S.localLibrary.library_id,generation:S.localLibrary.generation}:null,files:[],resourceFolders:[],activeFile:'',file:null,error:'',localSession:true};
  const s=state;
  extension()?.source(s,source);
  s.configurationReturn=onBack;
@@ -170,7 +169,7 @@ async function open(){
  const p=panel();if(!p)return;
  if(current())return close();
  if(!state||state.session!==p.id||state.scope!==scope()||state.deviceScope!==deviceScope()||state.sourceId!==p.context.creator_local_source_id){
-  state={session:p.id,sourceId:p.context.creator_local_source_id,localSession:!!p.context?.creator_local_source_id,employeeSource:p.context?.creator_employee_source,scope:scope(),deviceScope:deviceScope(),library:S.localLibrary?{library_id:S.localLibrary.library_id,generation:S.localLibrary.generation}:null,files:[],resourceFolders:[],activeFile:'',revision:null,error:'',file:null};
+  state={session:p.id,sourceId:p.context.creator_local_source_id,localSession:!!p.context?.creator_local_source_id,employeeSource:p.context?.creator_employee_source,scope:scope(),deviceScope:deviceScope(),headers:RunTeamsHost.session.headers(S),library:S.localLibrary?{library_id:S.localLibrary.library_id,generation:S.localLibrary.generation}:null,files:[],resourceFolders:[],activeFile:'',revision:null,error:'',file:null};
  }
 
  extension()?.source(state,{context:p.context});

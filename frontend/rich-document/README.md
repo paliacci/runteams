@@ -18,16 +18,12 @@ From this directory:
 ```sh
 npm ci --ignore-scripts
 npm run build
-node check.mjs
-node host-check.mjs
-node autosave-check.mjs
-node data-model-check.mjs
-node reply-check.mjs
+npm test
 ```
 
 The build publishes assets under `web/rich-document/dist` and replaces the entry after its assets exist. Old hashed assets stay available for open readers. The final build step uses Python 3.12 to register the published files with the local edition's HTTP server. A new frame under an old host asks the user to refresh before editing. Laboratory boot, fixtures, browser-local storage and test banners stay in the laboratory.
 
-Backend checks include `tests.test_rich_documents`, `tests.test_rich_document_assets`, `tests.test_work_reports`, `tests.test_device_work_retention`, and the document window checks and `tests.test_document_engine_retirement`. DOM checks use actual React/BlockNote with geometry stubs; real browser evidence is recorded separately. Current verification and scoped recovery patch: `design/evidence/document-lab-integration-20261030/`.
+The [desktop package check](../../tests/check_packaged_document.py) creates a document through the packaged local server and reads it back. The DOM checks above run React and BlockNote with geometry stubs.
 
 Only the local source service was updated. No cloud deployment, installer rebuild, employee/model execution, original report rewrite or automatic migration of laboratory test copies was performed.
 

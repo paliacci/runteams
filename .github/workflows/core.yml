@@ -16,9 +16,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24.22.1'
-      - run: python -m pip install -r requirements/build.txt
+      - run: python -m pip install -r requirements/build.txt -r requirements/runtime.txt
       - run: npm ci --prefix tooling/js --ignore-scripts --no-audit --no-fund
       - run: python -B -m runteams_core.devtools.ci --output "$RUNNER_TEMP/core-ci" --sdk-tsc "$GITHUB_WORKSPACE/tooling/js/node_modules/typescript/lib/tsc.js"
+      - name: Test the shared document editor and its Core host
+        working-directory: frontend/rich-document
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm test
       - uses: actions/upload-artifact@v4
         with:
           name: core-build

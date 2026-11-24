@@ -31,7 +31,14 @@ def _worker(payload):
                 from runteams_core.authoring.creator_process_memory import process_rss
                 try:
                     rss = process_rss(process.pid)
-                except (OSError, ValueError, StopIteration, subprocess.TimeoutExpired) as error:
+                except StopIteration as error:
+                    # Linux can drop VmRSS between poll() and reading /proc during exit.
+                    try:
+                        process.wait(timeout=0.01)
+                    except subprocess.TimeoutExpired:
+                        raise CreatorContractError('schema_budget') from error
+                    break
+                except (OSError, ValueError, subprocess.TimeoutExpired) as error:
                     raise CreatorContractError('schema_budget') from error
                 if rss > 128 * 1024 * 1024:
                     raise CreatorContractError('schema_budget')

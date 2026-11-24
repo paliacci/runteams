@@ -886,9 +886,7 @@ const positionRuntimeSelected=(s,key)=>owned(s)&&S.sel?.type==='source-pipeline'
 const positionRuntimeText=key=>RunTeamsLocale.t('pipelineRuntime.'+key);
 function positionRuntimeRequest(s,key,change={}){
  const body={reference:s.reference,position_key:key,...change};
- return s.reference.schema==='runteams.rented-pipeline-reference/1'
-  ?host().request('market',{action:'position-runtime',...body})
-  :host().request('position-runtime',body);
+ return RunTeamsHost.pipeline.positionRuntime(host().request,body);
 }
 async function readPositionRuntime(s,key){
  if(!owned(s)||!s.panels?.data?.asset?.pipeline?.positions?.some(p=>p.key===key&&p.kind==='employee'))return;

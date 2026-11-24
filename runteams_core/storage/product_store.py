@@ -25,7 +25,7 @@ _lock = local_database.lock
 
 PRODUCT_SCHEMA = "CREATE TABLE IF NOT EXISTS credential_entries(\n  name TEXT PRIMARY KEY,\n  pos INTEGER NOT NULL DEFAULT 0,\n  source_name TEXT NOT NULL DEFAULT '',\n  created_at TEXT NOT NULL, updated_at TEXT NOT NULL);\nCREATE TABLE IF NOT EXISTS model_channels(\n  id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL,\n  provider TEXT NOT NULL DEFAULT 'claude-code', executable TEXT NOT NULL DEFAULT '',\n  config_dir TEXT NOT NULL DEFAULT '', default_model TEXT NOT NULL DEFAULT '',\n  default_effort TEXT NOT NULL DEFAULT '',\n  enabled INTEGER NOT NULL DEFAULT 1, is_default INTEGER NOT NULL DEFAULT 0,\n  created_at TEXT NOT NULL, updated_at TEXT NOT NULL);\nCREATE TABLE IF NOT EXISTS local_asset_grants(\n  id INTEGER PRIMARY KEY AUTOINCREMENT,\n  name TEXT NOT NULL, path TEXT NOT NULL,\n  dev INTEGER NOT NULL DEFAULT 0, ino INTEGER NOT NULL DEFAULT 0,\n  is_git INTEGER NOT NULL DEFAULT 0, git_root_commit TEXT NOT NULL DEFAULT '',\n  excluded_json TEXT NOT NULL DEFAULT '[]',\n  revoked_at TEXT NOT NULL DEFAULT '',\n  created_at TEXT NOT NULL, updated_at TEXT NOT NULL, last_used_at TEXT NOT NULL DEFAULT '');\n"
 
-# 本地资产授权：只存在本机，和凭据保险箱同一类数据（见 design/LOCAL_ASSET_GRANTS.md）。
+# 本地资产授权：只存在本机，和凭据保险箱同一类数据。
 # 默认排除项：机密文件、依赖/虚拟环境目录和超限二进制；授权时展示，用户可逐项放开。
 LOCAL_ASSET_DEFAULT_EXCLUDES = (
     ".env", ".env.*", "*.pem", "*.key", "id_rsa*", ".ssh/", ".aws/",

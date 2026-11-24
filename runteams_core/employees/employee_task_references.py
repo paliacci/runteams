@@ -1,6 +1,9 @@
 """Original source-employee task reference grant selection."""
 from runteams_core.assets import local_references
-def source_task_references(action, source, *, core=None):
+
+
+def selected_task_source(action, source):
+    """Validate explicit grants against this conversation before resolving employee slots."""
     if 'local_reference_ids' in action:
         selected = action['local_reference_ids']
         if not isinstance(selected, list) or any(type(i) is not int or i < 1 for i in selected):
@@ -12,6 +15,13 @@ def source_task_references(action, source, *, core=None):
         chosen = [available[i] for i in dict.fromkeys(selected)]
         source = {**source, 'local_references': chosen, 'available_local_references': chosen}
     if not source.get('local_references') and not action.get('asset_bindings'):
+        return None
+    return source
+
+
+def source_task_references(action, source, *, core=None):
+    source = selected_task_source(action, source)
+    if source is None:
         return {}, []
     from runteams_core.employees.employee_binding import for_context
     bound=for_context(source)

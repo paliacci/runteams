@@ -8,12 +8,21 @@ const panels = fs.readFileSync('web/ui/source-pipeline-panels.js', 'utf8');
 const reference = {schema: 'runteams.local-pipeline-reference/1', source_id: 'fixture',
   pipeline_source: 'pipelines/example.json', storage_kind: 'local', library_id: 'library'};
 
+const host = fs.readFileSync('web/ui/host.js', 'utf8');
+
+function createHostContext(globals) {
+  const context = vm.createContext(globals);
+  vm.runInContext(host, context);
+  context.RunTeamsHost = context.window.RunTeamsHost;
+  return context;
+}
+
 function fixture() {
   const state = {surface: 'assistant', conversationPanel: {id: 7}, sel: null};
   const requests = [];
   const workspace = {runtime: {status: 'running'}, workflows: [{id: 42, state: 'needs_human'}], pipeline: {positions: [], states: []}};
   const work = {id: 42, state: 'needs_human', snapshot_json: {pipeline_visit: 4}};
-  const context = vm.createContext({
+  const context = createHostContext({
     S: state, window: {addEventListener() {}}, document: {hidden: false, addEventListener() {}},
     _workspaceBusinessGeneration: 1, workspaceAccountCacheToken: () => 'account',
     workspaceDeviceStorageScope: () => 'library', setInterval() {}, render() {},
@@ -88,7 +97,7 @@ test('opening a record sets its durable detail URL after the previous drawer has
   const events = [], employee = {schema: 'employee', source_id: 'employee'};
   const result = {key: 'workflow-42', workflow_id: 42, state: 'needs_human', pipeline_reference: reference};
   const owner = {type: 'core-results', scope: {employee_reference: employee}, data: {results: [result]}, resultKey: ''};
-  const context = vm.createContext({
+  const context = createHostContext({
     S: {sel: owner, conversationPanel: {id: 7}}, window: {addEventListener() {}},
     URL, location: {href: 'http://localhost/chats/7?results=1'},
     document: {querySelector: () => ({scrollTop: 150})},
@@ -112,7 +121,7 @@ test('another open pipeline refreshes the same task after a committed change and
   const updates = source.slice(source.indexOf(' const workUpdateOwner='), source.indexOf(' let activityConnection;'));
   const workspace = {reference}, owner = {type: 'source-pipeline', id: 'work', workflowId: 42};
   let boardReads = 0, taskReads = 0;
-  const context = vm.createContext({
+  const context = createHostContext({
     workspaceAccountCacheToken: () => 'account', workspaceDeviceStorageScope: () => 'library',
     S: {sel: owner}, window: {}, document: {hidden: false},
     referenceKey: ref => JSON.stringify(ref), taskWorkspace: () => workspace,

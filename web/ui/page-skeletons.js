@@ -147,5 +147,5 @@ function wrap(kind,body){
  const status=Object.hasOwn(pageStatus,kind)?pageStatus[kind]:global.RunTeamsHost.pages.skeletonStatus?.(kind)||[];
  return `<div class="route-skeleton" data-page-skeleton="${kind}" ${statusAttrs(...status)}><div class="route-sk-shapes" aria-hidden="true" inert>${body}</div></div>`;
 }
-global.RunTeamsSkeletons={normalize,fromLocation,page,region,wrap,statusAttrs,drawerHeading,pipelineColumns,pipelineBoard,workspaceHeader};
+global.RunTeamsSkeletons={shapes:Object.freeze({line,repeat,tabs,heading,row,card,table,fields,detail,frame}),normalize,fromLocation,page,region,wrap,statusAttrs,drawerHeading,conversationHeaderActions,pipelineColumns,pipelineBoard,workspaceHeader};
 })(window);

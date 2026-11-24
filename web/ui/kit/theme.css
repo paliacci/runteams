@@ -1,4 +1,4 @@
-/* Generated from design/ui-tokens.json by sdk/ui/build.py. */
+/* Bind shared component tokens to the platform theme in web/ui/tokens.css. */
 [data-rt-ui] {
   --rt-canvas: var(--canvas);
   --rt-library-row: var(--library-row);
