@@ -15,6 +15,7 @@ import secrets
 import re
 import uuid
 import threading
+from functools import lru_cache
 
 from runteams_core.storage import local_database
 from runteams_core.conversations.workspace_context import selected
@@ -72,6 +73,7 @@ def _knowledge_schema(version):
     return knowledge if version >= 7 else knowledge.replace('pages >= 0', 'pages > 0')
 
 
+@lru_cache(maxsize=8)
 def schema(version=SCHEMA_VERSION):
     directory = resource_root() / 'contracts'
     statements = [(directory / name).read_text() for name in ('device-user-data.sql', 'chat-tables.sql')]
@@ -86,6 +88,9 @@ def schema(version=SCHEMA_VERSION):
 
 def _initialize(c):
     from runteams_core.storage.device_schema import execute, verify
+    if c.execute('PRAGMA user_version').fetchone()[0] == SCHEMA_VERSION:
+        verify(c, schema())
+        return
     with _schema_lock:
         version = c.execute('PRAGMA user_version').fetchone()[0]
         if version == SCHEMA_VERSION:

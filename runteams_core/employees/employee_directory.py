@@ -257,20 +257,17 @@ def _roster_sources(store, scope, errors):
     if inputs is not None and snapshot is not None and snapshot[0] == signature:
         return deepcopy(snapshot[1])
     complete = True
-    rows=[];after=None
+    rows=[]
     groups = {}
-    while True:
-        page=store.list(after)
-        for source in page['items']:
+    with store.reading_project() as reader:
+        for source_id in reader.identities():
             try:
-                rows.extend(source_entries(store,source['id'],display_only=True,
+                rows.extend(source_entries(reader,source_id,display_only=True,
                                            pipeline_memberships=groups))
             except (ValueError,OSError) as exc:
                 if errors is None:raise
                 complete=False
-                errors[source['id']]={'error':str(exc)}
-        after=page['next_cursor']
-        if after is None:break
+                errors[source_id]={'error':str(exc)}
     if complete and inputs is not None and inputs == _roster_inputs(store):
         store.check_scope()
         _roster_snapshot = signature, deepcopy((rows, groups))

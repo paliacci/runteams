@@ -78,7 +78,7 @@ class CreationChoiceTests(unittest.TestCase):
                     'asset':{'employee':{'name':ref['source_id']},'skill_bundles':[{'package_key':'work'}]}}
         cache = tempfile.TemporaryDirectory()
         self.addCleanup(cache.cleanup)
-        with patch('runteams_core.pipelines.pipeline_choice_index._cache_root', return_value=Path(cache.name)), \
+        with patch('runteams_core.pipelines.pipeline_choice_index._index_directory', return_value=Path(cache.name)), \
                 patch.object(workspace.device_data, 'identity', side_effect=lambda:dict(scope)), \
                 patch.object(workspace, 'current_store', return_value=store), \
                 patch.object(workspace.Revisions, 'display_fingerprint', side_effect=lambda _,key:stamps[key]), \
@@ -112,7 +112,7 @@ class CreationChoiceTests(unittest.TestCase):
         stamp = ['r-1', 1]
         hidden_employees, hidden_teams = set(), set()
         with tempfile.TemporaryDirectory() as directory, \
-                patch('runteams_core.pipelines.pipeline_choice_index._cache_root', return_value=Path(directory)), \
+                patch('runteams_core.pipelines.pipeline_choice_index._index_directory', return_value=Path(directory)), \
                 patch.object(workspace.device_data, 'personal', return_value=True), \
                 patch.object(workspace.device_data, 'identity', return_value=scope), \
                 patch.object(workspace, 'current_store', return_value=store), \

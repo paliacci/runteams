@@ -14,6 +14,7 @@ from pathlib import Path
 import secrets
 import shutil
 import sqlite3
+from functools import lru_cache
 import threading
 import uuid
 
@@ -32,6 +33,7 @@ _locks = {}
 _locks_guard = threading.Lock()
 
 
+@lru_cache(maxsize=1)
 def schema():
     directory = resource_root() / 'contracts'
     return (directory/'device-work.sql').read_text()
@@ -52,6 +54,8 @@ class _Connection(sqlite3.Connection):
         if storage is not None:
             storage.check_scope()
             def parameter(value):
+                if not isinstance(value, (str, list, dict)):
+                    return value
                 if isinstance(value, str) and value.startswith(('{', '[')):
                     try:
                         decoded = json.loads(value)
@@ -72,8 +76,9 @@ class _Connection(sqlite3.Connection):
         rows = []
         for row in cursor:
             values = list(row)
-            values[index] = storage.file_path(values[index])
+            values[index] = storage._resolved_file_path(values[index])
             rows.append(values)
+        storage.check_scope()
         return CloudCursor({'columns': columns, 'rows': rows, 'lastrowid': cursor.lastrowid, 'rowcount': cursor.rowcount})
 
 
@@ -324,11 +329,14 @@ class DeviceWorkStorage:
         return convert(value)
 
     def file_path(self, reference):
+        self.check_scope()
+        return self._resolved_file_path(reference)
+
+    def _resolved_file_path(self, reference):
         if not isinstance(reference, str) or not reference.startswith(FILE_PREFIX):
             return reference
         from runteams_core.assets.file_trees import safe_relative
         relative = safe_relative(reference[len(FILE_PREFIX):])
-        self.check_scope()
         root = Path(self.path).parent
         path = root / relative
         if root not in path.resolve().parents or any(p.is_symlink() for p in (path, *path.parents) if p != root.parent):

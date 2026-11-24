@@ -131,7 +131,7 @@ class LocalSources(_SourceReader):
 
     @contextmanager
     def reading_project(self):
-        """Collect one project's display data; verify live scope before releasing it."""
+        """Collect display data from this library; recheck live scope before returning it."""
         self.check_scope()
         opened = True
 

@@ -3,27 +3,41 @@ import json
 from runteams_core.foundation.contracts import ContractError
 
 class SourceWorkService:
-    def page_ids(self, *, workflow_ids=None):
+    def document_page_ids(self, payload, identifier=None):
+        artifacts = {identifier} if identifier else set()
+        workflows = set()
+        for row in [payload, *payload.get('documents', []), *payload.get('revisions', [])]:
+            for field in ('id', 'document_root_id'):
+                if row.get(field):
+                    artifacts.add(row[field])
+            if row.get('workflow_id'):
+                workflows.add(row['workflow_id'])
+        return self.page_ids(workflow_ids=workflows, artifact_ids=artifacts)
+
+    def page_ids(self, *, workflow_ids=None, artifact_ids=None):
         """Public work identities grant no asset or platform access."""
-        if workflow_ids is not None:
-            workflow_ids = tuple(sorted(set(workflow_ids)))
-            if not workflow_ids:
-                return []
+        all_resources = workflow_ids is None and artifact_ids is None
+        selections = []
+        for public, table, metadata, identifiers in (
+                ('workflows', 'workflow_runs', '', workflow_ids),
+                ('artifacts', 'artifacts', ',item.name,item.meta_json', artifact_ids)):
+            selected = tuple(sorted(set(identifiers or ())))
+            if all_resources or selected:
+                selections.append((public, table, metadata, selected))
+        if not selections:
+            return []
         with self.repository.read_snapshot() as connection:
-            items = self._page_ids(connection, workflow_ids=workflow_ids)
+            items = self._page_ids(connection, selections)
         if items is not None:
             return items
         with self.repository.connect() as connection:
-            return self._page_ids(connection, register_missing=True, workflow_ids=workflow_ids)
+            return self._page_ids(connection, selections, register_missing=True)
 
-    def _page_ids(self, connection, *, register_missing=False, workflow_ids=None):
+    def _page_ids(self, connection, selections, *, register_missing=False):
         items, documents = [], []
-        resources = [('workflows', 'workflow_runs', '')]
-        if workflow_ids is None:
-            resources.append(('artifacts', 'artifacts', ',item.name,item.meta_json'))
-        where = '' if workflow_ids is None else 'WHERE item.id IN (SELECT value FROM json_each(?)) '
-        selection = () if workflow_ids is None else (json.dumps(workflow_ids),)
-        for public, table, metadata in resources:
+        for public, table, metadata, selected in selections:
+            where = 'WHERE item.id IN (SELECT value FROM json_each(?)) ' if selected else ''
+            selection = (json.dumps(selected),) if selected else ()
             rows = connection.execute(
                 f'SELECT item.id,resource.identity{metadata} FROM {table} item '
                 'LEFT JOIN device_work_resources resource ON resource.resource=? AND resource.id=item.id '

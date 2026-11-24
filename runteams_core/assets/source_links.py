@@ -56,20 +56,16 @@ def link_source(store,source_id,mapping):
 def linked_sources(store, identities):
     """Resolve a batch in one pass through this workspace's source catalog."""
     matches = {}
-    after = None
-    while True:
-        page = store.list(after)
-        for source in page['items']:
-            for path, reference in links(store, source['id']).items():
+    with store.reading_project() as reader:
+        for source_id in reader.identities():
+            for path, reference in links(reader, source_id).items():
                 key = reference_key(reference)
                 if key not in identities:
                     continue
                 if key in matches:
                     raise ValueError('员工身份关联重复。')
-                matches[key] = (source['id'], path)
-        after = page['next_cursor']
-        if after is None:
-            return matches
+                matches[key] = (source_id, path)
+    return matches
 
 
 def linked_source(store, reference):

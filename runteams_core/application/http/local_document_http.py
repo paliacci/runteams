@@ -69,7 +69,7 @@ def dispatch(core, method, path, data):
         if method == 'GET':
             if identifier:
                 item=core.historical_document_detail(identifier) if data.get('historical')=='1' else core.document_detail(identifier)
-                return DocumentResponse({**item,'storage_scope':'device','device_page_ids':core.page_ids()} if item else {'error':'文档不存在'},200 if item else 404)
+                return DocumentResponse({**item,'storage_scope':'device','device_page_ids':core.document_page_ids(item, identifier)} if item else {'error':'文档不存在'},200 if item else 404)
             if data.get('paged')=='1':
                 options=dict(limit=int(data.get('limit',40)),query=data.get('q',''),cursor=data.get('cursor'),
                     sort=data.get('sort','created_at'),descending=data.get('direction','desc')=='desc')
@@ -127,5 +127,6 @@ def dispatch(core, method, path, data):
         {'trash':core.trash_document,'restore':core.restore_document,'delete':core.delete_trashed_document}[action](identifier)
         result={'ok':True}
     else:raise ContractError('不支持的文档操作。')
-    return DocumentResponse({**result,'storage_scope':'device','device_page_ids':core.page_ids()},
+    links = core.document_page_ids(result, identifier) if method == 'GET' else core.page_ids()
+    return DocumentResponse({**result,'storage_scope':'device','device_page_ids':links},
                             201 if method=='POST' and not identifier else 200)
