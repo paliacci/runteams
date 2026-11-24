@@ -1,12 +1,15 @@
-name: Offline macOS SDK development kit
+name: macOS desktop and offline SDK
 on:
+  push:
+    branches: [main]
+  pull_request:
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
   devkit:
     runs-on: macos-15
-    timeout-minutes: 20
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -17,9 +20,33 @@ jobs:
           node-version: '24.22.1'
       - run: python -m pip install -r requirements/runtime.txt
       - run: python -B -m runteams_core.devtools.ci_devkit --output "$RUNNER_TEMP/devkit-ci"
+      - name: Build the local desktop installer
+        run: |
+          python -B -m runteams_core.devtools.package_creator_builder \
+            --esbuild "$PWD/sdk/mcp-host/node_modules/@esbuild/darwin-arm64/bin/esbuild" \
+            --output "$RUNNER_TEMP/builder"
+          python -B desktop/community/build.py --local \
+            --creator-builder "$RUNNER_TEMP/builder" --mcp-runtime "$RUNNER_TEMP/devkit-ci/runtime" \
+            --output "$RUNNER_TEMP/RunTeams Local.app" --dmg "$RUNNER_TEMP/RunTeams-Local.dmg"
+      - name: Verify the desktop installed from the disk image
+        run: |
+          mount="$RUNNER_TEMP/installed-volume"
+          mkdir "$mount"
+          hdiutil attach -readonly -nobrowse -mountpoint "$mount" "$RUNNER_TEMP/RunTeams-Local.dmg"
+          trap 'hdiutil detach "$mount"' EXIT
+          app="$mount/RunTeams Local.app"
+          codesign --verify --deep --strict "$app"
+          "$app/Contents/MacOS/RunTeamsLocal" --check-bootstrap
+          python -I -B tests/check_packaged_document.py "$app"
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: macOS-build-logs
+          path: ${{ runner.temp }}/devkit-ci/*.log
       - uses: actions/upload-artifact@v4
         with:
           name: macOS-devkit
           path: |
+            ${{ runner.temp }}/RunTeams-Local.dmg
             ${{ runner.temp }}/devkit-ci/runteams-devkit.zip
             ${{ runner.temp }}/devkit-ci/verification.json
