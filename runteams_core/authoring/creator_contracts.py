@@ -5,7 +5,7 @@ import hashlib
 import json
 import math
 import os
-from runteams_core.foundation import regular_files
+from runteams_core.foundation import archive_paths, regular_files
 from pathlib import Path
 import re
 import stat
@@ -58,9 +58,8 @@ def strict_json(raw):
 
 
 def relative(path):
-    if (not isinstance(path, str) or not path or len(path) > 240
+    if (not archive_paths.valid_relative(path) or len(path) > 240
             or unicodedata.normalize('NFC', path) != path
-            or any(p in ('', '.', '..') for p in path.split('/'))
             or re.search(r'[\\\x00-\x1f\x7f:%?#]', path)):
         raise CreatorContractError('invalid_path')
     return path

@@ -202,7 +202,7 @@ class Workflow:
         return self.report()
 
     def publish(self,stapled):
-        from runteams_core.storage.backups.backup_files import sync_directory
+        from runteams_core.foundation.durable_files import sync_directory
         expected=self.value['dmg_sha256']
         if self.dmg.exists():
             if sha(self.dmg)!=expected:raise ValueError('Final DMG destination contains different bytes; no overwrite')

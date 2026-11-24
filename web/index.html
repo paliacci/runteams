@@ -7936,6 +7936,12 @@ function markdownLinkTarget(value,replyFiles=false){
   if(setup&&Number.isSafeInteger(Number(setup[1])))return {kind:'configuration',chatId:Number(setup[1]),position:setup[2]||'',href:raw};
   if(/^runteams:\/\/document\/[1-9][0-9]*(?:\?revision=[1-9][0-9]*)?(?:#[a-zA-Z0-9._:-]+)?$/.test(raw))return {kind:'document',href:raw};
   try{
+    if(replyFiles && /^[a-z]:\/(?!\/)/i.test(raw)){
+      if(raw.includes('?'))return null;
+      const path='/'+decodeURIComponent(raw.split('#')[0]);
+      if(/[\\\u0000]/.test(path)||path.split('/').includes('..')||path.includes('//'))return null;
+      return {kind:'file',path,href:path.split('/').map(encodeURIComponent).join('/')};
+    }
     if(replyFiles && !/^(?:[a-z][a-z0-9+.-]*:|[/?#])/i.test(raw) && !raw.includes('?')){
       const path=decodeURIComponent(raw.split('#')[0]);
       if(!/[\\\u0000]/.test(path) && !path.startsWith('/') && !path.split('/').includes('..') && /\.[\w-]+(?::[\d:-]+)?$/.test(path))
@@ -8043,7 +8049,10 @@ function renderMarkdown(value,options={}){
   if(!window.marked||!window.DOMPurify||window.DOMPurify.isSupported===false)return `<pre class="md-fallback">${esc(source)}</pre>`;
   try{
     const rendered=window.marked.parse(source,{gfm:true,breaks:true,pedantic:false});
-    const localLinks=String(rendered).replace(/href="(file:[^"]+)"/gi,(full,href)=>{const target=markdownLinkTarget(href);return target?.kind==='file'?`href="${esc(target.href)}"`:full;});
+    // A native drive looks like a URL scheme to the sanitizer. Make reply
+    // drive links root-relative first, preserving Marked's attribute escaping.
+    const driveLinks=options.replyFiles?String(rendered).replace(/href="([a-z]:\/(?!\/)[^"]*)"/gi,(full,href)=>markdownLinkTarget(href,true)?.kind==='file'?`href="/${href}"`:full):String(rendered);
+    const localLinks=driveLinks.replace(/href="(file:[^"]+)"/gi,(full,href)=>{const target=markdownLinkTarget(href);return target?.kind==='file'?`href="${esc(target.href)}"`:full;});
     const setupLinks=localLinks.replace(/href="runteams:\/\/configuration\/([1-9][0-9]*(?:\?position=[a-z][a-z0-9-]{0,79})?)"/gi,(_,target)=>`href="#runteams-configuration/${target}"`);
     const normalized=setupLinks.replace(/href="(runteams:\/\/document\/[^" ]+)"/gi,(full,href)=>{
       const id=documentInternalLinkId(href);

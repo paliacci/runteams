@@ -11,6 +11,7 @@ import threading
 import uuid
 import zipfile
 
+from runteams_core.foundation import durable_files
 from runteams_core.storage.backups import backup_files as disk, library_backup as backup
 from runteams_core.storage.local_library import private_directory, scope_for, SCHEMA as LIBRARY_SCHEMA
 from runteams_core.application.local_host_lock import RuntimeBusy, acquire
@@ -93,7 +94,7 @@ class LocalBackups:
             if automatic:
                 value['archive_sha256']=disk.file_digest(packed)
                 self.record(identifier,value)
-            os.replace(packed,self.path('archives',identifier,'.zip'));disk.sync_directory(self.root/'archives')
+            durable_files.move(packed,self.path('archives',identifier,'.zip'), replace=True)
             self.record(identifier,{**value,'state':'completed','backup_id':identifier})
             return self.status(identifier)
         except BaseException as error:
@@ -132,9 +133,9 @@ class LocalBackups:
                 if value['sha256']!=sha.hexdigest():raise AssetConflict('同一上传操作不能选择另一份文件。')
                 return value['preview']
             manifest=self.inspect_archive(temporary)
-            os.replace(temporary,self.path('imports',identifier,'.zip'));disk.sync_directory(self.root/'imports')
+            durable_files.move(temporary,self.path('imports',identifier,'.zip'), replace=True)
             preview={'import_id':identifier,'library_id':manifest['library_id'],'created_at':manifest['created_at'],'files':len(manifest['files'])}
-            disk.write_json(meta,{'sha256':sha.hexdigest(),'preview':preview});disk.sync_directory(meta.parent)
+            disk.write_json(meta,{'sha256':sha.hexdigest(),'preview':preview})
             return preview
         finally:temporary.unlink(missing_ok=True)
 
@@ -151,7 +152,7 @@ class LocalBackups:
             # Publication has not completed. Restore the exact original tree.
             if previous.exists():
                 if base.exists():raise ValueError('恢复目录状态不一致，原资料均已保留。')
-                os.replace(previous,base);disk.sync_directory(self.directory)
+                durable_files.move(previous,base, replace=True)
             if not base.exists():raise ValueError('原资料目录不可用，请保留恢复文件。')
             self.record(identifier,{**pending['receipt'],'state':'failed','error':'恢复未完成，原资料已保留。'})
             shutil.rmtree(stage)
@@ -169,7 +170,7 @@ class LocalBackups:
             # A completed journal can be left behind only after cleanup.
             receipt=self.receipt(identifier)
             if not receipt or receipt['state'] not in ('completed','failed'):raise ValueError('恢复状态未确认，请保留本机资料。')
-        (self.root/'restore-pending.json').unlink(missing_ok=True);disk.sync_directory(self.root)
+        (self.root/'restore-pending.json').unlink(missing_ok=True);durable_files.sync_directory(self.root)
 
     def restoring(self):
         path=self.root/'restore-pending.json'
@@ -248,7 +249,7 @@ class LocalBackups:
             (target/'workspaces/assistant').mkdir(mode=0o700,parents=True,exist_ok=True)
             for name in manifest['files']:
                 path=target/disk.safe_name(name);path.parent.mkdir(mode=0o700,parents=True,exist_ok=True);shutil.copyfile(extracted/name,path);path.chmod(0o600)
-                with path.open('rb') as f:os.fsync(f.fileno())
+                with path.open('r+b') as f:os.fsync(f.fileno())
             backup.folders(target,final_root=app.base/'libraries'/scope['storage_namespace'])
             backup.verify_payload(target,manifest,portable=False)
             from runteams_core.work.device_work import quarantine_restored
@@ -258,12 +259,12 @@ class LocalBackups:
             quarantine_employee_schedules(target);quarantine_pipeline_schedules(target)
             app.runtime.retire_employee_services()
             disk.write_json(stage/'.local-library.json',{'schema':LIBRARY_SCHEMA,'library_id':manifest['library_id']})
-            for folder in sorted((p for p in stage.rglob('*') if p.is_dir()),key=lambda p:len(p.parts),reverse=True):folder.chmod(0o700);disk.sync_directory(folder)
-            stage.chmod(0o700);disk.sync_directory(stage)
+            for folder in sorted((p for p in stage.rglob('*') if p.is_dir()),key=lambda p:len(p.parts),reverse=True):folder.chmod(0o700);durable_files.sync_directory(folder)
+            stage.chmod(0o700);durable_files.sync_directory(stage)
             pending={'operation_id':identifier,'import_id':import_id,'library_id':manifest['library_id'],'generation':str(uuid.uuid4()),'stage':stage.name,'previous':previous.name,'receipt':receipt}
             self.record(identifier,receipt);disk.replace_json(self.root/'restore-pending.json',pending)
-            os.replace(app.base,previous);disk.sync_directory(self.directory)
-            os.replace(stage,app.base);disk.sync_directory(self.directory)
+            durable_files.move(app.base,previous, replace=True)
+            durable_files.move(stage,app.base, replace=True)
             self._finish(pending)
             app.rebind()
             return self.status(identifier)

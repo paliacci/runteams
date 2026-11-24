@@ -16,6 +16,7 @@ import tempfile
 from types import MappingProxyType
 import zipfile
 
+from runteams_core.foundation import archive_paths, regular_files
 from runteams_core.authoring.creator_contracts import canonical, strict_json
 
 MAX_PACKAGE = 256 * 1024 * 1024
@@ -32,10 +33,8 @@ def sha256(body):
 
 
 def safe_path(name):
-    if (not isinstance(name, str) or not name or len(name) > 512 or
-            '\\' in name or ':' in name or '\0' in name or
-            any(p in ('', '.', '..') for p in name.split('/')) or name.startswith('/') or
-            any(ord(c) < 32 for c in name)):
+    if (not archive_paths.valid_relative(name) or len(name) > 512 or ':' in name
+            or any(ord(c) < 32 for c in name)):
         raise MCPPackageError('invalid_package_path')
     return name
 
@@ -90,7 +89,9 @@ class MCPBundle:
                     raise MCPPackageError('package_budget')
                 for item in entries:
                     # Directory records are not executable resources.
-                    name = safe_path(item.filename.rstrip('/') if item.is_dir() else item.filename)
+                    if item.orig_filename != item.filename:
+                        raise MCPPackageError('invalid_package_path')
+                    name = safe_path(item.filename[:-1] if item.is_dir() else item.filename)
                     mode = item.external_attr >> 16
                     if (stat.S_IFMT(mode) not in (0, stat.S_IFREG, stat.S_IFDIR) or item.flag_bits & 1 or
                             item.compress_type not in (zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED) or
@@ -206,7 +207,7 @@ class MCPBundle:
         actual = {}
         for path in root.rglob('*'):
             info = path.lstat()
-            if stat.S_ISLNK(info.st_mode) or not (stat.S_ISREG(info.st_mode) or stat.S_ISDIR(info.st_mode)):
+            if regular_files.is_link(info) or not (stat.S_ISREG(info.st_mode) or stat.S_ISDIR(info.st_mode)):
                 raise MCPPackageError('package_integrity')
             if stat.S_ISREG(info.st_mode):
                 name = path.relative_to(root).as_posix()

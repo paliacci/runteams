@@ -4,12 +4,12 @@ import json
 from pathlib import Path
 import tempfile
 
+from runteams_core.foundation import archive_paths
 from runteams_core.foundation.contracts import ContractError
 
 
 def safe_relative(value):
-    if (not isinstance(value,str) or not value or '\\' in value or '\x00' in value
-            or value.startswith('/') or any(x in ('','..','.') for x in value.split('/'))):
+    if not archive_paths.valid_relative(value):
         raise ContractError('云端文件路径无效。')
     return value
 
@@ -63,7 +63,11 @@ def materialize_tree(files, target):
     with tempfile.TemporaryDirectory(prefix='.cloud-tree-',dir=target.parent) as temporary:
         staged = Path(temporary)/'tree';staged.mkdir()
         for name,body in files.items():
-            path=staged/safe_relative(name);path.parent.mkdir(parents=True,exist_ok=True);path.write_bytes(body);path.chmod(0o600)
+            path=staged/safe_relative(name)
+            path.parent.mkdir(parents=True,exist_ok=True)
+            with path.open('xb') as output:
+                output.write(body)
+            path.chmod(0o600)
         try:
             staged.rename(target)
         except FileExistsError:

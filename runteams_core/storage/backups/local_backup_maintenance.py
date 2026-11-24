@@ -10,6 +10,7 @@ import threading
 import time
 import uuid
 
+from runteams_core.foundation import durable_files
 from runteams_core.storage.backups import backup_files as disk
 from runteams_core.storage.backups.local_backups import operation_id, failure
 from runteams_core.assets.library_assets import AssetConflict
@@ -128,7 +129,7 @@ class AutomaticBackups:
                 removed=[]
                 for value in entries[policy['keep']:]:
                     path=self.verified(value)
-                    self.app.check();path.unlink();disk.sync_directory(path.parent)
+                    self.app.check();path.unlink();durable_files.sync_directory(path.parent)
                     self.app.backups.record(value['operation_id'],{**value,'retained':False})
                     removed.append(value['operation_id'])
                 self.error_path.unlink(missing_ok=True)

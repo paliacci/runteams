@@ -1,4 +1,5 @@
 """Shared durable backup files, SQLite snapshots and bounded ZIP transport."""
+from contextlib import closing
 import hashlib
 import os
 from pathlib import Path, PureWindowsPath
@@ -6,17 +7,12 @@ import shutil
 import sqlite3
 import zipfile
 
+from runteams_core.foundation import archive_paths
 from runteams_core.foundation.durable_files import publish_json
 
 MAX_ARCHIVE = 512 * 1024 * 1024
 MAX_EXPANDED = 2 * 1024 * 1024 * 1024
 MAX_FILES = 20000
-
-
-def sync_directory(path):
-    descriptor=os.open(path,os.O_RDONLY)
-    try:os.fsync(descriptor)
-    finally:os.close(descriptor)
 
 
 def write_json(path, value):
@@ -28,8 +24,7 @@ def replace_json(path, value):
 
 
 def safe_name(name):
-    if (not isinstance(name,str) or not name or '\\' in name or '\0' in name or name.startswith('/')
-            or PureWindowsPath(name).drive or any(p in ('','.','..') for p in name.split('/'))):
+    if not archive_paths.valid_relative(name) or PureWindowsPath(name).drive:
         raise ValueError('备份文件路径无效。')
     return name
 
@@ -62,7 +57,8 @@ def verify_files(directory, expected, *, required='personal.sqlite3'):
 
 def snapshot_database(source, destination):
     if source.is_symlink() or not source.is_file():raise ValueError('本机数据库路径无效。')
-    with sqlite3.connect(source.resolve().as_uri()+'?mode=ro',uri=True) as original, sqlite3.connect(destination) as target:
+    with (closing(sqlite3.connect(source.resolve().as_uri()+'?mode=ro',uri=True)) as original,
+          closing(sqlite3.connect(destination)) as target):
         original.backup(target);target.execute('PRAGMA journal_mode=DELETE')
     destination.chmod(0o600)
 
@@ -98,7 +94,7 @@ def pack(source, destination):
         for name in names:archive.write(source/name,safe_name(name))
     destination.chmod(0o600)
     if destination.stat().st_size>MAX_ARCHIVE:raise ValueError('备份超过512MB，请先减少本机资料。')
-    with destination.open('rb') as stream:os.fsync(stream.fileno())
+    with destination.open('r+b') as stream:os.fsync(stream.fileno())
 
 
 def unpack(source, destination):
@@ -108,6 +104,8 @@ def unpack(source, destination):
         entries=archive.infolist();names=set();size=0
         if len(entries)>MAX_FILES:raise ValueError('备份文件数量过多。')
         for entry in entries:
+            if entry.filename != entry.orig_filename:
+                raise ValueError('备份文件路径无效。')
             is_directory=entry.is_dir();name=safe_name(entry.filename[:-1] if is_directory else entry.filename)
             mode=entry.external_attr>>16
             allowed_modes=(0,0o040000) if is_directory else (0,0o100000)
