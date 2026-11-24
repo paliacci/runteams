@@ -16,6 +16,8 @@ from pathlib import Path
 import platform
 import sys
 import tarfile
+import zipfile
+import stat
 from urllib.request import urlopen
 
 ROOT = source_root()
@@ -24,7 +26,8 @@ LOCK = ROOT / 'sdk/mcp-host/node-runtime.json'
 
 def provision(cache):
     lock = json.loads(LOCK.read_text())
-    machine = {'aarch64': 'arm64', 'x86_64': 'x64'}.get(platform.machine(), platform.machine())
+    machine = platform.machine().lower()
+    machine = {'aarch64': 'arm64', 'x86_64': 'x64', 'amd64': 'x64'}.get(machine, machine)
     target = sys.platform + '-' + machine
     spec = lock['targets'].get(target)
     if spec is None:
@@ -42,26 +45,39 @@ def provision(cache):
         archive.write_bytes(raw)
     if archive.is_symlink() or hashlib.sha256(archive.read_bytes()).hexdigest() != spec['sha256']:
         raise ValueError('mcp_node_download_integrity')
-    prefix = spec['file'].removesuffix('.tar.gz')
-    output = cache / prefix
-    # Extract only two fixed regular members, never archive-controlled paths.
-    with tarfile.open(archive, 'r:gz') as source:
-        for name in ('bin/node', 'LICENSE'):
-            item = source.getmember(prefix + '/' + name)
-            if not item.isfile() or item.size > 128 * 1024 * 1024:
-                raise ValueError('mcp_node_download_integrity')
-            target_file = output / name
-            if any(p.is_symlink() for p in (target_file, *target_file.parents)):
-                raise ValueError('mcp_node_cache_invalid')
-            body = source.extractfile(item).read()
-            target_file.parent.mkdir(parents=True, exist_ok=True)
-            if target_file.exists() and target_file.read_bytes() != body:
-                raise ValueError('mcp_node_cache_changed')
-            if not target_file.exists():
-                target_file.write_bytes(body)
-            if name == 'bin/node':
-                target_file.chmod(0o755)
-    return output / 'bin/node'
+    if archive.suffix == '.zip':
+        output = cache / archive.stem
+        executable = 'bin/node.exe'
+        with zipfile.ZipFile(archive) as source:
+            for member, dest in [('node.exe', executable), ('LICENSE', 'LICENSE')]:
+                info = source.getinfo(archive.stem + '/' + member)
+                if (info.is_dir() or stat.S_ISLNK(info.external_attr >> 16)
+                        or info.file_size > 128 * 1024 * 1024):
+                    raise ValueError('mcp_node_download_integrity')
+                _store(output / dest, source.read(info))
+    else:
+        output = cache / archive.name.removesuffix('.tar.gz')
+        executable = 'bin/node'
+        with tarfile.open(archive, 'r:gz') as source:
+            for member in (executable, 'LICENSE'):
+                item = source.getmember(output.name + '/' + member)
+                if not item.isfile() or item.size > 128 * 1024 * 1024:
+                    raise ValueError('mcp_node_download_integrity')
+                _store(output / member, source.extractfile(item).read())
+    node = output / executable
+    node.chmod(0o755)
+    return node
+
+
+def _store(path, body):
+    if any(p.is_symlink() for p in (path, *path.parents)):
+        raise ValueError('mcp_node_cache_invalid')
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.exists():
+        if path.read_bytes() != body:
+            raise ValueError('mcp_node_cache_changed')
+    else:
+        path.write_bytes(body)
 
 
 if __name__ == '__main__':

@@ -16,7 +16,7 @@ ROOT = source_root()
 sys.path.insert(0, str(ROOT))
 from runteams_core.authoring.creator_contracts import canonical
 from runteams_core.employees.mcp.employee_mcp_package import sha256
-from runteams_core.employees.mcp.employee_mcp import ManagedMCPRuntime
+from runteams_core.employees.mcp.employee_mcp import ManagedMCPRuntime, NODE_EXECUTABLE
 
 
 def prepare(node, host, output, *, node_license=None):
@@ -27,7 +27,7 @@ def prepare(node, host, output, *, node_license=None):
     if not version.startswith(('v22.', 'v24.')):
         raise ValueError('unsupported_managed_node')
     output.mkdir(parents=True, mode=0o755)
-    name = 'node.exe' if sys.platform == 'win32' else 'node'
+    name = NODE_EXECUTABLE
     shutil.copyfile(node, output / name)
     (output / name).chmod(0o755)
     for file in ('worker.cjs', 'app-host.js'):

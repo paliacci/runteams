@@ -44,3 +44,18 @@ jobs:
           python-version: '3.12'
       - run: python -B -m unittest discover -s tests -p test_process_tree.py
       - run: python -B -m unittest discover -s tests -p test_file_locks.py
+      - name: Provision and verify the Windows x64 MCP runtime
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          python -B -m unittest discover -s tests -p test_provision_mcp_node.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $node = python -B -m runteams_core.devtools.provision_mcp_node --cache "$env:RUNNER_TEMP/node-cache"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm ci --prefix sdk/mcp-host --ignore-scripts --no-audit --no-fund
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & $node sdk/mcp-host/build.mjs "$env:RUNNER_TEMP/mcp-host"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -B -m runteams_core.devtools.prepare_mcp_runtime --node $node --host "$env:RUNNER_TEMP/mcp-host" --output "$env:RUNNER_TEMP/mcp-runtime"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -B -m runteams_core.devtools.package_mcp_runtime --source "$env:RUNNER_TEMP/mcp-runtime"

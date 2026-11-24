@@ -16,9 +16,9 @@ import zipfile
 ROOT = source_root()
 sys.path.insert(0, str(ROOT))
 from runteams_core.authoring.creator_contracts import canonical, strict_json
-from runteams_core.employees.mcp.employee_mcp import ManagedMCPRuntime
+from runteams_core.employees.mcp.employee_mcp import ManagedMCPRuntime, NODE_EXECUTABLE
 
-FILES = {'node', 'worker.cjs', 'app-host.js', 'runtime.json', 'runtime.sha256',
+FILES = {NODE_EXECUTABLE, 'worker.cjs', 'app-host.js', 'runtime.json', 'runtime.sha256',
          'provenance.json', 'NODE-LICENSE', 'THIRD_PARTY_NOTICES.txt',
          'worker.cjs.LEGAL.txt', 'app-host.js.LEGAL.txt'}
 
@@ -33,7 +33,7 @@ def verify(root):
         if path.is_symlink() or not path.is_file() or path.stat().st_nlink != 1:
             raise ValueError('linked_mcp_resource')
     pin = (root / 'runtime.sha256').read_text().strip()
-    ManagedMCPRuntime(root, pin).verify()
+    node, _ = ManagedMCPRuntime(root, pin).verify()
     manifest = strict_json((root / 'runtime.json').read_bytes())
     if not manifest['node_version'].startswith('v24.'):
         raise ValueError('mcp_node24_required')
@@ -46,7 +46,7 @@ def verify(root):
     # File pins and a dependency lock can also describe an obsolete host.
     # Both editions use this build-time probe; no author program is loaded.
     try:
-        presentation = subprocess.run([str(root/'node'),
+        presentation = subprocess.run([str(node),
             str(ROOT/'runteams_core/devtools/check_mcp_host_presentation.cjs'),str(root/'app-host.js')],
             capture_output=True,text=True,timeout=15)
     except (OSError,subprocess.TimeoutExpired) as error:

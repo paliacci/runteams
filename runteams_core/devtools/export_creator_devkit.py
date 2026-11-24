@@ -28,7 +28,8 @@ def export_mcp(output,runtime_root,libraries,esbuild):
     from runteams_creator_dev.file_copy import copy_new
     output=Path(output).absolute();runtime_root=Path(runtime_root).absolute();libraries=Path(libraries).absolute()
     if output.exists() or output.is_symlink():raise ValueError('output_exists')
-    runtime=ManagedMCPRuntime(runtime_root,(runtime_root/'runtime.sha256').read_text().strip());runtime.verify()
+    runtime=ManagedMCPRuntime(runtime_root,(runtime_root/'runtime.sha256').read_text().strip())
+    node, _ = runtime.verify()
     if not (runtime_root/'NODE-LICENSE').is_file() or (runtime_root/'NODE-LICENSE').is_symlink():raise ValueError('mcp_node_license_required')
     provenance=strict_json((libraries/'provenance.json').read_bytes())
     if provenance['lock_sha256']!=hashlib.sha256((ROOT/'sdk/mcp-host/package-lock.json').read_bytes()).hexdigest():raise ValueError('mcp_library_lock_integrity')
@@ -53,7 +54,7 @@ def export_mcp(output,runtime_root,libraries,esbuild):
                 copy(path,kit/'runteams_core/_resources'/path.relative_to(ROOT))
     for path in runtime_root.iterdir():
         if path.is_file():copy(path,kit/'mcp-runtime'/path.name)
-    (kit/'mcp-runtime/node').chmod(0o755)
+    (kit/'mcp-runtime'/node.name).chmod(0o755)
     copy(Path(esbuild),kit/'tools/esbuild');(kit/'tools/esbuild').chmod(0o755)
     copy(ROOT/'sdk/mcp-host/esbuild-LICENSE.txt',kit/'tools/esbuild.LICENSE.txt')
     (kit/'toolchain.json').write_bytes(canonical({'schema':'runteams.dev-toolchain/2','runtime':{'path':'mcp-runtime','manifest_sha256':runtime.manifest_sha256},'esbuild':{'path':'tools/esbuild','sha256':hashlib.sha256((kit/'tools/esbuild').read_bytes()).hexdigest()}}))

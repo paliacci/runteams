@@ -23,6 +23,7 @@ from runteams_core.configuration.credentials.credential_redaction import redact_
 from types import MappingProxyType
 from runteams_core.employees.mcp.employee_mcp_package import MCPBundle, MCPPackageError, sha256
 
+NODE_EXECUTABLE = 'node.exe' if os.name == 'nt' else 'node'
 MAX_FRAME = 4 * 1024 * 1024
 
 
@@ -94,10 +95,9 @@ class ManagedMCPRuntime:
         if sha256(raw) != self.manifest_sha256:
             raise MCPError('mcp_runtime_integrity')
         data = strict_json(raw)
-        node = 'node.exe' if os.name == 'nt' else 'node'
         if (data.get('schema') != 'runteams.managed-mcp/1' or
                 data.get('platform') != sys.platform or data.get('machine') != __import__('platform').machine() or
-                set(data.get('files', {})) != {node, 'worker.cjs', 'app-host.js'}):
+                set(data.get('files', {})) != {NODE_EXECUTABLE, 'worker.cjs', 'app-host.js'}):
             raise MCPError('mcp_runtime_incompatible')
         for name, expected in data['files'].items():
             path = root / name
@@ -105,7 +105,7 @@ class ManagedMCPRuntime:
             if (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or info.st_size > 256 * 1024 * 1024 or
                     sha256(path.read_bytes()) != expected):
                 raise MCPError('mcp_runtime_integrity')
-        return root / node, root / 'worker.cjs'
+        return root / NODE_EXECUTABLE, root / 'worker.cjs'
 
 
 def platform_runtime():
