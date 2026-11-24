@@ -22,9 +22,8 @@ function staticPages({routes, url, saved = new Map()}) {
     sessionStorage: {getItem: key => saved.get(key), setItem: (key, value) => saved.set(key, value)},
     addEventListener: (event, listener) => events.set(event, listener),
     RunTeamsRoutes: routes,
-    RunTeamsDeviceDisplay: {scope: 'device-fixture'},
     RunTeamsSkeletons: {normalize: value => value, workspaceHeader: () => '', pipelineBoard: () => '<div class="skeleton-board"></div>', region: () => ''},
-    RunTeamsHost: {pages: {render: () => null}},
+    RunTeamsHost: {session: routes ? {preloadScope: () => 'device-fixture'} : undefined, pages: {render: () => null}},
     RunTeamsShell: {pageHeader: heading => heading},
   };
   context.window = context;

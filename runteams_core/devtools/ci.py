@@ -28,32 +28,19 @@ def main():
     wheel = next((output / 'wheels').glob('runteams_core-*.whl'))
     verify_sdist(ROOT, wheel, report['core_build']['source_date_epoch'])
     report['sdist_matches_wheel'] = True
-    subprocess.run(['node', '--test', *sorted((ROOT / 'tests/community').glob('*.test.mjs'))],
-                   cwd=ROOT, check=True)
+    tests = ROOT / 'tests'
+    node_tests = sorted([*tests.rglob('*.test.cjs'), *tests.rglob('*.test.mjs')])
+    subprocess.run(['node', '--test', *node_tests], cwd=ROOT, check=True)
+    report['node_regression_files'] = len(node_tests)
     from .check_ui_boundary import check_wheel
     report['wheel_ui_boundary'] = check_wheel(wheel)
-    subprocess.run([sys.executable, '-B', '-m', 'unittest', 'discover', '-s',
-                    str(ROOT / 'tests'), '-p', 'test_ui_boundary.py'], cwd=ROOT, check=True)
-    subprocess.run(['node', str(ROOT / 'tests/ui_host_ports.test.cjs')], cwd=ROOT, check=True)
-    subprocess.run(['node', str(ROOT / 'tests/shared_empty_states.test.cjs')], cwd=ROOT, check=True)
-    subprocess.run(['node', str(ROOT / 'tests/configuration_form.test.cjs')], cwd=ROOT, check=True)
-    subprocess.run(['node', '--test', *sorted((ROOT / 'tests/pipelines').glob('*.test.cjs'))], cwd=ROOT, check=True)
-    subprocess.run(['node', '--test', 'tests/asset_overview.test.cjs', 'tests/employee_overview_receipt.test.cjs',
-                    'tests/employee_automation_receipt.test.cjs', 'tests/employee_panel_reads.test.cjs'], cwd=ROOT, check=True)
-    report['ui_host_contract_tests'] = True
-    subprocess.run([sys.executable, '-B', '-m', 'unittest', 'discover', '-s',
-                    str(ROOT / 'tests'), '-p', 'test_desktop_dmg.py'], cwd=ROOT, check=True)
-    subprocess.run([sys.executable, '-B', '-m', 'unittest', 'discover', '-s', str(ROOT / 'tests'), '-p', 'test_language*.py'], cwd=ROOT, check=True)
-    subprocess.run(['node', '--test', str(ROOT / 'tests/language_transport.test.cjs')], cwd=ROOT, check=True)
-    subprocess.run([sys.executable, '-B', '-m', 'unittest', 'discover', '-s', str(ROOT / 'tests'), '-p', 'test_pipeline_*.py'], cwd=ROOT, check=True)
-    subprocess.run([sys.executable, '-B', '-m', 'unittest', 'tests.test_creator_validation_worker'], cwd=ROOT, check=True)
-    report['communication_language_tests'] = True
     subprocess.run([sys.executable, '-B', '-m', 'runteams_core.devtools.build_employee_avatar_catalog', '--check'], cwd=ROOT, check=True)
-    subprocess.run(['node', '--test', str(ROOT / 'tests/employee_avatar_live.test.cjs')], cwd=ROOT, check=True)
-    report['employee_avatar_live_tests'] = True
-    subprocess.run(['node', '--test', str(ROOT / 'tests/local_read_recovery.test.cjs')], cwd=ROOT, check=True)
     subprocess.run([str(interpreter), '-I', '-m', 'pip', 'install', str(wheel)], check=True)
     subprocess.run([str(interpreter), '-I', '-B', '-m', 'runteams_core.devtools.verify_install'], cwd=output, check=True)
+    subprocess.run([str(interpreter), '-B', '-m', 'unittest', 'discover', '-s', str(tests)],
+                   cwd=ROOT, check=True)
+    report['python_regression_discovery'] = True
+    report.update(ui_host_contract_tests=True, communication_language_tests=True, employee_avatar_live_tests=True)
     subprocess.run([str(interpreter), '-I', '-B', '-m', 'unittest', 'discover', '-s',
                     str(ROOT / 'tests'), '-p', 'test_reply_visualizations.py'], cwd=output, check=True)
     subprocess.run([str(interpreter), '-I', '-B', '-m', 'unittest', 'discover', '-s',

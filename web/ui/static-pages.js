@@ -121,7 +121,8 @@ function conversationPendingHeader({route,layout='',failed=false}={}){
 const localLayouts=new Map();
 const validConversationLayout=layout=>['history','general','employee','pipeline','create-employee'].includes(layout);
 function localLayoutStorageKey(id){
- const scope=global.RunTeamsHost?.session.preloadScope();
+ if(!id)return '';
+ const scope=global.RunTeamsHost?.session?.preloadScope?.();
  return scope&&id?'runteams.local-conversation-layout.v1:'+scope+':'+id:'';
 }
 function rememberConversationLayouts(receipt){
