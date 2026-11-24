@@ -49,10 +49,13 @@ class Build(build_py):
         identity = {'schema': 'runteams.core-package/1', 'version': (ROOT / 'VERSION').read_text().strip(),
                     'source_sha256': hashlib.sha256(json.dumps(hashes, sort_keys=True, separators=(',', ':')).encode()).hexdigest(), 'inputs': hashes}
         (target / 'package_identity.json').write_text(json.dumps(identity, indent=2) + '\n')
+        public = json.loads((ROOT / 'runteams_core/application/http/community_web_assets.json').read_text())
+        versions = {url: hashes[path] for url, (path, _) in public.items() if path.endswith(('.css', '.js'))}
         for source in assets:
             output = target / '_resources' / source.relative_to(ROOT)
             output.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(source, output)
+        (target / '_resources/ui-asset-versions.json').write_text(json.dumps(versions, sort_keys=True))
 
 
 setup(cmdclass={'build_py': Build})

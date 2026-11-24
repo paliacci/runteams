@@ -2,7 +2,7 @@
 from functools import lru_cache
 from hashlib import sha256
 import re
-import stat
+import json
 from urllib.parse import parse_qs, urlsplit
 
 
@@ -11,32 +11,28 @@ _TAG = re.compile(rb'<!--.*?-->|(<script\b[^>]*>)(.*?</script\s*>)|(<link\b[^>]*
 _URL = re.compile(rb' (?:src|href)="(/[-a-zA-Z0-9_./]+\.(?:js|css))(?:\?v=[^"&#\s]*)?"')
 
 
-@lru_cache(maxsize=512)
-def _file_digest(path, stamp):
-    return sha256(path.read_bytes()).hexdigest().encode('ascii')
+@lru_cache(maxsize=4)
+def asset_versions(resource_root):
+    try:
+        return json.loads((resource_root / 'ui-asset-versions.json').read_bytes())
+    except FileNotFoundError:
+        # A source checkout serves editable, unversioned resources.
+        return {}
 
 
-def version_assets(html, locate):
+def version_assets(html, versions):
+    if not versions:
+        return html
     def replace(match):
         tag = match[1] or match[3]
         asset = _URL.search(tag) if tag else None
         if not asset:
             return match[0]
         url = asset[1].decode('ascii')
-        if '..' in url.split('/'):
+        digest = versions.get(url)
+        if digest is None:
             return match[0]
-        path = locate(url)
-        if path is None or path.suffix not in ('.js', '.css'):
-            return match[0]
-        try:
-            info = path.lstat()
-            if not stat.S_ISREG(info.st_mode):
-                return match[0]
-            digest = _file_digest(path, (info.st_dev, info.st_ino, info.st_size,
-                                         info.st_mtime_ns, info.st_ctime_ns))
-        except OSError:
-            return match[0]
-        return tag[:asset.end(1)] + b'?v=' + digest + tag[asset.end()-1:] + (match[2] or b'')
+        return tag[:asset.end(1)] + b'?v=' + digest.encode('ascii') + tag[asset.end()-1:] + (match[2] or b'')
     return _TAG.sub(replace, html)
 
 
