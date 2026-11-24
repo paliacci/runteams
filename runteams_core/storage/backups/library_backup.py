@@ -42,17 +42,34 @@ def verify_work(directory, scope):
         # Only canonical own-source work is admitted. Original pipeline and
         # report links are verified below; a fabricated acquired grant is rejected.
         if connection.execute('SELECT 1 FROM employee_releases LIMIT 1').fetchone():raise ValueError('本机资料不包含官方资产。')
-        for raw,reference,pipeline in connection.execute('SELECT wr.snapshot_json,t.employee_reference,t.pipeline_id FROM workflow_runs wr JOIN tasks t ON t.id=wr.task_id'):
+        pipeline_tasks = {}
+        for run_id,task_id,raw,reference,pipeline in connection.execute('SELECT wr.id,t.id,wr.snapshot_json,t.employee_reference,t.pipeline_id FROM workflow_runs wr JOIN tasks t ON t.id=wr.task_id'):
             from runteams_core.employees.employee_work_contracts import verify_frozen
             value=verify_frozen(json.loads(raw),scope)
+            if value.get('pipeline_work'):
+                pipeline_tasks[run_id] = task_id
             if pipeline is not None or json.loads(reference or '{}')!=value['employee_reference']:
                 raise ValueError('免费员工工作归属无效。')
         if connection.execute('SELECT 1 FROM tasks t LEFT JOIN workflow_runs wr ON wr.task_id=t.id WHERE wr.id IS NULL LIMIT 1').fetchone():raise ValueError('工作缺少原执行记录。')
         connection.row_factory=sqlite3.Row
         rows=connection.execute('SELECT * FROM artifacts ORDER BY id').fetchall();chains={}
+        report_owners = {}
         for row in rows:
             meta=json.loads(row['meta_json']);ref=row['ref']
-            if meta.get('content_model')!=rich.MODEL or meta.get('source')!='agent_chat' or meta.get('data_view'):
+            root=meta.get('revision_of')
+            owner = None
+            if meta.get('source') == rich.TASK_REPORT_SOURCE:
+                report = meta.get('pipeline_task_report')
+                if (not isinstance(report, dict) or type(report.get('workflow_id')) is not int
+                        or type(report.get('task_id')) is not int or pipeline_tasks.get(report['workflow_id']) != report['task_id']
+                        or meta.get('author') != 'system' or meta.get('document_key') != f"pipeline-task-report-{report['task_id']}"):
+                    raise ValueError('任务汇报与原工作记录不一致。')
+                owner = (report['task_id'], report['workflow_id'])
+            elif meta.get('source') != 'agent_chat' or 'pipeline_task_report' in meta:
+                raise ValueError('文档归属无效。')
+            if report_owners.setdefault(root, owner) != owner:
+                raise ValueError('文档版本的任务归属不一致。')
+            if meta.get('content_model')!=rich.MODEL or meta.get('data_view'):
                 raise ValueError('文档归属或格式无效。')
             if not isinstance(ref,str) or not ref.startswith(work.FILE_PREFIX+'artifacts/agent-documents/'):raise ValueError('文档文件引用无效。')
             body_path=directory/'work'/disk.safe_name(ref[len(work.FILE_PREFIX):])
@@ -60,7 +77,7 @@ def verify_work(directory, scope):
             body=body_path.read_bytes()
             value=rich.validate(body.decode())
             if hashlib.sha256(body).hexdigest()!=meta.get('sha256') or len(body)!=meta.get('size'):raise ValueError('文档正文与修订不一致。')
-            root=meta.get('revision_of');chains.setdefault(root,[]).append((row['id'],meta.get('revision')))
+            chains.setdefault(root,[]).append((row['id'],meta.get('revision')))
             def visit(blocks):
                 for block in blocks:
                     identifier=block.get('props',{}).get('assetId') if block['type'] in {'image','video','file'} else None
