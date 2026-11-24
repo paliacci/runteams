@@ -29,8 +29,8 @@ def checked_reference(value, scope=None):
     return copy.deepcopy(value)
 
 
-def reference(source_id, pipeline_source):
-    scope = device_data.identity()
+def reference(source_id, pipeline_source, *, scope=None):
+    scope = device_data.identity() if scope is None else scope
     from runteams_core.foundation.identity.work_identity import source_scope
     return checked_reference({'schema': REFERENCE, 'source_id': source_id, 'pipeline_source': pipeline_source,
-        **source_scope(scope)})
+        **source_scope(scope)}, scope)

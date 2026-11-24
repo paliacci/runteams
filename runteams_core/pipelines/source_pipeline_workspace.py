@@ -43,44 +43,66 @@ def _pipeline_definition(files, path):
 
 
 def catalog(core):
-    from runteams_core.pipelines.pipeline_avatars import image_src, source_fields
 
     core._actor()
-    store = current_store(device_data.identity()['cache_scope'])
+    scope = device_data.identity()
+    store = current_store(scope['cache_scope'])
     from runteams_core.pipelines import source_pipeline_trash
     removed = {(item['reference']['source_id'], item['reference']['pipeline_source']) for item in source_pipeline_trash.catalog(core)}
-    rows, errors, after = [], [], None
-    while True:
-        page = store.list(after)
-        for item in page['items']:
-            try:
-                revisions = Revisions(store, item['id'], display_only=True)
-                with revisions.current_snapshot(display_only=True) as (revision, files):
-                    project = strict_json(files.get('project.json', b'{}'))
-                    if not isinstance(project, dict) or not isinstance(project.get('entrypoints'), dict):
-                        raise ValueError('智能体团队工程入口无效。')
-                    paths = project['entrypoints'].get('pipelines', [])
-                    if not isinstance(paths, list) or any(not isinstance(path, str) for path in paths):
-                        raise ValueError('智能体团队工程入口无效。')
-                    for path in paths:
-                        if (item['id'], path) in removed:
-                            continue
-                        ref = pipeline_references.reference(item['id'], path)
-                        asset = _pipeline_definition(files, path)
-                        avatar_src = image_src(source_fields(asset, files))
-                        rows.append({'reference': ref, 'name': asset['pipeline']['name'], 'revision': revision,
-                                     'allowed_modes': current().allowed_modes(ref), **({'avatar_src': avatar_src} if avatar_src else {})})
-            except (ValueError, OSError, ContractError) as exc:
-                errors.append({'source_id': item['id'], 'error': str(exc)})
-        after = page['next_cursor']
-        if after is None:
-            break
+    with store.reading_project() as reader:
+        rows, errors = _source_catalog(reader, scope, removed)
     rows.extend(current().additional_pipelines())
     ids = short_ids(asset_key(row['reference']) for row in rows)
     for row in rows:
         row['page_id'] = ids[asset_key(row['reference'])]
     store.check_scope()
     return {'items': rows, 'errors': errors, 'storage_scope': 'device'}
+
+
+_catalog_snapshot = None
+
+
+def _catalog_signature(reader, scope, removed):
+    try:
+        projects = [(key, Revisions.display_fingerprint(reader, key)) for key in reader.identities()]
+    except (OSError, ValueError):
+        return None
+    return reader.root, scope, removed, projects
+
+
+def _source_catalog(reader, scope, removed):
+    from runteams_core.pipelines.pipeline_avatars import image_src, source_fields
+
+    global _catalog_snapshot
+    signature = _catalog_signature(reader, scope, removed)
+    snapshot = _catalog_snapshot
+    if signature is not None and snapshot is not None and snapshot[0] == signature:
+        return copy.deepcopy(snapshot[1]), []
+
+    rows, errors = [], []
+    for source_id in reader.identities():
+        try:
+            revisions = Revisions(reader, source_id, display_only=True)
+            with revisions.current_snapshot(display_only=True) as (revision, files):
+                project = strict_json(files.get('project.json', b'{}'))
+                if not isinstance(project, dict) or not isinstance(project.get('entrypoints'), dict):
+                    raise ValueError('智能体团队工程入口无效。')
+                paths = project['entrypoints'].get('pipelines', [])
+                if not isinstance(paths, list) or any(not isinstance(path, str) for path in paths):
+                    raise ValueError('智能体团队工程入口无效。')
+                for path in paths:
+                    if (source_id, path) in removed:
+                        continue
+                    ref = pipeline_references.reference(source_id, path, scope=scope)
+                    asset = _pipeline_definition(files, path)
+                    avatar_src = image_src(source_fields(asset, files))
+                    rows.append({'reference': ref, 'name': asset['pipeline']['name'], 'revision': revision,
+                                 'allowed_modes': current().allowed_modes(ref), **({'avatar_src': avatar_src} if avatar_src else {})})
+        except (ValueError, OSError, ContractError) as exc:
+            errors.append({'source_id': source_id, 'error': str(exc)})
+    if not errors and signature is not None and signature == _catalog_signature(reader, scope, removed):
+        _catalog_snapshot = signature, copy.deepcopy(rows)
+    return rows, errors
 
 
 def _key(ref):
@@ -253,34 +275,38 @@ def _staffing_rows(scope, source_id, employees):
         yield {'key': source_key(source_id, path), 'source': {'reference': ref}, 'record': {'name': name}}
 
 
-def index_saved_project(store, scope, source_id):
+def _staffing_project(store, scope, source_id):
     from runteams_core.employees.employee_directory import staffing_project
+
+    stamp = Revisions.display_fingerprint(store, source_id)
+    signature = digest(stamp)
+    index = ChoiceIndex(store.root, scope, 'staffing-project/1/' + source_id)
+    cached = index.previous.get('project')
+    if isinstance(cached, list) and len(cached) == 3 and cached[0] == signature:
+        return cached[1], cached[2]
     with store.reading_project() as reader:
-        _, employees, _ = staffing_project(reader, source_id)
+        revision, employees, memberships = staffing_project(reader, source_id)
+    if revision == stamp[0] and stamp == Revisions.display_fingerprint(store, source_id):
+        index.updated['project'] = [signature, employees, memberships]
+        index.save()
+    return employees, memberships
+
+
+def index_saved_project(store, scope, source_id):
+    employees, _ = _staffing_project(store, scope, source_id)
     _read_source_choices(store, scope, _staffing_rows(scope, source_id, employees), [])
 
 
 def source_staffing_entries(*, errors):
-    from runteams_core.employees.employee_directory import apply_source_visibility, staffing_project
+    from runteams_core.employees.employee_directory import apply_source_visibility
     if not device_data.personal():
         return []
     scope = device_data.identity()
     store = current_store(scope['cache_scope'])
-    index = ChoiceIndex(store.root, scope, 'staffing-projects/1')
     rows, groups = [], {}
     for source_id in store.identities():
         try:
-            stamp = Revisions.display_fingerprint(store, source_id)
-            signature = digest(stamp)
-            cached = index.previous.get(source_id)
-            if cached and cached[0] == signature:
-                _, employees, memberships = cached
-                index.updated[source_id] = cached
-            else:
-                with store.reading_project() as reader:
-                    revision, employees, memberships = staffing_project(reader, source_id)
-                if revision == stamp[0]:
-                    index.updated[source_id] = [signature, employees, memberships]
+            employees, memberships = _staffing_project(store, scope, source_id)
             for key, owners in memberships.items():
                 groups.setdefault(key, {}).update(owners)
             rows.extend(_staffing_rows(scope, source_id, employees))
@@ -288,7 +314,6 @@ def source_staffing_entries(*, errors):
             errors[source_id] = {'error': str(exc)}
     apply_source_visibility(rows, groups)
     store.check_scope()
-    index.save()
     return [row for row in rows if not row.get('trashed')]
 
 

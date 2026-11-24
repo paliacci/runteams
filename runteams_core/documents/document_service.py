@@ -83,6 +83,14 @@ class Documents(RepositoryService):
         return connection.execute(
             "SELECT * FROM artifacts{} ORDER BY id".format(clause)).fetchall()
 
+    def _revision_rows(self, connection, root, *, metadata_only=False):
+        columns = "id, meta_json, created_at" if metadata_only else "*"
+        return connection.execute(
+            f"SELECT {columns} FROM artifacts WHERE trashed_at IS NULL AND "
+            "CAST(COALESCE(NULLIF(NULLIF(json_extract(CASE WHEN json_valid(meta_json) "
+            "THEN meta_json ELSE '{}' END, '$.revision_of'), ''), 0), id) AS INTEGER) = ? "
+            "ORDER BY id", (root,)).fetchall()
+
     def _document_root_id(self, row):
         meta = self._decode_meta(row["meta_json"])
         return int(meta.get("revision_of") or row["id"])
@@ -194,8 +202,7 @@ class Documents(RepositoryService):
                 return None
             meta = self._decode_meta(row["meta_json"])
             root = self._document_root_id(row)
-            chain = [candidate for candidate in self._document_rows(connection)
-                     if self._document_root_id(candidate) == root]
+            chain = self._revision_rows(connection, root)
         if not chain:
             chain = [row]
         current = chain[-1]
@@ -295,29 +302,18 @@ class Documents(RepositoryService):
                      "data_view": None, "editable": False, "is_current_revision": is_current})
         return item
 
-    def _document_chain(self, connection, artifact_id):
+    def _document_chain(self, connection, artifact_id, *, metadata_only=False):
         """One document's full revision chain, oldest first.
 
         A revision never rewrites the published artifact: it is a new immutable
         row that points back at the chain root, so every earlier run keeps
         pointing at the exact bytes it consumed.
         """
-        row = connection.execute("SELECT * FROM artifacts WHERE id=?",
+        row = connection.execute("SELECT id, meta_json FROM artifacts WHERE id=?",
                                  (int(artifact_id),)).fetchone()
         if row is None:
             return []
-        meta = self._decode_meta(row["meta_json"])
-        root = int(meta.get("revision_of") or row["id"])
-        # A document chain may be employee-owned or authored from Agent Chat.
-        # Lineage is the immutable revision_of marker, not the optional owner.
-        rows = connection.execute(
-            "SELECT * FROM artifacts WHERE trashed_at IS NULL ORDER BY id").fetchall()
-        chain = []
-        for candidate in rows:
-            candidate_meta = self._decode_meta(candidate["meta_json"])
-            if int(candidate_meta.get("revision_of") or candidate["id"]) == root:
-                chain.append(candidate)
-        return chain
+        return self._revision_rows(connection, self._document_root_id(row), metadata_only=metadata_only)
 
     @staticmethod
     def position_display_name(position):
@@ -432,7 +428,7 @@ class Documents(RepositoryService):
 
     def document_revisions(self, artifact_id):
         with self.repository.connect() as connection:
-            chain = self._document_chain(connection, artifact_id)
+            chain = self._document_chain(connection, artifact_id, metadata_only=True)
         items = []
         for index, row in enumerate(chain):
             meta = self._decode_meta(row["meta_json"])
@@ -735,7 +731,7 @@ class Documents(RepositoryService):
             current_by_ref = self._latest_revision_by_ref(
                 connection, None,
                 same_format_only=False)   # 包括 Agent Chat 文档
-            all_rows = self._document_rows(connection)
+            all_rows = connection.execute("SELECT id, meta_json FROM artifacts WHERE trashed_at IS NULL")
             chain_sizes = {}
             owner_ids = set()
             for row in all_rows:
@@ -774,15 +770,18 @@ class Documents(RepositoryService):
                 params=[folder_id] if folder_id else [];position=''
                 if after is not None:
                     position=f' AND ({expression},a.id) {operator} (?,?)';params.extend(after)
+                # Group live revisions once. Only a content search needs filesystem refs.
+                file_column = 'a.ref' if query else 'NULL AS ref'
                 rows=connection.execute(
-                    'SELECT a.id,a.name,a.ref,a.meta_json,a.created_at,a.employee_run_id,'
+                    "WITH chains AS (SELECT max(id) AS latest, count(*) AS size FROM artifacts "
+                    "WHERE trashed_at IS NULL GROUP BY coalesce(json_extract(meta_json,'$.revision_of'),id)) "
+                    f'SELECT a.id,a.name,{file_column},a.meta_json,a.created_at,a.employee_run_id,'
                     f'er.position_key,er.workflow_run_id,wr.task_id,wr.snapshot_json,{expression} AS page_sort, {folder_column}'
-                    "(SELECT count(*) FROM artifacts rev WHERE rev.trashed_at IS NULL AND coalesce(json_extract(rev.meta_json,'$.revision_of'),rev.id)=coalesce(json_extract(a.meta_json,'$.revision_of'),a.id)) AS chain_size "
-                    'FROM artifacts a LEFT JOIN employee_runs er ON er.id=a.employee_run_id '
+                    'chains.size AS chain_size FROM chains JOIN artifacts a ON a.id=chains.latest '
+                    'LEFT JOIN employee_runs er ON er.id=a.employee_run_id '
                     'LEFT JOIN workflow_runs wr ON wr.id=er.workflow_run_id' + folder_join + ' '
-                    'WHERE a.trashed_at IS NULL AND NOT EXISTS(SELECT 1 FROM artifacts newer WHERE newer.trashed_at IS NULL '
-                    "AND coalesce(json_extract(newer.meta_json,'$.revision_of'),newer.id)=coalesce(json_extract(a.meta_json,'$.revision_of'),a.id) AND newer.id>a.id)"
-                    +self._task_document_filter()+folder_filter+position+f' ORDER BY {expression} {direction},a.id {direction} LIMIT 64',params).fetchall()
+                    'WHERE a.trashed_at IS NULL ' +self._task_document_filter()+folder_filter+position+
+                    f' ORDER BY {expression} {direction},a.id {direction} LIMIT 64',params).fetchall()
                 if not rows:break
                 owner_ids={int(self._decode_meta(row['meta_json']).get('employee_id') or 0) for row in rows}
                 owners=self._document_owner_names(connection, owner_ids)
