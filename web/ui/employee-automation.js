@@ -92,9 +92,7 @@
  }
  async function readSchedules(s,options){
   const defer=()=>options.background&&scheduleMenuOpen();
-  s.refreshing=true;
-  if(options.silent)decorateHeader();
-  else{s.loading=true;paint();}
+  if(!options.silent){s.loading=true;paint();}
   try{
    if(!RunTeamsWorkState.ready)await RunTeamsWorkState.connect();if(!valid(s))return;
    let t=target();
