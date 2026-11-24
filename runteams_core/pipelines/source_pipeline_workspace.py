@@ -75,7 +75,6 @@ def catalog(core):
         after = page['next_cursor']
         if after is None:
             break
-    from runteams_core.pipelines.pipeline_context import current
     rows.extend(current().additional_pipelines())
     ids = short_ids(asset_key(row['reference']) for row in rows)
     for row in rows:
@@ -351,7 +350,6 @@ def _read_source_choices(store, scope, entries, errors):
 def creation_choices(core):
     """Actual source and complete signed employee versions, without dispatch."""
     core._actor()
-    from runteams_core.pipelines.pipeline_context import current
     scope = device_data.identity()
     errors, source_errors = [], {}
     choices = _source_choices(source_staffing_entries(errors=source_errors), errors)

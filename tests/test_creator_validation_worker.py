@@ -5,7 +5,7 @@ import sys
 import unittest
 from unittest.mock import patch
 
-from runteams_core.authoring.compilation.creator_validation import validate_schemas
+from runteams_core.authoring.compilation.creator_validation import validate_data
 from runteams_core.authoring.creator_contracts import CreatorContractError
 
 
@@ -34,7 +34,7 @@ class WorkerMemoryTests(unittest.TestCase):
              patch('subprocess.Popen', side_effect=start), \
              patch('runteams_core.authoring.creator_process_memory.process_rss', side_effect=sample) as measured:
             try:
-                validate_schemas([])
+                validate_data({'type': 'string'}, 'sample')
             finally:
                 measured.assert_called()
                 self.assertIsNotNone(child.returncode)

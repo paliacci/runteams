@@ -98,6 +98,8 @@ async function sidebarFixture(){
  const transport=c.window.RunTeamsRequests;
  const client=new LocalClient({fetcher:c.window.fetch,request:transport.request});
  c.api=client.request.bind(client);
+ vm.runInNewContext(fs.readFileSync('web/ui/host.js','utf8'),c);
+ c.RunTeamsHost=c.window.RunTeamsHost;
  vm.runInNewContext(fs.readFileSync('web/ui/source-pipelines.js','utf8'),c);
  const pipelines=c.window.RunTeamsSourcePipelines;
  const refresh=()=>Promise.allSettled([c.refreshChatDirectory({readPriority:'background'}),pipelines.refreshCatalog({readPriority:'background'})]);

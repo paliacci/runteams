@@ -7,6 +7,7 @@ const web = path.resolve(__dirname, '../web');
 const context = {
   S: {docsQuery: '', documentSources: {key: 'library', device: {loaded: true}}},
   documentsReadKey: () => 'library', documentsLocalAvailable: () => true,
+  activeDocsMove: () => null, docsListedFolders: () => [], docsBreadcrumbMarkup: () => '',
   docsSortedVisible: () => [], esc: String, ICON: () => '',
   modelChannelText: (_key, fallback) => fallback, channelCardsMarkup: () => '', RunTeamsModelChannels: {definitionError: () => ''},
 };

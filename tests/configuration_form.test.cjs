@@ -31,7 +31,7 @@ for(const entry of [{},{pipeline_own:true},{pipeline_reference:{}}]){
  assert.equal(c.employeeFormParts(s,entry.pipeline_own?{name:'Pipeline'}:null).content,'');
 }
 // An employee can have application settings without any ordinary fields.
-Object.assign(c,{workspaceAccountCacheToken:()=>'account',RunTeamsHost:{session:{
+Object.assign(c,{workspaceAccountCacheToken:()=>'account',RunTeamsHost:{employeeConfiguration:{scope:()=>'device'},session:{
  deviceScope:()=>'device',workspace:()=>false,readOnly:()=>false
 }}});
 const appState=employeeState({key:'employee',reference:{id:1}});
