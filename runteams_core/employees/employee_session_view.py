@@ -41,14 +41,24 @@ def public_session(session, *, include_background=True):
             for key in BACKGROUND_FIELDS:
                 employee['record'].pop(key, None)
     if value.get('kind') == 'general' and context.get('local_employee_package'):
-        from runteams_core.employees.source_employee_runtime import for_chat
+        from runteams_core.employees.employee_binding import resolve, summary
+        from runteams_core.employees.mcp.device_employee_mcp import inspect_attachments
         try:
-            employee = for_chat(value['id'], include_background=include_background)
-            value['identity'] = {key:employee[key] for key in IDENTITY_FIELDS if key in employee}
-            from runteams_core.employees.mcp.device_employee_mcp import bundles
-            value['identity']['local_mcp'] = bool(bundles(employee))
-        except (ValueError,OSError) as exc:value['employee_error']=str(exc)
-    if value.get('kind')=='general' and value.get('subject_type')=='employee':
+            binding = resolve(session, include_background=include_background)
+        except (ValueError, OSError) as exc:
+            value['employee_error'] = str(exc)
+            return value
+        employee = binding['employee']
+        value['identity'] = {key: employee[key] for key in IDENTITY_FIELDS if key in employee}
+        try:
+            value['identity']['local_mcp'] = bool(inspect_attachments(employee))
+        except (ValueError, OSError) as exc:
+            value['employee_error'] = str(exc)
+        try:
+            value['employee_binding'] = summary(binding)
+        except (ValueError, OSError) as exc:
+            value['employee_error'] = str(exc)
+    elif value.get('kind')=='general' and value.get('subject_type')=='employee':
         from runteams_core.employees.employee_binding import public
         try:value['employee_binding']=public(session)
         except (ValueError,OSError) as exc:value['employee_error']=str(exc)

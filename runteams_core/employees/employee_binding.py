@@ -23,7 +23,7 @@ def authoring_reference(session):
     return employee_references.checked_reference(for_session(session)['source']['reference'])
 
 
-def resolve(session, *, read_only=False):
+def resolve(session, *, read_only=False, include_background=False):
     """Resolve a work package, or read the saved source for a context query."""
     from runteams_core.storage import product_store
     if not session or not product_store.device_chat(session['id']):
@@ -49,7 +49,7 @@ def resolve(session, *, read_only=False):
     package = context.get('local_employee_package')
     if package is not None:
         from runteams_core.employees.source_employee_runtime import for_chat
-        employee = for_chat(session['id'])
+        employee = for_chat(session['id'], include_background=include_background)
         reference = employee_references.checked_reference(package['reference'])
         if context.get('source_employee') != reference:
             raise ContractError('员工会话的源码绑定已变化。')

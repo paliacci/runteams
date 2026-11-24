@@ -43,10 +43,11 @@ def bundles(employee):
         validate(employee['local_package'])
     else:
         validate_employee_bundles(employee['active_release']['snapshot_json'])
-    return _inspect_attachments(employee)
+    return inspect_attachments(employee)
 
 
-def _inspect_attachments(employee):
+def inspect_attachments(employee):
+    """Inspect bundled MCP files on an already verified employee snapshot."""
     result = {}
     for skill in employee['active_release']['snapshot_json']['skill_bundles']:
         for file in skill['files']:
@@ -251,7 +252,7 @@ class EmployeeMCPWork:
     def load(self, chat, *, pin=False):
         if is_workbench_id(chat):
             item, work = self._workbench_subject(chat)
-            packages = _inspect_attachments(item)
+            packages = inspect_attachments(item)
             record = self._work_record(chat,work)
             if record is not None and record['employee']['active_release']['digest'] != item['active_release']['digest']:
                 raise ContractError('工作台运行版本已变化，请重新打开。')
@@ -270,7 +271,7 @@ class EmployeeMCPWork:
             from runteams_core.employees.source_employee_runtime import employee as from_package
             employee = from_package(local_package)
             if known and value['employee'] != employee:raise ContractError('原员工运行包已变化。')
-            packages = _inspect_attachments(employee)
+            packages = inspect_attachments(employee)
         else:
             from runteams_core.employees.employee_context import current
             owner = current()
