@@ -131,8 +131,10 @@ def _codex_app_server_request(executable, env, method, params=None, timeout=5):
         try:
             for line in p.stdout:
                 lines.put(line)
-        except Exception:
+        except (OSError, ValueError):
             pass
+        finally:
+            lines.put(None)
 
     threading.Thread(target=read_stdout, daemon=True).start()
     messages = [
@@ -150,6 +152,8 @@ def _codex_app_server_request(executable, env, method, params=None, timeout=5):
             try:
                 line = lines.get(timeout=max(0.05, deadline - time.monotonic()))
             except queue.Empty:
+                break
+            if line is None:
                 break
             try:
                 data = json.loads(line)

@@ -29,6 +29,12 @@
  }
  function connected(state,channel){const result=connection(state,channel);return result.known&&result.ready;}
  function connectedIds(state){return (state.channels||[]).filter(channel=>connected(state,channel)).map(channel=>String(channel.id)).sort();}
+ function extensionCandidates(state){
+  return (state.channels||[]).filter(channel=>{
+   const status=connection(state,channel);
+   return !status.known||status.ready;
+  }).map(channel=>String(channel.id)).sort();
+ }
  function rows(state){
   const definitions=state.providerCatalog||[],channels=state.channels||[];
   if(!definitions.length)return channels;
@@ -108,11 +114,15 @@
   const failed=status==='error'||!!row?.refresh_error||state.modelCatalogReadState==='error';
   return {selected:true,status,displayOnly:status==='pending',label:model?.display_name||cached?.names?.[choice.channel_id+'::'+choice.model]||choice.model,effort:choice.reasoning_effort||'',model,failed};
  }
- function syncEnvironment(state,environment){
+ function syncEnvironment(state,environment,connectionOnly=false){
   if(!Array.isArray(environment?.channels)||!currentObservation(state,environment,false))return;
   const scoped=(rows,id)=>(rows||[]).filter(row=>same(row.channel_id,id));
   for(const row of environment.channels){
    const channel=(state.channels||[]).find(value=>same(value.id,row.id));if(!channel||channel.connecting||channel.removing)continue;
+   if(connectionOnly){
+    const current=connection(state,channel);
+    if(current.known&&current.ready===row.ready)continue;
+   }
    const runtime=row.runtime||{},previous=channel.probe||{};
    // Optional display reads cannot wash away an explicit rejection.
    if(denied(previous)&&!denied(runtime)&&runtime.authenticated!==true)continue;
@@ -121,6 +131,7 @@
     compatible:runtime.compatible===undefined?previous.compatible:runtime.compatible,
     code:runtime.code||'',http_status:runtime.http_status,version:runtime.version||'',account:runtime.account||'',detail:runtime.detail||''};
    snapshots.set(channel.probe,snapshots.get(environment));
+   if(connectionOnly)continue;
    channel.capabilities={...(channel.capabilities||{}),checked_at:environment.checked_at,status:row.status,runtime,
     plugins:scoped(environment.plugins,row.id),available_plugins:scoped(environment.available_plugins,row.id),skills:scoped(environment.skills,row.id),mcp_servers:scoped(environment.mcp_servers,row.id),diagnostics:row.diagnostics||[]};
   }
@@ -179,8 +190,8 @@
    const rows=kind.startsWith('probe:')?(state.channels||[]).filter(row=>same(row.id,kind.slice(6))):state.channels||[];
    return JSON.stringify(rows.map(row=>[row.id,row.probe?.status,row.probe?.code,row.probe?.installed,row.probe?.authenticated,row.probe?.compatible,row.probe?.connection_verified,row.probe?.account]));
   }
-  function read(kind,path,options={}){
-   const context=contextSignature(state,getScope()),identity=kind==='usage'?context:signature(state,getScope()),selection=['extensions','resources','resource','capabilities'].includes(kind)?connectedIds(state).join(','):null,
+  function read(kind,path,options={},select=connectedIds){
+   const context=contextSignature(state,getScope()),identity=kind==='usage'?context:signature(state,getScope()),selection=['extensions','resources','resource','capabilities'].includes(kind)?select(state).join(','):null,
     key=JSON.stringify([kind,path,identity,selection]);
    if(flights.has(key))return flights.get(key);
    let statuses=readStatuses.get(state);if(!statuses){statuses=new Map();readStatuses.set(state,statuses);}
@@ -189,7 +200,7 @@
     try{
      for(let attempt=0;attempt<3;attempt++){
       const observed=facts(kind),value=await request(path,options);
-      if(context!==contextSignature(state,getScope())||selection!==null&&selection!==connectedIds(state).join(',')){status.status='superseded';return null;}
+      if(context!==contextSignature(state,getScope())||selection!==null&&selection!==select(state).join(',')){status.status='superseded';return null;}
       if(observed!==facts(kind))continue;
       const result=validate(kind,value);
       status.status=result.error?'error':'ready';status.error=result.error||'';
@@ -249,18 +260,26 @@
    if(includeModels&&!models)return null;
    return {channels:state.channels,providers:state.providerCatalog,catalog:models};
   }
-  async function extensions(force){
+  async function extensions(force,{settings=false}={}){
    if(force)firstCapabilityPage=null;
    const context=contextSignature(state,getScope());
    for(let attempt=0;attempt<2;attempt++){
-    if((state.channels||[]).some(channel=>channel.enabled&&!connection(state,channel).known)){
+    if(!settings&&(state.channels||[]).some(channel=>channel.enabled&&!connection(state,channel).known)){
      const status=await read('status','/api/environment');
      if(context!==contextSignature(state,getScope()))return null;
      if(!status)continue;if(status.error)return status;syncEnvironment(state,status);
      if((state.channels||[]).some(channel=>channel.enabled&&!connection(state,channel).known))throw Error('渠道状态尚未确认，请重新检测。');
     }
-    const params=new URLSearchParams({channel_ids:connectedIds(state).join(',')});if(force)params.set('refresh','1');
-    const value=await read('extensions',query('/api/environment',params));
+    const select=settings?extensionCandidates:connectedIds;
+    const params=new URLSearchParams({channel_ids:select(state).join(',')});
+    if(settings)params.set('view','tools');
+    if(force)params.set('refresh','1');
+    const value=await read('extensions',query('/api/environment',params),{},select);
+    if(context!==contextSignature(state,getScope()))return null;
+    if(settings&&value&&!value.error){
+     syncEnvironment(state,value,true);
+     if((state.channels||[]).some(channel=>!connection(state,channel).known))throw Error('渠道状态尚未确认，请重新检测。');
+    }
     if(value||context!==contextSignature(state,getScope()))return value;
     // A concurrent read may have established connection facts while this safe
     // inventory read was pending. Retry once against those facts, never writes.

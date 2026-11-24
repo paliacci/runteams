@@ -1022,7 +1022,7 @@ def _diagnostics(data):
     return result
 
 
-def inventory(channel, refresh=False, workspace_root="", status_only=False, *, menu_only=False):
+def inventory(channel, refresh=False, workspace_root="", status_only=False, *, menu_only=False, tools_only=False):
     """返回脱敏、可序列化的 Channel 能力清单。"""
     base = {"schema_version": SCHEMA_VERSION, "provider": channel.get("provider"),
             "checked_at": int(time.time()), "status": "missing", "runtime": {},
@@ -1044,16 +1044,18 @@ def inventory(channel, refresh=False, workspace_root="", status_only=False, *, m
                       if str(workspace_root or "").strip() else "")
     workspace_root = workspace_root if os.path.isdir(workspace_root) else ""
     profile = _cache_key(channel, executable, workspace_root)
-    key = profile + ("menu" if menu_only else status_only,)
+    key = profile + ("tools" if tools_only else "menu" if menu_only else status_only,)
     with _CACHE_LOCK:
         cached = _CACHE.get(key)
         if menu_only:
             cached = max((entry for entry in (cached, _CACHE.get(profile + (False,))) if entry),
                          default=None, key=lambda entry: entry[0])
-        if cached and not refresh and time.monotonic() - cached[0] < _CACHE_TTL:
+        if refresh or not cached or time.monotonic() - cached[0] >= _CACHE_TTL:
+            cached = None
+        elif not tools_only:
             return json.loads(json.dumps(cached[1]))
 
-    probe = model_channels.probe(channel, account_summary=False) if menu_only else model_channels.probe(channel)
+    probe = model_channels.probe(channel, account_summary=False) if menu_only or tools_only else model_channels.probe(channel)
     base["status"] = probe.get("status") or "error"
     base["runtime"] = {
         "installed": bool(probe.get("installed")), "authenticated": bool(probe.get("authenticated")),
@@ -1067,6 +1069,10 @@ def inventory(channel, refresh=False, workspace_root="", status_only=False, *, m
     if status_only or not model_channels.is_connected(channel, probe):
         base["read_states"] = dict.fromkeys(base["read_states"], "skipped")
         return base
+    # The tools page may include channels whose connection was unknown in the
+    # browser. Check native readiness even when reusing a recent list.
+    if cached:
+        return {**json.loads(json.dumps(cached[1])), "runtime": base["runtime"]}
     env = model_channels._probe_env(channel)
     def channel_json(argv, timeout):
         if workspace_root:
@@ -1092,7 +1098,7 @@ def inventory(channel, refresh=False, workspace_root="", status_only=False, *, m
             mcp_read = (pool.submit(valid_json, [executable, "mcp", "list", "--json"], 12, "mcp_servers")
                         if codex else pool.submit(_read_claude_mcp, executable, env, workspace_root or None))
             # Optional CLI diagnostics must not hold the extension list for 15s.
-            doctor_read = pool.submit(_run_json, [executable, "doctor", "--json"], env, 3) if codex else None
+            doctor_read = pool.submit(_run_json, [executable, "doctor", "--json"], env, 3) if codex and not tools_only else None
             plugin_data = plugin_read.result()
             mcp_data = mcp_read.result()
             doctor_data = doctor_read.result()[0] if doctor_read else None
@@ -1113,7 +1119,10 @@ def inventory(channel, refresh=False, workspace_root="", status_only=False, *, m
     if codex and not menu_only:
         base["diagnostics"] = _diagnostics(doctor_data)
     with _CACHE_LOCK:
-        _CACHE[key] = (time.monotonic(), json.loads(json.dumps(base)))
+        if not tools_only or all(state == "ready" for state in base["read_states"].values()):
+            _CACHE[key] = (time.monotonic(), json.loads(json.dumps(base)))
+        else:
+            _CACHE.pop(key, None)
     return base
 
 
@@ -1225,13 +1234,15 @@ def _status_rank(value):
     return {"blocked": 3, "warning": 2, "ready": 1}.get(value, 0)
 
 
-def environment_summary(channels, refresh=False, workspace_root="", status_only=False, *, menu_only=False):
+def environment_summary(channels, refresh=False, workspace_root="", status_only=False, *, menu_only=False, tools_only=False):
     """Aggregate channel-owned assets without reading employee-domain records."""
     channels = list(channels or [])
     found = {}
     if channels:
         with ThreadPoolExecutor(max_workers=min(4, len(channels))) as pool:
             options = {"menu_only": True} if menu_only else ({"status_only": True} if status_only else {})
+            if tools_only:
+                options["tools_only"] = True
             jobs = {pool.submit(inventory, channel, refresh, workspace_root, **options): channel for channel in channels}
             for job in as_completed(jobs):
                 channel = jobs[job]

@@ -753,9 +753,17 @@ async function accountToolsReload(button){
  }
 }
 async function accountReadSettingsExtensions(force=false){
- const context=settingsContext(),mutation=S.channelMutationVersion||0,selection=environmentConnectedChannelIds().join(','),scope=modelChannelData().identity('extensions');if(S.settingsExtensionsRead?.scope===scope)return S.settingsExtensionsRead.promise;if(!force&&S.settingsExtensionsScope===scope&&['ready','error'].includes(S.settingsExtensionsState))return S.settingsExtensionsState==='ready';
- const read={context,mutation,selection,scope};S.settingsExtensionsRead=read;S.settingsExtensionsScope=scope;S.settingsExtensions=accountFilterSettingsExtensions(S.settingsExtensions,selection);S.settingsExtensionsState='loading';accountSettingsPaint();
- read.promise=(async()=>{try{const result=await modelChannelData().extensions(force);if(!result){if(S.settingsExtensionsRead===read){S.settingsExtensionsState='error';S.settingsExtensionsScope='';}return false;}if(context!==settingsContext()||S.settingsExtensionsRead!==read)return false;if(result.error)throw Error(result.error);if(read.mutation!==(S.channelMutationVersion||0))throw Error('渠道已改变，请重新读取');const confirmedSelection=environmentConnectedChannelIds().join(',');S.settingsExtensions=accountMergeSettingsExtensions(accountFilterSettingsExtensions(result,confirmedSelection),S.settingsExtensions);S.settingsExtensionsScope=modelChannelData().identity('extensions');S.settingsExtensionsState='ready';S.settingsExtensionsConfirmedScope=S.settingsExtensionsScope;return true;}catch(error){if(context===settingsContext()&&S.settingsExtensionsRead===read)S.settingsExtensionsState='error';return false;}finally{if(S.settingsExtensionsRead===read)S.settingsExtensionsRead=null;if(context===settingsContext())accountSettingsPaint();}})();return read.promise;
+ const context=settingsContext(),mutation=S.channelMutationVersion||0,selection=environmentConnectedChannelIds().join(','),scope=modelChannelData().identity('extensions');
+ const pending=S.settingsExtensionsRead;
+ if(pending?.scope===scope){
+  if(!force||pending.force)return pending.promise;
+  await pending.promise;
+  if(context!==settingsContext()||mutation!==(S.channelMutationVersion||0))return false;
+  return accountReadSettingsExtensions(true);
+ }
+ if(!force&&S.settingsExtensionsScope===scope&&['ready','error'].includes(S.settingsExtensionsState))return S.settingsExtensionsState==='ready';
+ const read={context,mutation,selection,scope,force};S.settingsExtensionsRead=read;S.settingsExtensionsScope=scope;S.settingsExtensions=accountFilterSettingsExtensions(S.settingsExtensions,selection);S.settingsExtensionsState='loading';accountSettingsPaint();
+ read.promise=(async()=>{try{const result=await modelChannelData().extensions(force,{settings:true});if(!result){if(S.settingsExtensionsRead===read){S.settingsExtensionsState='error';S.settingsExtensionsScope='';}return false;}if(context!==settingsContext()||S.settingsExtensionsRead!==read)return false;if(result.error)throw Error(result.error);if(read.mutation!==(S.channelMutationVersion||0))throw Error('渠道已改变，请重新读取');const confirmedSelection=environmentConnectedChannelIds().join(',');S.settingsExtensions=accountMergeSettingsExtensions(accountFilterSettingsExtensions(result,confirmedSelection),S.settingsExtensions);S.settingsExtensionsScope=modelChannelData().identity('extensions');S.settingsExtensionsState='ready';S.settingsExtensionsConfirmedScope=S.settingsExtensionsScope;return true;}catch(error){if(context===settingsContext()&&S.settingsExtensionsRead===read)S.settingsExtensionsState='error';return false;}finally{if(S.settingsExtensionsRead===read)S.settingsExtensionsRead=null;if(context===settingsContext())accountSettingsPaint();}})();return read.promise;
 }
 function accountExtensionShellArgument(value){return "'"+String(value).replaceAll("'","'\"'\"'")+"'";}
 function accountSettingsExtensionCommands(item,key){

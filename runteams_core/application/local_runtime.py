@@ -549,7 +549,8 @@ class LocalRuntime:
                     if not ids <= {c['id'] for c in channels}:
                         raise ValueError('模型渠道不存在。')
                     channels = [c for c in channels if c['id'] in ids and c.get('enabled')]
-                return runtime_capabilities.environment_summary(channels, refresh=data.get('refresh') == '1', status_only=status_only)
+                return runtime_capabilities.environment_summary(channels, refresh=data.get('refresh') == '1', status_only=status_only,
+                    tools_only=not status_only and data.get('view') == 'tools')
             match = re.fullmatch(r'/api/channel/([1-9][0-9]*)/(probe|connect|remove)', path)
             if method == 'POST' and match:
                 cid, action = int(match[1]), match[2]

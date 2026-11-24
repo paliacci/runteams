@@ -32,3 +32,31 @@ class CapabilityMenuTests(unittest.TestCase):
                 self.assertEqual([row["id"] for row in results], ["pdf", "pdf-tools", "reader", "writer"])
                 self.assertEqual(read.call_count, 1)
             capabilities.invalidate_channel(channel)
+
+    def test_tools_inventory_checks_connection_on_cache_hit_and_refreshes_all_lists(self):
+        with tempfile.TemporaryDirectory() as profile:
+            channel = {"id": 2, "enabled": True, "provider": "codex", "config_dir": profile}
+            ready = {"status": "ready", "installed": True, "authenticated": True}
+            with patch.object(capabilities.model_channels, "resolve_channel_executable", return_value=sys.executable), \
+                 patch.object(capabilities.model_channels, "probe", return_value=ready) as probe, \
+                 patch.object(capabilities, "_read_plugin_json") as plugins, \
+                 patch.object(capabilities, "_run_json") as mcp, \
+                 patch.object(capabilities, "_skills") as skills:
+                for version in ("first", "second"):
+                    plugins.return_value = ({"installed": [{"id": version}]}, None)
+                    mcp.return_value = ([{"name": version}], None)
+                    skills.return_value = [{"id": version}]
+                    result = capabilities.environment_summary(
+                        [channel], refresh=version == "second", tools_only=True)
+                    for section, field in (("plugins", "id"), ("mcp_servers", "name"), ("skills", "id")):
+                        self.assertEqual([row[field] for row in result[section]], [version])
+                    self.assertEqual(mcp.call_args.args[0][1:], ["mcp", "list", "--json"])
+                self.assertEqual(mcp.call_count, 2)
+                probe.return_value = {**ready, "authenticated": False, "status": "login_required"}
+                denied = capabilities.environment_summary([channel], tools_only=True)
+                self.assertEqual(denied["counts"]["ready_channels"], 0)
+                for section in ("plugins", "mcp_servers", "skills"):
+                    self.assertEqual(denied[section], [])
+                probe.assert_called_with(channel, account_summary=False)
+                self.assertEqual(plugins.call_count, 2)
+            capabilities.invalidate_channel(channel)
