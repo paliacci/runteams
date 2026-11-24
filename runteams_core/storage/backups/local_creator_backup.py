@@ -27,7 +27,8 @@ def verify(directory, scope):
             from runteams_core.authoring.creator_contracts import digest
             expected = set()
             for rev in [entry.name, *(m['revision'] for m in revisions._history())]:
-                files = revisions.files_at(rev)
+                # The archived revision chain is immutable. A live edit lock would change its manifest.
+                files = revisions._files(rev)
                 mapping = require(entry, files)
                 if mapping and digest(mapping) not in expected:
                     backup_knowledge(entry, None, files)
