@@ -1,17 +1,17 @@
 """Isolated platform builder; no application startup or account credentials."""
 import os
 from pathlib import Path
-import resource
 import sys
 
-resource.setrlimit(resource.RLIMIT_CPU, (180, 180))
-resource.setrlimit(resource.RLIMIT_FSIZE, (34*1024*1024, 34*1024*1024))
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
+from runteams_core.authoring.workers.creator_worker_process import apply_limits
+apply_limits('build')
+
 from runteams_core.authoring.compilation.creator_build_tools import load_worker
 from runteams_core.authoring.creator_contracts import CreatorContractError, canonical, strict_json
-from runteams_core.authoring.source.creator_source_archive import inspect
+from runteams_core.authoring.source.creator_source_archive import inspect_file_with_tree
 from runteams_core.authoring.source.creator_source_import import validate_source
-from runteams_core.authoring.source.creator_local_source import _sync
+from runteams_core.foundation.durable_files import sync_directory
 
 
 def main():
@@ -30,7 +30,7 @@ def main():
             builder.runtime=ManagedMCPRuntime(Path(value['root']),value['manifest_sha256']);builder.runtime.verify()
         if identity != request['toolchain_sha256']:
             raise CreatorContractError('builder_integrity')
-        files = inspect((job / 'source.zip').read_bytes())
+        files, _ = inspect_file_with_tree(job / 'source.zip')
         validate_source(files)
         built = builder.build(files, require_work=False)
         if cancelled():raise CreatorContractError('build_cancelled')
@@ -39,10 +39,13 @@ def main():
             target = stage / path;target.parent.mkdir(parents=True,exist_ok=True)
             with target.open('xb') as stream:
                 stream.write(body);stream.flush();os.fsync(stream.fileno())
+        metadata = canonical({'manifest':built['manifest'], 'operations':built['operations']})
+        if len(metadata) > 1024 * 1024:
+            raise CreatorContractError('artifact_limit')
         with (stage / 'build.json').open('xb') as stream:
-            stream.write(canonical({'manifest':built['manifest'], 'operations':built['operations']}));stream.flush();os.fsync(stream.fileno())
-        for folder in sorted((p for p in stage.rglob('*') if p.is_dir()),key=lambda p:len(p.parts),reverse=True):_sync(folder)
-        _sync(stage)
+            stream.write(metadata);stream.flush();os.fsync(stream.fileno())
+        for folder in sorted((p for p in stage.rglob('*') if p.is_dir()),key=lambda p:len(p.parts),reverse=True):sync_directory(folder)
+        sync_directory(stage)
         result = {'state':'succeeded'}
     except CreatorContractError as error:
         result = {'state':'cancelled' if error.code=='build_cancelled' else 'failed',

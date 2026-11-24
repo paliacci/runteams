@@ -15,7 +15,8 @@ import tempfile
 
 from runteams_core.foundation import file_locks
 from runteams_core.authoring.creator_contracts import canonical, digest, source_files, strict_json, tree
-from runteams_core.authoring.source.creator_local_source import _read, _sync
+from runteams_core.authoring.source.creator_local_source import _read
+from runteams_core.foundation import durable_files
 from runteams_core.authoring.source.creator_source_archive import display_files, inspect, pack
 
 REV = re.compile(r'r-[a-f0-9]{64}')
@@ -235,10 +236,9 @@ class Revisions:
                         with (stage / name).open('xb') as stream:
                             os.chmod(stream.name, 0o600)
                             stream.write(body); stream.flush(); os.fsync(stream.fileno())
-                    _sync(stage)
+                    durable_files.sync_directory(stage)
                     self.store.check_scope()
-                    os.rename(stage, destination)
-                    _sync(revisions)
+                    durable_files.move(stage, destination)
                 finally:
                     if stage.exists():
                         shutil.rmtree(stage)
@@ -247,8 +247,7 @@ class Revisions:
                 with os.fdopen(fd, 'wb') as stream:
                     stream.write(canonical({'revision': revision})); stream.flush(); os.fsync(stream.fileno())
                 self.store.check_scope()
-                os.replace(name, self.root / 'head.json')
-                _sync(self.root)
+                durable_files.move(name, self.root / 'head.json', replace=True)
             finally:
                 if os.path.exists(name):
                     os.unlink(name)

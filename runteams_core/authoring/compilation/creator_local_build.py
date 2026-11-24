@@ -5,20 +5,17 @@ import os
 from pathlib import Path
 import re
 import shutil
-import signal
-import subprocess
 import tempfile
 import threading
-import time
 
-from runteams_core.foundation import file_locks
-from runteams_core.authoring.creator_contracts import CreatorContractError, canonical, contract, digest, relative, strict_json, tree
+from runteams_core.foundation import durable_files, file_locks
+from runteams_core.authoring.creator_contracts import CreatorContractError, digest, strict_json, tree
 from runteams_core.foundation.content_hashes import sha256 as sha
 from runteams_core.authoring.compilation.creator_build_tools import directory, load
-from runteams_core.authoring.source.creator_local_source import _read, _sync
+from runteams_core.authoring.source.creator_local_source import _read
 from runteams_core.authoring.source.creator_source_archive import pack
-from runteams_core.authoring.source.creator_source_revisions import Revisions, SourceConflict
-from runteams_core.authoring.workers.creator_worker_process import command
+from runteams_core.authoring.source.creator_source_revisions import SourceConflict
+from runteams_core.authoring.workers.creator_worker_process import build
 from runteams_core.authoring.source.source_artifacts import BuildArtifacts
 from runteams_core.authoring.source import source_io
 
@@ -169,8 +166,8 @@ class LocalBuilds(BuildArtifacts):
                 state={'schema':'runteams.local-build-state/1','operation_key':key,'revision':revision,'source_sha256':tree(files)['sha256'],
                     'toolchain_sha256':toolchain,'builder_profile':profile,'state':'running','code':'','diagnostic':'',
                     'created_at':datetime.now(timezone.utc).isoformat()}
-                source_io.atomic_json(stage / 'status.json',state);_sync(stage)
-                os.rename(stage,job);_sync(self.root)
+                source_io.atomic_json(stage / 'status.json',state)
+                durable_files.move(stage, job)
                 source_io.atomic_json(self.root / 'latest.json',{'operation_key':key})
                 context=contextvars.copy_context()
                 thread=threading.Thread(target=lambda:context.run(self._run,job,state,tools,fd),daemon=True)
@@ -189,7 +186,6 @@ class LocalBuilds(BuildArtifacts):
         return self.read(key)
 
     def _run(self, job, state, tools, fd):
-        child=None
         try:
             request={'schema':'runteams.local-build-request/1','job':str(job),'tools':str(tools),'toolchain_sha256':state['toolchain_sha256'],'parent_pid':os.getpid(),
                      'builder_profile':state['builder_profile']}
@@ -198,23 +194,10 @@ class LocalBuilds(BuildArtifacts):
                 try:
                     runtime=platform_runtime();request['mcp_runtime']={'root':str(runtime.root),'manifest_sha256':runtime.manifest_sha256}
                 except MCPError:pass  # pure skills need no Node; a program fails explicitly in the worker
-            with tempfile.TemporaryFile() as output:
-                child=subprocess.Popen(command('build'),stdin=subprocess.PIPE,stdout=output,stderr=subprocess.DEVNULL,
-                    env={'PATH':os.defpath,'LANG':'en_US.UTF-8'},start_new_session=True)
-                child.stdin.write(canonical(request));child.stdin.close()
-                deadline=time.monotonic()+190
-                while child.poll() is None:
-                    if time.monotonic()>deadline:
-                        source_io.atomic_json(job / 'cancel',{'requested':True})
-                        raise CreatorContractError('build_budget')
-                    time.sleep(.05)
-                output.seek(0);response=strict_json(output.read(128*1024))
-                if child.returncode or response.get('state') not in ('succeeded','failed','cancelled'):
-                    raise CreatorContractError('build_worker_failed')
-            state.update(response)
+            state.update(build(request, cancelled=(job / 'cancel').exists))
             if (job / 'cancel').exists():state.update(state='cancelled',code='build_cancelled')
             if state['state']=='succeeded':
-                os.rename(job / '.result-stage',job / 'result');_sync(job)
+                durable_files.move(job / '.result-stage', job / 'result')
                 metadata,_=self.artifacts(state['operation_key'])
                 resources=metadata['manifest'].get('build_resources')
                 if resources:state['mcp_runtime_sha256']=resources['node_manifest_sha256']
@@ -228,9 +211,7 @@ class LocalBuilds(BuildArtifacts):
             state.update(state='failed',code=getattr(error,'code','build_worker_failed'),diagnostic=getattr(error,'details','') or '')
             source_io.atomic_json(job / 'status.json',state)
         finally:
-            if child is not None and child.poll() is None:
-                # Worker observes cancellation and kills its active compiler.
-                try:child.wait(timeout=2)
-                except subprocess.TimeoutExpired:
-                    os.killpg(child.pid,signal.SIGKILL);child.wait()
-            os.close(fd);_slot.release()
+            try:
+                os.close(fd)
+            finally:
+                _slot.release()

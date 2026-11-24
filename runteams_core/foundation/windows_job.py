@@ -8,6 +8,9 @@ _kernel = ctypes.WinDLL('kernel32', use_last_error=True)
 HANDLE, DWORD, BOOL = wintypes.HANDLE, wintypes.DWORD, wintypes.BOOL
 SIZE_T = ctypes.c_size_t
 LIMIT_KILL_ON_JOB_CLOSE = 0x2000
+LIMIT_JOB_TIME = 0x4
+LIMIT_ACTIVE_PROCESS = 0x8
+LIMIT_JOB_MEMORY = 0x200
 CREATE_SUSPENDED = 0x4
 TH32CS_SNAPTHREAD = 0x4
 THREAD_SUSPEND_RESUME = 0x2
@@ -89,13 +92,32 @@ def _resume_primary_thread(pid):
 
 
 class _Job:
-    def __init__(self):
+    def __init__(self, budgets):
+        limits = _ExtendedLimits()
+        basic = limits.BasicLimitInformation
+        basic.LimitFlags = LIMIT_KILL_ON_JOB_CLOSE
+        for name, value in (budgets or {}).items():
+            if type(value) is not int or value <= 0:
+                raise ValueError(f'invalid Windows job limit: {name}')
+            if name == 'cpu_seconds' and value <= (2**63 - 1) // 10_000_000:
+                basic.LimitFlags |= LIMIT_JOB_TIME
+                basic.PerJobUserTimeLimit = value * 10_000_000
+            elif name == 'processes' and value < 2**32:
+                basic.LimitFlags |= LIMIT_ACTIVE_PROCESS
+                basic.ActiveProcessLimit = value
+            elif name == 'memory_bytes' and value <= SIZE_T(-1).value:
+                basic.LimitFlags |= LIMIT_JOB_MEMORY
+                limits.JobMemoryLimit = value
+            else:
+                raise ValueError(f'invalid Windows job limit: {name}')
         self.handle = _checked(_create_job(None, None))
         self.close = weakref.finalize(self, _close, self.handle)
-        limits = _ExtendedLimits()
-        limits.BasicLimitInformation.LimitFlags = LIMIT_KILL_ON_JOB_CLOSE
-        _checked(_set_limits(self.handle, JOB_EXTENDED_LIMIT_INFORMATION,
-                             ctypes.byref(limits), ctypes.sizeof(limits)))
+        try:
+            _checked(_set_limits(self.handle, JOB_EXTENDED_LIMIT_INFORMATION,
+                                 ctypes.byref(limits), ctypes.sizeof(limits)))
+        except BaseException:
+            self.close()
+            raise
 
     def stop(self):
         if self.close.alive:
@@ -103,11 +125,12 @@ class _Job:
             self.close()
 
 
-def start(argv, options):
-    job = _Job()
+def start(argv, options, budgets):
+    flags = options.pop('creationflags', 0) | CREATE_SUSPENDED
+    job = _Job(budgets)
     process = None
     try:
-        process = subprocess.Popen(argv, creationflags=CREATE_SUSPENDED, **options)
+        process = subprocess.Popen(argv, creationflags=flags, **options)
         # CPython 3.12 retains the CreateProcess handle for wait/poll.
         _checked(_assign(job.handle, int(process._handle)))
         _resume_primary_thread(process.pid)
@@ -124,3 +147,33 @@ def start(argv, options):
                     if stream is not None:
                         stream.close()
         raise
+
+
+class _MemoryCounters(ctypes.Structure):
+    _fields_ = [('cb', DWORD), ('PageFaultCount', DWORD)] + [
+        (name, SIZE_T) for name in (
+            'PeakWorkingSetSize', 'WorkingSetSize', 'QuotaPeakPagedPoolUsage',
+            'QuotaPagedPoolUsage', 'QuotaPeakNonPagedPoolUsage',
+            'QuotaNonPagedPoolUsage', 'PagefileUsage', 'PeakPagefileUsage')]
+
+
+_open_process = _api('OpenProcess', HANDLE, DWORD, BOOL, DWORD)
+_get_memory = _api('K32GetProcessMemoryInfo', BOOL, HANDLE,
+                   ctypes.POINTER(_MemoryCounters), DWORD)
+
+
+def working_set_bytes(pid):
+    # PROCESS_QUERY_LIMITED_INFORMATION is sufficient on supported Windows.
+    handle = _open_process(0x1000, False, pid)
+    if not handle:
+        error = ctypes.get_last_error()
+        if error == 87:  # ERROR_INVALID_PARAMETER for a process that has exited.
+            return 0
+        raise ctypes.WinError(error)
+    try:
+        counters = _MemoryCounters()
+        counters.cb = ctypes.sizeof(counters)
+        _checked(_get_memory(handle, ctypes.byref(counters), counters.cb))
+        return counters.WorkingSetSize
+    finally:
+        _close(handle)

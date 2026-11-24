@@ -11,9 +11,9 @@ import shutil
 import tempfile
 import uuid
 
-from runteams_core.foundation import file_locks
+from runteams_core.foundation import durable_files, file_locks
 from runteams_core.authoring.creator_contracts import canonical, strict_json, read_folder, tree, digest
-from runteams_core.authoring.source.creator_local_source import current_store, _read, _sync
+from runteams_core.authoring.source.creator_local_source import current_store, _read
 from runteams_core.authoring.source.creator_source_revisions import Revisions, SourceConflict
 
 
@@ -167,7 +167,7 @@ def _finish(revisions, root):
     if tree(read_folder(root/'source')) != tree(files):
         raise SourceConflict('源码文件仍在变化，已保留当前修订与未完成修改，请稍后核对。')
     (root/'pending.json').unlink()
-    _sync(root)
+    durable_files.sync_directory(root)
     return result
 
 
@@ -202,17 +202,15 @@ def workspace(session):
                 target = stage/path;target.parent.mkdir(mode=0o700,parents=True,exist_ok=True)
                 with target.open('xb') as stream:
                     os.chmod(stream.name,0o600);stream.write(body);stream.flush();os.fsync(stream.fileno())
-            _sync(stage)
+            durable_files.sync_directory(stage)
             destination = root/'source'
             if destination.exists() or destination.is_symlink():
                 # The previous clean checkout is reconstructable, not a saved revision.
                 if destination.is_symlink():raise ValueError('本机创作目录无效。')
                 shutil.rmtree(destination)
-            os.rename(stage,destination)
+            durable_files.move(stage, destination)
             pending = {'base_revision':current['revision'],'operation_key':'agent-'+uuid.uuid4().hex}
-            with (root/'pending.json').open('xb') as stream:
-                os.chmod(stream.name,0o600);stream.write(canonical(pending));stream.flush();os.fsync(stream.fileno())
-            _sync(root)
+            durable_files.publish_json(root/'pending.json', pending)
         finally:
             if stage.exists():shutil.rmtree(stage)
         try:
@@ -244,7 +242,7 @@ def recover(session, base_revision):
         result=revisions.commit(files,base_revision,operation)
         if tree(read_folder(root/'source')) != tree(files):
             raise SourceConflict('源码文件仍在变化，恢复内容已保留，请稍后核对。')
-        (root/'pending.json').unlink();_sync(root)
+        (root/'pending.json').unlink();durable_files.sync_directory(root)
         return result
     finally:os.close(fd)
 

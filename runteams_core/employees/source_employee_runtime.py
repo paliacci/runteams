@@ -33,17 +33,15 @@ _revalidation_lock=threading.Lock()
 def _recheck_artifacts(files,tools,pin,runtime):
     """Use the existing isolated builder, including on a source host hot update."""
     from runteams_core.authoring.source.creator_source_archive import pack
-    from runteams_core.authoring.workers.creator_worker_process import command
-    from runteams_core.authoring.creator_contracts import canonical, tree
+    from runteams_core.authoring.workers.creator_worker_process import build
+    from runteams_core.authoring.creator_contracts import tree
     with tempfile.TemporaryDirectory(prefix='runteams-frozen-build-check-') as directory:
         root=Path(directory);(root/'source.zip').write_bytes(pack(files))
         request={'schema':'runteams.local-build-request/1','job':str(root),'tools':str(tools),
             'toolchain_sha256':pin,'parent_pid':os.getpid(),'builder_profile':'mcp'}
         if runtime is not None:request['mcp_runtime']={'root':str(runtime.root),'manifest_sha256':runtime.manifest_sha256}
-        result=subprocess.run(command('build'),input=canonical(request),stdout=subprocess.PIPE,stderr=subprocess.DEVNULL,
-            env={'PATH':os.defpath,'LANG':'en_US.UTF-8'},timeout=190,start_new_session=True)
-        response=strict_json(result.stdout[:128*1024])
-        if result.returncode or response.get('state')!='succeeded':
+        response=build(request)
+        if response.get('state')!='succeeded':
             raise ContractError('原员工运行包未通过当前构建核验，请保留原工作。')
         stage=root/'.result-stage';metadata=strict_json((stage/'build.json').read_bytes())
         if metadata['manifest']['source_sha256']!=tree(files)['sha256']:

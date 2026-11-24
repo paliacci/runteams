@@ -29,6 +29,9 @@ def _darwin():
 def process_rss(pid):
     if type(pid) is not int or pid <= 0:
         raise ValueError('invalid_worker_pid')
+    if sys.platform == 'win32':
+        from runteams_core.foundation.windows_job import working_set_bytes
+        return working_set_bytes(pid)
     if sys.platform == 'linux':
         try:
             lines = Path('/proc', str(pid), 'status').read_text().splitlines()

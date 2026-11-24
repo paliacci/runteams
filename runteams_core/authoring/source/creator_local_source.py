@@ -8,7 +8,7 @@ from contextlib import contextmanager
 import errno
 import hashlib
 import os
-from runteams_core.foundation import regular_files
+from runteams_core.foundation import durable_files, regular_files
 from pathlib import Path
 import re
 import shutil
@@ -46,14 +46,6 @@ def _read(path, limit):
                 raise ValueError('本机源码文件已变化。')
             return body
     raise ValueError('本机源码文件持续变化，请稍后重试。')
-
-
-def _sync(path):
-    fd = os.open(path, os.O_RDONLY)
-    try:
-        os.fsync(fd)
-    finally:
-        os.close(fd)
 
 
 class _SourceReader:
@@ -197,16 +189,15 @@ class LocalSources(_SourceReader):
             if knowledge_stage:
                 stage, mapping = knowledge_stage
                 install_tree(stage, location(staging, mapping))
-            _sync(staging)
+            durable_files.sync_directory(staging)
             self.check_scope()
             try:
                 # Complete directory becomes visible atomically. A concurrent
                 # import can win; its immutable receipt is the same draft.
-                os.rename(staging, destination)
+                durable_files.move(staging, destination)
             except OSError as error:
                 if error.errno not in (errno.EEXIST, errno.ENOTEMPTY):
                     raise
-            _sync(self.root)
             self.index_saved_project(expected)
             return self.describe(expected)
         finally:

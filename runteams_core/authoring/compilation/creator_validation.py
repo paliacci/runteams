@@ -1,11 +1,7 @@
 """Bound author JSON-schema work in a separate process, never the Chat process."""
 from functools import lru_cache
 import json
-import os
-from pathlib import Path
-import signal
 import subprocess
-import sys
 import tempfile
 import time
 
@@ -16,13 +12,12 @@ def _worker(payload):
     raw = canonical(payload)
     if len(raw) > 128 * 1024:
         raise CreatorContractError('schema_budget')
-    from runteams_core.authoring.workers.creator_worker_process import command
+    from runteams_core.authoring.workers.creator_worker_process import start
+    from runteams_core.foundation import process_tree
     with tempfile.TemporaryFile() as inp, tempfile.TemporaryFile() as out:
         inp.write(raw); inp.seek(0)
         # No credential environment or inherited descriptors in author validation.
-        process = subprocess.Popen(command('schema'), stdin=inp,
-            stdout=out, stderr=subprocess.DEVNULL, start_new_session=True,
-            env={'PATH': os.defpath, 'LANG': 'en_US.UTF-8'})
+        process = start('schema', stdin=inp, stdout=out, stderr=subprocess.DEVNULL)
         try:
             deadline = time.monotonic() + 3
             while process.poll() is None:
@@ -61,9 +56,7 @@ def _worker(payload):
             if result != {'valid': True}:
                 raise CreatorContractError('invalid_author_data')
         finally:
-            if process.poll() is None:
-                os.killpg(process.pid, signal.SIGKILL)
-            process.wait()
+            process_tree.stop(process, grace=0)
 
 
 @lru_cache(maxsize=32)

@@ -1,11 +1,11 @@
 """Build runnable JS MCPB and complete skill releases, without executing authors."""
 import hashlib
-import os
 from pathlib import Path
 import subprocess
 import tempfile
 
 from runteams_core.authoring.creator_contracts import ROOT, CreatorContractError, compile_source, canonical, contract, digest
+from runteams_core.authoring.workers.creator_worker_process import environment
 from runteams_core.authoring.creator_definitions import compiler_identity, definition_artifacts, definition_target
 from runteams_core.authoring.compilation.creator_mcp_source import packages, execution, PROJECT
 
@@ -75,9 +75,10 @@ class MCPSourceBuilder:
             parser=self.parser()
             builtins=set(strict_json(subprocess.check_output([str(node),'-e',
                 'process.stdout.write(JSON.stringify(require("node:module").builtinModules))'],
-                env={'PATH':os.defpath},timeout=8)))
+                env=environment(),timeout=8)))
             with tempfile.TemporaryDirectory(prefix='runteams-mcp-parse-') as folder:
                 root=Path(folder).resolve()
+                env=environment(root)
                 for directory,raw in values.items():
                     from runteams_core.employees.mcp.employee_mcp_package import MCPBundle
                     package=MCPBundle.inspect(raw);materialized=package.materialize(root/'packages')
@@ -87,16 +88,19 @@ class MCPSourceBuilder:
                         # --check parses only: it cannot run imports, entry code,
                         # npm hooks, or the user's NODE_OPTIONS/preload scripts.
                         try:result=subprocess.run([str(node),'--check',str(materialized/name)],cwd=root,
-                            env={'PATH':os.defpath,'HOME':str(root),'TMPDIR':str(root)},capture_output=True,timeout=8)
+                            env=env,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=8)
                         except subprocess.TimeoutExpired:raise CreatorContractError('mcp_parse_budget') from None
                         if result.returncode:raise CreatorContractError('mcp_javascript_syntax',name)
                         try:
                             checked=subprocess.run([str(parser),str(materialized/name),'--bundle','--platform=node','--format=cjs',
                                 '--outfile='+str(root/'checked.cjs'),'--metafile='+str(root/'imports.json'),'--log-level=error','--log-limit=3'],cwd=materialized,
-                                env={'PATH':os.defpath,'HOME':str(root),'TMPDIR':str(root)},capture_output=True,timeout=8)
+                                env=env,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=8)
                         except subprocess.TimeoutExpired:raise CreatorContractError('mcp_parse_budget') from None
                         if checked.returncode:raise CreatorContractError('mcp_dependency_missing',name)
-                        meta=strict_json((root/'imports.json').read_bytes())
+                        metadata = root/'imports.json'
+                        if max(metadata.stat().st_size, (root/'checked.cjs').stat().st_size) > 34 * 1024 * 1024:
+                            raise CreatorContractError('mcp_parse_budget')
+                        meta=strict_json(metadata.read_bytes())
                         for imported in meta['inputs']:
                             resolved=(materialized/imported).resolve()
                             if not resolved.is_relative_to(materialized) or resolved.relative_to(materialized).as_posix() not in package.files:

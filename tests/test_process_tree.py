@@ -44,6 +44,21 @@ class ProcessTreeTests(unittest.TestCase):
         self.assertEqual(process.communicate(timeout=3)[0], b'')
         self.assertEqual(process.returncode, 0)
 
+    @unittest.skipUnless(sys.platform == 'win32', 'Windows Job Object limits')
+    def test_process_ceiling_applies_before_leader_can_spawn(self):
+        with tempfile.TemporaryDirectory() as directory:
+            marker = Path(directory) / 'started'
+            grandchild = 'import pathlib, sys; pathlib.Path(sys.argv[1]).touch()'
+            parent = (
+                'import subprocess, sys\n'
+                'try: subprocess.run([sys.executable, "-c", *sys.argv[1:]], timeout=5)\n'
+                'except OSError: pass'
+            )
+            result = process_tree.run([sys.executable, '-c', parent, grandchild, str(marker)],
+                                      windows_limits={'processes': 1}, timeout=8)
+            self.assertEqual(result.returncode, 0)
+            self.assertFalse(marker.exists())
+
     def test_concurrent_cancellation_leaves_another_job_running(self):
         other = self.start_family(leader_exits=False)
         process = self.start_family(leader_exits=False)

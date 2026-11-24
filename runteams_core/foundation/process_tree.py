@@ -16,11 +16,11 @@ class _Ownership:
     stopped: bool = False
 
 
-def start(argv, **options):
+def start(argv, *, windows_limits=None, **options):
     """Return a Popen with ordinary pipes, wait and poll, plus owned descendants."""
     owner = _Ownership()
     if os.name == 'nt':
-        process, owner.job = windows_job.start(argv, options)
+        process, owner.job = windows_job.start(argv, options, windows_limits)
     else:
         process = subprocess.Popen(argv, start_new_session=True, **options)
     process._runteams_tree = owner

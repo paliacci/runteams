@@ -2,7 +2,7 @@
 import os
 import tempfile
 from runteams_core.authoring.creator_contracts import canonical
-from runteams_core.authoring.source.creator_local_source import _sync
+from runteams_core.foundation import durable_files
 
 
 def atomic_json(path, value):
@@ -10,7 +10,7 @@ def atomic_json(path, value):
     try:
         with os.fdopen(fd, 'wb') as stream:
             stream.write(canonical(value));stream.flush();os.fsync(stream.fileno())
-        os.replace(name, path);_sync(path.parent)
+        durable_files.move(name, path, replace=True)
     finally:
         if os.path.exists(name):os.unlink(name)
 
