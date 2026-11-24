@@ -31,7 +31,8 @@ def document(raw,nonce,library_id=None):
     # Resource composition only: every business function/template stays in the
     # canonical source, without rewriting its implementation or keeping a fork.
     text=re.sub(r'<script\b[^>]*>.*?</script>|<link\b[^>]*>',tag,text,flags=re.S)
-    return text.encode()
+    from runteams_core.application.http.ui_asset_versions import version_assets
+    return version_assets(text.encode(), lambda url: ROOT / ASSETS[url][0] if url in ASSETS else None)
 
 
 def read_asset(path,nonce='',library_id=None):

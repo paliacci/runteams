@@ -53,7 +53,7 @@
    showErrors();
    if(startup||!local||S.localLibrary||current().length)S.coreTeamLoaded=true;
    S.deviceSessionActor=String(S.localLibrary?.library_id||RunTeamsHost.session.actor(S)||'');
-   return {employees:assets(),items:current(),errors:reply.errors,catalogChecked:startup&&reply.catalog_checked===true};
+   return {employees:assets(),items:current(),errors:reply.errors,catalogRefreshAt:startup&&Number.isFinite(reply.catalog_refresh_in_ms)?started+reply.catalog_refresh_in_ms:null};
   })().finally(()=>{
    if(refresh?.nextAt===Infinity)refresh.nextAt=Date.now()+cloudRetryInterval;
    if(local&&pending?.promise===promise)pending=null;
@@ -76,8 +76,8 @@
   }
   const local=await readDirectory(expected,options,true);
   if(expected!==token()||!local||S.localLibrary)return local;
-  if(local.catalogChecked){
-   cloudRefresh={scope:expected,nextAt:Date.now()+(local.errors?.assets?cloudRetryInterval:cloudRefreshInterval)};
+  if(local.catalogRefreshAt!=null){
+   cloudRefresh={scope:expected,nextAt:local.catalogRefreshAt};
    return local;
   }
   if(!options.localFirst&&options.readPriority!=='background'){

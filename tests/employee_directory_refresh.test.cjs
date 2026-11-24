@@ -166,7 +166,7 @@ test('first personal roster includes cloud employees before painting or revalida
    api:async url=>{
     paths.push(url);
     const startup = url.endsWith('?view=startup');
-    return {schema:'runteams.employee-directory/v1', items:startup?[local,asset]:[local], catalog_checked:checked,
+    return {schema:'runteams.employee-directory/v1', items:startup?[local,asset]:[local], catalog_refresh_in_ms:checked?10000:null,
      activity:{chats:[],workflows:[]}, errors:startup?{}:{assets:{error:'offline'}}};
    }};
   context.window=context;
