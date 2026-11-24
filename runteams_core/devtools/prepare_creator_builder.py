@@ -14,7 +14,7 @@ import zipfile
 
 ROOT = source_root()
 sys.path.insert(0, str(ROOT))
-from runteams_core.authoring.compilation.creator_build_tools import load
+from runteams_core.authoring.compilation.creator_build_tools import ESBUILD_EXECUTABLE, host_platform, load
 from runteams_core.authoring.creator_contracts import canonical, strict_json
 from runteams_creator_dev.file_copy import copy_new
 
@@ -24,11 +24,11 @@ def prepare(source, output, *, sign_identity=None, profile='mcp'):
     load(source,profile=profile)
     if output.is_symlink() or output.exists():raise ValueError('output_exists')
     output.mkdir(mode=0o755,parents=True)
-    target=output/'esbuild';copy_new(source/'esbuild',target)
+    target=output/ESBUILD_EXECUTABLE;copy_new(source/ESBUILD_EXECUTABLE,target)
     if sign_identity is not None:
         subprocess.run(['/usr/bin/codesign','--force','-s',sign_identity,str(target)],check=True,capture_output=True)
     target.chmod(0o755)
-    manifest={'schema':'runteams.platform-builder/2','platform':'darwin-arm64',
+    manifest={'schema':'runteams.platform-builder/2','platform':host_platform(),
         'esbuild':{'sha256':hashlib.sha256(target.read_bytes()).hexdigest()}}
     (output/'toolchain.json').write_bytes(canonical(manifest));load(output,profile=profile)
     return manifest
@@ -41,7 +41,7 @@ def sdk_archive(tools, output, *, profile='mcp', runtime_root=None, libraries=No
     with tempfile.TemporaryDirectory(prefix='runteams-sdk-stage-', dir=output.parent) as temporary:
         kit = Path(temporary)/'sdk'
         if profile!='mcp':raise ValueError('unsupported_sdk_profile')
-        export_mcp(kit,runtime_root,libraries,Path(tools)/'esbuild')
+        export_mcp(kit,runtime_root,libraries,Path(tools)/ESBUILD_EXECUTABLE)
         inventory = strict_json((kit/'devkit-inventory.json').read_bytes())
         with zipfile.ZipFile(output, 'x', compression=zipfile.ZIP_DEFLATED) as archive:
             for path in sorted(kit.rglob('*')):
@@ -101,7 +101,7 @@ def seal_packaged(source, target, *, profile='mcp'):
     target = target.resolve()
     if source == target or source in target.parents or target in source.parents:
         raise ValueError('builder_output_overlaps_source')
-    names = {'esbuild','toolchain.json'}
+    names = {ESBUILD_EXECUTABLE,'toolchain.json'}
     if {p.name for p in target.iterdir()} != names or not all((target/n).is_file() and not (target/n).is_symlink() for n in names):
         raise ValueError('unexpected_builder_output')
     for name in names:

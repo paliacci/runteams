@@ -5,7 +5,6 @@ if not __package__:
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 import argparse
-import platform
 from pathlib import Path
 import shutil
 import sys
@@ -13,22 +12,21 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from runteams_core.foundation.content_hashes import sha256 as sha
 from runteams_core.authoring.creator_contracts import canonical
-from runteams_core.authoring.compilation.creator_build_tools import load
+from runteams_core.authoring.compilation.creator_build_tools import ESBUILD_EXECUTABLE, host_platform, load
 
 
 def package(output, tools):
     output = Path(output).resolve()
     if output.exists(): raise ValueError('output_exists')
     output.mkdir(parents=True, mode=0o700)
-    arch = platform.machine().lower()
-    arch = {'x86_64': 'x64', 'amd64': 'x64', 'aarch64': 'arm64'}.get(arch, arch)
-    config = {'schema':'runteams.platform-builder/2', 'platform': f'{sys.platform}-{arch}'}
-    for name in ('esbuild',):
-        source = Path(tools[name])
-        if source.is_symlink() or not source.is_file(): raise ValueError('invalid_tool')
-        shutil.copy2(source, output / name)
-        (output / name).chmod(0o755)
-        config[name] = {'sha256':sha((output / name).read_bytes())}
+    source = Path(tools['esbuild'])
+    if source.is_symlink() or not source.is_file():
+        raise ValueError('invalid_tool')
+    target = output / ESBUILD_EXECUTABLE
+    shutil.copy2(source, target)
+    target.chmod(0o755)
+    config = {'schema': 'runteams.platform-builder/2', 'platform': host_platform(),
+              'esbuild': {'sha256': sha(target.read_bytes())}}
     (output / 'toolchain.json').write_bytes(canonical(config))
     load(output)
 

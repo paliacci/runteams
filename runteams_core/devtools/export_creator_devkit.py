@@ -14,6 +14,7 @@ import sys
 
 ROOT = source_root()
 sys.path.insert(0, str(ROOT))
+from runteams_core.authoring.compilation.creator_build_tools import ESBUILD_EXECUTABLE
 from runteams_core.authoring.creator_contracts import canonical
 from runteams_core.authoring.creator_definitions import author_schema
 from runteams_creator_dev.scaffold import inventory
@@ -55,9 +56,11 @@ def export_mcp(output,runtime_root,libraries,esbuild):
     for path in runtime_root.iterdir():
         if path.is_file():copy(path,kit/'mcp-runtime'/path.name)
     (kit/'mcp-runtime'/node.name).chmod(0o755)
-    copy(Path(esbuild),kit/'tools/esbuild');(kit/'tools/esbuild').chmod(0o755)
+    parser = kit / 'tools' / ESBUILD_EXECUTABLE
+    copy(Path(esbuild), parser)
+    parser.chmod(0o755)
     copy(ROOT/'sdk/mcp-host/esbuild-LICENSE.txt',kit/'tools/esbuild.LICENSE.txt')
-    (kit/'toolchain.json').write_bytes(canonical({'schema':'runteams.dev-toolchain/2','runtime':{'path':'mcp-runtime','manifest_sha256':runtime.manifest_sha256},'esbuild':{'path':'tools/esbuild','sha256':hashlib.sha256((kit/'tools/esbuild').read_bytes()).hexdigest()}}))
+    (kit/'toolchain.json').write_bytes(canonical({'schema':'runteams.dev-toolchain/2','runtime':{'path':'mcp-runtime','manifest_sha256':runtime.manifest_sha256},'esbuild':{'path':parser.relative_to(kit).as_posix(),'sha256':hashlib.sha256(parser.read_bytes()).hexdigest()}}))
     vendor=kit/'mcp-libraries';vendor.mkdir()
     for src,dest in [('creator-server.cjs','server.cjs'),('creator-app.js','app.js'),('creator-server.cjs.LEGAL.txt','creator-server.cjs.LEGAL.txt'),
                      ('creator-app.js.LEGAL.txt','creator-app.js.LEGAL.txt'),('THIRD_PARTY_NOTICES.txt','THIRD_PARTY_NOTICES.txt')]:copy(libraries/src,vendor/dest)

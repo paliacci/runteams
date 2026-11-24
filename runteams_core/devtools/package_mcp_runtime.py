@@ -15,6 +15,7 @@ import zipfile
 
 ROOT = source_root()
 sys.path.insert(0, str(ROOT))
+from runteams_core.authoring.compilation.creator_build_tools import ESBUILD_EXECUTABLE
 from runteams_core.authoring.creator_contracts import canonical, strict_json
 from runteams_core.employees.mcp.employee_mcp import ManagedMCPRuntime, NODE_EXECUTABLE
 
@@ -114,8 +115,8 @@ def verify_sdk(runtime, tools, resources):
         for name, digest in expected.items():
             if hashlib.sha256(z.read('_runteams/mcp-runtime/' + name)).hexdigest() != digest:
                 raise ValueError('sdk_mcp_runtime_binding')
-        parser = (tools / 'esbuild').read_bytes()
-        if z.read('_runteams/tools/esbuild') != parser:
+        parser = (tools / ESBUILD_EXECUTABLE).read_bytes()
+        if z.read('_runteams/tools/' + ESBUILD_EXECUTABLE) != parser:
             raise ValueError('sdk_parser_binding')
         config = strict_json(z.read('_runteams/toolchain.json'))
         if config['runtime']['manifest_sha256'] != (runtime / 'runtime.sha256').read_text().strip():

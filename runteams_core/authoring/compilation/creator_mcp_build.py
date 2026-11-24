@@ -25,10 +25,10 @@ class MCPSourceBuilder:
 
     def parser(self):
         if self.esbuild is None:
-            from runteams_core.authoring.compilation.creator_build_tools import directory
+            from runteams_core.authoring.compilation.creator_build_tools import ESBUILD_EXECUTABLE, directory
             from runteams_core.authoring.creator_contracts import strict_json
             config=strict_json((directory()/'toolchain.json').read_bytes())
-            self.esbuild=directory()/'esbuild';self.esbuild_sha256=config['esbuild']['sha256']
+            self.esbuild=directory()/ESBUILD_EXECUTABLE;self.esbuild_sha256=config['esbuild']['sha256']
         path=Path(self.esbuild).absolute()
         if any(p.is_symlink() for p in (path,*path.parents)) or hashlib.sha256(path.read_bytes()).hexdigest()!=self.esbuild_sha256:
             raise CreatorContractError('builder_integrity')
