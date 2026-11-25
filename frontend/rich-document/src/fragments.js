@@ -55,9 +55,10 @@ export function readClipboardFragment(html){
  if(!html)return null;if(html.length>64*1024*1024)throw Error('复制的内容过大，请使用导出文档。');const root=new DOMParser().parseFromString(html,'text/html'),encoded=root.querySelector('[data-runteams-fragment]')?.getAttribute('data-runteams-fragment');
  if(!encoded)return null;try{return JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(encoded),c=>c.charCodeAt(0))));}catch{throw Error('复制的内容不完整，请重新复制。');}
 }
-export function handleFragmentPaste({event,editor}){
+export function handleFragmentPaste({event,editor,defaultPasteHandler}){
  let fragment;try{fragment=readClipboardFragment(event.clipboardData?.getData('text/html'));}catch(error){editorContext(editor).report(error.message);return true;}
- if(!fragment)return undefined;const anchor=editor.getTextCursorPosition().block.id;
+ if(!fragment)return defaultPasteHandler({plainTextAsMarkdown:false});
+ const anchor=editor.getTextCursorPosition().block.id;
  insertFragment(editor,fragment,anchor).catch(error=>editorContext(editor).report(error.message));return true;
 }
 export async function exportRecord(editor,record){const fragment=await captureFragment(editor,record.blocks);return {...record,assets:fragment.assets};}

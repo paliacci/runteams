@@ -191,5 +191,17 @@ try{
  assert.equal(clonedRefs[1].props.documentId,'456');
  assert.equal(clonedRefs[2].content.find(n=>n.props?.documentId==='999').props.blockId,'target');
  checks.push('Block and inline references follow the document across revisions and copies, including when another document has the same block ID.');
+ await act(async()=>editor.setTextCursorPosition('target','end'));
+ // jsdom lacks ClipboardEvent. ProseMirror constructs an empty paste event when applying plain text.
+ globalThis.ClipboardEvent??=dom.window.Event;
+ const externalPaste=new ClipboardEvent('paste',{bubbles:true,cancelable:true});
+ Object.defineProperty(externalPaste,'clipboardData',{value:{
+  types:['text/plain'],getData:type=>type==='text/plain'?'第一行\r\nSecond line':''
+ }});
+ await act(async()=>editor.domElement.dispatchEvent(externalPaste));
+ const pasted=editor.document.map(block=>block.content?.map?.(part=>part.text||'').join(''));
+ assert.ok(pasted.some(text=>text?.endsWith('第一行')));
+ assert.ok(pasted.includes('Second line'));
+ checks.push('Pasting external plain text preserves both lines of a Windows clipboard payload.');
  console.log(JSON.stringify({checks,visualAcceptance:false,nativeKeyboardOrDragAcceptance:false},null,2));
 }finally{if(root)await act(async()=>root.unmount());await server.close();dom.window.close();}
