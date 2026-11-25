@@ -118,6 +118,16 @@ def restore_binding(base,scope,manifest):
     if current and current!=expected:
         raise ValueError('当前设备已有另一份本机身份，请先另行备份，不能覆盖。')
     destination=Path(base)/manifest['storage_namespace']
-    if destination.is_symlink() or (destination.exists() and any(destination.iterdir())):
+    if destination.is_symlink():
         raise ValueError('当前设备已有本机数据，请先另行备份，不能覆盖。')
+    if destination.exists():
+        from runteams_core.foundation.identity.library_identity import MARKER
+        from runteams_core.storage.backups.backup_files import file_digest
+        entries = list(destination.iterdir())
+        marker = destination / MARKER
+        # An interrupted restore can leave only its durable library identity.
+        if entries and not (current == expected and entries == [marker]
+                            and not marker.is_symlink() and marker.is_file()
+                            and file_digest(marker) == manifest.get('files', {}).get(MARKER)):
+            raise ValueError('当前设备已有本机数据，请先另行备份，不能覆盖。')
     return _claim(base,scope,manifest['storage_namespace'],manifest['storage_service_url'])
