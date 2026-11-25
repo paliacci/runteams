@@ -12,6 +12,15 @@ function syncLanguage(){
 }
 globalThis.RunTeamsLocale?.onChange(()=>{syncLanguage().catch(error=>console.error('Language preference could not be saved',error));});
 let connected,revision=0,operation=null,pending=0,host,closing=false;
+const desktopSettings=windowsSettingsBridge(window.chrome?.webview);
+async function saveAppearance(key,value){
+ if(closing)throw Error('窗口正在关闭。');
+ pending++;
+ try{
+  const saved=await desktopSettings.postMessage({action:'set',key,value});
+  if(saved.appearance?.[key]!==value)throw Error('外观设置未确认');
+ }finally{pending--;}
+}
 async function connect(){
  if(!connected)connected=client.connect().then(value=>{window.RunTeamsLocalIdentity=Object.freeze({...value,kind:'library',name:'本机资料库'});return value;}).catch(error=>{connected=null;throw error;});
  return connected;
@@ -65,6 +74,10 @@ export async function boot(value){
  host=value;const {state:S}=host;
  try{
   const identity=await connect();
+  if(desktopSettings){
+   try{const saved=await desktopSettings.postMessage({action:'get'});host.restoreAppearance(saved.appearance);}
+   catch{S.nativeSettingsError='本机设置暂时无法读取';}
+  }
   await syncLanguage();
   S.localLibrary=identity;S.accountSessionReady=true;S.accountSessionError='';
   host.restoreWorkspace();
@@ -104,4 +117,4 @@ const closeGuard=new NativeCloseGuard(()=>{
  const hasDraft=value=>Boolean(value?.input?.trim()||value?.attachments?.length||value?.capabilities?.length||value?.queue);
  return {pending:Boolean(configuration?.pending||globalThis.RunTeamsWorkState?.pendingSave&&!globalThis.RunTeamsWorkState?.saveRejected||source?.saving||source?.pending||source?.buildSending||source?.build?.latest?.state==='running'||pending||operation||S?.conversationPanel?.busy||S?.settingsPreferencePending||globalThis.RunTeamsBackups?.pending||['saving','error'].includes(S?.docReader?.saveStatus)),dirty:!!configuration?.dirty||!!globalThis.RunTeamsWorkState?.saveRejected||!!source?.editing||Object.values(S?.conversationPanelDrafts||{}).some(hasDraft)};
 },()=>{closing=true;document.body?.setAttribute('inert','');});
-window.RunTeamsLocalDesktop=Object.freeze({settings:windowsSettingsBridge(window.chrome?.webview),checkClose:discard=>closeGuard.checkClose(discard),prepareClose:discard=>closeGuard.prepareClose(discard)});
+window.RunTeamsLocalDesktop=Object.freeze({settings:desktopSettings,saveAppearance:desktopSettings?saveAppearance:null,checkClose:discard=>closeGuard.checkClose(discard),prepareClose:discard=>closeGuard.prepareClose(discard)});

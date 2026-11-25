@@ -154,7 +154,7 @@ function switchSettingsTab(tab,options={}){
 }
 
 /* module-function:setAccountTheme */
-function setAccountTheme(value){if(!['light','dark','system'].includes(value))return;S.account.theme=value;applyAccountTheme(value);saveAccountPrefs();if(typeof accountAppearanceSaveNotice==='function')accountAppearanceSaveNotice();document.querySelectorAll('[data-theme-value]').forEach(button=>{const selected=button.dataset.themeValue===value;button.classList.toggle('on',selected);button.setAttribute('aria-pressed',selected?'true':'false');});}
+function setAccountTheme(value){if(!['light','dark','system'].includes(value))return;S.account.theme=value;applyAccountTheme(value);if(saveAccountPrefs())void accountPersistDesktopAppearance('theme',value);if(typeof accountAppearanceSaveNotice==='function')accountAppearanceSaveNotice();document.querySelectorAll('[data-theme-value]').forEach(button=>{const selected=button.dataset.themeValue===value;button.classList.toggle('on',selected);button.setAttribute('aria-pressed',selected?'true':'false');});}
 // Account-local helpers; all durable application state stays on the host S.
 
 
@@ -358,12 +358,38 @@ function accountRetryNativeSetting(){if(S.nativeSettingsError)return accountRead
 async function accountSettingsRetrySave(forceRead=false){const pending=S.settingsPreferenceRetry;if(!pending)return;if(!pending.readOnly&&!forceRead){accountSettingsSave(pending.key,pending.value);return;}const context=settingsContext();await accountSettingsReadPreferences(true);if(context!==settingsContext())return;if(S.settingsPreferencesState==='ready'&&(S.settingsTab==='general'||!pending.readOnly||Object.entries(pending.patch||{[pending.key]:pending.value}).every(([key,value])=>S.settingsPreferences?.[key]===value))){S.settingsPreferenceError='';S.settingsPreferenceRetry=null;accountNotifyPreferencesChanged();}else S.settingsPreferenceError='保存结果尚未确认，请稍后重新读取。';accountSettingsPaint();}
 function accountDeviceDisplayPrefs(){let value={};S.appearanceDisplayReadFailed=false;try{value=JSON.parse(localStorage.getItem('runteams_device_display_v1')||'{}')||{};}catch(error){S.appearanceDisplayReadFailed=true;}return {interface_font_size:[12,13,14,16,18].includes(value.interface_font_size)?value.interface_font_size:14,code_font_size:[11,12,13,14,16,18].includes(value.code_font_size)?value.code_font_size:13,restore_windows:value.restore_windows!==false};}
 function accountApplyDisplayPrefs(){const prefs=accountDeviceDisplayPrefs();if(S.appearanceDisplayReadFailed)return;document.documentElement.style.setProperty('--interface-font-size',prefs.interface_font_size+'px');document.documentElement.style.setProperty('--interface-font-scale',String(prefs.interface_font_size/14));document.documentElement.style.setProperty('--code-font-size',prefs.code_font_size+'px');}
+function accountRestoreDesktopAppearance(appearance){
+ if(!appearance)return;
+ const {theme,...display}=appearance;
+ if(theme!==undefined){
+  localStorage.setItem('runteams_device_theme',theme);
+  S.account.theme=theme;applyAccountTheme(theme);
+ }
+ if(Object.keys(display).length){
+  const saved=accountDeviceDisplayPrefs();
+  if(S.appearanceDisplayReadFailed)throw Error('无法读取字号');
+  localStorage.setItem('runteams_device_display_v1',JSON.stringify({...saved,...display}));
+  accountApplyDisplayPrefs();
+ }
+}
+async function accountPersistDesktopAppearance(key,value){
+ const save=globalThis.RunTeamsLocalDesktop?.saveAppearance;
+ if(!save)return;
+ try{await save(key,value);}
+ catch{
+  const current=key==='theme'?S.account.theme:accountDeviceDisplayPrefs()[key];
+  if(current!==value)return;
+  const message=key==='theme'?'主题已应用，但未能保存。':key==='restore_windows'?'窗口恢复设置未能保存。':'字号未能保存。请重新选择字号。';
+  S.appearanceSaveFailures={...S.appearanceSaveFailures,[key]:{value,readOnly:false,message}};
+  accountSettingsPaint();
+ }
+}
 function accountSaveDisplaySetting(key,value){
  const allowed={interface_font_size:[12,13,14,16,18],code_font_size:[11,12,13,14,16,18],restore_windows:[true,false]};
  if(!allowed[key]?.includes(value))return;
  const previous=accountDeviceDisplayPrefs();if(S.appearanceDisplayReadFailed){accountSettingsPaint();return;}
  const next={...previous,[key]:value};let written=false;
- try{localStorage.setItem('runteams_device_display_v1',JSON.stringify(next));written=true;const saved=accountDeviceDisplayPrefs();if(S.appearanceDisplayReadFailed||saved[key]!==value)throw Error('设置未确认');if(S.appearanceSaveFailures)delete S.appearanceSaveFailures[key];accountApplyDisplayPrefs();}
+ try{localStorage.setItem('runteams_device_display_v1',JSON.stringify(next));written=true;const saved=accountDeviceDisplayPrefs();if(S.appearanceDisplayReadFailed||saved[key]!==value)throw Error('设置未确认');if(S.appearanceSaveFailures)delete S.appearanceSaveFailures[key];accountApplyDisplayPrefs();void accountPersistDesktopAppearance(key,value);}
  catch(error){S.appearanceSaveFailures={...S.appearanceSaveFailures,[key]:{value,readOnly:written,message:key==='restore_windows'?(written?'窗口恢复设置保存结果待确认。':'窗口恢复设置未能保存。'):(written?'字号保存结果待确认。请核对当前字号后再修改。':'字号未能保存。请重新选择字号。')}};if(key==='restore_windows')toast(S.appearanceSaveFailures[key].message,'err',written?'general.restoreSaveUnknown':'general.restoreSaveFailed');}
  accountSettingsPaint();
 }
@@ -393,7 +419,7 @@ function accountAppearanceRetry(){
 function accountSyncDeviceAppearance(event){
  if(event.storageArea&&event.storageArea!==localStorage)return;
  if(event.key===null||event.key==='runteams_device_theme'){S.account.theme=loadAccountPrefs().theme;if(S.appearanceSaveFailures)delete S.appearanceSaveFailures.theme;applyAccountTheme(S.account.theme);}
- if(event.key===null||event.key==='runteams_device_display_v1'){if(S.appearanceSaveFailures)for(const key of ['interface_font_size','code_font_size','restore_windows'])delete S.appearanceSaveFailures[key];accountApplyDisplayPrefs();}
+ if(event.key===null||event.key==='runteams_device_display_v1'){if(S.appearanceSaveFailures)for(const key of ['interface_font_size','code_font_size','restore_windows'])delete S.appearanceSaveFailures[key];accountApplyDisplayPrefs();void accountPersistDesktopAppearance(key,value);}
  if(event.key===null||['runteams_device_theme','runteams_device_display_v1'].includes(event.key))accountSettingsPaint();
 }
 function accountAppearanceSettings(){

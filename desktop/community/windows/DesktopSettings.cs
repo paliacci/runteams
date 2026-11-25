@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Net.Http;
 using System.Runtime.InteropServices;
 using System.Windows.Forms;
@@ -57,6 +58,31 @@ internal sealed class DesktopSettings : IDisposable
         get { return String.Equals(Read(Startup, StartupName) as string, LaunchCommand, StringComparison.OrdinalIgnoreCase); }
     }
 
+    private static readonly string[] AppearanceKeys = { "theme", "interface_font_size", "code_font_size", "restore_windows" };
+
+    private static object AppearanceValue(string key, string value)
+    {
+        if (key == "theme" && (value == "light" || value == "dark" || value == "system")) return value;
+        if (key == "restore_windows" && (value == "true" || value == "false")) return value == "true";
+        if (key == "code_font_size" && value == "11") return 11;
+        if ((key == "interface_font_size" || key == "code_font_size") &&
+            (value == "12" || value == "13" || value == "14" || value == "16" || value == "18"))
+            return int.Parse(value, System.Globalization.CultureInfo.InvariantCulture);
+        return null;
+    }
+
+    private static Dictionary<string, object> ReadAppearance()
+    {
+        var values = new Dictionary<string, object>();
+        using (var prefs = Registry.CurrentUser.OpenSubKey(Preferences)) {
+            if (prefs != null) foreach (string key in AppearanceKeys) {
+                object value = AppearanceValue(key, prefs.GetValue(key) as string);
+                if (value != null) values[key] = value;
+            }
+        }
+        return values;
+    }
+
     internal object Settings(string[] fields)
     {
         if (fields.Length == 5 && fields[2] == "set") {
@@ -70,12 +96,14 @@ internal sealed class DesktopSettings : IDisposable
                 using (var prefs = Registry.CurrentUser.CreateSubKey(Preferences))
                     prefs.SetValue(key, value == "true" ? 1 : 0, RegistryValueKind.DWord);
                 if (value == "false") UpdatePower(false);
-            } else if (key == "close_action" && (value == "background" || value == "quit")) {
+            } else if ((key == "close_action" && (value == "background" || value == "quit")) ||
+                       AppearanceValue(key, value) != null) {
                 using (var prefs = Registry.CurrentUser.CreateSubKey(Preferences)) prefs.SetValue(key, value);
             } else throw new ArgumentException("Invalid desktop preference.");
         } else if (fields.Length != 3 || fields[2] != "get") throw new ArgumentException("Invalid settings request.");
         return new { launch_at_login = LaunchAtLogin, prevent_sleep = PreventSleep,
-                     close_action = KeepInBackground ? "background" : "quit", runtime_error = powerError };
+                     close_action = KeepInBackground ? "background" : "quit", runtime_error = powerError,
+                     appearance = ReadAppearance() };
     }
 
     [DllImport("kernel32.dll")] private static extern uint SetThreadExecutionState(uint flags);
