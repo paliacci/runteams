@@ -1,15 +1,16 @@
 """Durable chat directories and verified frozen skill trees for both editions."""
-from pathlib import Path
 import re
 from runteams_core.storage import device_data
 from runteams_core.foundation.contracts import ContractError
+from runteams_core.foundation.regular_files import storage_path
 WORKSPACES="employee-workspaces"
 
 def _directory(path):
-    if path.is_symlink():
+    directory = storage_path(path)
+    if directory.is_symlink():
         raise ContractError('本机员工工作目录不能是符号链接。')
-    path.mkdir(mode=0o700, parents=True, exist_ok=True)
-    path.chmod(0o700)
+    directory.mkdir(mode=0o700, parents=True, exist_ok=True)
+    directory.chmod(0o700)
     return path
 
 
@@ -28,6 +29,6 @@ def skill_root(path, release_digest):
     """Keep each release's managed source separate from mutable work output."""
     if not isinstance(release_digest, str) or not re.fullmatch('[0-9a-f]{64}', release_digest):
         raise ContractError('员工发布摘要无效。')
-    base = _directory(_directory(Path(path) / '.runteams') / 'releases')
+    base = _directory(_directory(storage_path(path) / '.runteams') / 'releases')
     return _directory(_directory(base / release_digest) / 'skills')
 
