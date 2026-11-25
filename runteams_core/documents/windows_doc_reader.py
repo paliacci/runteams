@@ -4,6 +4,8 @@ from ctypes import POINTER, byref, c_uint32, c_void_p
 import sys
 from uuid import UUID
 
+TEXT_LIMIT_EXIT = 32
+
 
 class PropertyValue(ctypes.Union):
     _fields_ = [('id', c_uint32), ('name', c_void_p)]
@@ -98,6 +100,6 @@ if __name__ == '__main__':
     try:
         sys.stdout.buffer.write(main(sys.argv[1], int(sys.argv[2])).encode('utf-8'))
     except OverflowError:
-        sys.exit(2)
+        sys.exit(TEXT_LIMIT_EXIT)
     except (OSError, ValueError):
         sys.exit(1)

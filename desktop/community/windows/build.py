@@ -82,6 +82,7 @@ def build(args):
         subprocess.run([python, '-I', '-B', '-X', 'utf8', '-c',
                         'import pyvips, pypdfium2, yaml, jsonschema; '
                         'from runteams_core.application import community; '
+                        'from runteams_core.documents import windows_doc_reader; '
                         'from runteams_core.agents.environment.agent_environment import managed_python; '
                         'assert managed_python()["status"] == "ready"'], cwd=scratch, check=True)
         package = args.webview_sdk

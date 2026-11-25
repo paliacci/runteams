@@ -125,13 +125,13 @@ def preview(suffix, raw):
                 raise ContractError('Word 文件过大。')
             if sys.platform == 'win32':
                 # A third-party Windows Search filter must not block or crash the library service.
+                from runteams_core.documents import windows_doc_reader
                 with tempfile.TemporaryDirectory(prefix='runteams-word-') as directory:
                     document = Path(directory) / 'original.doc'
                     document.write_bytes(data)
-                    worker = Path(__file__).with_name('windows_doc_reader.py')
-                    converted = subprocess.run([sys.executable, '-I', '-B', worker, document, str(MAX_TEXT)],
+                    converted = subprocess.run([sys.executable, '-I', '-B', windows_doc_reader.__file__, document, str(MAX_TEXT)],
                         capture_output=True, timeout=15, creationflags=subprocess.CREATE_NO_WINDOW)
-                    if converted.returncode == 2:
+                    if converted.returncode == windows_doc_reader.TEXT_LIMIT_EXIT:
                         raise ContractError('Word 正文过长。')
                     converted.check_returncode()
             else:

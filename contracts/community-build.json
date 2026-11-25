@@ -217,6 +217,7 @@
     "runteams_core/documents/local_documents.py",
     "runteams_core/documents/native_document_tools.py",
     "runteams_core/documents/office_text.py",
+    "runteams_core/documents/windows_doc_reader.py",
     "runteams_core/documents/pdf_preview.py",
     "runteams_core/documents/reply_visualizations.py",
     "runteams_core/documents/rich_document_assets.py",
@@ -723,6 +724,10 @@
     "desktop/creator/CreatorDesktopHost.swift",
     "desktop/creator/CreatorCloudWork.swift",
     "desktop/creator/CreatorWebHost.swift",
+    "desktop/community/windows/AttachmentPicker.cs",
+    "desktop/community/windows/DesktopNotifications.cs",
+    "desktop/community/windows/DesktopSettings.cs",
+    "desktop/community/windows/DesktopWorkspace.cs",
     "desktop/community/windows/RunTeamsLocal.cs"
   ],
   "native_build_entrypoint": "desktop/community/build.py",
