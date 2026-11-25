@@ -2,11 +2,15 @@
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 import tempfile
+import threading
 import unittest
+from unittest.mock import patch
 import uuid
 
 from runteams_core.assets.library_assets import AssetConflict
 from runteams_core.application.local_application import LocalApplication
+from runteams_core.application.local_host_lock import RuntimeBusy
+from runteams_core.storage import local_database
 from runteams_core.application.http.local_web import ASSETS, read_asset
 
 ROOT=Path(__file__).resolve().parents[1]
@@ -18,6 +22,33 @@ class LibrarySettingsTests(unittest.TestCase):
         self.app=LocalApplication(Path(self.temp.name));self.addCleanup(self.app.close)
     def operation(self,revision=0,**values):
         return {'expected_revision':revision,'patch':values,'operation_id':str(uuid.uuid4())}
+
+    def test_manual_backup_waits_for_catalog_read_but_rejects_overlapping_edits(self):
+        reading, release = threading.Event(), threading.Event()
+        def catalog(*args):
+            reading.set()
+            self.assertTrue(release.wait(5))
+            return {}
+        wait_for = self.app._gate.wait_for
+        def drain(predicate, timeout):
+            release.set()
+            return wait_for(predicate, timeout)
+        request = {'operation_id': str(uuid.uuid4())}
+        with patch.object(local_database, 'DB_PATH', str(self.app.data_directory / 'runteams.db')), \
+                patch.object(self.app, '_dispatch', side_effect=catalog), \
+                patch.object(self.app._gate, 'wait_for', side_effect=drain) as waited, \
+                ThreadPoolExecutor(max_workers=1) as pool:
+            future = pool.submit(self.app.dispatch, 'GET', '/api/model-catalog', {})
+            try:
+                self.assertTrue(reading.wait(5))
+                reply = self.app.dispatch('POST', '/api/backups', request)
+                self.assertEqual(reply['state'], 'completed')
+                waited.assert_called_once()
+            finally:
+                release.set()
+            future.result(timeout=5)
+            with self.app.request(), self.assertRaises(RuntimeBusy):
+                self.app.dispatch('POST', '/api/backups', {'operation_id': str(uuid.uuid4())})
     def test_restart_and_original_operation_replay_preserve_one_revision(self):
         body=self.operation(send_mode='meta-enter');first=self.app.dispatch('POST','/api/settings',body)
         self.app.close()

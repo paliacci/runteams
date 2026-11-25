@@ -29,8 +29,9 @@ class LocalApplication:
         self._lease = None
         self._runtime = None
         self._runtime_lock = threading.Lock()
-        self._gate = threading.RLock()
+        self._gate = threading.Condition(threading.RLock())
         self._requests = 0
+        self._catalog_requests = 0
         self._maintenance = False
         from runteams_core.storage.backups.local_backup_maintenance import AutomaticBackups
         self.automatic_backups = AutomaticBackups(self)
@@ -77,21 +78,29 @@ class LocalApplication:
             raise PermissionError('资料库已恢复，请重新打开当前窗口。')
 
     @contextmanager
-    def request(self, expected=None):
+    def request(self, expected=None, *, model_catalog=False):
         from runteams_core.application.local_host_lock import RuntimeBusy
         self.own()
         with self._gate:
             if self._maintenance or self.backups.restoring():
                 raise RuntimeBusy('资料正在备份或恢复，请稍后重试。')
             self.check_request_scope(expected);self._requests+=1
+            if model_catalog:self._catalog_requests+=1
         try:yield
         finally:
-            with self._gate:self._requests-=1
+            with self._gate:
+                self._requests-=1
+                if model_catalog:self._catalog_requests-=1
+                if not self._requests:self._gate.notify_all()
 
     @contextmanager
-    def exclusive(self, expected=None):
+    def exclusive(self, expected=None, *, wait_for_catalog=False):
         from runteams_core.application.local_host_lock import RuntimeBusy
         with self._gate:
+            # Settings opens model discovery in the background. Let that read drain
+            # before taking a manual backup, then recheck the full maintenance gate.
+            if wait_for_catalog and not self._maintenance and self._requests and self._requests==self._catalog_requests:
+                self._gate.wait_for(lambda: not self._requests or self._maintenance, timeout=45)
             if self._maintenance or self._requests:raise RuntimeBusy('请先完成当前操作，再备份或恢复。')
             self.check_request_scope(expected);runtime=self.runtime
             if runtime.active or runtime._schedules is not None and runtime._schedules.busy() or not runtime.picker_lock.acquire(blocking=False):
@@ -113,7 +122,8 @@ class LocalApplication:
         if path=='/api/library' and self.backups.restoring():
             with self.exclusive():
                 self.backups.recover(owned=True);self.rebind()
-        with self.request(scope):return self._dispatch(method,path,data)
+        with self.request(scope, model_catalog=method=='GET' and path=='/api/model-catalog'):
+            return self._dispatch(method,path,data)
 
     def _dispatch(self, method, path, data):
         """Native callers and HTTP share this single account-free application."""

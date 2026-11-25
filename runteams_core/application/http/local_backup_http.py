@@ -24,10 +24,10 @@ def dispatch(app,method,path,data,scope):
         with app.request(scope):return app.automatic_backups.receipt(policy[1])
     if path=='/api/backups' and method=='POST':
         _fields(data,{'operation_id'})
-        with app.exclusive(scope):return app.backups.create(app,data['operation_id'])
+        with app.exclusive(scope,wait_for_catalog=True):return app.backups.create(app,data['operation_id'])
     if path=='/api/backups/restore' and method=='POST':
         _fields(data,{'operation_id','import_id'})
-        with app.exclusive(scope):
+        with app.exclusive(scope,wait_for_catalog=True):
             result=app.backups.restore(app,data['operation_id'],data['import_id'])
             return result
     match=re.fullmatch(r'/api/backups/([0-9a-f-]{36})/(status|download)',path)
