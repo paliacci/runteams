@@ -42,7 +42,7 @@ class WorkHandoffTests(unittest.TestCase):
             core.repository = Repository(storage.path,storage=storage)
             root = Path(directory)
             (root/'output').mkdir()
-            (root/'output/check.md').write_text('# 执行清单\n\n完整内容')
+            (root/'output/check.md').write_bytes('# 执行清单\n\n完整内容'.encode('utf-8'))
             binding = {'schema':'runteams.work-report/v1','workflow_id':7}
             args = {'operation':'write','path':'output/check.md','base_revision':0,'title':'交接'}
             first = _operate(core,args,binding,output_directory=root)

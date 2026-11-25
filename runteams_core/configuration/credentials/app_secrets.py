@@ -1,13 +1,14 @@
 # -*- coding: utf-8 -*-
 """本机凭据保险箱。
 
-凭据值只保存在权限为 0600 的本机文件中，不进入数据库、移动同步、Prompt 或运行记录。
+凭据值只保存在限制为文件所有者访问的本机文件中，不进入数据库、移动同步、Prompt 或运行记录。
 当前产品只提供一个扁平凭据集合；能力包用同名 Key 显式声明依赖，运行时只解析并注入
 当前工具声明的那几项值。
 """
 import json
 import os
 import threading
+import uuid
 from contextlib import contextmanager
 from contextvars import ContextVar
 
@@ -62,22 +63,60 @@ def _load():
     return _load_vault()[0]
 
 
+def _create_vault_file(path):
+    if os.name != 'nt':
+        return os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    import _winapi
+    import ctypes
+    from ctypes import wintypes
+    import msvcrt
+
+    class SecurityAttributes(ctypes.Structure):
+        _fields_ = [('length', wintypes.DWORD), ('descriptor', wintypes.LPVOID),
+                    ('inherit', wintypes.BOOL)]
+
+    # Set a protected owner-only DACL at creation, before writing credentials.
+    security = ctypes.WinDLL('advapi32', use_last_error=True)
+    kernel = ctypes.WinDLL('kernel32', use_last_error=True)
+    descriptor = wintypes.LPVOID()
+    if not security.ConvertStringSecurityDescriptorToSecurityDescriptorW(
+            'D:P(A;;FA;;;OW)', 1, ctypes.byref(descriptor), None):
+        raise ctypes.WinError(ctypes.get_last_error())
+    try:
+        attributes = SecurityAttributes(ctypes.sizeof(SecurityAttributes), descriptor, False)
+        handle = _winapi.CreateFile(path, _winapi.GENERIC_WRITE, 0, ctypes.addressof(attributes),
+                                    1, 0x80, 0)  # CREATE_NEW, FILE_ATTRIBUTE_NORMAL
+    finally:
+        kernel.LocalFree(descriptor)
+    try:
+        flags = wintypes.DWORD()
+        if not kernel.GetVolumeInformationByHandleW(wintypes.HANDLE(handle), None, 0, None,
+                                                   None, ctypes.byref(flags), None, 0):
+            raise ctypes.WinError(ctypes.get_last_error())
+        if not flags.value & 0x8:  # FILE_PERSISTENT_ACLS
+            raise PermissionError('凭据保险箱所在卷必须支持 Windows 文件访问控制。')
+        return msvcrt.open_osfhandle(handle, os.O_WRONLY | os.O_BINARY)
+    except BaseException:
+        _winapi.CloseHandle(handle)
+        os.unlink(path)
+        raise
+
+
 def _save(values, filenames):
     path = _path()
     os.makedirs(os.path.dirname(path), mode=0o700, exist_ok=True)
-    tmp = path + ".tmp"
-    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    tmp = path + '.' + uuid.uuid4().hex + '.tmp'
+    fd = _create_vault_file(tmp)
     try:
         data = {**values, _FILENAME_METADATA: filenames} if filenames else values
-        os.write(fd, json.dumps(data, ensure_ascii=False).encode("utf-8"))
+        with os.fdopen(fd, 'w', encoding='utf-8') as stream:
+            json.dump(data, stream, ensure_ascii=False)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(tmp, path)
     finally:
-        os.close(fd)
-    os.chmod(tmp, 0o600)
-    os.replace(tmp, path)
-    try:
-        os.chmod(path, 0o600)
-    except OSError:
-        pass
+        if os.path.exists(tmp):
+            os.unlink(tmp)
 
 
 def _clean_name(name):

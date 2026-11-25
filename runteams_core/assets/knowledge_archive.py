@@ -13,6 +13,7 @@ from runteams_core.authoring.creator_contracts import (
     MAX_BYTES, CreatorContractError, canonical, digest, relative, strict_json,
 )
 from runteams_core.authoring.source import creator_source_archive as source_archive
+from runteams_core.foundation import regular_files
 
 INDEX = 'asset-materials.json'
 SOURCE = 'runteams-source.zip'
@@ -70,9 +71,7 @@ def index(files):
 
 @contextmanager
 def regular(path):
-    with os.fdopen(os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK), 'rb') as stream:
-        if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
-            raise invalid('素材必须是普通文件。')
+    with os.fdopen(regular_files.open_readonly(path), 'rb') as stream:
         yield stream
 
 

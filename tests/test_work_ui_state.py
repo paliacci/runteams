@@ -38,10 +38,10 @@ class WorkUIStateTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(prefix='work-ui-state-') as directory:
             # Use the same source checkout or installed package as the parent.
             code = f'import sys; sys.path.insert(0, {str(CORE_ROOT)!r})\n' + SETUP + textwrap.dedent(scenario)
-            result = subprocess.run([sys.executable, '-I', '-B', '-c', code, HTTP_CLIENT],
+            result = subprocess.run([sys.executable, '-I', '-B', '-X', 'utf8', '-c', code, HTTP_CLIENT],
                                     cwd=directory, env={**os.environ, 'RUNTEAMS_DATA': directory,
                                                         'RUNTEAMS_AUTOMATION_DISPATCH': '0'},
-                                    capture_output=True, text=True, timeout=60)
+                                    capture_output=True, encoding='utf-8', timeout=60)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
     def test_original_operation_is_durable_and_same_UI_save_receipt_is_idempotent(self):

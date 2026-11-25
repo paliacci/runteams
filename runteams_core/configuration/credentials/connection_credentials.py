@@ -33,7 +33,7 @@ class ConnectionCredentialRecords:
         for path in (directory.parent.parent, directory.parent, directory):
             if path.is_symlink(): raise CreatorContractError('credential_scope')
             path.mkdir(mode=0o700, parents=True, exist_ok=True)
-        _publish(directory, directory, self._record_path(row['binding']), canonical({'data':row,'sha256':digest(row)}))
+        _publish(directory, self._record_path(row['binding']), canonical({'data':row,'sha256':digest(row)}))
 
 
     def _fingerprint(self, token):

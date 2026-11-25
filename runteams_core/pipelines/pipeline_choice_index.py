@@ -42,6 +42,6 @@ class ChoiceIndex:
             raw = header + b'\n' + payload
             if len(raw) <= _LIMIT:
                 directory = private_directory(self.path.parent)
-                _publish(directory, directory, self.path, raw)
+                _publish(directory, self.path, raw)
         except (ValueError, OSError):
             pass  # An unavailable disposable index cannot prevent a live read.

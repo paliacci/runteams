@@ -6,7 +6,7 @@ It never falls back from a cloud failure or stores platform authority. The
 existing Repository/event and execution contracts can use this provider.
 """
 from runteams_core.employees import employee_work_contracts
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 from contextvars import ContextVar
 import json
 import os
@@ -373,7 +373,8 @@ def snapshot(source, destination, scope, check):
             # Hold the same SQLite writer gate as actual work updates, and
             # copy through a separate reader (backup on the writer would wait
             # for its own transaction). File verification remains inside it.
-            with sqlite3.connect(path.resolve().as_uri()+'?mode=ro', uri=True) as original, sqlite3.connect(target / DATABASE) as copied:
+            with (closing(sqlite3.connect(path.resolve().as_uri()+'?mode=ro', uri=True)) as original,
+                  closing(sqlite3.connect(target / DATABASE)) as copied):
                 original.backup(copied)
                 copied.execute('PRAGMA journal_mode=DELETE')
         # Work files are mutable while an Agent writes. Compare source and
@@ -409,7 +410,7 @@ def verify(directory, scope):
         return
     if path.parent.is_symlink() or path.is_symlink() or any(p.is_symlink() for p in path.parent.rglob('*')):
         raise ContractError('本机工作备份路径无效。')
-    with sqlite3.connect(path.resolve().as_uri() + '?mode=ro&immutable=1', uri=True) as connection:
+    with closing(sqlite3.connect(path.resolve().as_uri() + '?mode=ro&immutable=1', uri=True)) as connection:
         version = connection.execute('PRAGMA user_version').fetchone()[0]
         if (version != VERSION
                 or connection.execute('PRAGMA integrity_check').fetchone()[0] != 'ok'
@@ -511,7 +512,7 @@ def quarantine_restored(directory):
     if not path.exists():
         return 0
     from runteams_core.storage.repository import utc_now
-    with sqlite3.connect(path) as connection:
+    with closing(sqlite3.connect(path)) as connection, connection:
         connection.execute('INSERT OR IGNORE INTO device_work_restore_barriers(workflow_run_id,restored_at) '
             'SELECT id,? FROM workflow_runs', (utc_now(),))
         return connection.execute('SELECT COUNT(*) FROM device_work_restore_barriers').fetchone()[0]

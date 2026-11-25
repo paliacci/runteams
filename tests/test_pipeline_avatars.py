@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
-from tempfile import TemporaryDirectory
+from library_fixture import temporary_library
 import unittest
 from uuid import uuid4
 
@@ -20,7 +20,7 @@ from test_employee_pipeline_groups import member, save_project
 
 class PipelineAvatarTests(unittest.TestCase):
     def test_creator_saves_revisioned_icon_and_renter_cannot_edit(self):
-        with TemporaryDirectory() as directory:
+        with temporary_library() as directory:
             subprocess.run([sys.executable, '-B', str(Path(__file__).resolve()), directory],
                 check=True, timeout=30, env={**os.environ, 'PYTHONPATH': os.pathsep.join(
                     [str(Path(__file__).resolve().parents[1]), os.environ.get('PYTHONPATH', '')]),

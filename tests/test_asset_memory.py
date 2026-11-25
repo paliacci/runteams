@@ -1,8 +1,9 @@
 import os
 import base64
-from contextlib import ExitStack
+from contextlib import closing, ExitStack
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from library_fixture import temporary_library
 from unittest import TestCase
 from unittest.mock import patch
 
@@ -16,7 +17,7 @@ class AssetMemoryTests(TestCase):
     def setUp(self):
         stack = ExitStack()
         self.addCleanup(stack.close)
-        root = Path(stack.enter_context(TemporaryDirectory()))
+        root = Path(stack.enter_context(temporary_library()))
         stack.enter_context(patch.object(local_database, 'DB_PATH', str(root / 'db')))
         stack.enter_context(storage_context.using(LocalLibrary()))
         stack.enter_context(patch.dict(os.environ, RUNTEAMS_HINDSIGHT_KEY_FILE=''))
@@ -345,7 +346,7 @@ class AssetMemoryTests(TestCase):
         import sqlite3
         from runteams_core.storage import device_data
         db = device_data.root() / 'personal.sqlite3'
-        with sqlite3.connect(db) as c:
+        with closing(sqlite3.connect(db)) as c, c:
             c.executescript(device_data.schema(5))
             c.execute('PRAGMA user_version=5')
             c.execute("INSERT INTO device_settings VALUES('existing','true')")

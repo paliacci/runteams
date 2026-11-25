@@ -5,6 +5,10 @@ sdk/ui/build-manifest.json text eol=lf
 sdk/ui/foundation/*.css text eol=lf
 sdk/ui/dist/** text eol=lf
 web/ui/kit/components/** text eol=lf
+# Creator SDK provenance records the exact schema and generator bytes.
+contracts/creator-system/v1/methods.json text eol=lf
+contracts/creator-system/ui-v2/request.schema.json text eol=lf
+runteams_core/devtools/build_creator_sdk.py text eol=lf
 web/rich-document/licenses/DEPENDENCIES.txt -whitespace
 web/vendor/licenses/RESOURCE_VIEWER_DEPENDENCIES.txt -whitespace
 web/fonts/hanken-grotesk-LICENSE.txt -whitespace

@@ -78,9 +78,10 @@ class LocalClipboardAttachmentsTests(unittest.TestCase):
             second_folder = root / 'empty'
             second_folder.mkdir()
             received = root / 'received.txt'
+            shebang = '#!python -X utf8\n' if sys.platform == 'win32' else f'#!{sys.executable}\n'
             claude = root / 'claude'
             claude.write_text(
-                f'#!{sys.executable}\n'
+                shebang +
                 'from pathlib import Path\n'
                 'import sys\n'
                 'if "--help" in sys.argv:\n'
@@ -93,7 +94,7 @@ class LocalClipboardAttachmentsTests(unittest.TestCase):
             claude.chmod(0o700)
             codex = root / 'codex'
             codex.write_text(
-                f'#!{sys.executable}\n'
+                shebang +
                 'from pathlib import Path\n'
                 'import json, sys\n'
                 'def send(message):\n'
@@ -117,6 +118,15 @@ class LocalClipboardAttachmentsTests(unittest.TestCase):
                 encoding='utf-8',
             )
             codex.chmod(0o700)
+            if sys.platform == 'win32':
+                # Windows CreateProcess needs executable console launchers for
+                # the two fixture scripts. Use the same launcher provided by pip.
+                from pip._vendor.distlib.scripts import ScriptMaker
+                target = root / 'bin'
+                target.mkdir()
+                maker = ScriptMaker(str(root), str(target))
+                claude, = map(Path, maker.make('claude'))
+                codex, = map(Path, maker.make('codex'))
             stack.enter_context(patch.object(model_channels, 'adapter_for', return_value=ClaudeCodeAdapter(executable=str(claude))))
             stack.enter_context(patch.object(model_channels, 'resolve_channel_executable', return_value=str(codex)))
             with patch.object(chat_attachments, 'native_picker_available', return_value=True), \

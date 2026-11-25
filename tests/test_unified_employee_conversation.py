@@ -1,6 +1,6 @@
 """Employee navigation reuses editable conversations without changing work history."""
 from pathlib import Path
-from tempfile import TemporaryDirectory
+from library_fixture import temporary_library
 import os
 import subprocess
 import sys
@@ -20,7 +20,7 @@ class UnifiedEmployeeConversationTests(unittest.TestCase):
         python_path = os.environ.get('PYTHONPATH')
         if python_path:
             source += os.pathsep + python_path
-        with TemporaryDirectory() as directory:
+        with temporary_library() as directory:
             subprocess.run([sys.executable, '-B', __file__, directory], check=True, timeout=45,
                            env={**os.environ, 'PYTHONPATH': source,
                                 'RUNTEAMS_DATA': directory, 'RUNTEAMS_AUTOMATION_DISPATCH': '0'})

@@ -225,7 +225,7 @@ class EmployeeMCPWork:
         if path.is_symlink(): raise ValueError('工作授权记录无效。')
         with device_data.connect():
             self.check()
-            _publish(self.root, path.parent, path, json.dumps(value, ensure_ascii=False, sort_keys=True).encode())
+            _publish(self.root, path, json.dumps(value, ensure_ascii=False, sort_keys=True).encode())
         self._notice_changed()
 
     def _session(self, chat):

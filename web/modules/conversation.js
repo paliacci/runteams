@@ -1056,10 +1056,12 @@ function conversationSplitFolders(text,refs){
   let body="",at=0;
   for(const ref of refs){
     const {start,end}=ref||{};
-    if(!Number.isInteger(start)||!Number.isInteger(end)||start<at||start>=end||end>characters.length||characters[start]!=="/")continue;
+    if(!Number.isInteger(start)||!Number.isInteger(end)||start<at||start>=end||end>characters.length)continue;
+    const path=characters.slice(start,end).join("");
+    if(!conversationIsFolderPath(path))continue;
     const gap=characters.slice(at,start).join("");
     if(!paths.length||gap!=="\n")body+=gap;
-    paths.push(characters.slice(start,end).join(""));
+    paths.push(path);
     at=end;
   }
   if(!paths.length)return {text:value,paths};
@@ -1109,15 +1111,22 @@ function conversationCapabilityMarker(id){return CAPABILITY_MARKER_OPEN+id+CAPAB
 
 const CONVERSATION_FOLDER_MARKER_RE=/\uE002([^\uE002\uE003]+)\uE003/g;
 
+function conversationIsFolderPath(path){
+  return !path.includes("\0") && /^(?:\/|[a-z]:[\\/]|\\\\[^\\/]+[\\/][^\\/]+)/i.test(path);
+}
+
 function conversationFolderPath(encodedPath){
   try{
     const path=decodeURIComponent(encodedPath);
-    return path.startsWith("/")&&!path.includes("\0")?path:"";
+    return conversationIsFolderPath(path) ? path : "";
   }
   catch{return "";}
 }
 
-function conversationFolderName(path){return path.replace(/\/+$/,"").split("/").pop()||path;}
+function conversationFolderName(path){
+  const separator = path.startsWith("/") ? "/" : /[\\/]/;
+  return path.split(separator).filter(Boolean).pop() || path;
+}
 
 function conversationFolderDraftAttachment(path){
   return {kind:"folder_path",path,name:conversationFolderName(path),localId:`folder-${Date.now()}-${Math.random().toString(36).slice(2)}`};

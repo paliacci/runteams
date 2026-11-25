@@ -269,6 +269,18 @@ function setupFolderMessage() {
   return host;
 }
 
+test('history restores drive and UNC folders with their original text and final name', () => {
+  const host = setupFolderMessage();
+  for (const path of ['C:\\工作目录\\项目 A', '\\\\server\\share\\项目 A']) {
+    const refs = [];
+    const text = host.conversationMessageFromDraft('打开', [], refs, [host.conversationFolderDraftAttachment(path)]);
+    const restored = host.conversationDraftFromMessage(text, [], refs);
+    assert.equal(restored.text, '打开');
+    assert.equal(restored.folders[0].path, path);
+    assert.equal(restored.folders[0].name, '项目 A');
+  }
+});
+
 test('send appends folder paths with exact ranges and history restores only those paths as labels', () => {
   const host = setupFolderMessage();
   const path = '/path/带空格 📁 <样例>';

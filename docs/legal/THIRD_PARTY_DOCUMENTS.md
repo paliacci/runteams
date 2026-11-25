@@ -1,5 +1,8 @@
 # Third-party runtime notices
 
+Windows distributions include `tzdata==2026.6` for IANA time zone rules. The
+Python package's notices are shipped in its installed distribution metadata.
+
 - `websocket-client==1.9.2` (Apache-2.0) is used for the private Composio
   realtime connection in the application backend. Preserve the distribution's
   license when packaging. Upstream: https://github.com/websocket-client/websocket-client

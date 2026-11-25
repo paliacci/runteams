@@ -1,9 +1,11 @@
 """Ensure repository checks reject leaked local files and broken contributor links."""
 import json
+import os
 from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from runteams_core.devtools.check_repository import REQUIRED, check
 from runteams_core.devtools.command_inventory import inventory
@@ -11,6 +13,10 @@ from runteams_core.devtools.command_inventory import inventory
 
 class RepositoryHygieneTests(unittest.TestCase):
     def setUp(self):
+        # A disposable Git repository should not depend on the user's injected
+        # command-line settings, global ignore list or system configuration.
+        self.enterContext(patch.dict(os.environ, {'GIT_CONFIG_COUNT': '0',
+                         'GIT_CONFIG_GLOBAL': os.devnull, 'GIT_CONFIG_NOSYSTEM': '1'}))
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
         self.root = Path(directory.name)

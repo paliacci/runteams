@@ -1,7 +1,7 @@
 """Compose shared attachment normalization with one durable local acceptance."""
 from dataclasses import dataclass
 from contextlib import nullcontext
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 import hashlib
 import json
 
@@ -37,7 +37,10 @@ def normalize_folder_refs(text, refs):
         start, end = ref['start'], ref['end']
         if (type(start) is not int or type(end) is not int
                 or not previous_end <= start < end <= len(text)
-                or text[start] != '/' or '\x00' in text[start:end]):
+                or '\x00' in text[start:end]):
+            raise ValueError('文件夹引用无效。')
+        fragment = text[start:end]
+        if not fragment.startswith('/') and not PureWindowsPath(fragment).is_absolute():
             raise ValueError('文件夹引用无效。')
         previous_end = end
     return refs

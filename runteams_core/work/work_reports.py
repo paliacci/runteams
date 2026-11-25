@@ -12,7 +12,8 @@ import os
 import stat
 from pathlib import Path, PurePosixPath
 import re
-from contextlib import ExitStack, nullcontext
+from contextlib import nullcontext
+from runteams_core.foundation import regular_files
 
 from runteams_core.foundation.contracts import ContractError
 from runteams_core.documents import reply_visualizations
@@ -154,17 +155,11 @@ def _output_bytes(directory, relative, limit):
             or len(path.parts) < 2 or path.parts[0] != 'output' or '..' in path.parts):
         raise ContractError('请选择当前工作 output 文件夹中的文件。')
     try:
-        with ExitStack() as opened:
-            parent = os.open(directory, os.O_RDONLY | os.O_DIRECTORY)
-            opened.callback(os.close, parent)
-            for part in path.parts[:-1]:
-                parent = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=parent)
-                opened.callback(os.close, parent)
-            fd = os.open(path.name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=parent)
-            with os.fdopen(fd, 'rb') as stream:
-                if not stat.S_ISREG(os.fstat(fd).st_mode):
-                    raise ContractError('请选择普通文件。')
-                raw = stream.read(limit + 1)
+        fd = regular_files.open_beneath(directory, path.parts)
+        with os.fdopen(fd, 'rb') as stream:
+            if not stat.S_ISREG(os.fstat(fd).st_mode):
+                raise ContractError('请选择普通文件。')
+            raw = stream.read(limit + 1)
     except OSError as error:
         raise ContractError('工作文件不存在、打不开或为链接。') from error
     if not raw or len(raw) > limit:

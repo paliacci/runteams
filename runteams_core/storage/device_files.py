@@ -1,6 +1,7 @@
 """Shared bounded no-follow reads and atomic durable file publication."""
 import os,stat,uuid
 from runteams_core.authoring.creator_contracts import CreatorContractError, strict_json
+from runteams_core.foundation import durable_files, regular_files
 MAX_RECORD=96*1024*1024
 
 def _scope(value):
@@ -13,7 +14,7 @@ def _scope(value):
 
 def _raw(path, limit=MAX_RECORD):
     if path.is_symlink(): raise CreatorContractError('asset_path')
-    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    fd = regular_files.open_readonly(path)
     with os.fdopen(fd, 'rb') as stream:
         info = os.fstat(stream.fileno())
         if not stat.S_ISREG(info.st_mode) or info.st_size > limit:
@@ -27,16 +28,13 @@ def _read(path):
     return strict_json(_raw(path))
 
 
-def _publish(root, directory, target, raw):
+def _publish(root, target, raw):
     temporary = root / ('.creator-asset-' + uuid.uuid4().hex)
     try:
-        fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+        fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
         with os.fdopen(fd, 'wb') as stream:
             stream.write(raw); stream.flush(); os.fsync(stream.fileno())
-        os.replace(temporary, target)
-        fd = os.open(directory, os.O_RDONLY)
-        try: os.fsync(fd)
-        finally: os.close(fd)
+        durable_files.move(temporary, target, replace=True)
     finally:
         temporary.unlink(missing_ok=True)
 

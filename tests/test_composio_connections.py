@@ -95,7 +95,8 @@ class ComposioConnectionsTests(unittest.TestCase):
     def test_keys_stay_private_and_scopes_do_not_share_connections(self):
         self.assertTrue(self.call('status')['configured'])
         vault = next(Path(self.temp.name).rglob('*.secrets.json'))
-        self.assertEqual(vault.stat().st_mode & 0o777, 0o600)
+        from library_fixture import assert_private_vault
+        assert_private_vault(self, vault)
         self.scope = 'b' * 64
         self.assertFalse(self.call('status')['configured'])
         self.assertEqual(self.call('catalog', revision=self.revision, search='', cursor='')['code'], 'not_configured')

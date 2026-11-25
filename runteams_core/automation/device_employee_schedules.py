@@ -3,7 +3,7 @@
 Commands and occurrences have durable identities. Admission uses the existing
 work transaction/event ledger; recovery only looks up that original admission.
 """
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 import hashlib
 import json
 from pathlib import Path
@@ -631,7 +631,7 @@ def verify(directory, scope, *, schedule_directory=DIRECTORY, pipeline=False):
         return
     if path.is_symlink() or path.parent.is_symlink():
         raise ContractError('自动化备份路径无效。')
-    with sqlite3.connect(path.resolve().as_uri() + '?mode=ro', uri=True) as c:
+    with closing(sqlite3.connect(path.resolve().as_uri() + '?mode=ro', uri=True)) as c:
         if c.execute('PRAGMA integrity_check').fetchone()[0] != 'ok':
             raise ContractError('自动化备份损坏。')
         row = c.execute('SELECT version,scope FROM binding').fetchone()
@@ -664,7 +664,8 @@ def snapshot(source, destination, scope, check, *, schedule_directory=DIRECTORY,
     verify(source, scope, schedule_directory=schedule_directory, pipeline=pipeline)
     target = Path(destination) / schedule_directory / DATABASE
     target.parent.mkdir(mode=0o700)
-    with sqlite3.connect(path.resolve().as_uri() + '?mode=ro', uri=True) as original, sqlite3.connect(target) as copy:
+    with (closing(sqlite3.connect(path.resolve().as_uri() + '?mode=ro', uri=True)) as original,
+          closing(sqlite3.connect(target)) as copy):
         original.backup(copy)
     target.chmod(0o600)
     check()
@@ -675,6 +676,6 @@ def quarantine_restored(directory, *, schedule_directory=DIRECTORY):
     path = Path(directory) / schedule_directory / DATABASE
     if not path.exists():
         return
-    with sqlite3.connect(path) as c:
+    with closing(sqlite3.connect(path)) as c, c:
         c.execute("UPDATE schedules SET enabled=0,next_run_at='',revision=revision+1")
         c.execute("UPDATE occurrences SET status='interrupted',reason='从备份恢复，请核对原工作，不会自动重做。' WHERE status IN ('queued','running','waiting')")

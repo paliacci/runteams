@@ -105,7 +105,8 @@ class TaskCredentialIsolationTests(unittest.TestCase):
         self.assertNotIn('test-secret-only',str(list(self.db.execute('SELECT value FROM device_settings'))))
         self.assertEqual(self.frozen,original)
         self.assertIn('test-secret-only',self.vault.read_text())
-        self.assertEqual(self.vault.stat().st_mode & 0o777,0o600)
+        from library_fixture import assert_private_vault
+        assert_private_vault(self, self.vault)
         self.row['id']=2
         b=self.task.project(self.row,self.frozen,declarations=self.declarations)
         self.assertFalse(b['credential_fields']['APP_RC_SECRET_KEY']['selected'])

@@ -115,7 +115,7 @@ class _SourceReader:
 class LocalSources(_SourceReader):
     def __init__(self, root, check_scope=lambda: None, *, display_scope=None):
         self.display_scope = display_scope
-        super().__init__(Path(root), check_scope)
+        super().__init__(regular_files.storage_path(root), check_scope)
         self.check_scope()
         if any(p.is_symlink() for p in (self.root, *self.root.parents)):
             raise ValueError('本机源码目录无效。')

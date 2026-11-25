@@ -1,7 +1,7 @@
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import ExitStack
 from pathlib import Path
-import tempfile
+from library_fixture import temporary_library
 import unittest
 from unittest.mock import patch
 from zipfile import ZipFile, ZipInfo
@@ -18,9 +18,7 @@ from runteams_core.storage.local_library import LocalLibrary
 
 class PortableMaterialsTest(unittest.TestCase):
     def setUp(self):
-        temp = tempfile.TemporaryDirectory()
-        self.addCleanup(temp.cleanup)
-        self.root = Path(temp.name).resolve()
+        self.root = Path(self.enterContext(temporary_library())).resolve()
         self.owner = 'employees/topic.json'
         self.flow = 'pipelines/team.json'
         self.source = {'project.json': canonical({'entrypoints': {'employees': [self.owner], 'pipelines': [self.flow]}})}

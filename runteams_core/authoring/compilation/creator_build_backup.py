@@ -11,7 +11,7 @@ from runteams_core.authoring.source.creator_source_archive import inspect
 
 def write(path,raw):
     path.parent.mkdir(mode=0o700,parents=True,exist_ok=True)
-    fd=os.open(path,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
+    fd=os.open(path,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
     with os.fdopen(fd,'wb') as stream:stream.write(raw);stream.flush();os.fsync(stream.fileno())
 
 
