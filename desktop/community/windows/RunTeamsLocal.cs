@@ -20,6 +20,7 @@ internal sealed class LocalWindow : Form
     [STAThread]
     private static int Main(string[] args)
     {
+        if (args.Length > 0 && args[0] == "--picker") return AttachmentPicker.Run(args);
         if (args.Length > 0 && args[0] == "--sdk")
         {
             try { return RunSdk(args); }
@@ -109,6 +110,7 @@ internal sealed class LocalWindow : Form
                 throw new ArgumentException("Expected --data-dir PATH or --port 0..65535.");
         }
         service.StartInfo = Python();
+        service.StartInfo.EnvironmentVariables["RUNTEAMS_ATTACHMENT_PICKER"] = Application.ExecutablePath;
         service.StartInfo.Arguments = "-I -B -X utf8 -u -m runteams_core.application.community --owner-stdin --port " + port;
         service.StartInfo.WorkingDirectory = Core;
         service.StartInfo.RedirectStandardInput = service.StartInfo.RedirectStandardOutput = service.StartInfo.RedirectStandardError = true;

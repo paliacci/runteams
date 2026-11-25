@@ -76,6 +76,7 @@ def exercise(executable, root):
                             return reply['result']['result'].get('value')
 
                 wait_for(lambda: evaluate("!!window.RunTeamsLocalDesktop && !!document.querySelector('.rail-top-search')"))
+                wait_for(lambda: evaluate("S.appInfo?.native_attachment_picker === true"))
                 assert evaluate("document.querySelector('.rail-top-search').getAttribute('aria-keyshortcuts')") == 'Control+K'
                 evaluate("""document.querySelector('[data-app-i18n="shell.documents"]').closest('button,a').click()""")
                 wait_for(lambda: evaluate("location.pathname === '/documents' && !!window.RunTeamsLocalDesktop && !!document.querySelector('.rail-settings-button')"))

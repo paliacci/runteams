@@ -239,7 +239,7 @@ def pick_native_paths(kind=None, *, cancel_event=None, work_folder=False):
             arguments.extend(["--files-only" if kind == "file" else "--folders-only", "--single"])
         if work_folder:
             arguments.append("--work-folder")
-        process = subprocess.Popen(arguments, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        process = subprocess.Popen(arguments, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding='utf-8')
         while True:
             if cancel_event is not None and cancel_event.is_set():
                 raise ValueError("文件选择已取消")
@@ -283,7 +283,7 @@ def native_reference_paths(source):
         raise ValueError('无法读取本地路径，请从＋选择文件或文件夹')
     try:
         result = subprocess.run([*_picker_command(picker), '--clipboard' if source == 'paste' else '--drop'],
-                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=5)
+                                stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding='utf-8', timeout=5)
         if result.returncode:
             raise ValueError('无法读取本地路径，请重试')
         payload = json.loads(result.stdout or '{}')

@@ -35,6 +35,7 @@ if ($LASTEXITCODE -ne 0) { throw 'Creator builder preparation failed' }
 
 ```powershell
 .\.venv\Scripts\python tests/windows_desktop_smoke.py "$env:LOCALAPPDATA\Programs\RunTeams Local\RunTeamsLocal.exe"
+.\.venv\Scripts\python tests/windows_picker_smoke.py "$env:LOCALAPPDATA\Programs\RunTeams Local\RunTeamsLocal.exe"
 ```
 
 ## macOS 本机验收包
