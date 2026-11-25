@@ -457,7 +457,12 @@ function accountNotificationSettings(){
  if(unsupported)system=`<p class="settings-footnote">${label('unsupported','当前环境不支持桌面通知。')}</p>`;
  else if(native&&(S.nativeSettingsLoading||!S.nativeSettingsError)&&!['default','granted','denied'].includes(permission)&&(!permissionUnknown||S.nativeSettingsLoading))system=accountSettingsGroup(systemTitle,accountSettingsRow(accountSettingsControlSkeleton('line','系统通知状态','notifications.systemLoading'),accountSettingsControlSkeleton('select','系统通知操作','notifications.systemLoading')));
  else if(!permissionUnreadable){
-  if(windows)system=accountSettingsGroup(systemTitle,accountSettingsRow(permission==='granted'?label('granted','系统通知已允许'):label('allowDesktop','允许桌面通知'),windowsButton(permission!=='granted')+openSettings,label('allowHint','允许 RunTeams 显示工作提醒。')));
+  if(windows){
+   const blocked=S.nativeSettings?.notification_system_enabled===false;
+   const title=blocked?label('denied','系统通知未获允许'):permission==='granted'?label('granted','系统通知已允许'):label('allowDesktop','允许桌面通知');
+   system=accountSettingsGroup(systemTitle,accountSettingsRow(title,windowsButton(permission!=='granted')+openSettings,
+    blocked?label('systemPermissionHint','请在系统设置中允许 RunTeams 发送通知。'):label('allowHint','允许 RunTeams 显示工作提醒。')));
+  }
   else if(permission==='granted')system=accountSettingsGroup(systemTitle,accountSettingsRow(label('granted','系统通知已允许'),native?openSettings:''));
   else if(permission==='denied')system=accountSettingsGroup(systemTitle,accountSettingsRow(label('denied','系统通知未获允许'),native?openSettings:'',native?label('systemPermissionHint','请在系统设置中允许 RunTeams 发送通知。'):label('browserPermissionHint','请在浏览器的网站设置中允许通知。')));
   else {

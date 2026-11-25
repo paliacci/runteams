@@ -34,13 +34,22 @@ internal sealed class DesktopNotifications : IDisposable
         catch (InvalidOperationException) { }
     }
 
+    internal static bool? SystemEnabled()
+    {
+        try { return ToastNotificationManager.CreateToastNotifier(AppId).Setting == NotificationSetting.Enabled; }
+        catch (Exception) { return null; } // A new sender has no record until its first notification.
+    }
+
     internal void Show(CoreWebView2Notification note)
     {
         try {
             if (notifier == null) notifier = ToastNotificationManager.CreateToastNotifier(AppId);
-            if (notifier.Setting != NotificationSetting.Enabled) {
-                note.ReportClosed(); delivery(false); return;
+            if (SystemEnabled() == false) {
+                delivery(false); note.ReportClosed(); return;
             }
+            foreach (var entry in new List<KeyValuePair<CoreWebView2Notification, ToastNotification>>(active))
+                if (entry.Value.ExpirationTime <= DateTimeOffset.Now || entry.Key.Tag == note.Tag)
+                    Finish(entry.Key, true);
             var xml = new XmlDocument();
             xml.LoadXml("<toast><visual><binding template='ToastGeneric'><text/><text/></binding></visual></toast>");
             var text = xml.GetElementsByTagName("text");
@@ -60,7 +69,10 @@ internal sealed class DesktopNotifications : IDisposable
                 note.ReportClicked();
                 Finish(note, false);
             });
-            toast.Dismissed += (sender, args) => Dispatch(delegate { Finish(note, false); });
+            toast.Dismissed += (sender, args) => {
+                // A timed-out banner is still available in Windows Action Center.
+                if (args.Reason != ToastDismissalReason.TimedOut) Dispatch(delegate { Finish(note, false); });
+            };
             toast.Failed += (sender, args) => Dispatch(delegate {
                 if (active.ContainsKey(note)) { Finish(note, false); delivery(false); }
             });
@@ -70,9 +82,9 @@ internal sealed class DesktopNotifications : IDisposable
             note.ReportShown();
             delivery(true);
         } catch (Exception) {
+            delivery(false);
             if (active.ContainsKey(note)) Finish(note, true);
             else note.ReportClosed();
-            delivery(false);
         }
     }
 
@@ -85,11 +97,17 @@ internal sealed class DesktopNotifications : IDisposable
         active.Remove(note);
         note.CloseRequested -= CloseRequested;
         try { if (hide) notifier.Hide(toast); }
-        finally { note.ReportClosed(); }
+        catch (COMException) { /* Windows may already have removed the toast. */ }
+        try { note.ReportClosed(); }
+        catch (InvalidOperationException) { /* The document that received the alert has closed. */ }
     }
 
     public void Dispose()
     {
         foreach (var note in new List<CoreWebView2Notification>(active.Keys)) Finish(note, true);
+        if (notifier != null) {
+            try { ToastNotificationManager.History.RemoveGroup(group, AppId); }
+            catch (COMException) { /* The notification store can be unavailable during Windows shutdown. */ }
+        }
     }
 }

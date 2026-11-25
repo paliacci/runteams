@@ -129,7 +129,7 @@ internal sealed class DesktopSettings : IDisposable
         } else if (fields.Length != 3 || fields[2] != "get") throw new ArgumentException("Invalid settings request.");
         return new { language = SavedLanguage, launch_at_login = LaunchAtLogin, prevent_sleep = PreventSleep,
                      close_action = KeepInBackground ? "background" : "quit", runtime_error = powerError,
-                     appearance = ReadAppearance() };
+                     notification_system_enabled = DesktopNotifications.SystemEnabled(), appearance = ReadAppearance() };
     }
 
     [DllImport("kernel32.dll")] private static extern uint SetThreadExecutionState(uint flags);
