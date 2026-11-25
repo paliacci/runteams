@@ -13,7 +13,7 @@ class PDFAttachments(unittest.TestCase):
             result = chat_attachments._normalize_pdf(raw, 'brief.pdf', directory, 'pdf')
             self.assertEqual([x['kind'] for x in result], ['text', 'image', 'image'])
             self.assertEqual([x['stored_name'] for x in result], ['pdf/content.txt', 'pdf/page-001.png', 'pdf/page-002.png'])
-            self.assertIn('Page 2 content', (Path(directory) / 'content.txt').read_text())
+            self.assertIn('Page 2 content', (Path(directory) / 'content.txt').read_text(encoding='utf-8'))
             for name in ('page-001.png', 'page-002.png'):
                 with Image.open(Path(directory) / name) as image:
                     self.assertEqual(image.size, (480, 360))

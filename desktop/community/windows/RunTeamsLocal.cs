@@ -19,6 +19,11 @@ internal sealed class LocalWindow : Form
     [STAThread]
     private static int Main(string[] args)
     {
+        if (args.Length > 0 && args[0] == "--sdk")
+        {
+            try { return RunSdk(args); }
+            catch (Exception error) { Console.Error.WriteLine(error.Message); return 2; }
+        }
         Application.EnableVisualStyles();
         try
         {
@@ -30,6 +35,45 @@ internal sealed class LocalWindow : Form
             MessageBox.Show(error.Message, "RunTeams Local", MessageBoxButtons.OK, MessageBoxIcon.Error);
             return 1;
         }
+    }
+
+    private static readonly string Core = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "core");
+
+    private static ProcessStartInfo Python()
+    {
+        string tools = Path.Combine(Core, "runtime-dependencies");
+        var start = new ProcessStartInfo {
+            FileName = Path.Combine(tools, @"agent-python\python.exe"),
+            UseShellExecute = false, CreateNoWindow = true
+        };
+        start.EnvironmentVariables["RUNTEAMS_MCP_RUNTIME_DIR"] = Path.Combine(tools, "mcp-runtime");
+        start.EnvironmentVariables["RUNTEAMS_CREATOR_BUILDER_DIR"] = Path.Combine(tools, "creator-builder");
+        return start;
+    }
+
+    // .NET Framework exposes a single command line. Preserve quotes and trailing
+    // backslashes using the Windows C runtime's argv escaping rules.
+    private static string QuoteArgument(string value)
+    {
+        var quoted = new StringBuilder("\"");
+        int slashes = 0;
+        foreach (char c in value) {
+            if (c == '\\') { slashes++; continue; }
+            quoted.Append('\\', c == '"' ? 2 * slashes + 1 : slashes);
+            quoted.Append(c);
+            slashes = 0;
+        }
+        return quoted.Append('\\', 2 * slashes).Append('"').ToString();
+    }
+
+    private static int RunSdk(string[] args)
+    {
+        var start = Python();
+        const string entry = "import sys;from runteams_creator_dev.cli import main;raise SystemExit(main(sys.argv[1:],packaged=True))";
+        var arguments = new StringBuilder("-I -B -X utf8 -u -c ").Append(QuoteArgument(entry));
+        for (int i = 1; i < args.Length; i++) arguments.Append(' ').Append(QuoteArgument(args[i]));
+        start.Arguments = arguments.ToString();
+        using (var sdk = Process.Start(start)) { sdk.WaitForExit(); return sdk.ExitCode; }
     }
 
     private LocalWindow(string[] args)
@@ -50,14 +94,11 @@ internal sealed class LocalWindow : Form
             else if (args[i] != "--port" || !int.TryParse(args[i + 1], out port) || port < 0 || port > 65535)
                 throw new ArgumentException("Expected --data-dir PATH or --port 0..65535.");
         }
-        string core = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "core");
-        service.StartInfo = new ProcessStartInfo {
-            FileName = Path.Combine(core, @"runtime-dependencies\agent-python\python.exe"),
-            Arguments = "-I -B -X utf8 -u -m runteams_core.application.community --owner-stdin --port " + port,
-            WorkingDirectory = core, UseShellExecute = false, CreateNoWindow = true,
-            RedirectStandardInput = true, RedirectStandardOutput = true, RedirectStandardError = true,
-            StandardOutputEncoding = Encoding.UTF8, StandardErrorEncoding = Encoding.UTF8
-        };
+        service.StartInfo = Python();
+        service.StartInfo.Arguments = "-I -B -X utf8 -u -m runteams_core.application.community --owner-stdin --port " + port;
+        service.StartInfo.WorkingDirectory = Core;
+        service.StartInfo.RedirectStandardInput = service.StartInfo.RedirectStandardOutput = service.StartInfo.RedirectStandardError = true;
+        service.StartInfo.StandardOutputEncoding = service.StartInfo.StandardErrorEncoding = Encoding.UTF8;
         if (!string.IsNullOrEmpty(data)) service.StartInfo.EnvironmentVariables["RUNTEAMS_DATA"] = data;
         Shown += async delegate { await StartService(); };
         FormClosing += OnClosing;

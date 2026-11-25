@@ -7,7 +7,8 @@ import hashlib
 import shutil
 from pathlib import Path
 
-from runteams_core.authoring.compilation.creator_build_tools import load
+from runteams_core.authoring.compilation.creator_build_tools import ESBUILD_EXECUTABLE, load
+from runteams_core.employees.mcp.employee_mcp import NODE_EXECUTABLE
 from runteams_core.authoring.creator_contracts import canonical, strict_json
 from runteams_core.devtools.package_creator_builder import package as package_builder
 from runteams_core.devtools.package_mcp_runtime import verify as verify_mcp
@@ -25,7 +26,7 @@ def snapshot(builder=None, runtime=None):
     if license_path.is_symlink() or not license_path.is_file():
         raise ValueError('Missing original esbuild license')
     return {'builder':str(builder), 'runtime':str(runtime),
-        'builder_files':{n:hashlib.sha256((builder/n).read_bytes()).hexdigest() for n in ('esbuild','toolchain.json')},
+        'builder_files':{n:hashlib.sha256((builder/n).read_bytes()).hexdigest() for n in (ESBUILD_EXECUTABLE,'toolchain.json')},
         'runtime_files':runtime_files,'esbuild_license_sha256':hashlib.sha256(license_path.read_bytes()).hexdigest()}
 
 
@@ -38,16 +39,17 @@ def stage(core, expected, signer):
     builder, runtime = root/'creator-builder', root/'mcp-runtime'
     if builder.exists() or builder.is_symlink() or runtime.exists() or runtime.is_symlink():
         raise ValueError('SDK build resource output already exists')
-    package_builder(builder, {'esbuild':Path(expected['builder'])/'esbuild'})
+    package_builder(builder, {'esbuild':Path(expected['builder'])/ESBUILD_EXECUTABLE})
     shutil.copyfile(ROOT/LICENSE,builder/'esbuild-LICENSE.txt')
     shutil.copytree(expected['runtime'],runtime)
-    signer.sign(builder/'esbuild',executable=True)
-    signer.sign(runtime/'node',executable=True,jit=True)
+    if signer is not None:
+        signer.sign(builder/ESBUILD_EXECUTABLE,executable=True)
+        signer.sign(runtime/NODE_EXECUTABLE,executable=True,jit=True)
     toolchain = strict_json((builder/'toolchain.json').read_bytes())
-    toolchain['esbuild']['sha256'] = hashlib.sha256((builder/'esbuild').read_bytes()).hexdigest()
+    toolchain['esbuild']['sha256'] = hashlib.sha256((builder/ESBUILD_EXECUTABLE).read_bytes()).hexdigest()
     (builder/'toolchain.json').write_bytes(canonical(toolchain))
     manifest = strict_json((runtime/'runtime.json').read_bytes())
-    manifest['files']['node'] = hashlib.sha256((runtime/'node').read_bytes()).hexdigest()
+    manifest['files'][NODE_EXECUTABLE] = hashlib.sha256((runtime/NODE_EXECUTABLE).read_bytes()).hexdigest()
     raw = canonical(manifest)
     (runtime/'runtime.json').write_bytes(raw)
     (runtime/'runtime.sha256').write_text(hashlib.sha256(raw).hexdigest()+'\n')

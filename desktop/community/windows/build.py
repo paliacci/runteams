@@ -16,6 +16,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
 from runteams_core.devtools.community_source import load_contract
 from runteams_core.devtools.prepare_agent_python import prepare, seal_runtime, stage
+from desktop.community.sdk_resources import snapshot as sdk_snapshot, stage as stage_sdk
 
 WEBVIEW_VERSION = '1.0.4370.26'
 WEBVIEW_SHA256 = '1c0dacac84b70109b3fd42f90c53a0ba942abc3a87590d7a4e0ccd86e4a06cf4'
@@ -43,6 +44,7 @@ def build(args):
     if sys.platform != 'win32' or struct.calcsize('P') != 8 or sys.version_info[:2] != (3, 12):
         raise ValueError('Use a Windows x64 Python 3.12 build environment')
     contract = load_contract(ROOT)
+    sdk = sdk_snapshot(args.creator_builder, args.mcp_runtime)
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='rt-build-') as temp:
@@ -61,6 +63,7 @@ def build(args):
             stage(args.runtime, runtime)
         else:
             prepare(runtime)
+        stage_sdk(core, sdk, signer=None)
         packages = payload / 'python-packages'
         subprocess.run([sys.executable, '-m', 'pip', 'install', '--disable-pip-version-check',
                         '--no-compile', '--target', packages, '-r', ROOT / 'requirements/runtime.txt'],
@@ -84,6 +87,8 @@ def build(args):
             with urlopen(url, timeout=60) as source, package.open('xb') as target:
                 shutil.copyfileobj(source, target)
         compile_host(payload, package)
+        subprocess.run([payload / 'RunTeamsLocal.exe', '--sdk', 'doctor'], cwd=scratch,
+                       check=True, timeout=60)
         version = (ROOT / 'VERSION').read_text(encoding='ascii').strip()
         subprocess.run([args.iscc, '/Qp', '/DAppVersion=' + version, '/DPayload=' + str(payload),
                         '/DDestination=' + str(scratch), HERE / 'installer.iss'], check=True)
@@ -104,5 +109,7 @@ if __name__ == '__main__':
     parser.add_argument('--output', type=Path, required=True)
     parser.add_argument('--runtime', type=Path, help='Verified prepare_agent_python output')
     parser.add_argument('--webview-sdk', type=Path, help='Cached pinned WebView2 NuGet package')
+    parser.add_argument('--creator-builder', type=Path, help='Verified Windows creator-builder directory')
+    parser.add_argument('--mcp-runtime', type=Path, help='Verified Windows managed MCP runtime directory')
     parser.add_argument('--iscc', default='ISCC.exe', help='Inno Setup 6 compiler')
     print(build(parser.parse_args()))

@@ -9,10 +9,27 @@
 ```powershell
 py -3.12 -m venv .venv
 .\.venv\Scripts\python -m pip install -r requirements/build.txt
-.\.venv\Scripts\python -X utf8 desktop/community/windows/build.py --output ..\artifacts
+$python = (Resolve-Path .\.venv\Scripts\python.exe).Path
+$resources = Join-Path (Get-Location) 'runtime-dependencies'
+$node = & $python -m runteams_core.devtools.provision_mcp_node --cache "$resources\node-cache"
+if ($LASTEXITCODE -ne 0) { throw 'Node provisioning failed' }
+Push-Location sdk\mcp-host
+try {
+    npm.cmd ci --ignore-scripts --no-audit --no-fund
+    if ($LASTEXITCODE -ne 0) { throw 'npm ci failed' }
+    & $node build.mjs "$resources\mcp-host"
+    if ($LASTEXITCODE -ne 0) { throw 'MCP host build failed' }
+} finally { Pop-Location }
+& $python -m runteams_core.devtools.prepare_mcp_runtime --node $node --node-license (Join-Path (Split-Path (Split-Path $node)) LICENSE) --host "$resources\mcp-host" --output "$resources\mcp-runtime"
+if ($LASTEXITCODE -ne 0) { throw 'MCP runtime preparation failed' }
+& $python -m runteams_core.devtools.package_creator_builder --esbuild sdk\mcp-host\node_modules\@esbuild\win32-x64\esbuild.exe --output "$resources\creator-builder"
+if ($LASTEXITCODE -ne 0) { throw 'Creator builder preparation failed' }
+& $python -X utf8 desktop/community/windows/build.py --output ..\artifacts
 ```
 
 构建工具校验锁定的 Python 运行时和 WebView2 SDK，随包附带业务代码、前端资源、Python 依赖和许可证。首次构建需要联网。可用 `--runtime` 复用已验证的运行时，用 `--webview-sdk` 指向对应的 NuGet 包。运行 `RunTeamsLocal.exe --data-dir <目录>` 可指定验收资料库。Windows 构建当前生成未签名的本机验收包。
+
+构建机需要 npm。首次准备 SDK 资源时使用新的输出目录。后续打包可直接复用上述资源，也可通过 `--creator-builder` 和 `--mcp-runtime` 指定其他已验证目录。安装后可运行 `RunTeamsLocal.exe --sdk doctor` 校验随包的 Node 和 esbuild。
 
 安装后，在装有 `requirements/runtime.txt` 的测试环境中执行以下回归。测试在独立的资料库和 WebView2 配置目录中打开实际安装的桌面窗口。
 
