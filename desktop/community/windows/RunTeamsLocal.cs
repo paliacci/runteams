@@ -30,6 +30,7 @@ internal sealed class LocalWindow : Form
     [STAThread]
     private static int Main(string[] args)
     {
+        if (args.Length > 0 && args[0] == "--open-notification") return DesktopNotifications.OpenNotification(args);
         if (args.Length > 0 && args[0] == "--picker") return AttachmentPicker.Run(args);
         if (args.Length > 0 && args[0] == "--sdk")
         {

@@ -15,12 +15,18 @@ OutputBaseFilename=RunTeams-Local-{#AppVersion}-windows-x64-setup
 Compression=lzma2/fast
 SolidCompression=yes
 WizardStyle=modern
+ChangesAssociations=yes
 
 [Files]
 Source: "{#Payload}\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversion
 
 [Icons]
 Name: "{userprograms}\RunTeams Local"; Filename: "{app}\RunTeamsLocal.exe"; AppUserModelID: "RunTeams.Local"
+
+[Registry]
+Root: HKCU; Subkey: "Software\Classes\runteams-local-notification"; ValueType: string; ValueData: "URL:RunTeams Local notification"; Flags: uninsdeletekey
+Root: HKCU; Subkey: "Software\Classes\runteams-local-notification"; ValueType: string; ValueName: "URL Protocol"; ValueData: ""
+Root: HKCU; Subkey: "Software\Classes\runteams-local-notification\shell\open\command"; ValueType: string; ValueData: """{app}\RunTeamsLocal.exe"" --open-notification ""%1"""
 
 [Run]
 Filename: "{app}\RunTeamsLocal.exe"; Description: "Open RunTeams Local"; Flags: postinstall nowait skipifsilent
