@@ -65,6 +65,19 @@ internal sealed class DesktopSettings : IDisposable
         return value == "system" || value == "zh-CN" || value == "en";
     }
 
+    internal static string SavedLanguage
+    {
+        get {
+            try {
+                string value = Read(Preferences, "language") as string;
+                return ValidLanguage(value) ? value : null;
+            }
+            catch (System.Security.SecurityException) { return null; }
+            catch (UnauthorizedAccessException) { return null; }
+            catch (System.IO.IOException) { return null; }
+        }
+    }
+
     private static object AppearanceValue(string key, string value)
     {
         if (key == "theme" && (value == "light" || value == "dark" || value == "system")) return value;
@@ -106,8 +119,7 @@ internal sealed class DesktopSettings : IDisposable
                 using (var prefs = Registry.CurrentUser.CreateSubKey(Preferences)) prefs.SetValue(key, value);
             } else throw new ArgumentException("Invalid desktop preference.");
         } else if (fields.Length != 3 || fields[2] != "get") throw new ArgumentException("Invalid settings request.");
-        string language = Read(Preferences, "language") as string;
-        return new { language = ValidLanguage(language) ? language : null, launch_at_login = LaunchAtLogin, prevent_sleep = PreventSleep,
+        return new { language = SavedLanguage, launch_at_login = LaunchAtLogin, prevent_sleep = PreventSleep,
                      close_action = KeepInBackground ? "background" : "quit", runtime_error = powerError,
                      appearance = ReadAppearance() };
     }

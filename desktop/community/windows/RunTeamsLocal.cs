@@ -219,6 +219,16 @@ internal sealed class LocalWindow : Form
             string sessionToken = (string)info["session_token"];
             settings = new DesktopSettings(origin, sessionToken);
             workspace = new DesktopWorkspace(environment.UserDataFolder, libraryPath);
+            // Supply the saved language before the first page parses its locale scripts.
+            string languageScript = null;
+            string language = DesktopSettings.SavedLanguage;
+            if (language != null) {
+                var json = new JavaScriptSerializer();
+                languageScript = await browser.AddScriptToExecuteOnDocumentCreatedAsync(
+                    "if (window === window.top && location.origin === " + json.Serialize(origin.GetLeftPart(UriPartial.Authority)) + ") {" +
+                    "window.runteamsNativeLanguage = " + json.Serialize(language) + ";" +
+                    "try { localStorage.setItem('runteams_language_preference', window.runteamsNativeLanguage); } catch {} }");
+            }
             browser.WebMessageReceived += async (sender, e) => await HandleWebMessage(browser, e, sessionToken);
             browser.NavigationStarting += delegate(object sender, CoreWebView2NavigationStartingEventArgs e) {
                 Uri destination;
@@ -234,7 +244,13 @@ internal sealed class LocalWindow : Form
                     Process.Start(new ProcessStartInfo(url.AbsoluteUri) { UseShellExecute = true });
             };
             browser.NavigationCompleted += delegate(object sender, CoreWebView2NavigationCompletedEventArgs e) {
-                if (e.IsSuccess) loaded = true;
+                if (e.IsSuccess) {
+                    loaded = true;
+                    if (languageScript != null && browser.Source.StartsWith(origin.AbsoluteUri, StringComparison.Ordinal)) {
+                        browser.RemoveScriptToExecuteOnDocumentCreated(languageScript);
+                        languageScript = null;
+                    }
+                }
             };
             service.EnableRaisingEvents = true;
             service.Exited += delegate {
