@@ -1,6 +1,7 @@
 """Read only the owned worker's RSS; failure never disables resource limits."""
 import ctypes
 import errno
+import os
 from functools import lru_cache
 from pathlib import Path
 import subprocess
@@ -30,11 +31,21 @@ def process_rss(pid):
     if type(pid) is not int or pid <= 0:
         raise ValueError('invalid_worker_pid')
     if sys.platform == 'linux':
+        # statm keeps its resident-page field even after the child's address
+        # space is released. status drops VmRSS before the child is waitable.
         try:
-            lines = Path('/proc', str(pid), 'status').read_text().splitlines()
+            fields = Path('/proc', str(pid), 'statm').read_bytes().split()
         except FileNotFoundError:
+            try:
+                os.kill(pid, 0)
+            except ProcessLookupError:
+                return 0
+            raise
+        except ProcessLookupError:
             return 0
-        return int(next(line.split()[1] for line in lines if line.startswith('VmRSS:'))) * 1024
+        if len(fields) != 7 or not fields[1].isdigit():
+            raise ValueError('worker_memory_unavailable')
+        return int(fields[1]) * os.sysconf('SC_PAGE_SIZE')
     if sys.platform == 'darwin':
         info = TaskInfo()
         ctypes.set_errno(0)
