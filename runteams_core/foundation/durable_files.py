@@ -9,6 +9,7 @@ def move(temporary, destination, *, replace=False):
     """Publish a staged file or directory by same-volume rename."""
     if os.name == 'nt':
         import ctypes
+        import time
         from ctypes import wintypes
 
         rename = ctypes.WinDLL('kernel32', use_last_error=True).MoveFileExW
@@ -17,8 +18,17 @@ def move(temporary, destination, *, replace=False):
         # Same-directory rename. Without REPLACE_EXISTING a competing first
         # writer wins, and WRITE_THROUGH requests the on-disk move before return.
         flags = 0x8 | (0x1 if replace else 0)
-        if not rename(str(temporary), str(destination), flags):
-            raise ctypes.WinError(ctypes.get_last_error())
+        # A reader or scanner can briefly hold the existing record without
+        # delete sharing. Only retry the same staged rename, never its producer.
+        for delay in (0, .025, .05, .1, .2, .4):
+            if delay:
+                time.sleep(delay)
+            if rename(str(temporary), str(destination), flags):
+                return
+            error = ctypes.get_last_error()
+            if not replace or error not in (5, 32, 33):
+                break
+        raise ctypes.WinError(error)
     else:
         if replace:
             os.replace(temporary, destination)

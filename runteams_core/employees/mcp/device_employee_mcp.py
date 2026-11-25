@@ -20,6 +20,7 @@ from runteams_core.foundation.contracts import ContractError, digest
 from runteams_core.authoring.creator_contracts import CreatorContractError
 from runteams_core.authoring.definition_contracts import validate_employee_bundles
 from runteams_core.storage.device_files import _publish, _read
+from runteams_core.foundation.regular_files import storage_path
 from runteams_core.foundation.identity.work_identity import work_scope
 from runteams_core.foundation.identity.work_identity import principal
 from runteams_core.employees.mcp.employee_mcp import EmployeeMCP, WorkBinding, MCPOutcomeUnknown, MCPAppResourceInvalid
@@ -348,7 +349,7 @@ class EmployeeMCPWork:
             self.check()
             approvals = [copy.deepcopy(row['public']) for row in self.pending.values()
                          if row['chat'] == chat and not row['done'].is_set()]
-        journal = work / '.runteams' / 'mcp-calls'
+        journal = storage_path(work / '.runteams' / 'mcp-calls')
         calls = [_read(p) for p in sorted(journal.glob('*.json'))] if journal.exists() else []
         # Full arguments/results remain device diagnostics, not the settings page.
         return {'schema':'runteams.employee-mcp-work/1', 'chat_id':chat, 'binding_sha256':self._authorization_digest(chat,binding,packages),
@@ -566,7 +567,7 @@ class EmployeeMCPWork:
         employee, packages, work, binding = self._identity(chat)
         if package not in packages or not self.enabled(binding,package):raise PermissionError('本次工作尚未获得运行授权。')
         request = {'package':package,'tool':name,'arguments':arguments}
-        path = work / '.runteams/mcp-calls' / (digest({'key':key})+'.json')
+        path = storage_path(work / '.runteams/mcp-calls') / (digest({'key':key})+'.json')
         with self.lock:
             if path.exists():
                 previous=_read(path)

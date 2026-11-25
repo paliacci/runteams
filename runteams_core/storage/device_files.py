@@ -13,6 +13,7 @@ def _scope(value):
 
 
 def _raw(path, limit=MAX_RECORD):
+    path = regular_files.storage_path(path)
     if path.is_symlink(): raise CreatorContractError('asset_path')
     fd = regular_files.open_readonly(path)
     with os.fdopen(fd, 'rb') as stream:
@@ -29,6 +30,8 @@ def _read(path):
 
 
 def _publish(root, target, raw):
+    root = regular_files.storage_path(root)
+    target = regular_files.storage_path(target)
     temporary = root / ('.creator-asset-' + uuid.uuid4().hex)
     try:
         fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
