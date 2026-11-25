@@ -318,13 +318,25 @@ class CardDispatchTests(TestCase):
     def test_worker_waits_for_grace_period_and_then_claims_once(self):
         from datetime import datetime, timedelta, timezone
         identifier = work.create(self.core, self.command)['workflow']['id']
+        before = datetime(2026, 1, 1, tzinfo=timezone.utc)
+        due = before + timedelta(seconds=2)
         with self.core.repository.connect() as connection:
-            due = (datetime.now(timezone.utc) + timedelta(milliseconds=100)).isoformat()
-            connection.execute('UPDATE workflow_runs SET available_at=? WHERE id=?', (due, identifier))
-        self.assertIsNone(self.core.claim_workflow(identifier))
-        self.runtime.activate_employee_host()
-        self.assertTrue(self.done.wait(2))
-        for thread in list(self.runtime.employee_jobs.values()): thread.join(2)
+            connection.execute('UPDATE workflow_runs SET available_at=? WHERE id=?', (due.isoformat(), identifier))
+        clock = Mock(wraps=datetime)
+        clock.now.return_value = before
+        def reach_deadline(delay):
+            self.assertEqual(delay, 2)
+            clock.now.return_value = due
+        event = Mock()
+        event.wait.side_effect = reach_deadline
+        with patch('runteams_core.work.work_ledger.datetime', clock), \
+             patch('runteams_core.application.local_runtime.datetime', clock), \
+             patch.object(self.core, '_cancel_event', return_value=event):
+            self.assertIsNone(self.core.claim_workflow(identifier))
+            self.runtime.activate_employee_host()
+            self.assertTrue(self.done.wait(10))
+            for thread in list(self.runtime.employee_jobs.values()): thread.join(10)
+        event.wait.assert_called_once_with(2)
         self.assertEqual(len(self.executed), 1)
 
     def test_deadline_passes_between_failed_claim_and_worker_read(self):

@@ -4,6 +4,7 @@ Personal chats and verified SDK employee conversations share this native host.
 Pipeline admission retains its independent owner.
 """
 from contextlib import contextmanager, nullcontext
+from datetime import datetime, timezone
 from pathlib import Path
 import sqlite3
 import os
@@ -224,7 +225,6 @@ class LocalRuntime:
                                     if claimed is None:
                                         # An edited queued card keeps a short grace period. Keep
                                         # its existing worker wake until due; never claim it early.
-                                        from datetime import datetime, timezone
                                         with core.repository.read_snapshot() as connection:
                                             due=connection.execute('SELECT state,available_at FROM workflow_runs WHERE id=?',
                                                                    (identifier,)).fetchone()
