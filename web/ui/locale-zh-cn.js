@@ -497,6 +497,7 @@ globalThis.RUNTEAMS_LOCALES = {
   "general.send_mode": "发送方式",
   "general.enter": "Enter 发送",
   "general.metaEnter": "⌘Enter 发送",
+  "general.ctrlEnter": "Ctrl+Enter 发送",
   "general.allow_supplement": "运行中允许补充要求",
   "general.supplementHint": "关闭后，新消息加入队列，当前回复结束后依次发送。",
   "general.runtime": "启动与运行",

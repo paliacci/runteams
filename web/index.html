@@ -6553,18 +6553,39 @@ async function prepareConversationLocalReferences(surface,out,panel,isCurrent=()
   if(!isCurrent()||(surface==="panel"&&(S.conversationPanel!==panel||panel?.busy)))return;
   addConversationLocalReferences(surface,ready,panel);
 }
-async function readConversationLocalReferenceEvent(surface,source){
+function prepareWindowsReferenceDrop(bridge,files,library){
+  const id=crypto.randomUUID();
+  return new Promise((resolve,reject)=>{
+    const cleanup=()=>{clearTimeout(timer);bridge.removeEventListener('message',receive);};
+    const fail=()=>{cleanup();reject(new Error(RunTeamsLocale.t('localReference.pathMissing')));};
+    const receive=event=>{
+      if(event.data?.kind!=='reference-drop'||event.data.id!==id)return;
+      if(!event.data.result){fail();return;}
+      cleanup();resolve(event.data.result);
+    };
+    const timer=setTimeout(fail,15000);
+    bridge.addEventListener('message',receive);
+    try{bridge.postMessageWithAdditionalObjects('reference-drop:'+id+':'+library.library_id+':'+library.generation,Array.from(files));}
+    catch(error){fail();}
+  });
+}
+async function readConversationLocalReferenceEvent(surface,source,files){
   const panel=S.conversationPanel;if(panel?.busy)return;
+  const library=S.localLibrary;
+  const current=()=>S.conversationPanel===panel&&S.localLibrary===library&&!panel?.busy;
   try{
-    const out=await api(`/api/local-references/${source}`,"POST",{});
-    if(S.conversationPanel!==panel||panel?.busy)return;
+    const bridge=window.chrome?.webview;
+    const out=source==='drop'&&files&&bridge?.postMessageWithAdditionalObjects
+      ?await prepareWindowsReferenceDrop(bridge,files,library)
+      :await api(`/api/local-references/${source}`,"POST",{});
+    if(!current())return;
     if(out.empty){
       toast("找不到本地路径。请重新复制，或点按加号选择文件。","err","localReference.pathMissing");
       return;
     }
-    await prepareConversationLocalReferences(surface,out,panel);
+    await prepareConversationLocalReferences(surface,out,panel,current);
   }
-  catch(error){if(S.conversationPanel===panel)toast(error.message||"无法添加本地引用。请重试。","err",error.message?undefined:"localReference.addFailed");}
+  catch(error){if(current())toast(error.message||"无法添加本地引用。请重试。","err",error.message?undefined:"localReference.addFailed");}
 }
 async function openConversationLocalReferencePicker(surface){
   closePop();const panel=S.conversationPanel;

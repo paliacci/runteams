@@ -36,7 +36,7 @@ def compile_host(payload, package):
     compiler = Path(os.environ['WINDIR']) / 'Microsoft.NET/Framework64/v4.0.30319/csc.exe'
     subprocess.run([compiler, '/nologo', '/codepage:65001', '/target:winexe', '/platform:x64', '/optimize+',
                     '/out:RunTeamsLocal.exe', '/reference:System.Windows.Forms.dll',
-                    '/reference:System.Drawing.dll', '/reference:System.Web.Extensions.dll',
+                    '/reference:System.Drawing.dll', '/reference:System.Web.Extensions.dll', '/reference:System.Net.Http.dll',
                     *['/reference:' + name for name in assemblies], HERE / 'RunTeamsLocal.cs',
                     HERE / 'AttachmentPicker.cs'],
                    cwd=payload, check=True)

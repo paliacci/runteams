@@ -1387,7 +1387,7 @@ async function conversationDrop(event,surface){
   event.preventDefault();event.currentTarget.classList.remove("dragging");
   if(S.workspaceStartup?.pending)return;
   if(conversationSupportsLocalReferences(surface)){
-    if(event.isTrusted)await readConversationLocalReferenceEvent(surface,"drop");
+    if(event.isTrusted)await readConversationLocalReferenceEvent(surface,"drop",event.dataTransfer?.files);
     return;
   }
   addConversationFiles(surface,event.dataTransfer&&event.dataTransfer.files);

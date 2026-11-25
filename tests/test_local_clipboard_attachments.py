@@ -1,19 +1,56 @@
 """Finder folders are inserted as original directory paths."""
 from contextlib import ExitStack
+from http.client import HTTPConnection
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import json
 import sys
+import threading
 import unittest
 from unittest.mock import patch
 import uuid
 
 from runteams_core.application.local_application import LocalApplication
+from runteams_core.application.http.local_http import LocalServer
 from runteams_core.conversations import chat_attachments
 from runteams_core.storage import local_database
 
 
 class LocalClipboardAttachmentsTests(unittest.TestCase):
+    def test_drop_paths_require_native_owner_and_current_library_generation(self):
+        with ExitStack() as stack:
+            root = Path(stack.enter_context(TemporaryDirectory()))
+            library = root / 'library'
+            stack.enter_context(patch.object(local_database, 'DB_PATH', str(library / 'runteams.db')))
+            app = LocalApplication(library)
+            server = LocalServer(app, 0)
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            conn = HTTPConnection('127.0.0.1', server.server_port, timeout=10)
+            try:
+                folder = root / '测试 folder'
+                folder.mkdir()
+                body = json.dumps({'paths': [str(folder)]})
+                scope = {'X-RunTeams-Library': app.binding.library_id,
+                         'X-RunTeams-Library-Generation': app.backups.generation}
+                owner = {'Authorization': 'Bearer ' + server.session_token}
+                browser = {'Cookie': server.cookie_name + '=' + server.browser_token}
+                for auth, fields, expected in ((browser, scope, 403), (owner, {}, 403),
+                        (owner, {**scope, 'X-RunTeams-Library-Generation': 'stale'}, 403),
+                        (owner, scope, 200)):
+                    conn.request('POST', '/api/local-references/drop', body,
+                                 {'Content-Type': 'application/json', **auth, **fields})
+                    response = conn.getresponse()
+                    result = json.loads(response.read())
+                    self.assertEqual(response.status, expected, result)
+                    if expected == 200:
+                        self.assertEqual([p['path'] for p in result['pending']], [str(folder)])
+            finally:
+                conn.close()
+                server.shutdown()
+                thread.join(5)
+                server.server_close()
+
     def test_paste_routes_reference_folders_without_opening_them(self):
         with ExitStack() as stack:
             root = Path(stack.enter_context(TemporaryDirectory()))

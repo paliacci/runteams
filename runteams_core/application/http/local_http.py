@@ -250,6 +250,16 @@ class LocalHandler(BaseHTTPRequestHandler):
                 if self.headers.get('Origin')!=self.server.origin or self.headers.get('X-RunTeams-Work-Host')!='1':raise PermissionError('工作界面来源无效。')
                 with self.server.application.request(request_scope),self.server.application.runtime.scope():
                     return self._json(200,self.server.application.runtime.browser_work(data,self.server.origin))
+            if self.command == 'POST' and parsed.path == '/api/local-references/drop' and data:
+                # Only the desktop host can attest to paths from OS-backed file objects.
+                if mode != 'bearer' or expected != [library] or generations != [generation]:
+                    raise PermissionError('Native desktop selection required.')
+                if set(data) != {'paths'}:
+                    raise ValueError('Invalid file selection.')
+                from runteams_core.assets import local_references
+                app = self.server.application
+                with app.request(request_scope), app.runtime.scope():
+                    return self._json(200, local_references.prepare(data['paths']))
             result = self.server.application.dispatch(self.command, parsed.path, data, scope=request_scope)
             from runteams_core.application.http import pipeline_activity_http
             if parsed.path == pipeline_activity_http.PATH:

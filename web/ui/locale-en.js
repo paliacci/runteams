@@ -467,6 +467,7 @@ globalThis.RUNTEAMS_LOCALES.en = {
   "general.send_mode": "Send messages with",
   "general.enter": "Enter to send",
   "general.metaEnter": "⌘Enter to send",
+  "general.ctrlEnter": "Ctrl+Enter to send",
   "general.allow_supplement": "Allow follow-up instructions while running",
   "general.supplementHint": "When off, new messages are queued and sent in order after the current reply finishes.",
   "general.runtime": "Startup and execution",

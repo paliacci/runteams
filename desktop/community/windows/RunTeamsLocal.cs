@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
+using System.Net.Http;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
@@ -16,6 +17,7 @@ internal sealed class LocalWindow : Form
     private readonly Process service = new Process();
     private bool started, closing, checkingClose, loaded;
     private Uri origin;
+    private int navigationVersion;
 
     [STAThread]
     private static int Main(string[] args)
@@ -158,11 +160,15 @@ internal sealed class LocalWindow : Form
             await view.EnsureCoreWebView2Async(environment);
             var browser = view.CoreWebView2;
             browser.Settings.AreHostObjectsAllowed = false;
-            browser.Settings.IsWebMessageEnabled = false;
+            // Receive DOM File handles from the top-level WebView only. The service
+            // credential stays in this process and is never injected into the page.
+            string sessionToken = (string)info["session_token"];
+            browser.WebMessageReceived += async (sender, e) => await PrepareFileDrop(browser, e, sessionToken);
             browser.NavigationStarting += delegate(object sender, CoreWebView2NavigationStartingEventArgs e) {
                 Uri destination;
                 e.Cancel = !Uri.TryCreate(e.Uri, UriKind.Absolute, out destination)
                     || destination.GetLeftPart(UriPartial.Authority) != origin.GetLeftPart(UriPartial.Authority);
+                if (!e.Cancel) navigationVersion++;
             };
             browser.NewWindowRequested += delegate(object sender, CoreWebView2NewWindowRequestedEventArgs e) {
                 e.Handled = true;
@@ -187,6 +193,50 @@ internal sealed class LocalWindow : Form
             if (!closing && !IsDisposed) Fail("Install Microsoft Edge WebView2 Evergreen Runtime, then reopen RunTeams Local.");
         }
         catch (Exception error) { if (!closing && !IsDisposed) Fail(error.Message); }
+    }
+
+    private async Task PrepareFileDrop(CoreWebView2 browser, CoreWebView2WebMessageReceivedEventArgs e, string sessionToken)
+    {
+        Uri source;
+        if (!Uri.TryCreate(e.Source, UriKind.Absolute, out source) ||
+            source.GetLeftPart(UriPartial.Authority) != origin.GetLeftPart(UriPartial.Authority)) return;
+        int version = navigationVersion;
+        string id = null;
+        object result = null;
+        var json = new JavaScriptSerializer();
+        try {
+            string[] fields = e.TryGetWebMessageAsString().Split(':');
+            Guid parsed;
+            if (fields.Length != 4 || fields[0] != "reference-drop" ||
+                !Guid.TryParseExact(fields[1], "D", out parsed) || !Guid.TryParseExact(fields[2], "D", out parsed) ||
+                !Guid.TryParseExact(fields[3], "D", out parsed)) return;
+            id = fields[1];
+            var files = e.AdditionalObjects;
+            if (files == null || files.Count < 1 || files.Count > 10) throw new InvalidDataException();
+            var paths = new System.Collections.Generic.List<string>();
+            foreach (var item in files) {
+                var file = item as CoreWebView2File;
+                if (file == null || String.IsNullOrEmpty(file.Path) || !Path.IsPathRooted(file.Path))
+                    throw new InvalidDataException();
+                paths.Add(file.Path);
+            }
+            using (var client = new HttpClient(new HttpClientHandler { UseProxy = false, AllowAutoRedirect = false }))
+            using (var request = new HttpRequestMessage(HttpMethod.Post, new Uri(origin, "/api/local-references/drop"))) {
+                client.Timeout = TimeSpan.FromSeconds(12);
+                request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", sessionToken);
+                request.Headers.Add("X-RunTeams-Library", fields[2]);
+                request.Headers.Add("X-RunTeams-Library-Generation", fields[3]);
+                request.Content = new StringContent(json.Serialize(new { paths }), Encoding.UTF8, "application/json");
+                using (var response = await client.SendAsync(request)) {
+                    if (response.IsSuccessStatusCode)
+                        result = json.DeserializeObject(await response.Content.ReadAsStringAsync());
+                }
+            }
+        } catch (Exception) {
+            // Invalid or unavailable OS-backed objects get the normal picker fallback.
+        }
+        if (id != null && version == navigationVersion && !closing && !IsDisposed && !view.IsDisposed)
+            browser.PostWebMessageAsJson(json.Serialize(new { kind = "reference-drop", id, result }));
     }
 
     private void Fail(string message)
