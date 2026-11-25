@@ -171,5 +171,25 @@ try{
  assert.ok(button('添加行'));
  assert.equal(sent.filter(item=>item.type==='save').length,savesBeforeLanguageChange);
  checks.push('Changing the host language updates editor and data-block controls without saving or translating existing content.');
+ await act(async()=>root.unmount());
+ root=createRoot(document.getElementById('test-root'));
+ const ref=(type,documentId)=>({type,props:{documentId,blockId:'target',label:'Original'}});
+ const referenceDoc={...doc,id:126,document_root_id:123,document_revision_ids:[123,124,125,126],
+  content:JSON.stringify({...record,blocks:[
+   {id:'target',type:'paragraph',content:'Current target'},
+   {id:'legacy',...ref('reference','124')},
+   {id:'links',type:'paragraph',content:[ref('blockReference','125'),ref('blockReference','999')]}
+  ]})};
+ await act(async()=>root.render(createElement(DocumentApp,{payload:{doc:referenceDoc},onReady:value=>editor=value})));
+ const refs=[...document.querySelectorAll('.rt-reference')];
+ assert.deepEqual(refs.map(b=>b.title),['跳转到引用内容','跳转到引用内容','打开引用的文档']);
+ assert.deepEqual(refs.map(b=>b.textContent),['Current target','Current target','Original']);
+ assert.equal(features.referenceInline(editor,'target').props.documentId,'123');
+ const referenceFragment=await fragments.captureFragment(editor,editor.document);
+ const clonedRefs=fragments.cloneFragment(referenceFragment,{},456).blocks;
+ assert.equal(clonedRefs[1].props.blockId,clonedRefs[0].id);
+ assert.equal(clonedRefs[1].props.documentId,'456');
+ assert.equal(clonedRefs[2].content.find(n=>n.props?.documentId==='999').props.blockId,'target');
+ checks.push('Block and inline references follow the document across revisions and copies, including when another document has the same block ID.');
  console.log(JSON.stringify({checks,visualAcceptance:false,nativeKeyboardOrDragAcceptance:false},null,2));
 }finally{if(root)await act(async()=>root.unmount());await server.close();dom.window.close();}

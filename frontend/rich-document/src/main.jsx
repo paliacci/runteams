@@ -5,7 +5,7 @@ import {createAutosave} from './autosave.js';
 import {BlockNoteSchema,defaultBlockSpecs,defaultInlineContentSpecs} from '@blocknote/core';
 import {extendedBlocks,blockReference} from './extended-blocks.jsx';
 import {EditorTools} from './editor-tools.jsx';
-import {registerEditor,locateBlock,walkBlocks} from './editor-context.js';
+import {registerEditor,locateBlock,walkBlocks,resolveDocumentReferences} from './editor-context.js';
 import {handleFragmentPaste,exportRecord} from './fragments.js';
 import {request} from './host-bridge.js';
 import {en,zh} from '@blocknote/core/locales';
@@ -119,7 +119,7 @@ function RichEditor({doc,record,embedded,theme,onReady}){
  },[]);
  useEffect(()=>{onReady?.(editor);},[editor,onReady]);
  const changed=()=>{if(editing)saver.current?.update(current());};
- registerEditor(editor,{documentId:doc.id,documentURL:doc.document_url,resourcesAvailable:doc.resources_available!==false,editing,isActive:()=>active.current,getSources:()=>sourcesRef.current,setSources:value=>{sourcesRef.current=value;setSources(value);},changed,report:setFeatureError,navigate:(documentId,blockId)=>saver.current.before(()=>send('open-block',{document_id:documentId,block_id:blockId})),openTool:(kind,id,options={})=>setTool({kind,id,selection:editor.prosemirrorState.selection.toJSON(),...options})});
+ registerEditor(editor,{documentId:doc.document_root_id||doc.id,documentURL:doc.document_url,resourcesAvailable:doc.resources_available!==false,editing,isActive:()=>active.current,getSources:()=>sourcesRef.current,setSources:value=>{sourcesRef.current=value;setSources(value);},changed,report:setFeatureError,navigate:(documentId,blockId)=>saver.current.before(()=>send('open-block',{document_id:documentId,block_id:blockId})),openTool:(kind,id,options={})=>setTool({kind,id,selection:editor.prosemirrorState.selection.toJSON(),...options})});
  useEffect(()=>{if(!doc.initial_block)return;const frame=requestAnimationFrame(()=>{if(!locateBlock(editor,doc.initial_block))setFeatureError('linked-block-missing');});return()=>cancelAnimationFrame(frame);},[]);
  const exportDocument=async()=>{
   setExportError('');
@@ -148,6 +148,6 @@ export function DocumentApp({payload,onReady}){
  const copy=useCopy();
  const {doc,embedded=false,theme='light'}=payload;
  let record;
- if(doc.content_model==='rich-document'){try{record=JSON.parse(doc.content);if(record.schema!==SCHEMA||!Array.isArray(record.blocks))throw Error();}catch{return <div role="alert" className="save-error">{copy("文档内容暂时无法显示。原内容已保留，请重新打开。","Couldn’t display the document. Your content is saved. Reopen the document to try again.")}</div>;}}
+ if(doc.content_model==='rich-document'){try{record=JSON.parse(doc.content);if(record.schema!==SCHEMA||!Array.isArray(record.blocks))throw Error();resolveDocumentReferences(record.blocks,doc);}catch{return <div role="alert" className="save-error">{copy("文档内容暂时无法显示。原内容已保留，请重新打开。","Couldn’t display the document. Your content is saved. Reopen the document to try again.")}</div>;}}
  return record?<RichEditor doc={doc} record={record} embedded={embedded} theme={theme} onReady={onReady}/>:<FilePreview doc={doc} embedded={embedded}/>;
 }

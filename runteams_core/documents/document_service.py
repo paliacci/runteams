@@ -239,6 +239,8 @@ class Documents(RepositoryService):
             # reload, another device, or a newly-created revision sees the
             # same block styles.
         }
+        if item["content_model"] == "rich-document":
+            item["document_revision_ids"] = [int(revision["id"]) for revision in chain]
         if task_report:
             item.update(task_id=task_report['task_id'], workflow_id=task_report['workflow_id'], **_document_author('RunTeams'))
         if current_meta.get("source") == employee_documents.SOURCE:
