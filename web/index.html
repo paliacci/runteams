@@ -7163,7 +7163,16 @@ async function sendConversationPanel(options={}){
   try{
     await RunTeamsEmployeeConfiguration.prepareApplications(panel);
     const sendConfig=conversationPanelSendConfig(panel,preferredSkillKey);
-    if(!panel.id){const sourceWindowKey=windowKeyAtSend,created=await api("/api/conversations","POST",{kind:"general",...sendConfig});if(created.error)throw new Error(created.error);panel.id=created.session.id;panel.storage_scope=created.session.storage_scope;panel.context=created.session.context||sendConfig.context||panel.context;createdSession=true;rememberConversationPanel(panel);if(sourceWindowKey===conversationNewWindowKey(panel.context?.purpose)&&replaceConversationWindowKey(panel,sourceWindowKey,`chat:${panel.id}`,`/chat/${Number(panel.id)}`,businessGenerationAtSend))createdWindowKey=`chat:${panel.id}`;if(S.conversationPanel===panel&&activeRailMode()==="assistant")syncRailRoute(panel.id,true);}
+    if(!panel.id){
+      const sourceWindowKey=windowKeyAtSend,created=await api("/api/conversations","POST",{kind:"general",...sendConfig});
+      if(created.error)throw new Error(created.error);
+      const session=created.session;
+      if(session.storage_scope==="device"&&businessGenerationAtSend===_workspaceBusinessGeneration)deviceChatRemember(session);
+      panel.id=session.id;panel.storage_scope=session.storage_scope;panel.context=session.context||sendConfig.context||panel.context;
+      createdSession=true;rememberConversationPanel(panel);
+      if(sourceWindowKey===conversationNewWindowKey(panel.context?.purpose)&&replaceConversationWindowKey(panel,sourceWindowKey,`chat:${panel.id}`,`/chat/${Number(panel.id)}`,businessGenerationAtSend))createdWindowKey=`chat:${panel.id}`;
+      if(S.conversationPanel===panel&&activeRailMode()==="assistant")syncRailRoute(panel.id,true);
+    }
     else if((typeof RunTeamsCreatorWork==='undefined'||!RunTeamsCreatorWork.hasPending(panel.id))){const configured=await api(`/api/chat/${panel.id}/config`,"POST",sendConfig);if(configured.error)throw new Error(configured.error);if(sendConfig.context)panel.context=sendConfig.context;}
     if(folderAtSend)await RunTeamsWorkFolders.bind(panel.id,folderAtSend);
     if(queued&&businessGenerationAtSend!==_workspaceBusinessGeneration){panel.messages=panel.messages.filter(m=>m!==sent&&m!==live);panel.busy=false;return {completed:false,attempted:false};}
