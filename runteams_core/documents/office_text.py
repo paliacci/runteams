@@ -129,8 +129,9 @@ def preview(suffix, raw):
                 with tempfile.TemporaryDirectory(prefix='runteams-word-') as directory:
                     document = Path(directory) / 'original.doc'
                     document.write_bytes(data)
+                    # The desktop service keeps a pending read on its owner pipe.
                     converted = subprocess.run([sys.executable, '-I', '-B', windows_doc_reader.__file__, document, str(MAX_TEXT)],
-                        capture_output=True, timeout=15, creationflags=subprocess.CREATE_NO_WINDOW)
+                        stdin=subprocess.DEVNULL, capture_output=True, timeout=15, creationflags=subprocess.CREATE_NO_WINDOW)
                     if converted.returncode == windows_doc_reader.TEXT_LIMIT_EXIT:
                         raise ContractError('Word 正文过长。')
                     converted.check_returncode()

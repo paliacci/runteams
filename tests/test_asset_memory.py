@@ -441,6 +441,15 @@ class AssetMemoryTests(TestCase):
             page = asset_history.query({'action':'history'}, owner, employee['chat_id'])
             self.assertEqual([r['chat'] for r in page['messages']], [employee['chat_id']])
 
+    def test_windows_word_reader_is_independent_of_desktop_owner_pipe(self):
+        import subprocess
+        from runteams_core.documents import office_text
+        if os.name != 'nt':
+            self.skipTest('Windows desktop helper')
+        with patch.object(subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, b'Word text')) as worker:
+            self.assertEqual(office_text.preview('.doc', b'original')['text'], 'Word text')
+        self.assertEqual(worker.call_args.kwargs['stdin'], subprocess.DEVNULL)
+
     def test_legacy_word_index_tracks_the_original_revision(self):
         from runteams_core.conversations import asset_sources
         from runteams_core.storage import device_data
