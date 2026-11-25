@@ -335,11 +335,14 @@
   if(current()!==owner||document.getElementById('modalHost')!==dialogBefore)return;
   const item=find(id);if(!item)return;
   const runs=item.runs||[];
+  const workflows=owner.pipeline?owner.owner.data?.workflows:[];
+  const completedWork=new Set((workflows||[]).filter(work=>work.state==='completed').map(work=>work.id));
   const notice=owner.error?`<p role="status">${runs.length?copy('scheduledAutomation.cachedHistory','无法载入最新记录。正在显示上次载入的记录。'):copy('scheduledAutomation.historyFailed','无法载入运行记录。关闭后可重新打开。')}</p>`:'';
   const list=runs.length?`<div class="employee-automation-records">${runs.map(r=>`<div>
    <b>${copy(...runState(r.status))}</b>
    <span>${r.scheduled_for?.startsWith('manual:')?copy('scheduledAutomation.manual','手动运行'):automationRunTimeMarkup(r.scheduled_for)}</span>
    ${r.reason?`<p>${esc(r.reason)}</p>`:''}
+   ${r.status==='failed'&&completedWork.has(r.workflow_id)?`<p>${copy('scheduledAutomation.linkedTaskCompleted','关联任务现已完成。')}</p>`:''}
    ${r.workflow_id?`<button class="btn" onclick="closeModal();${owner.pipeline?`RunTeamsSourcePipelines.openWork(${Number(r.workflow_id)})`:`openCoreWorkflow(${Number(r.workflow_id)},{storageScope:'device'})`}">${copy('scheduledAutomation.openWork','查看工作记录')}</button>`:''}
    ${r.chat_id&&!owner.pipeline?`<button class="btn" onclick="closeModal();openConversationSession(${Number(r.chat_id)},'general')">${copy('workRecordDetail.openConversation','打开对话')}</button>`:''}
    ${r.status==='interrupted'?`<button class="btn" onclick="closeModal();RunTeamsEmployeeAutomation.resolve(${Number(item.id)})">${copy('scheduledAutomation.markIncomplete','标记为未完成')}</button>`:''}

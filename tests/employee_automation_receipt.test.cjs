@@ -32,6 +32,28 @@ test('automation reads the bound employee before the directory has loaded',async
  assert.equal(t.automation.current().items[0].id,7);
 });
 
+test('failed schedule history shows completion only for its own recovered team task',async()=>{
+ const owner={pipeline:true,owner:{data:{workflows:[{id:9,state:'completed'},{id:10,state:'failed'}]}}};
+ const item={id:2,name:'Daily review',runs:[]};
+ let body;
+ const records=vm.runInNewContext(
+  script.slice(script.indexOf(' async function records(id)'),script.indexOf(' function closeRecords(id)'))+'\nrecords',
+  {current:()=>owner,refresh:async()=>{},document:{getElementById:()=>null},find:()=>item,
+   copy:key=>key,runState:status=>[status],esc:s=>s,vars:()=>'',automationRunTimeMarkup:()=>'',
+   openDialog:options=>{body=options.body;return {querySelector:()=>null}}}
+ );
+ for(const [pipeline,status,id,showCompletion] of [
+  [true,'failed',9,true],[true,'failed',10,false],[true,'failed',11,false],
+  [true,'completed',9,false],[false,'failed',9,false]
+ ]){
+  owner.pipeline=pipeline;
+  item.runs=[{status,workflow_id:id}];
+  await records(item.id);
+  assert.equal(body.includes('scheduledAutomation.linkedTaskCompleted'),showCompletion);
+  assert.ok(body.includes('<b>'+status+'</b>'));
+ }
+});
+
 test('missing, mismatched and previous-scope receipts fall back to the directory',async()=>{
  for(const changes of [{authoringEmployeeReference:null},{authoringEmployeeReference:{...reference,employee_source:'other.json'}},
   {storage_scope:'cloud'},{context:{creator_local_scope:'previous',creator_local_source_id:'draft',creator_employee_source:'employees/a.json'}}]){

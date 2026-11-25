@@ -1778,6 +1778,7 @@ globalThis.RUNTEAMS_LOCALES = {
   "scheduledAutomation.historyFailed": "无法载入运行记录。关闭后可重新打开。",
   "scheduledAutomation.manual": "手动运行",
   "scheduledAutomation.openWork": "查看工作记录",
+  "scheduledAutomation.linkedTaskCompleted": "关联任务现已完成。",
   "scheduledAutomation.delete": "删除自动化",
   "scheduledAutomation.deleteTitle": "删除这项自动化？",
   "scheduledAutomation.deleteMessage": "之后不会再按此计划创建工作。正在进行的工作和已有记录会保留。",

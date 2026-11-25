@@ -1748,6 +1748,7 @@ globalThis.RUNTEAMS_LOCALES.en = {
   "scheduledAutomation.historyFailed": "Couldn’t load run history. Close this window and try again.",
   "scheduledAutomation.manual": "Manual Run",
   "scheduledAutomation.openWork": "Open Work Record",
+  "scheduledAutomation.linkedTaskCompleted": "The linked task is now complete.",
   "scheduledAutomation.delete": "Delete Automation",
   "scheduledAutomation.deleteTitle": "Delete This Automation?",
   "scheduledAutomation.deleteMessage": "This schedule will stop creating work. Work in progress and run history will be kept.",
