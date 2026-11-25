@@ -23,7 +23,13 @@ class LibrarySettingsTests(unittest.TestCase):
     def operation(self,revision=0,**values):
         return {'expected_revision':revision,'patch':values,'operation_id':str(uuid.uuid4())}
 
-    def test_manual_backup_waits_for_catalog_read_but_rejects_overlapping_edits(self):
+    def test_manual_backup_waits_for_catalog_read(self):
+        self.check_backup_during_discovery('GET', '/api/model-catalog')
+
+    def test_manual_backup_waits_for_a_channel_probe(self):
+        self.check_backup_during_discovery('POST', '/api/channel/2/probe')
+
+    def check_backup_during_discovery(self, method, path):
         reading, release = threading.Event(), threading.Event()
         def catalog(*args):
             reading.set()
@@ -38,7 +44,7 @@ class LibrarySettingsTests(unittest.TestCase):
                 patch.object(self.app, '_dispatch', side_effect=catalog), \
                 patch.object(self.app._gate, 'wait_for', side_effect=drain) as waited, \
                 ThreadPoolExecutor(max_workers=1) as pool:
-            future = pool.submit(self.app.dispatch, 'GET', '/api/model-catalog', {})
+            future = pool.submit(self.app.dispatch, method, path, {})
             try:
                 self.assertTrue(reading.wait(5))
                 reply = self.app.dispatch('POST', '/api/backups', request)

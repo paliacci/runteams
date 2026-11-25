@@ -2,6 +2,7 @@
 from contextlib import contextmanager
 from pathlib import Path
 import json
+import re
 import secrets
 import threading
 
@@ -31,7 +32,7 @@ class LocalApplication:
         self._runtime_lock = threading.Lock()
         self._gate = threading.Condition(threading.RLock())
         self._requests = 0
-        self._catalog_requests = 0
+        self._discovery_requests = 0
         self._maintenance = False
         from runteams_core.storage.backups.local_backup_maintenance import AutomaticBackups
         self.automatic_backups = AutomaticBackups(self)
@@ -83,28 +84,28 @@ class LocalApplication:
             raise PermissionError('资料库已恢复，请重新打开当前窗口。')
 
     @contextmanager
-    def request(self, expected=None, *, model_catalog=False):
+    def request(self, expected=None, *, model_discovery=False):
         from runteams_core.application.local_host_lock import RuntimeBusy
         self.own()
         with self._gate:
             if self._maintenance or self.backups.restoring():
                 raise RuntimeBusy('资料正在备份或恢复，请稍后重试。')
             self.check_request_scope(expected);self._requests+=1
-            if model_catalog:self._catalog_requests+=1
+            if model_discovery:self._discovery_requests+=1
         try:yield
         finally:
             with self._gate:
                 self._requests-=1
-                if model_catalog:self._catalog_requests-=1
+                if model_discovery:self._discovery_requests-=1
                 if not self._requests:self._gate.notify_all()
 
     @contextmanager
-    def exclusive(self, expected=None, *, wait_for_catalog=False):
+    def exclusive(self, expected=None, *, wait_for_discovery=False):
         from runteams_core.application.local_host_lock import RuntimeBusy
         with self._gate:
             # Settings opens model discovery in the background. Let that read drain
             # before taking a manual backup, then recheck the full maintenance gate.
-            if wait_for_catalog and not self._maintenance and self._requests and self._requests==self._catalog_requests:
+            if wait_for_discovery and not self._maintenance and self._requests and self._requests==self._discovery_requests:
                 self._gate.wait_for(lambda: not self._requests or self._maintenance, timeout=45)
             if self._maintenance or self._requests:raise RuntimeBusy('请先完成当前操作，再备份或恢复。')
             self.check_request_scope(expected);runtime=self.runtime
@@ -127,7 +128,9 @@ class LocalApplication:
         if path=='/api/library' and self.backups.restoring():
             with self.exclusive():
                 self.backups.recover(owned=True);self.rebind()
-        with self.request(scope, model_catalog=method=='GET' and path=='/api/model-catalog'):
+        model_discovery = ((method == 'GET' and path == '/api/model-catalog') or
+                           (method == 'POST' and re.fullmatch(r'/api/channel/[1-9][0-9]*/probe', path) is not None))
+        with self.request(scope, model_discovery=model_discovery):
             return self._dispatch(method,path,data)
 
     def _dispatch(self, method, path, data):
