@@ -133,7 +133,13 @@ class LocalHandler(BaseHTTPRequestHandler):
             self.send_header('Content-Length', str(len(raw)))
             from runteams_core.application.http.ui_asset_versions import static_cache_control
             self.send_header('Cache-Control', static_cache_control(self.path, content_type, raw))
-            self.send_header('Content-Security-Policy', CSP.format(nonce=nonce).replace("frame-ancestors 'none'","frame-ancestors 'self'") if path == '/rich-document/dist/index.html' else CSP.format(nonce=nonce))
+            work_frames = ''
+            if ASSETS[path][0] == 'web/index.html':
+                work_frames = f' http://{self.server.application.work_frame_host}:*'
+            policy = CSP.format(nonce=nonce, work_frames=work_frames)
+            if path == '/rich-document/dist/index.html':
+                policy = policy.replace("frame-ancestors 'none'", "frame-ancestors 'self'")
+            self.send_header('Content-Security-Policy', policy)
             self.send_header('X-Content-Type-Options', 'nosniff')
             self.send_header('Referrer-Policy', 'no-referrer')
             self.send_header('Connection', 'close')

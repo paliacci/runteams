@@ -170,7 +170,7 @@ class MCPBundle:
 
     def materialize(self, root):
         """Content-addressed cache only. Does not install/enable an employee."""
-        root = Path(root).absolute()
+        root = regular_files.storage_path(Path(root).absolute())
         if any(p.is_symlink() for p in (root, *root.parents)):
             raise MCPPackageError('invalid_package_root')
         root.mkdir(parents=True, mode=0o700, exist_ok=True)

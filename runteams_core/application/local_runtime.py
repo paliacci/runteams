@@ -137,7 +137,11 @@ class LocalRuntime:
         with self.lock:
             if self._browser_work is None:
                 from runteams_core.work.hosts.browser_work_host import BrowserWorkHost
-                self._browser_work=BrowserWorkHost(self.work_router(),lambda:('local-library',self.app.binding.library_id,self.app.backups.generation))
+                # Local work has no organization workspace. Keep the library
+                # generation in the client identity so restore invalidates it.
+                self._browser_work=BrowserWorkHost(self.work_router(),
+                    lambda: ('local-library', self.app.binding.library_id, '', self.app.backups.generation),
+                    asset_host=self.app.work_frame_host)
         return self._browser_work.call(body,origin)
 
     def retire_employee_services(self):

@@ -7,7 +7,7 @@
   async function http(value,own=client){
     const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),value.action==='message'?120000:30000);
     try{
-    const response=await fetch('/api/work-host',{method:'POST',headers:{'Content-Type':'application/json','X-RunTeams-Work-Host':'1','X-RunTeams-Workspace':workspace()},
+    const response=await fetch('/api/work-host',{method:'POST',headers:{...RunTeamsHost.session.headers(S),'Content-Type':'application/json','X-RunTeams-Work-Host':'1','X-RunTeams-Workspace':workspace()},
       body:JSON.stringify({...value,...(own?{client:own}:{})}),signal:controller.signal,keepalive:value.action==='detach'});
     const result=await response.json();
     if(!response.ok||result.error)throw Object.assign(Error(result.error||'工作界面暂时不可用'),{code:result.code});
@@ -123,7 +123,9 @@
     if(value.action==='open'){
       const {frame,...request}=value,result=await startWorkRequest(request);
       if(identity!==account())throw Error('工作界面已切换');
-      const url=new URL(result.url);if(url.protocol!=='http:'||url.hostname!=='127.0.0.1')throw Error('工作界面地址无效');
+      const url=new URL(result.url);
+      if(url.protocol!=='http:'||url.username||url.password||!url.port||
+        (url.hostname!=='127.0.0.1'&&!/^work-[a-f0-9]{32}\.localhost$/.test(url.hostname)))throw Error('工作界面地址无效');
       const node=document.createElement('iframe');node.title='工作内容';node.dataset.appI18nTitle='employeeWork.workContent';node.setAttribute('sandbox','allow-scripts allow-same-origin');node.referrerPolicy='no-referrer';
       Object.assign(node.style,{position:'fixed',border:'0',display:'none',zIndex:'8',background:'var(--panel)'});
       const work={...result,chat:result.chat_id,origin:url.origin,node,sequence:0,queued:0,tail:Promise.resolve(),theme:document.documentElement.dataset.theme==='dark'?'dark':'light',display:{mode:'panel',viewId:null,header:{revision:'',text:'',actions:[]}}};

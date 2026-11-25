@@ -12,7 +12,7 @@ ASSETS={key:tuple(value) for key,value in json.loads((Path(__file__).with_name('
 # Scripts require a per-response nonce. App logos may load from the catalog's image hosts.
 CSP=("default-src 'none'; script-src 'self' 'nonce-{nonce}'; script-src-attr 'unsafe-inline'; "
      "style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' blob: data: https://logos.composio.dev/api/ https://assets.composio.dev/logos/ https://cdn.jsdelivr.net/gh/ComposioHQ/; "
-     "font-src 'self'; frame-src 'self'; worker-src 'self' blob:; base-uri 'none'; "
+     "font-src 'self'; frame-src 'self'{work_frames}; worker-src 'self' blob:; base-uri 'none'; "
      "form-action 'none'; frame-ancestors 'none'; object-src 'none'")
 
 

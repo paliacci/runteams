@@ -2,6 +2,7 @@
 from contextlib import contextmanager
 from pathlib import Path
 import json
+import secrets
 import threading
 
 from runteams_core.assets.library_assets import LocalAssets
@@ -12,6 +13,7 @@ from runteams_core.configuration.library_settings import LibrarySettings
 
 class LocalApplication:
     def __init__(self, data_directory):
+        self.work_frame_host = 'work-' + secrets.token_hex(16) + '.localhost'
         directory = private_directory(Path(data_directory).expanduser()).resolve()
         from runteams_core.storage.backups.local_backups import LocalBackups
         self.backups = LocalBackups(directory)

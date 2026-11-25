@@ -54,7 +54,8 @@ def transport(config, path, payload=None, *, asset=False):
 
 
 class BrowserWorkHost:
-    def __init__(self, router, scope):
+    def __init__(self, router, scope, *, asset_host='127.0.0.1'):
+        self.asset_host = asset_host
         self.router = router; self.scope = scope; self.lock = threading.RLock()
         self.clients = {}; self.closed = threading.Event()
         self.thread = threading.Thread(target=self._reap, daemon=True, name='browser-work-leases')
@@ -133,7 +134,7 @@ class BrowserWorkHost:
                     if len(client['works']) >= ACTIVE_WORK_LIMIT:
                         self.router.release(opened['id'])
                         raise PermissionError('work_host_capacity')
-                    try: work = BrowserWork(self.router, opened, origin, value['chat_id'])
+                    try: work = BrowserWork(self.router, opened, origin, value['chat_id'], self.asset_host)
                     except BaseException:
                         self.router.release(opened['id']); raise
                     client['works'][work.id] = work
@@ -152,14 +153,15 @@ class BrowserWorkHost:
 
 
 class BrowserWork:
-    def __init__(self, router, opened, parent, chat):
+    def __init__(self, router, opened, parent, chat, asset_host):
         self.router=router; self.id=opened['id']; self.chat=chat; self.config=opened['configuration']
         self.parent=parent; self.epoch=str(uuid.uuid4()); self.methods=list(self.config['methods'])
         self.lock=threading.RLock(); self.close_lock=threading.Lock(); self.cleanup_complete=False; self.closed=False; self.loaded=False; self.sequence=0; self.uncertain=False; self.pending=None; self.reload_permitted=False
         self.context=contextvars.copy_context()
         transport(self.config, '/document', {'document':self.epoch})
         self.server=_Server(self._handler())
-        self.url=f'http://127.0.0.1:{self.server.server_port}/'+self.config['entry'].lstrip('/')
+        self.authority=f'{asset_host}:{self.server.server_port}'
+        self.url=f'http://{self.authority}/'+self.config['entry'].lstrip('/')
         self.thread=threading.Thread(target=self.server.serve_forever,daemon=True,name='browser-work-assets'); self.thread.start()
 
     def call(self, value):
@@ -210,7 +212,7 @@ class BrowserWork:
                 super().setup();self.connection.settimeout(3)
             def do_GET(self):
                 try:
-                    if work.closed or self.headers.get('Host') != f'127.0.0.1:{self.server.server_port}': raise PermissionError()
+                    if work.closed or self.headers.get_all('Host') != [work.authority]: raise PermissionError()
                     target=urlsplit(self.path)
                     if target.query or target.fragment: raise PermissionError()
                     if target.path == '/__runteams_browser_host/'+work.epoch+'.js':

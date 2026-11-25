@@ -5,6 +5,23 @@ import vm from 'node:vm';
 import {installSharedTransport, sharedTransport} from './community_transport_fixture.mjs';
 
 const library='11111111-1111-4111-8111-111111111111';
+test('work view registration and discovery send both current library headers',async()=>{
+  const requests=[];
+  const headers={'X-RunTeams-Library':library,'X-RunTeams-Library-Generation':'generation'};
+  const context={window:{addEventListener(){}},S:{},workspaceAccountCacheToken:()=>library,
+    RunTeamsHost:{session:{headers:()=>headers,workspace:()=>''}},
+    setInterval(){},setTimeout,clearTimeout,AbortController,fetch:async(url,options)=>{
+      requests.push(options);
+      return {ok:true,json:async()=>JSON.parse(options.body).action==='register'?{client:'test-client'}:{items:[]}};
+    }};
+  vm.runInNewContext(fs.readFileSync(new URL('../../web/ui/work-host.js',import.meta.url),'utf8'),context);
+  await context.window.RunTeamsWorkHost.postMessage({action:'discover',workspace_id:'',chat_id:1});
+  assert.deepEqual(requests.map(r=>JSON.parse(r.body).action),['register','discover']);
+  for(const request of requests){
+    for(const [key,value] of Object.entries(headers))assert.equal(request.headers[key],value);
+    assert.equal(request.headers['X-RunTeams-Work-Host'],'1');
+  }
+});
 function clock() {
   let sequence=0;
   const pending=new Map();
