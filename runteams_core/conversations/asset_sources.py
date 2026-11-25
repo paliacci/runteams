@@ -15,6 +15,7 @@ import time
 from runteams_core.assets import knowledge_archive
 from runteams_core.authoring.creator_contracts import CreatorContractError
 from runteams_core.documents import office_text
+from runteams_core.foundation.regular_files import storage_path
 
 from runteams_core.storage import device_data
 
@@ -376,7 +377,8 @@ def _write_original(src, name, size, sha, directory, for_work=False):
 
 @cache
 def _viewer_directory():
-    return tempfile.TemporaryDirectory(prefix='runteams-knowledge-')
+    # Cleanup must also be able to reach the hash directory and full original name.
+    return tempfile.TemporaryDirectory(prefix='runteams-knowledge-', dir=storage_path(tempfile.gettempdir()))
 
 
 def open_original(bank, source, bundled):
@@ -401,11 +403,14 @@ def open_original(bank, source, bundled):
             return {'kind':'text', 'text':output.getvalue().decode('utf-8-sig', errors='replace')}
 
         # External readers need a stable copy after the request returns.
-        directory = Path(_viewer_directory().name) / sha
+        root = Path(_viewer_directory().name)
+        directory = root / sha
         directory.mkdir(mode=0o700, exist_ok=True)
         path = _write_original(stream, name, size, sha, directory)['path']
     os.chmod(path, 0o400)
-    file_manager.open_path(path)
+    # Associated applications receive the ordinary shell path, including the original filename.
+    shell_root = Path(tempfile.gettempdir()) / root.name
+    file_manager.open_path(str(shell_root / Path(path).relative_to(root)))
     return {'kind':'opened'}
 
 
