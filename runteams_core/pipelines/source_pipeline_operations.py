@@ -17,7 +17,16 @@ def dispatch(core,action,data,active_ids=(),wake=lambda:None):
     trash.check_available(core, data.get('reference'))
     if action == 'asset-knowledge':
         from runteams_core.conversations.asset_sources import drawer
-        return drawer(data), 200
+        from runteams_core.authoring.creator_contracts import CreatorContractError
+        from runteams_core.documents.office_text import UnreadableOfficeFile
+        try:
+            return drawer(data), 200
+        except UnreadableOfficeFile as error:
+            return {'error': str(error), 'code': 'knowledge_office_unreadable'}, 422
+        except CreatorContractError as error:
+            if data.get('export') is True and error.code == 'knowledge_name_conflict':
+                return {'error': error.details, 'code': error.code}, 409
+            raise
     if action in ('card', 'card-operation'):
         from runteams_core.pipelines.pipeline_card_actions import command
         result = command(core, data, active_ids, read_only=action == 'card-operation')

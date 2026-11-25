@@ -292,6 +292,8 @@ globalThis.RUNTEAMS_LOCALES.en = {
   "assetKnowledge.imported": "Imported",
   "assetKnowledge.saveOriginal": "Save original",
   "assetKnowledge.saved": "File saved",
+  "assetKnowledge.nameConflict": "This folder contains a different file with the same name. Choose another folder.",
+  "assetKnowledge.unreadableOffice": "Couldn’t preview this Office file. Check whether the original is damaged or password-protected.",
   "assetKnowledge.title": "Knowledge base",
   "assetKnowledge.employee": "Employee files",
   "assetKnowledge.team": "Team files",

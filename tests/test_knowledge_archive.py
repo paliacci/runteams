@@ -1,5 +1,7 @@
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import ExitStack
+import hashlib
+import io
 from pathlib import Path
 from library_fixture import temporary_library
 import unittest
@@ -56,6 +58,30 @@ class PortableMaterialsTest(unittest.TestCase):
         Path(result['path']).write_text('modified')
         with self.assertRaises(CreatorContractError):
             asset_sources.original('', 'verified', bundled, workspace)
+
+    def test_concurrent_original_exports_publish_one_verified_file(self):
+        destination = self.root / 'exports'
+        destination.mkdir()
+        name = '资料.txt'
+
+        def export(content):
+            try:
+                asset_sources._write_original(io.BytesIO(content), name, len(content),
+                    hashlib.sha256(content).hexdigest(), destination)
+            except CreatorContractError as error:
+                self.assertEqual(error.code, 'knowledge_name_conflict')
+                return None
+            return content
+
+        with ThreadPoolExecutor(2) as pool:
+            results = list(pool.map(export, [b'first', b'second']))
+        self.assertEqual(results.count(None), 1)
+        saved = (destination / name).read_bytes()
+        self.assertIn(saved, results)
+        self.assertEqual(export(saved), saved)
+        with self.assertRaises(CreatorContractError):
+            asset_sources._write_original(io.BytesIO(b'x'), 'truncated.txt', 10, '', destination)
+        self.assertEqual(list(destination.iterdir()), [destination / name])
 
     def test_rejects_truncated_replaced_and_extra_objects(self):
         for case in ('missing', 'modified', 'extra', 'truncated'):

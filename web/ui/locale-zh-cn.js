@@ -322,6 +322,8 @@ globalThis.RUNTEAMS_LOCALES = {
   "assetKnowledge.imported": "导入",
   "assetKnowledge.saveOriginal": "保存原文件",
   "assetKnowledge.saved": "原文件已保存",
+  "assetKnowledge.nameConflict": "目标文件夹已有内容不同的同名文件。请选择其他文件夹。",
+  "assetKnowledge.unreadableOffice": "无法预览此 Office 文件。请检查原件是否损坏或受密码保护。",
   "assetKnowledge.title": "知识库",
   "assetKnowledge.employee": "员工资料",
   "assetKnowledge.team": "团队资料",

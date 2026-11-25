@@ -6,6 +6,12 @@ import subprocess
 import sys
 from zipfile import ZipFile
 
+from runteams_core.foundation.contracts import ContractError
+
+
+class UnreadableOfficeFile(ContractError):
+    """The original was stored but its Office contents could not be decoded."""
+
 WORD = {'.doc', '.docx'}
 EXCEL = {'.xls', '.xlsx'}
 FORMATS = WORD | EXCEL
@@ -63,7 +69,7 @@ def _sheets(named_rows):
         for number, row in enumerate(rows, 1):
             cells += max(1, len(row))
             if cells > MAX_CELLS:
-                raise ValueError('工作簿超过可预览的单元格数量。')
+                raise ContractError('工作簿超过可预览的单元格数量。')
             values = [_cell(v) for v in row]
             while values and values[-1] == '':
                 values.pop()
@@ -71,7 +77,7 @@ def _sheets(named_rows):
                 continue
             chars += sum(map(len, values))
             if chars > MAX_TEXT:
-                raise ValueError('工作簿正文过长。')
+                raise ContractError('工作簿正文过长。')
             sheet['rows'].append((number, values))
         sheets.append(sheet)
     return {'kind': 'workbook', 'sheets': sheets}
@@ -88,7 +94,7 @@ def preview(suffix, raw):
         if suffix in ('.docx', '.xlsx'):
             with ZipFile(raw) as archive:
                 if sum(i.file_size for i in archive.infolist()) > MAX_XML:
-                    raise ValueError('文件解压后过大。')
+                    raise ContractError('文件解压后过大。')
                 if suffix == '.docx':
                     text = _docx(archive)
             if suffix == '.xlsx':
@@ -103,7 +109,7 @@ def preview(suffix, raw):
             import xlrd
             data = raw.read(MAX_XML + 1)
             if len(data) > MAX_XML:
-                raise ValueError('工作簿过大。')
+                raise ContractError('工作簿过大。')
             with xlrd.open_workbook(file_contents=data, on_demand=True, ragged_rows=True) as book:
                 def worksheets():
                     for sheet in book.sheets():
@@ -111,21 +117,23 @@ def preview(suffix, raw):
                 return _sheets(worksheets())
         elif suffix == '.doc':
             if sys.platform != 'darwin':
-                raise ValueError('此系统暂不支持旧版 Word 正文预览。')
+                raise ContractError('此系统暂不支持旧版 Word 正文预览。')
             data = raw.read(MAX_XML + 1)
             if len(data) > MAX_XML:
-                raise ValueError('Word 文件过大。')
+                raise ContractError('Word 文件过大。')
             converted = subprocess.run(['/usr/bin/textutil', '-convert', 'txt', '-format', 'doc',
                 '-encoding', 'UTF-8', '-noload', '-nostore', '-stdin', '-stdout'],
                 input=data, capture_output=True, timeout=30, check=True)
             text = converted.stdout.decode('utf-8-sig')
         else:
-            raise ValueError('不支持的 Office 文件类型。')
-    except (BadZipFile, DefusedXmlException, ParseError, XLRDError, KeyError, IndexError,
+            raise ContractError('不支持的 Office 文件类型。')
+    except ContractError:
+        raise
+    except (ValueError, BadZipFile, DefusedXmlException, ParseError, XLRDError, KeyError, IndexError,
             TypeError, OSError, RuntimeError, subprocess.SubprocessError) as exc:
-        raise ValueError('无法读取此 Office 文件。请检查原件是否损坏或受密码保护。') from exc
+        raise UnreadableOfficeFile('无法读取此 Office 文件。请检查原件是否损坏或受密码保护。') from exc
     if len(text) > MAX_TEXT:
-        raise ValueError('Word 正文过长。')
+        raise ContractError('Word 正文过长。')
     return {'kind': 'text', 'text': text}
 
 

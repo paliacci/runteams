@@ -521,7 +521,8 @@ const RunTeamsEnvironment = (() => {
   const host=openChildDialog({title:file.name.split('/').pop(),subtitle:knowledgeText('source',{origin:file.employee_name||knowledgeText('imported')}),
    className:'result-evidence-modal knowledge-file-modal',bodyClass:'mb result-evidence-preview-content is-loading',
    body:`<span class="env-spinner" aria-hidden="true"></span><span role="status">${esc(knowledgeText('loading'))}</span>`,
-   headerActions:`<button type="button" class="doc-reader-download knowledge-download" title="${esc(knowledgeText('saveOriginal'))}" aria-label="${esc(knowledgeText('saveOriginal'))}" data-app-i18n-title="assetKnowledge.saveOriginal" data-app-i18n-aria-label="assetKnowledge.saveOriginal" onclick="RunTeamsAssetOverview.exportKnowledge(${esc(JSON.stringify(source))})">${ICON('download')}</button>`,
+   headerActions:`<button type="button" class="doc-reader-download knowledge-download" title="${esc(knowledgeText('saveOriginal'))}" aria-label="${esc(knowledgeText('saveOriginal'))}" data-app-i18n-title="assetKnowledge.saveOriginal" data-app-i18n-aria-label="assetKnowledge.saveOriginal" onclick="RunTeamsAssetOverview.exportKnowledge(${esc(JSON.stringify(source))},this)">${ICON('download')}</button>`,
+   footer:'',footerClass:'knowledge-export-feedback',footerAttrs:'role="alert" hidden',
    closeLabelKey:'workRecordDetail.closePreview',manageFocus:true});
   const content=host.querySelector('.result-evidence-preview-content');
   const current=()=>host.isConnected&&knowledgeState()===s;
@@ -548,7 +549,7 @@ const RunTeamsEnvironment = (() => {
     content.className='mb result-evidence-preview-content is-text';
     showResultEvidenceText(content,file.name,fileData.text);
    }
-  }catch(error){failed(error.message);}
+  }catch(error){failed(error.code==='knowledge_office_unreadable'?knowledgeText('unreadableOffice'):error.message);}
  }
  function toggleKnowledge(){
   const s=knowledgeState();if(!s||s.uploading)return;
@@ -586,14 +587,20 @@ const RunTeamsEnvironment = (() => {
   if(s.error)body+=`<p role="alert">${esc(s.error)}</p>`+sectionAction(esc(knowledgeText('reload')),'RunTeamsAssetOverview.retryKnowledge()');
   return section(esc(knowledgeText('title')),'<div class="overview-knowledge-actions">'+knowledgeAddAction(s)+toggle+'</div>',body,'overview-knowledge');
  }
- async function exportKnowledge(source){
+ async function exportKnowledge(source,button){
   const s=knowledgeState();if(!s||s.busy||!s.items.some(item=>item.id===source))return;
+  const feedback=button.closest('.knowledge-file-modal').querySelector('.knowledge-export-feedback');
+  feedback.hidden=true;feedback.textContent='';button.disabled=true;
   s.busy=true;s.error='';render();
   try{
    const result=await RunTeamsSourcePipelines.request('asset-knowledge',{...s.owner,source,export:true});
    if(result.saved&&knowledgeState()===s)toast(knowledgeText('saved'),'ok');
-  }catch(error){if(knowledgeState()===s)s.error=error.message;}
-  finally{if(knowledgeState()===s){s.busy=false;render();}}
+  }catch(error){
+   if(knowledgeState()!==s)return;
+   const message=error.code==='knowledge_name_conflict'?knowledgeText('nameConflict'):error.message;
+   if(feedback.isConnected){feedback.hidden=false;feedback.textContent=message;}
+   else s.error=message;
+  }finally{button.disabled=false;if(knowledgeState()===s){s.busy=false;render();}}
  }
  async function uploadKnowledge(file){
   const s=knowledgeState();if(!s||s.busy||!file)return;

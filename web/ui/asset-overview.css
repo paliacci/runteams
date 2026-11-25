@@ -123,6 +123,7 @@
 .knowledge-file-modal>.mh .tt{min-width:0;overflow-wrap:anywhere}
 .knowledge-file-modal .knowledge-download{margin-inline-start:auto;flex:none;justify-content:center;width:28px;height:28px;padding:0}
 .knowledge-file-modal .knowledge-download+.modal-x{margin-inline-start:0}
+.knowledge-export-feedback{padding:8px 16px;color:var(--text-primary)}
 .knowledge-file-modal .is-csv{overflow:hidden;gap:8px;min-height:0}
 .knowledge-sheet-select{align-self:flex-start;max-width:100%;text-overflow:ellipsis}
 .knowledge-csv-scroll{flex:1;min-height:0;overflow:auto}

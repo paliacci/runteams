@@ -12,6 +12,7 @@ import secrets
 import threading
 import time
 from runteams_core.assets import knowledge_archive
+from runteams_core.authoring.creator_contracts import CreatorContractError
 from runteams_core.documents import office_text
 
 from runteams_core.storage import device_data
@@ -320,18 +321,28 @@ def _write_original(src, name, size, sha, directory, for_work=False):
                 raise ValueError('知识库工作目录无效。')
             directory.mkdir(mode=0o700, exist_ok=True)
     target = directory / Path(name).name
-    if target.exists():
-        with knowledge_archive.regular(target) as existing:
-            knowledge_archive.copy_checked(existing, None, size, sha)
-    else:
-        with tempfile.NamedTemporaryFile(dir=directory) as temp:
-            knowledge_archive.copy_checked(src, temp, size, sha)
-            temp.flush()
+    if not target.exists():
+        temp = tempfile.NamedTemporaryFile(dir=directory, delete=False)
+        try:
+            with temp:
+                knowledge_archive.copy_checked(src, temp, size, sha)
             try:
-                os.link(temp.name, target)
+                # Windows rename publishes without replacing an existing name, including on exFAT.
+                if os.name == 'nt':
+                    os.rename(temp.name, target)
+                else:
+                    os.link(temp.name, target)
             except FileExistsError:
-                with knowledge_archive.regular(target) as existing:
-                    knowledge_archive.copy_checked(existing, None, size, sha)
+                pass
+            else:
+                return {'name':name,'path':str(target),'size':size}
+        finally:
+            Path(temp.name).unlink(missing_ok=True)
+    with knowledge_archive.regular(target) as existing:
+        try:
+            knowledge_archive.copy_checked(existing, None, size, sha)
+        except CreatorContractError as error:
+            raise CreatorContractError('knowledge_name_conflict', '目标文件夹已有内容不同的同名文件。请选择其他文件夹。') from error
     return {'name':name,'path':str(target),'size':size}
 
 
