@@ -23,7 +23,7 @@ def closure(root, seeds):
             raise ValueError('Missing canonical SDK source: ' + name)
         selected.add(name)
         package = '.'.join(Path(name).parent.parts)
-        for node in ast.walk(ast.parse(source.read_text())):
+        for node in ast.walk(ast.parse(source.read_text(encoding='utf-8'))):
             modules = []
             if isinstance(node, ast.Import):
                 modules = [entry.name for entry in node.names]
@@ -55,7 +55,7 @@ def developer_sources(root):
     from runteams_core.authoring.workers.creator_worker_process import WORKERS
     seeds = ['runteams_creator_dev/' + p.name for p in (Path(root) / 'runteams_creator_dev').glob('*.py')]
     seeds += ['runteams_core/' + name for name in compiler_identity()['implementation']]
-    seeds = [str(Path(name)) if '..' not in Path(name).parts else
+    seeds = [Path(name).as_posix() if '..' not in Path(name).parts else
              (Path(root) / name).resolve().relative_to(Path(root).resolve()).as_posix() for name in seeds]
     seeds += ['runteams_core/' + name for name in WORKERS.values()]
     return closure(Path(root), seeds)

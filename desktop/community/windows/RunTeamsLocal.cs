@@ -2,6 +2,7 @@ using System;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 using System.Web.Script.Serialization;
@@ -73,8 +74,21 @@ internal sealed class LocalWindow : Form
         var arguments = new StringBuilder("-I -B -X utf8 -u -c ").Append(QuoteArgument(entry));
         for (int i = 1; i < args.Length; i++) arguments.Append(' ').Append(QuoteArgument(args[i]));
         start.Arguments = arguments.ToString();
-        using (var sdk = Process.Start(start)) { sdk.WaitForExit(); return sdk.ExitCode; }
+        start.RedirectStandardOutput = start.RedirectStandardError = true;
+        // A GUI-subsystem executable launched interactively has no console.
+        // Preserve inherited pipe handles when a caller captures SDK output.
+        if (GetStdHandle(-11) == IntPtr.Zero) AttachConsole(0xffffffff);
+        using (var sdk = Process.Start(start)) {
+            Task stdout = sdk.StandardOutput.BaseStream.CopyToAsync(Console.OpenStandardOutput());
+            Task stderr = sdk.StandardError.BaseStream.CopyToAsync(Console.OpenStandardError());
+            Task.WaitAll(stdout, stderr);
+            sdk.WaitForExit();
+            return sdk.ExitCode;
+        }
     }
+
+    [DllImport("kernel32.dll")] private static extern IntPtr GetStdHandle(int handle);
+    [DllImport("kernel32.dll")] private static extern bool AttachConsole(uint processId);
 
     private LocalWindow(string[] args)
     {

@@ -1,6 +1,7 @@
 """Build the per-user Windows x64 installer for RunTeams Local."""
 import argparse
 import hashlib
+import json
 import os
 from pathlib import Path
 import shutil
@@ -87,8 +88,10 @@ def build(args):
             with urlopen(url, timeout=60) as source, package.open('xb') as target:
                 shutil.copyfileobj(source, target)
         compile_host(payload, package)
-        subprocess.run([payload / 'RunTeamsLocal.exe', '--sdk', 'doctor'], cwd=scratch,
-                       check=True, timeout=60)
+        doctor = subprocess.run([payload / 'RunTeamsLocal.exe', '--sdk', 'doctor'], cwd=scratch,
+                                check=True, capture_output=True, timeout=60)
+        if json.loads(doctor.stdout).get('ok') is not True:
+            raise ValueError('Packaged SDK doctor failed')
         version = (ROOT / 'VERSION').read_text(encoding='ascii').strip()
         subprocess.run([args.iscc, '/Qp', '/DAppVersion=' + version, '/DPayload=' + str(payload),
                         '/DDestination=' + str(scratch), HERE / 'installer.iss'], check=True)
