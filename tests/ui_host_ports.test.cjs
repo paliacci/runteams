@@ -1,8 +1,8 @@
 /* Real shared renderers with independent host adapters and deterministic IO. */
 const fs=require('node:fs'),path=require('node:path'),vm=require('node:vm'),assert=require('node:assert/strict');
 const root=path.resolve(__dirname,'..');
-function context(){
- const c={console,URL,URLSearchParams,Set,Map,Promise,Date,Object,location:new URL('http://fixture/'),
+function context(platform){
+ const c={console,URL,URLSearchParams,Set,Map,Promise,Date,Object,navigator:{platform},location:new URL('http://fixture/'),
   document:{querySelector:()=>null,querySelectorAll:()=>[],getElementById:()=>null},addEventListener(){},matchMedia:()=>({addEventListener(){}}),
   S:{localLibrary:{library_id:'library',generation:1},account:{theme:'light'},settingsTab:'general',settingsPreferencesState:'ready',settingsPreferences:{}},
   ICON:()=>'',esc:String,workspaceAccountCacheToken(){return c.RunTeamsHost.session.cacheToken(c.S);}};
@@ -12,8 +12,9 @@ function context(){
  return c;
 }
 (async()=>{
- const local=context();
- local.navigator={platform:'Win32'};
+ const local=context('Win32');
+ assert.deepEqual({...local.RunTeamsShell.commandShortcut('N')},{label:'Ctrl+N',aria:'Control+N'});
+ assert.deepEqual({...context('MacIntel').RunTeamsShell.commandShortcut('N')},{label:'⌘N',aria:'Meta+N'});
  assert.equal(local.accountExtensionCommand('codex','mcp add --help'),"& 'codex' mcp add --help");
  assert.equal(local.accountExtensionCommand("/opt/O'Brien/claude",'plugin install',"a'b"),"'/opt/O'\"'\"'Brien/claude' plugin install -- 'a'\"'\"'b'");
  local.navigator={platform:'MacIntel'};

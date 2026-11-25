@@ -94,11 +94,15 @@
     return windowActions(`<button class="rail-window-action rail-history-back" type="button" title="返回" aria-label="返回" data-app-i18n-aria-label="shell.settingsBack" data-app-i18n-title="shell.settingsBack" onclick="accountSettingsClose()">${icon('rail-back')}</button>`);
   }
 
+  const appleKeyboard = /Mac|iPhone|iPad/.test(global.navigator?.platform || '');
+  function commandShortcut(key) {
+    return {label: (appleKeyboard ? '⌘' : 'Ctrl+') + key, aria: (appleKeyboard ? 'Meta+' : 'Control+') + key};
+  }
+
   function topActions(icon, extra = '', options = {}) {
     const pending = options.pending === true;
-    const appleKeyboard = /Mac|iPhone|iPad/.test(global.navigator?.platform || '');
-    const shortcut = appleKeyboard ? '⌘K' : 'Ctrl+K';
-    return windowActions(`${historyActions(icon,pending)}<button class="rail-window-action rail-top-search" type="button" title="搜索（${shortcut}）" aria-label="搜索对话、智能体团队和文档" data-app-i18n-aria-label="shell.searchLabel" data-app-i18n-title="${appleKeyboard ? 'shell.searchTitle' : 'shell.searchTitleCtrl'}" aria-keyshortcuts="${appleKeyboard ? 'Meta+K' : 'Control+K'}" ${pending ? 'disabled' : ''} onclick="openRailSearch(this)">${icon('search-rail')}</button>${extra}<button class="rail-window-action rail-collapse" type="button" title="折叠侧边栏" aria-label="折叠侧边栏" data-app-i18n-aria-label="shell.collapse" data-app-i18n-title="shell.collapse" ${pending ? 'disabled' : ''} onclick="collapseRail()">${icon('rail-panel-close')}</button>`,pending);
+    const shortcut = commandShortcut('K');
+    return windowActions(`${historyActions(icon,pending)}<button class="rail-window-action rail-top-search" type="button" title="搜索（${shortcut.label}）" aria-label="搜索对话、智能体团队和文档" data-app-i18n-aria-label="shell.searchLabel" data-app-i18n-title="${appleKeyboard ? 'shell.searchTitle' : 'shell.searchTitleCtrl'}" aria-keyshortcuts="${shortcut.aria}" ${pending ? 'disabled' : ''} onclick="openRailSearch(this)">${icon('search-rail')}</button>${extra}<button class="rail-window-action rail-collapse" type="button" title="折叠侧边栏" aria-label="折叠侧边栏" data-app-i18n-aria-label="shell.collapse" data-app-i18n-title="shell.collapse" ${pending ? 'disabled' : ''} onclick="collapseRail()">${icon('rail-panel-close')}</button>`,pending);
   }
 
   function collapsedActions(icon) {
@@ -295,7 +299,7 @@
   }
 
   function accountEntry({icon,...options}){if(typeof global.RunTeamsHost.shell.entry==='function')return global.RunTeamsHost.shell.entry({icon,...options});return `<div class="railfoot-wrap rail-settings-entry">${navigationItem({label:'设置',labelKey:'shell.settingsTitle',icon:icon('settings'),action:"openSettingsPage('general',{returnFocus:this})",className:'rail-settings-button'})}</div>`;}
-  global.RunTeamsShell = Object.freeze({navigationItem, historyActions, settingsToolbar, modeTabs, moveMode, topActions, collapsedActions, syncHistoryControls, recordNavigation, goHistory, trashEntry, footer, accountEntry, windowTabs, patchWindowTabs, syncWindowTabs, scrollWindowTabs, workspaceHeading, headerAction, pageHeader, frame, patchSections});
+  global.RunTeamsShell = Object.freeze({navigationItem, historyActions, commandShortcut, settingsToolbar, modeTabs, moveMode, topActions, collapsedActions, syncHistoryControls, recordNavigation, goHistory, trashEntry, footer, accountEntry, windowTabs, patchWindowTabs, syncWindowTabs, scrollWindowTabs, workspaceHeading, headerAction, pageHeader, frame, patchSections});
   if (global.history && global.location) {
     navigationState();
     global.addEventListener('popstate', () => {
