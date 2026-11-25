@@ -26,6 +26,7 @@ async function openWorkAlert(item,scope){
  try{
   await desktopSettings.postMessage({action:'notifications-activate'});
   if(closing||client.generation!==scope)return;
+  if(document.getElementById('settingsWorkspace'))globalThis.accountSettingsClose?.();
   if(item.reference){
    const board=globalThis.RunTeamsSourcePipelines;
    if(!board.pageRoute(item.reference))await board.readCatalog();
@@ -63,12 +64,13 @@ export async function pollWorkAlerts(foreground){
    note.onclick=()=>{note.close();void openWorkAlert(item,scope);};
    note.onerror=()=>alertError('delivery');
   }
-  alertError('');
+  if(state.notificationDeliveryError==='read')alertError('');
  }catch{alertError('read');}
  finally{readingAlerts=false;}
 }
 window.chrome?.webview?.addEventListener?.('message',event=>{
  if(event.data?.kind==='work-alerts')void pollWorkAlerts(event.data.foreground);
+ if(event.data?.kind==='work-alert-delivery')alertError(event.data.ok?'':'delivery');
 });
 let workspaceScope=null,lastWorkspace=null,workspaceSaveError=false;
 async function saveDesktopWorkspace(raw){

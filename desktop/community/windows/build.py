@@ -34,10 +34,13 @@ def compile_host(payload, package):
         (payload / loader).write_bytes(sdk.read('runtimes/win-x64/native/' + loader))
         (payload / 'WebView2-LICENSE.txt').write_bytes(sdk.read('LICENSE.txt'))
     compiler = Path(os.environ['WINDIR']) / 'Microsoft.NET/Framework64/v4.0.30319/csc.exe'
+    metadata = Path(os.environ['WINDIR']) / 'System32/WinMetadata'
     subprocess.run([compiler, '/nologo', '/codepage:65001', '/target:winexe', '/platform:x64', '/optimize+',
                     '/out:RunTeamsLocal.exe', '/reference:System.Windows.Forms.dll',
                     '/reference:System.Drawing.dll', '/reference:System.Web.Extensions.dll', '/reference:System.Net.Http.dll',
-                    *['/reference:' + name for name in assemblies], HERE / 'RunTeamsLocal.cs',
+                    '/reference:System.Runtime.dll', '/reference:System.Runtime.InteropServices.WindowsRuntime.dll',
+                    *['/reference:' + str(metadata / (name + '.winmd')) for name in ('Windows.Foundation', 'Windows.Data', 'Windows.UI')],
+                    *['/reference:' + name for name in assemblies], HERE / 'RunTeamsLocal.cs', HERE / 'DesktopNotifications.cs',
                     HERE / 'AttachmentPicker.cs', HERE / 'DesktopSettings.cs', HERE / 'DesktopWorkspace.cs'],
                    cwd=payload, check=True)
 

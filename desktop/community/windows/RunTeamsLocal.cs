@@ -20,6 +20,7 @@ internal sealed class LocalWindow : Form
     private int navigationVersion;
     private DesktopSettings settings;
     private DesktopWorkspace workspace;
+    private DesktopNotifications notifications;
     private readonly ContextMenuStrip trayMenu = new ContextMenuStrip();
     private readonly NotifyIcon tray = new NotifyIcon();
     private readonly Timer notificationTimer = new Timer { Interval = 5000 };
@@ -36,6 +37,7 @@ internal sealed class LocalWindow : Form
             catch (Exception error) { Console.Error.WriteLine(error.Message); return 2; }
         }
         Application.EnableVisualStyles();
+        DesktopNotifications.SetCurrentProcessExplicitAppUserModelID(DesktopNotifications.AppId);
         try
         {
             using (var window = new LocalWindow(args)) {
@@ -224,9 +226,15 @@ internal sealed class LocalWindow : Form
             workspace = new DesktopWorkspace(environment.UserDataFolder, libraryPath);
             // WebView2 permissions belong to an origin. The service port changes on restart.
             try {
+                notifications = new DesktopNotifications(this, RestoreWindow, delegate(bool success) {
+                    if (!closing && !IsDisposed && browser.Source.StartsWith(origin.AbsoluteUri, StringComparison.Ordinal))
+                        browser.PostWebMessageAsJson(success ? "{\"kind\":\"work-alert-delivery\",\"ok\":true}"
+                                                             : "{\"kind\":\"work-alert-delivery\",\"ok\":false}");
+                });
                 browser.NotificationReceived += delegate(object sender, CoreWebView2NotificationReceivedEventArgs e) {
-                    if (e.SenderOrigin.TrimEnd('/') != origin.GetLeftPart(UriPartial.Authority)
-                        || !DesktopSettings.NotificationsEnabled) e.Handled = true;
+                    e.Handled = true;
+                    if (!closing && e.SenderOrigin.TrimEnd('/') == origin.GetLeftPart(UriPartial.Authority)
+                        && DesktopSettings.NotificationsEnabled) notifications.Show(e.Notification);
                 };
                 await SetNotificationPermission(browser, DesktopSettings.NotificationsEnabled);
                 // A hidden WebView throttles JavaScript timers. Wake the library from the window thread.
@@ -260,7 +268,10 @@ internal sealed class LocalWindow : Form
                 Uri destination;
                 e.Cancel = !Uri.TryCreate(e.Uri, UriKind.Absolute, out destination)
                     || destination.GetLeftPart(UriPartial.Authority) != origin.GetLeftPart(UriPartial.Authority);
-                if (!e.Cancel) navigationVersion++;
+                if (!e.Cancel) {
+                    if (notifications != null) notifications.Dispose();
+                    navigationVersion++;
+                }
             };
             browser.NewWindowRequested += delegate(object sender, CoreWebView2NewWindowRequestedEventArgs e) {
                 e.Handled = true;
@@ -310,8 +321,10 @@ internal sealed class LocalWindow : Form
                 try {
                     if (fields.Length == 3 && (fields[2] == "notifications-enable" || fields[2] == "notifications-disable")) {
                         bool enabled = fields[2] == "notifications-enable";
+                        if (!notificationTimer.Enabled || updatingNotificationPermission) throw new InvalidOperationException();
                         await SetNotificationPermission(browser, enabled);
                         DesktopSettings.NotificationsEnabled = enabled;
+                        if (!enabled && notifications != null) notifications.Dispose();
                         value = new { enabled = enabled };
                     } else if (fields.Length == 3 && fields[2] == "notifications-settings") {
                         Process.Start(new ProcessStartInfo("ms-settings:notifications") { UseShellExecute = true });
@@ -380,7 +393,11 @@ internal sealed class LocalWindow : Form
 
     private async void OnClosing(object sender, FormClosingEventArgs e)
     {
-        if (closing || !loaded) { closing = true; return; }
+        if (closing || !loaded) {
+            closing = true;
+            if (notifications != null) notifications.Dispose();
+            return;
+        }
         e.Cancel = true;
         if (checkingClose) return;
         bool quit = quitRequested;

@@ -20,7 +20,7 @@ WizardStyle=modern
 Source: "{#Payload}\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversion
 
 [Icons]
-Name: "{userprograms}\RunTeams Local"; Filename: "{app}\RunTeamsLocal.exe"
+Name: "{userprograms}\RunTeams Local"; Filename: "{app}\RunTeamsLocal.exe"; AppUserModelID: "RunTeams.Local"
 
 [Run]
 Filename: "{app}\RunTeamsLocal.exe"; Description: "Open RunTeams Local"; Flags: postinstall nowait skipifsilent
