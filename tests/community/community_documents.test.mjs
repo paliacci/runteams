@@ -4,6 +4,14 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import {createLocalClient} from './community_transport_fixture.mjs';
 const source=fs.readFileSync(process.env.RUNTEAMS_DOCUMENT_SOURCE||'web/index.html','utf8');
+test('restoring a pipeline task from Trash uses its original team and stage visit',async()=>{
+ const item={id:41,pipeline_visit:3,pipeline_reference:{library_id:'local',source_id:'worker'}};
+ const receipt={status:'committed'};
+ const restore=vm.runInNewContext('('+code('requestTrashRestore')+')',{
+  RunTeamsSourcePipelines:{restoreCard:entry=>{assert.equal(entry,item);return receipt;}}
+ });
+ assert.equal(await restore(item,'task','device'),receipt);
+});
 function code(name){const start=new RegExp('^(?:async )?function '+name+'\\(','m').exec(source);assert.ok(start);const tail=source.slice(start.index),next=/^(?:(?:async )?function |(?:let|const|class) )/m.exec(tail.slice(start[0].length));return next?tail.slice(0,start[0].length+next.index):tail;}
 function load(name,context){vm.createContext(context);vm.runInContext(code(name),context);return context[name];}
 

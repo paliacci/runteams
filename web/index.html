@@ -2223,6 +2223,7 @@ async function refreshTrashAfterMutation({documentsOnly=false,employeesChanged=f
   if(binding===trashBinding())render();
 }
 function requestTrashRestore(item,kind,scope){
+  if(scope==='device'&&kind==='task'&&item.pipeline_reference)return RunTeamsSourcePipelines.restoreCard(item);
   if(scope==='device'&&kind==='employee'&&item.reference)return api('/api/device/work/source-employees/restore','POST',{reference:item.reference,id:Number(item.id)});
   return scope==='device'&&kind==='pipeline'&&item.reference
     ?RunTeamsSourcePipelines.request('restore',{reference:item.reference,id:Number(item.id)})

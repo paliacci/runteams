@@ -782,7 +782,9 @@
  }
  async function restoreCard(item){
   const command=item.restoreCommand??={operation_id:crypto.randomUUID(),reference:item.pipeline_reference,workflow_id:Number(item.id),expected_visit:item.pipeline_visit,action:'restore'};
-  const result=await request('card',command);if(result.status==='committed')workCommitted({reference:item.pipeline_reference},item.id);return result;
+  const result=await request('card',command);
+  if(result.status!=='committed'||result.operation_id!==command.operation_id||Number(result.workflow?.id)!==command.workflow_id)throw Error('任务恢复回执尚未确认。');
+  workCommitted({reference:item.pipeline_reference},item.id);return result;
  }
  function draftMenu(event,position){
   event.preventDefault();event.stopPropagation();const s=current(),c=s?.composer?.position===position?s.composer:s?.composerDrafts?.[position];if(!c||s.pendingComposer===c||s.sending)return;
