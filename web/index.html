@@ -6563,7 +6563,7 @@ function prepareWindowsReferenceDrop(bridge,files,library){
       if(!event.data.result){fail();return;}
       cleanup();resolve(event.data.result);
     };
-    const timer=setTimeout(fail,15000);
+    const timer=setTimeout(fail,365000);
     bridge.addEventListener('message',receive);
     try{bridge.postMessageWithAdditionalObjects('reference-drop:'+id+':'+library.library_id+':'+library.generation,Array.from(files));}
     catch(error){fail();}

@@ -222,7 +222,9 @@ internal sealed class LocalWindow : Form
             }
             using (var client = new HttpClient(new HttpClientHandler { UseProxy = false, AllowAutoRedirect = false }))
             using (var request = new HttpRequestMessage(HttpMethod.Post, new Uri(origin, "/api/local-references/drop"))) {
-                client.Timeout = TimeSpan.FromSeconds(12);
+                // Each of up to ten selected Git repositories may need local metadata checks.
+                client.Timeout = TimeSpan.FromMinutes(6);
+                request.Headers.ExpectContinue = false;
                 request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", sessionToken);
                 request.Headers.Add("X-RunTeams-Library", fields[2]);
                 request.Headers.Add("X-RunTeams-Library-Generation", fields[3]);

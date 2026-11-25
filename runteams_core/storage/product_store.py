@@ -144,8 +144,8 @@ def _git_uncommitted_count(path):
 
 def inspect_local_asset_source(resolved_path):
     """Identify a validated grant path for the confirmation card and identity checks."""
-    root_commits = _git_root_commits(resolved_path) if os.path.isdir(resolved_path) else []
-    is_git = bool(root_commits) and os.path.isdir(os.path.join(resolved_path, ".git"))
+    root_commits = _git_root_commits(resolved_path) if os.path.isdir(os.path.join(resolved_path, ".git")) else []
+    is_git = bool(root_commits)
     st = os.stat(resolved_path)
     return {
         "name": os.path.basename(resolved_path.rstrip(os.sep)) or resolved_path,
