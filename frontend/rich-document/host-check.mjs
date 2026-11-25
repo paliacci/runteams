@@ -10,7 +10,8 @@ window.localStorage.setItem('runteams_language_preference','zh-CN');
 for(const name of ['locale-zh-cn','locale','host']){
  vm.runInNewContext(await fs.readFile(new URL('../../web/ui/'+name+'.js',import.meta.url),'utf8'),context);
 }
-Object.assign(context,{RunTeamsLocale:window.RunTeamsLocale,RunTeamsHost:window.RunTeamsHost});
+Object.assign(context,{RunTeamsLocale:window.RunTeamsLocale,RunTeamsHost:window.RunTeamsHost,
+ documentReaderStaleMarkup:()=>''});
 vm.runInNewContext(await fs.readFile(new URL('../../web/ui/rich-documents.js',import.meta.url),'utf8'),context);
 window.document.getElementById('mount').innerHTML=window.RunTeamsRichDocuments.main(state);
 const frame=window.document.getElementById('rich_document_frame'),replies=[];frame.contentWindow.postMessage=data=>replies.push(data);

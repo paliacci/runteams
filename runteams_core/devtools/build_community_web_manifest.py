@@ -21,7 +21,7 @@ def expected():
            '.html':'text/html; charset=utf-8','.json':'application/json','.wasm':'application/wasm',
            '.png':'image/png','.jpg':'image/jpeg','.webp':'image/webp','.txt':'text/plain; charset=utf-8'}
     for directory in ('web/ui','web/modules','web/vendor','web/fonts','web/worker-avatars','web/provider-icons','web/rich-document'):
-        for path in sorted((ROOT/directory).rglob('*')):
+        for path in sorted((ROOT/directory).rglob('*'), key=lambda item: item.relative_to(ROOT).as_posix()):
             if not path.is_file() or path.is_symlink() or path.suffix not in types:continue
             url='/'+path.relative_to(ROOT/'web').as_posix()
             result[url]=[path.relative_to(ROOT).as_posix(),types[path.suffix]]

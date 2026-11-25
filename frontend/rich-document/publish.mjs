@@ -1,5 +1,6 @@
 // Preserve modules used by already-open editors; publish the new entry last.
 import fs from 'node:fs/promises';
+import {execFileSync} from 'node:child_process';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 const here=path.dirname(fileURLToPath(import.meta.url)),source=path.join(here,'.build'),destination=path.resolve(here,'../../web/rich-document/dist');
@@ -15,3 +16,7 @@ const bundle={entry:'/rich-document/dist/'+reply.file,css:(reply.css||[]).map(fi
 const bridge=path.resolve(here,'../../web/ui/reply-content-bundle.js');
 await fs.writeFile(bridge+'.next','window.RunTeamsReplyBundle='+JSON.stringify(bundle)+';\n');
 await fs.rename(bridge+'.next',bridge);
+
+// Windows virtual environments expose python.exe. Unix builds use the versioned interpreter.
+const python = process.platform === 'win32' ? 'python' : 'python3.12';
+execFileSync(python, ['-B', '../../runteams_core/devtools/build_community_web_manifest.py'], {cwd: here, stdio: 'inherit'});

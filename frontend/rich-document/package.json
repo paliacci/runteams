@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "vite build && node publish.mjs && python3.12 -B ../../runteams_core/devtools/build_community_web_manifest.py",
+    "build": "vite build && node publish.mjs",
     "test": "node check.mjs && node host-check.mjs && node autosave-check.mjs && node data-model-check.mjs && node reply-check.mjs && node outline-check.mjs"
   },
   "dependencies": {
