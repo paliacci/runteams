@@ -471,20 +471,41 @@ class AssetMemoryTests(TestCase):
         from runteams_core.foundation import file_manager
         from runteams_core.foundation.regular_files import storage_path
         from runteams_core.storage import device_data
-        bank, name = 'viewer-test', '媒体-' + 'a' * 222 + '.wav'
+        bank, name = 'viewer-test', '媒体-' + 'a' * 162 + '.wav'
         content = b'verified media bytes'
         with device_data.connect() as connection:
             identifier = asset_sources._store(connection, bank, name, content, [])
-        viewer = asset_sources._viewer_directory.__wrapped__()
+        viewer = asset_sources._viewer_directory.__wrapped__('test digest')
         with viewer, patch.object(asset_sources, '_viewer_directory', return_value=viewer), patch.object(file_manager, 'open_path') as opened:
             for _ in range(2):
                 self.assertEqual(asset_sources.open_original(bank, identifier, {}), {'kind':'opened'})
             path = Path(opened.call_args.args[0])
             self.assertEqual(opened.call_args_list[0], opened.call_args_list[1])
-            self.assertGreater(len(str(path)), 260)
             self.assertEqual(path.name, name)
             self.assertEqual(storage_path(path).read_bytes(), content)
         self.assertFalse(Path(viewer.name).exists())
+
+    def test_viewer_adapts_its_copy_without_renaming_an_export(self):
+        from tempfile import gettempdir
+        from runteams_core.conversations import asset_sources
+        from runteams_core.foundation import file_manager
+        from runteams_core.foundation.regular_files import storage_path
+        from runteams_core.storage import device_data
+        bank, name = 'viewer-limit', '录' + 'x' * 235 + '.wav'
+        content = b'original at the name limit'
+        with device_data.connect() as connection:
+            identifier = asset_sources._store(connection, bank, name, content, [])
+        with patch.object(file_manager, 'open_path') as opened:
+            self.assertEqual(asset_sources.open_original(bank, identifier, {}), {'kind':'opened'})
+        copy = Path(opened.call_args.args[0])
+        if os.name == 'nt':
+            self.assertLess(len(str(copy).encode('utf-16-le')), 520)
+        self.assertEqual(copy.suffix, '.wav')
+        self.assertEqual(copy.read_bytes(), content)
+        with TemporaryDirectory(dir=storage_path(gettempdir())) as destination:
+            exported = asset_sources.original(bank, identifier, {}, destination)
+            self.assertEqual(Path(exported['path']).name, name)
+            self.assertEqual(Path(exported['path']).read_bytes(), content)
 
     def test_legacy_word_index_tracks_the_original_revision(self):
         from runteams_core.conversations import asset_sources

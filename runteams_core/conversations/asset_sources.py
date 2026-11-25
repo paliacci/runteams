@@ -375,9 +375,12 @@ def _write_original(src, name, size, sha, directory, for_work=False):
     return {'name':name,'path':str(target),'size':size}
 
 
+_viewer_lock = threading.Lock()
+
+
 @cache
-def _viewer_directory():
-    # Cleanup must also be able to reach the hash directory and full original name.
+def _viewer_directory(sha):
+    # Each digest owns its directory, without adding a 64-character path component.
     return tempfile.TemporaryDirectory(prefix='runteams-knowledge-', dir=storage_path(tempfile.gettempdir()))
 
 
@@ -403,14 +406,18 @@ def open_original(bank, source, bundled):
             return {'kind':'text', 'text':output.getvalue().decode('utf-8-sig', errors='replace')}
 
         # External readers need a stable copy after the request returns.
-        root = Path(_viewer_directory().name)
-        directory = root / sha
-        directory.mkdir(mode=0o700, exist_ok=True)
-        path = _write_original(stream, name, size, sha, directory)['path']
+        with _viewer_lock:
+            directory = Path(_viewer_directory(sha).name)
+        shell_directory = Path(tempfile.gettempdir()) / directory.name
+        viewer_name = Path(name).name
+        if os.name == 'nt' and len(str(shell_directory / viewer_name).encode('utf-16-le')) >= 520:
+            # Some associated readers accept the open request but cannot play a MAX_PATH filename.
+            # Only the viewer copy gets a shorter name. Library and export names stay intact.
+            viewer_name = 'original' + suffix
+        path = _write_original(stream, viewer_name, size, sha, directory)['path']
     os.chmod(path, 0o400)
-    # Associated applications receive the ordinary shell path, including the original filename.
-    shell_root = Path(tempfile.gettempdir()) / root.name
-    file_manager.open_path(str(shell_root / Path(path).relative_to(root)))
+    # Third-party readers receive an ordinary shell path.
+    file_manager.open_path(str(shell_directory / viewer_name))
     return {'kind':'opened'}
 
 
