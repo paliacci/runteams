@@ -14,6 +14,7 @@ from runteams_core.storage import device_data
 from runteams_core.pipelines import source_pipeline_control as control, source_pipeline_work as work
 from runteams_core.authoring.creator_contracts import digest, strict_json
 from runteams_core.foundation.contracts import ContractError
+from runteams_core.foundation.regular_files import storage_path
 from runteams_core.employees.mcp.device_employee_mcp import EmployeeMCPWork, FILE
 from runteams_core.employees.employee_workspaces import _directory
 from runteams_core.storage.device_files import _read
@@ -116,7 +117,7 @@ class PipelineMCPWork(EmployeeMCPWork):
             packages[package.digest] = package
         release = digest({'reference': ref, 'revision': revision, 'generation': generation,
                           'asset': asset, 'programs': attachments, 'configuration': config})
-        base = self.root / 'pipeline-workspaces' / device_data.epoch(chat) / release
+        base = storage_path(self.root / 'pipeline-workspaces' / device_data.epoch(chat)) / release
         if any(path.is_symlink() for path in (base, *base.parents)):
             raise ContractError('智能体团队程序工作目录无效。')
         _directory(base); _directory(base / '.runteams')
@@ -151,7 +152,7 @@ class PipelineMCPWork(EmployeeMCPWork):
         self.check()
         ref = pipeline_chat_binding.reference(chat)
         self.core_factory()._actor()
-        root = self.root / 'pipeline-workspaces' / device_data.epoch(chat)
+        root = storage_path(self.root / 'pipeline-workspaces' / device_data.epoch(chat))
         if any(path.is_symlink() for path in (root,*root.parents)):
             raise ContractError('智能体团队程序工作目录无效。')
         if not root.exists():return []
