@@ -277,7 +277,11 @@
   }
   s.busy=true;s.submitting=true;s.commandError='';paint();
   try{if(RunTeamsWorkState.pending)await RunTeamsWorkState.flush();const out=await api(endpoint(s),'POST',request);if(out.error){if(out.state!=='unknown')clearPending(s,request.operation_id);throw Error(out.error);}if(out.operation_id!==request.operation_id)throw Error('操作回执需要核对。');clearPending(s,request.operation_id);if(valid(s)){s.busy=false;await refresh();}return true;}
-  catch(e){if(valid(s)){s.commandError=e.message;if(!(form?.owner===s&&document.getElementById('employee_schedule_error')))notify(pending(s)?localError('scheduledAutomation.operationUnconfirmed','无法确认操作结果。请先核对上次操作。'):commandFailure(e.message,action));}return false;}
+  catch(e){
+   if(e.status===400&&e.code==='schedule_command_rejected')clearPending(s,request.operation_id);
+   if(valid(s)){s.commandError=e.message;if(!(form?.owner===s&&document.getElementById('employee_schedule_error')))notify(pending(s)?localError('scheduledAutomation.operationUnconfirmed','无法确认操作结果。请先核对上次操作。'):commandFailure(e.message,action));}
+   return false;
+  }
   finally{s.submitting=false;s.busy=false;if(valid(s))paint();}
  }
  async function recover(){

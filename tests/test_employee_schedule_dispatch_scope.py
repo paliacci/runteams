@@ -5,9 +5,37 @@ import json
 import os
 import sqlite3
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
-from runteams_core.automation.device_employee_schedules import EmployeeSchedules
+from runteams_core.automation import local_schedules
+from runteams_core.automation.device_employee_schedules import EmployeeSchedules, PreparationUnknown
+from runteams_core.foundation.contracts import ContractError
+
+
+class LocalScheduleCommandTests(unittest.TestCase):
+    def test_only_confirmed_command_rejections_release_pending_operations(self):
+        for kind in ('employee', 'pipeline'):
+            with self.subTest(kind=kind):
+                path = '/api/device/' + kind + '-schedules'
+                runtime = Mock()
+                host = runtime.schedule_host.return_value
+                backend = host.backend.return_value
+                backend.api_path = path
+                backend.command.side_effect = ContractError('unfinished run')
+                response = local_schedules.dispatch(runtime, 'POST', path, {})
+                self.assertEqual((response.status, response.payload), (400, {
+                    'error': 'unfinished run', 'code': 'schedule_command_rejected'}))
+                host.start.assert_not_called()
+
+                backend.command.side_effect = PreparationUnknown('preparation pending')
+                response = local_schedules.dispatch(runtime, 'POST', path, {})
+                self.assertEqual((response.status, response.payload['state']), (409, 'unknown'))
+
+                backend.command.side_effect = None
+                host.start.side_effect = OSError('scheduler unavailable after commit')
+                response = local_schedules.dispatch(runtime, 'POST', path, {})
+                self.assertEqual((response.status, response.payload['state']), (503, 'unknown'))
+                host.start.assert_called_once_with(kind)
 
 
 class EmployeeDispatchScopeTests(unittest.TestCase):

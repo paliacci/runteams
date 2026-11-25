@@ -2,6 +2,7 @@
 import re,threading
 from pathlib import Path
 from types import SimpleNamespace
+from runteams_core.foundation.contracts import ContractError
 
 class LocalSchedules:
     def __init__(self,runtime):
@@ -61,7 +62,14 @@ def dispatch(runtime,method,path,data):
     kind='pipeline' if path.startswith(PREFIX+'pipeline-') else 'employee'
     host=runtime.schedule_host();backend=host.backend(kind)
     query={key:[value] for key,value in data.items()} if method=='GET' else {}
-    try:return operation(backend,method,path,query,data,on_mutation=lambda:host.start(kind))
+    command = method == 'POST' and path == backend.api_path
+    stored = False
+    try:
+        result = operation(backend,method,path,query,data)
+        if command:
+            stored = True
+            host.start(kind)
+        return result
     except Exception as error:
         from runteams_core.automation.device_employee_schedules import PreparationUnknown
         from runteams_core.application.http.local_document_http import DocumentResponse
@@ -69,6 +77,8 @@ def dispatch(runtime,method,path,data):
         import sqlite3
         if isinstance(error,PermissionError):raise
         if isinstance(error,PreparationUnknown):return DocumentResponse({'error':str(error),'state':'unknown'},409)
+        if command and not stored and isinstance(error, ContractError):
+            return DocumentResponse({'error':str(error),'code':'schedule_command_rejected'},400)
         if isinstance(error,(OSError,sqlite3.Error)):return DocumentResponse({'error':'本机自动化暂时无法读取或保存，请核对原操作。','state':'unknown'},503)
         if isinstance(error,(ValueError,TypeError)):raise LocalInputError(str(error)) from error
         raise
