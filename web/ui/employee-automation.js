@@ -452,11 +452,22 @@
   f.detailsAnimation=animation;animation.onfinish=()=>{if(f.detailsAnimation===animation){f.detailsAnimation=null;finish();}};
  }
  function scheduleValue(){
-  const kind=scheduleKind(),days=[...document.querySelectorAll('#employee_schedule_days input:checked')].map(n=>Number(n.value)),minutes=Number(field('interval').value),time=field('time').value;
-  if(kind==='weekly'&&!days.length)throw localError('scheduledAutomation.chooseDay','请至少选择一天。');
-  if(kind!=='interval'&&!/^([01]\d|2[0-3]):[0-5]\d$/.test(time))throw localError('scheduledAutomation.invalidTime','请用 24 小时制输入时间，例如 09:00。');
-  if(!Number.isInteger(minutes)||minutes<1||minutes>43200)throw localError('scheduledAutomation.invalidInterval','请输入 1 到 43200 之间的整数分钟数。');
-  return {schedule_kind:kind,interval_sec:minutes*60,schedule:{time,weekdays:days,timezone:form?.item?.schedule?.timezone||Intl.DateTimeFormat().resolvedOptions().timeZone}};
+  const kind=scheduleKind(),item=form?.item,saved=item?.schedule;
+  const schedule={time:saved?.time||'09:00',weekdays:saved?.weekdays||[],timezone:saved?.timezone||Intl.DateTimeFormat().resolvedOptions().timeZone};
+  let intervalSec=item?.interval_sec||3600;
+  if(kind==='weekly'){
+   schedule.weekdays=[...document.querySelectorAll('#employee_schedule_days input:checked')].map(node=>Number(node.value));
+   if(!schedule.weekdays.length)throw localError('scheduledAutomation.chooseDay','请至少选择一天。');
+  }
+  if(kind==='interval'){
+   const minutes=Number(field('interval').value);
+   if(!Number.isInteger(minutes)||minutes<1||minutes>43200)throw localError('scheduledAutomation.invalidInterval','请输入 1 到 43200 之间的整数分钟数。');
+   intervalSec=minutes*60;
+  }else{
+   schedule.time=field('time').value;
+   if(!/^([01]\d|2[0-3]):[0-5]\d$/.test(schedule.time))throw localError('scheduledAutomation.invalidTime','请用 24 小时制输入时间，例如 09:00。');
+  }
+  return {schedule_kind:kind,interval_sec:intervalSec,schedule};
  }
  function editOptions(event){const f=form;if(!formCurrent(f)||f.saving||f.enabled)return;openMenu(event.currentTarget,[{label:'启用自动化',labelKey:'automationList.enable',icon:'play',fn:()=>{if(formCurrent(f)&&!f.saving){f.enabled=true;field('paused').hidden=true;}}}]);}
  function freezeForm(f,busy,progress){

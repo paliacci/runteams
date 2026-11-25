@@ -61,3 +61,31 @@ test('missing, mismatched and previous-scope receipts fall back to the directory
   assert.equal(t.refreshes(),1);assert.deepEqual(t.reads,[]);
  }
 });
+
+test('switching repeat modes validates the visible fields and preserves saved timing',()=>{
+ const fields={time:{value:'19:42'},interval:{value:'0'}};
+ const item={interval_sec:900,schedule:{time:'08:15',weekdays:[1],timezone:'Asia/Shanghai'}};
+ let kind='weekly',days=[0,4];
+ const value=vm.runInNewContext(
+  script.slice(script.indexOf(' function scheduleValue()'),script.indexOf(' function editOptions('))+'\nscheduleValue',
+  {scheduleKind:()=>kind,field:name=>fields[name],form:{item},localError:key=>new Error(key),
+   document:{querySelectorAll:()=>days.map(value=>({value:String(value)}))}}
+ );
+ const weekly=value();
+ assert.equal(weekly.interval_sec,900);
+ assert.equal(weekly.schedule.time,'19:42');
+ assert.deepEqual(Array.from(weekly.schedule.weekdays),[0,4]);
+ days=[];
+ assert.throws(value,/chooseDay/);
+ kind='daily';
+ fields.time.value='24:01';
+ assert.throws(value,/invalidTime/);
+ kind='interval';
+ assert.throws(value,/invalidInterval/);
+ fields.interval.value='7';
+ const interval=value();
+ assert.equal(interval.interval_sec,420);
+ assert.equal(interval.schedule.time,'08:15');
+ assert.deepEqual(Array.from(interval.schedule.weekdays),[1]);
+ assert.equal(interval.schedule.timezone,'Asia/Shanghai');
+});
