@@ -29,6 +29,11 @@ class LibrarySettingsTests(unittest.TestCase):
     def test_manual_backup_waits_for_a_channel_probe(self):
         self.check_backup_during_discovery('POST', '/api/channel/2/probe')
 
+    def test_manual_backup_waits_for_settings_discovery_reads(self):
+        for path in ('/api/channels', '/api/channel-usage', '/api/environment'):
+            with self.subTest(path=path):
+                self.check_backup_during_discovery('GET', path)
+
     def check_backup_during_discovery(self, method, path):
         reading, release = threading.Event(), threading.Event()
         def catalog(*args):

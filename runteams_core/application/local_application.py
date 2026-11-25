@@ -103,7 +103,7 @@ class LocalApplication:
     def exclusive(self, expected=None, *, wait_for_discovery=False):
         from runteams_core.application.local_host_lock import RuntimeBusy
         with self._gate:
-            # Settings opens model discovery in the background. Let that read drain
+            # Settings opens channel and tool discovery in the background. Let those reads drain
             # before taking a manual backup, then recheck the full maintenance gate.
             if wait_for_discovery and not self._maintenance and self._requests and self._requests==self._discovery_requests:
                 self._gate.wait_for(lambda: not self._requests or self._maintenance, timeout=45)
@@ -128,7 +128,8 @@ class LocalApplication:
         if path=='/api/library' and self.backups.restoring():
             with self.exclusive():
                 self.backups.recover(owned=True);self.rebind()
-        model_discovery = ((method == 'GET' and path == '/api/model-catalog') or
+        model_discovery = ((method == 'GET' and path in {'/api/model-catalog', '/api/channels',
+                                                         '/api/channel-usage', '/api/environment'}) or
                            (method == 'POST' and re.fullmatch(r'/api/channel/[1-9][0-9]*/probe', path) is not None))
         with self.request(scope, model_discovery=model_discovery):
             return self._dispatch(method,path,data)
