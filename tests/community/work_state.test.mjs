@@ -43,6 +43,19 @@ test('scope change stops queued writes and cannot install a late previous-librar
  const b=backend(),s=subject(b);let release;s.c.api=()=>new Promise(r=>release=r);const old=s.state.connect();s.c.S.localLibrary={library_id:'other-library',generation:'second'};release({schema:'runteams.work-ui-state-list/1',items:{}});await assert.rejects(old,/资料库已改变/);assert.equal(s.state.ready,false);
  s.c.api=b.api;await s.state.connect();assert.throws(()=>s.state.setItem('runteams.pipeline-control:["library","library-one"]:foreign','{}'),/保存位置无效/);
 });
+test('a new card command waits for a peer to clear its receipt, then claims the current empty revision',async()=>{
+ const b=backend(),peer=subject(b),local=subject(b);
+ await Promise.all([peer.state.connect(),local.state.connect()]);
+ const key=local.key('pipeline-card')+':17';
+ peer.state.setItem(key,'{"pending":"first"}');await peer.state.flush();
+ local.state.setItem(key,'{"pending":"second"}');await assert.rejects(local.state.flush(),/stale/);
+ const record=()=>b.records.get('pipeline-card:same-reference:17');
+ assert.equal(record().value,'{"pending":"first"}');
+ peer.state.removeItem(key);await peer.state.flush();
+ await local.state.flush();
+ assert.deepEqual(record(),{revision:3,value:'{"pending":"second"}'});
+ assert.equal(local.state.pendingSave,false);
+});
 test('foreign concurrent revision blocks future business execution without overwriting existing state',async()=>{
  const b=backend(),a=subject(b),other=subject(b);await a.state.connect();await other.state.connect();a.state.setItem(a.key('pipeline-create'),'{}');await a.state.flush();other.state.setItem(other.key('pipeline-create'),'{"draft":"different"}');await assert.rejects(other.state.flush(),/stale/);assert.equal(other.state.pending,true);assert.equal(other.state.saveRejected,true);await assert.rejects(other.state.flush(),/stale/);assert.equal(b.records.values().next().value.value,'{}');
 });

@@ -12,16 +12,20 @@
   if(!kind)throw Error('工作界面保存位置无效。');
   return kind+value.slice(('runteams.'+kind+':'+workspaceDeviceStorageScope()).length);
  }
+ async function readItems(s){
+  const result=await api(path+'read','POST',{},{readCurrent:true});if(!current(s))throw Error('资料库已改变，请重新打开。');
+  if(result.error)throw Error(result.error);
+  if(result.schema!=='runteams.work-ui-state-list/1'||!result.items||typeof result.items!=='object'||Array.isArray(result.items))throw Error('原操作界面资料未能核对。');
+  return result.items;
+ }
  async function connect(reload=false){
   const s=state();if(s.ready&&!reload)return;if(s.reading)return s.reading;
   if(s.queue.length||s.draining)throw Error('请等待操作记录保存后重试。');
   const mutation=s.mutation;
   s.reading=(async()=>{
-   const result=await api(path+'read','POST',{},{readCurrent:true});if(!current(s))throw Error('资料库已改变，请重新打开。');
-   if(result.error)throw Error(result.error);
-   if(result.schema!=='runteams.work-ui-state-list/1'||!result.items||typeof result.items!=='object'||Array.isArray(result.items))throw Error('原操作界面资料未能核对。');
+   const items=await readItems(s);if(!current(s))throw Error('资料库已改变，请重新打开。');
    const versions=new Map(),values=new Map();
-   for(const [k,row] of Object.entries(result.items)){
+   for(const [k,row] of Object.entries(items)){
     if(!kinds.includes(k.split(':',1)[0])||!Number.isSafeInteger(row.revision)||row.revision<1||row.value!==null&&typeof row.value!=='string')throw Error('原操作界面资料无效。');
     versions.set(k,row.revision);if(row.value!==null)values.set(k,row.value);
    }
@@ -32,10 +36,31 @@
  function getItem(value){const s=state();return s.ready?s.values.get(key(value))??null:null;}
  function change(value,raw){
   const s=state();if(!s.ready)throw Error('原操作尚未载入，请重新打开。');
-  const k=key(value);if(raw!==null){JSON.parse(raw);s.values.set(k,raw);}else s.values.delete(k);
+  const k=key(value),claimCard=raw!==null&&k.startsWith('pipeline-card:')&&!s.values.has(k);
+  if(raw!==null){JSON.parse(raw);s.values.set(k,raw);}else s.values.delete(k);
   s.mutation++;
-  s.queue.push({key:k,value:raw,operation_id:crypto.randomUUID()});
+  s.queue.push({key:k,value:raw,operation_id:crypto.randomUUID(),claimCard});
   queueMicrotask(()=>{if(current(s))void flush().catch(()=>{});});
+ }
+ async function write(s,row){
+  const {key,value,operation_id,expected_revision}=row;
+  const result=await api(path+'save','POST',{key,value,operation_id,expected_revision});
+  if(!current(s))throw Error('工作区已改变，旧回执不会应用到当前页面。');
+  if(result.error)throw Object.assign(Error(result.error),{code:result.code});
+  if(result.operation_id!==operation_id||result.revision!==expected_revision+1)throw Error('界面保存回执待核对。');
+  return result;
+ }
+ async function saveRow(s,row){
+  try{return await write(s,row);}
+  catch(error){
+   if(!current(s)||!row.claimCard||error.code!=='work_ui_state_conflict')throw error;
+   const latest=(await readItems(s))[row.key];
+   // Another window may have claimed and cleared the card while this editor was open.
+   // Retry only an empty-to-empty conflict. A live command retains its original receipt.
+   if(!current(s)||latest?.value!==null||!Number.isSafeInteger(latest.revision)||latest.revision<=row.expected_revision)throw error;
+   row.expected_revision=latest.revision;row.operation_id=crypto.randomUUID();
+   return write(s,row);
+  }
  }
  async function flush(){
   const s=state();await connect();if(!current(s))throw Error('资料库已改变，请重新打开。');if(s.draining)return s.draining;
@@ -43,10 +68,8 @@
    while(s.queue.length){
     if(!current(s))throw Error('工作区已改变，原界面保存已停止。');
     const row=s.queue[0];row.expected_revision??=s.versions.get(row.key)||0;
-    const result=await api(path+'save','POST',{...row});
+    const result=await saveRow(s,row);
     if(!current(s))throw Error('工作区已改变，旧回执不会应用到当前页面。');
-    if(result.error)throw Object.assign(Error(result.error),{code:result.code});
-    if(result.operation_id!==row.operation_id||result.revision!==row.expected_revision+1)throw Error('界面保存回执待核对。');
     s.versions.set(row.key,result.revision);s.queue.shift();s.error=null;
    }
   })().catch(error=>{s.error=error;throw error;}).finally(()=>{s.draining=null;});return s.draining;
