@@ -15,6 +15,24 @@ test('restoring a pipeline task from Trash uses its original team and stage visi
 function code(name){const start=new RegExp('^(?:async )?function '+name+'\\(','m').exec(source);assert.ok(start);const tail=source.slice(start.index),next=/^(?:(?:async )?function |(?:let|const|class) )/m.exec(tail.slice(start[0].length));return next?tail.slice(0,start[0].length+next.index):tail;}
 function load(name,context){vm.createContext(context);vm.runInContext(code(name),context);return context[name];}
 
+test('reader back preserves a rejected draft until the user confirms leaving its reader',async()=>{
+ const reader={doc:{id:7},text:'draft'},S={docReader:reader};
+ let keep,leave,opened=0,saves=0,closed=0;
+ const context={S,_documentResolveSequence:0,_documentOpenSequence:0,_documentTableAutosaveTimer:null,
+  async flushDocument(){saves++;return false;},
+  documentLeaveDialog(_saving,onKeep,onLeave){keep=onKeep;leave=onLeave;},closeModal(){closed++;},
+  clearTimeout,flushDocumentTableAutosave(){assert.fail('discard must not submit another edit');},
+  currentRailRouteValue(){},docsFolderRoute(){},routeWithRailState(){},setAppUrl(){},openDocs(){opened++;}};
+ load('teardownDocumentReader',context);
+ const back=load('closeDocumentReader',context);
+ await back();keep();
+ assert.equal(S.docReader,reader);assert.equal(reader.text,'draft');assert.equal(opened,0);
+ await back();S.docReader={doc:{id:8}};await leave();
+ assert.equal(S.docReader.doc.id,8);assert.equal(opened,0);
+ S.docReader=reader;await back();await leave();
+ assert.equal(S.docReader,null);assert.equal(opened,1);assert.equal(saves,3);assert.equal(closed,3);
+});
+
 test('fresh local revision IDs open through the owning library before route IDs are refreshed',async()=>{
  const doc={id:51,storage_scope:'device',is_current_revision:false};
  const S={localLibrary:{library_id:'library'},docReader:{doc,revisionId:51}};

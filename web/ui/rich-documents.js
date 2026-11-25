@@ -75,7 +75,7 @@
     }
     post(frame,'saved',{request_id:data.request_id,revision:response.revision});ok=true;loadDocumentRevisions(state.doc);
    }catch(error){if(S.docReader===state&&account===workspaceAccountCacheToken()){state.saveStatus='error';state.saveError=error.message||'保存失败，请重试。';post(frame,'saved',{request_id:data.request_id,error:state.saveError});}}
-   finally{const wait=pending.get(state.richToken);if(wait&&state.richProtocol!==2){pending.delete(state.richToken);wait.done(ok);}}
+   finally{const wait=pending.get(state.richToken);if(wait&&(!ok||state.richProtocol!==2)){pending.delete(state.richToken);wait.done(ok);}}
    return ok;
   })();state.richSaving=run;try{return await run;}finally{if(state.richSaving===run)state.richSaving=null;}
  }

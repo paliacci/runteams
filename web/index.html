@@ -4251,28 +4251,42 @@ async function closeDocumentReader(){
   if(!state||state.returningToList)return;
   state.returningToList=true;
   try{
-    if(!await flushDocument()||S.docReader!==state)return;
+    const saved=await flushDocument();
+    if(S.docReader!==state)return;
+    if(!saved){
+      documentLeaveDialog(false,closeModal,()=>{
+        closeModal();
+        if(S.docReader===state)return leaveReader(true);
+      });
+      return;
+    }
+    await leaveReader(false);
+  }finally{
+    state.returningToList=false;
+  }
+  async function leaveReader(discard){
     ++_documentResolveSequence;++_documentOpenSequence;
     S.docReaderOrigin=null;
     S.docReaderStack=[];
     if(state.doc.work_return_url||state.doc.task_input_return_url){
-      const origin=state.doc.work_return_url||state.doc.task_input_return_url;teardownDocumentReader();
+      const origin=state.doc.work_return_url||state.doc.task_input_return_url;teardownDocumentReader(discard);
       setAppUrl(origin,true);await applyAppRoute({taskReturn:state.taskReturn});
       if(Number(state.doc.work_return_employee_id)>0&&state.doc.work_return_employee_scope===`${workspaceAccountCacheToken()}:${_workspaceBusinessGeneration}`)
         await openContextResults({employee_id:Number(state.doc.work_return_employee_id)});
       return;
     }
     setAppUrl(routeWithRailState(docsFolderRoute(),currentRailRouteValue()),true);
-    teardownDocumentReader();
+    teardownDocumentReader(discard);
     await openDocs({route:false});
-  }finally{
-    state.returningToList=false;
   }
 }
 /* 只做收尾、不重绘：render() 自己发现已经切走了页面时也要调它 */
-function teardownDocumentReader(){
+function teardownDocumentReader(discard=false){
   if(!S.docReader)return;
-  flushDocumentTableAutosave();   // 离开前提交还在防抖中等待的表格修改
+  if(discard){
+    clearTimeout(_documentTableAutosaveTimer);
+    _documentTableAutosaveTimer=null;
+  }else flushDocumentTableAutosave();
   S.docReader=null;
 }
 async function documentReaderOpenRun(){
