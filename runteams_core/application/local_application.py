@@ -44,6 +44,11 @@ class LocalApplication:
                 self._runtime = LocalRuntime(self)
             return self._runtime
 
+    def desktop_work_active(self):
+        # Polling an idle window must not create a runtime or start any workers.
+        runtime = self._runtime
+        return bool(runtime and runtime.work_active())
+
     def own(self):
         with self._gate:
             if self._lease is None:

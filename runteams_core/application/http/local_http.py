@@ -175,6 +175,10 @@ class LocalHandler(BaseHTTPRequestHandler):
         mode = self._authentication()
         if not mode:
             return self._json(401, {'error': 'local_session_required'})
+        if self.command == 'GET' and parsed.path == '/api/desktop/work-active' and not parsed.query:
+            if mode != 'bearer':
+                return self._json(403, {'error': 'desktop_owner_required'})
+            return self._json(200, self.server.application.desktop_work_active())
         image_read = self.command == 'GET' and re.fullmatch(r'/api/chat/[1-9][0-9]*/attachment/[a-f0-9]{24}', parsed.path)
         archive_read = self.command == 'GET' and re.fullmatch(r'/api/backups/[a-f0-9-]{36}/download', parsed.path)
         library=self.server.application.binding.library_id;generation=self.server.application.backups.generation

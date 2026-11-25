@@ -1,3 +1,28 @@
+export function windowsSettingsBridge(webview) {
+  if (!webview) return null;
+  return { postMessage({action, key, value}) {
+    const id = crypto.randomUUID();
+    return new Promise((resolve, reject) => {
+      function finish(result) {
+        clearTimeout(timeout);
+        webview.removeEventListener('message', receive);
+        if (result) resolve(result);
+        else reject(Error('Windows desktop settings unavailable'));
+      }
+      function receive(event) {
+        if (event.data?.kind === 'desktop-settings' && event.data.id === id) finish(event.data.result);
+      }
+      const timeout = setTimeout(() => finish(null), 8000);
+      webview.addEventListener('message', receive);
+      try {
+        const fields = ['desktop-settings', id, action];
+        if (action === 'set') fields.push(key, String(value));
+        webview.postMessage(fields.join(':'));
+      } catch { finish(null); }
+    });
+  }};
+}
+
 // The shell reads a close decision; it cannot save or discard a stored asset.
 export class NativeCloseGuard {
   constructor(snapshot, freeze) { this.snapshot = snapshot; this.freeze = freeze; }

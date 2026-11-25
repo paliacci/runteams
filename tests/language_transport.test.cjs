@@ -6,7 +6,7 @@ const path=require('node:path');
 const root=path.resolve(__dirname,'..');
 test('a failed preference save retries before the next mutation',async()=>{
  let change,attempts=0;const writes=[];
- const sandbox={console:{error(){}},document:{documentElement:{hasAttribute:()=>false}},window:{},RunTeamsLocale:{language:'en',onChange(fn){change=fn;}},RunTeamsRequests:{request(){},isRead:(_path,method)=>method==='GET'},fetch(){},NativeCloseGuard:class{},LocalClient:class{
+ const sandbox={console:{error(){}},document:{documentElement:{hasAttribute:()=>false}},window:{},RunTeamsLocale:{language:'en',onChange(fn){change=fn;}},RunTeamsRequests:{request(){},isRead:(_path,method)=>method==='GET'},fetch(){},windowsSettingsBridge:()=>null,NativeCloseGuard:class{},LocalClient:class{
   connect(){return Promise.resolve({});}
   async request(path,method,body){if(path==='/api/language-preference'){attempts++;if(attempts===1)throw Error('offline');}writes.push([path,body]);return {};}
  }};

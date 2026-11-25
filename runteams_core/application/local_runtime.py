@@ -70,6 +70,14 @@ class LocalRuntime:
                         self.finish(row['chat_id'], op, stopped=True,
                                     system_notice={'kind': 'stopped', 'text': '上次对话因应用退出而中断，可以继续发送。'})
 
+    def work_active(self):
+        if self.active or self.source_builds or self.employee_jobs:
+            return True
+        if self._schedules and self._schedules.busy():
+            return True
+        return any(host and (host.turns or host.connection_requests or host.connection_calls)
+                   for host in (self._employee_mcp, self._pipeline_mcp))
+
     def schedule_host(self):
         with self.lock:
             if self._schedules is None:

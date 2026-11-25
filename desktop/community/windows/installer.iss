@@ -24,3 +24,14 @@ Name: "{userprograms}\RunTeams Local"; Filename: "{app}\RunTeamsLocal.exe"
 
 [Run]
 Filename: "{app}\RunTeamsLocal.exe"; Description: "Open RunTeams Local"; Flags: postinstall nowait skipifsilent
+
+[Code]
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var
+  Command: String;
+begin
+  if (CurUninstallStep = usPostUninstall) and
+     RegQueryStringValue(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Run', 'RunTeams.Local', Command) and
+     (CompareText(Command, '"' + ExpandConstant('{app}\RunTeamsLocal.exe') + '"') = 0) then
+    RegDeleteValue(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Run', 'RunTeams.Local');
+end;

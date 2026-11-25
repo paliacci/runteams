@@ -38,7 +38,7 @@ def compile_host(payload, package):
                     '/out:RunTeamsLocal.exe', '/reference:System.Windows.Forms.dll',
                     '/reference:System.Drawing.dll', '/reference:System.Web.Extensions.dll', '/reference:System.Net.Http.dll',
                     *['/reference:' + name for name in assemblies], HERE / 'RunTeamsLocal.cs',
-                    HERE / 'AttachmentPicker.cs'],
+                    HERE / 'AttachmentPicker.cs', HERE / 'DesktopSettings.cs'],
                    cwd=payload, check=True)
 
 

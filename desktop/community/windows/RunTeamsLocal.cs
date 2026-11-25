@@ -18,6 +18,10 @@ internal sealed class LocalWindow : Form
     private bool started, closing, checkingClose, loaded;
     private Uri origin;
     private int navigationVersion;
+    private DesktopSettings settings;
+    private readonly ContextMenuStrip trayMenu = new ContextMenuStrip();
+    private readonly NotifyIcon tray = new NotifyIcon();
+    private bool quitRequested;
 
     [STAThread]
     private static int Main(string[] args)
@@ -31,7 +35,28 @@ internal sealed class LocalWindow : Form
         Application.EnableVisualStyles();
         try
         {
-            using (var window = new LocalWindow(args)) Application.Run(window);
+            using (var window = new LocalWindow(args)) {
+                string identity = System.Security.Principal.WindowsIdentity.GetCurrent().User.Value + "|" + window.libraryPath.ToUpperInvariant();
+                byte[] digest;
+                using (var sha = System.Security.Cryptography.SHA256.Create()) digest = sha.ComputeHash(Encoding.UTF8.GetBytes(identity));
+                bool first;
+                using (var reopen = new System.Threading.EventWaitHandle(false, System.Threading.EventResetMode.AutoReset,
+                        @"Local\RunTeams.Local." + BitConverter.ToString(digest), out first)) {
+                    if (!first) {
+                        if (Array.IndexOf(args, "--port") >= 0) throw new IOException("This library is already open.");
+                        reopen.Set();
+                        return 0;
+                    }
+                    // Create the UI handle before another launcher signals the window.
+                    IntPtr handle = window.Handle;
+                    var listener = System.Threading.ThreadPool.RegisterWaitForSingleObject(reopen, delegate {
+                        try { window.BeginInvoke((Action)window.RestoreWindow); }
+                        catch (InvalidOperationException) { }
+                    }, null, -1, false);
+                    try { Application.Run(window); }
+                    finally { listener.Unregister(null); }
+                }
+            }
             return Environment.ExitCode;
         }
         catch (Exception error)
@@ -93,6 +118,16 @@ internal sealed class LocalWindow : Form
     [DllImport("kernel32.dll")] private static extern IntPtr GetStdHandle(int handle);
     [DllImport("kernel32.dll")] private static extern bool AttachConsole(uint processId);
 
+    private readonly string libraryPath;
+    private void RestoreWindow()
+    {
+        if (closing || IsDisposed) return;
+        Show();
+        if (WindowState == FormWindowState.Minimized) WindowState = FormWindowState.Normal;
+        Activate();
+        tray.Visible = false;
+    }
+
     private LocalWindow(string[] args)
     {
         Text = "RunTeams Local";
@@ -112,6 +147,24 @@ internal sealed class LocalWindow : Form
                 throw new ArgumentException("Expected --data-dir PATH or --port 0..65535.");
         }
         service.StartInfo = Python();
+        libraryPath = Path.GetFullPath(String.IsNullOrEmpty(data)
+            ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), @"RunTeams.ai\community") : data).TrimEnd('\\', '/');
+        bool chinese = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "zh";
+        trayMenu.Items.Add(chinese ? "打开 RunTeams" : "Open RunTeams", null, delegate { RestoreWindow(); });
+        trayMenu.Items.Add(chinese ? "退出" : "Quit", null, delegate {
+            RestoreWindow();
+            quitRequested = true;
+            Close();
+        });
+        tray.Icon = Icon;
+        tray.Text = Text;
+        tray.ContextMenuStrip = trayMenu;
+        tray.DoubleClick += delegate { RestoreWindow(); };
+        Disposed += delegate {
+            tray.Dispose();
+            trayMenu.Dispose();
+            if (settings != null) settings.Dispose();
+        };
         service.StartInfo.EnvironmentVariables["RUNTEAMS_ATTACHMENT_PICKER"] = Application.ExecutablePath;
         service.StartInfo.Arguments = "-I -B -X utf8 -u -m runteams_core.application.community --owner-stdin --port " + port;
         service.StartInfo.WorkingDirectory = Core;
@@ -163,7 +216,8 @@ internal sealed class LocalWindow : Form
             // Receive DOM File handles from the top-level WebView only. The service
             // credential stays in this process and is never injected into the page.
             string sessionToken = (string)info["session_token"];
-            browser.WebMessageReceived += async (sender, e) => await PrepareFileDrop(browser, e, sessionToken);
+            settings = new DesktopSettings(origin, sessionToken);
+            browser.WebMessageReceived += async (sender, e) => await HandleWebMessage(browser, e, sessionToken);
             browser.NavigationStarting += delegate(object sender, CoreWebView2NavigationStartingEventArgs e) {
                 Uri destination;
                 e.Cancel = !Uri.TryCreate(e.Uri, UriKind.Absolute, out destination)
@@ -195,7 +249,7 @@ internal sealed class LocalWindow : Form
         catch (Exception error) { if (!closing && !IsDisposed) Fail(error.Message); }
     }
 
-    private async Task PrepareFileDrop(CoreWebView2 browser, CoreWebView2WebMessageReceivedEventArgs e, string sessionToken)
+    private async Task HandleWebMessage(CoreWebView2 browser, CoreWebView2WebMessageReceivedEventArgs e, string sessionToken)
     {
         Uri source;
         if (!Uri.TryCreate(e.Source, UriKind.Absolute, out source) ||
@@ -207,6 +261,13 @@ internal sealed class LocalWindow : Form
         try {
             string[] fields = e.TryGetWebMessageAsString().Split(':');
             Guid parsed;
+            if (fields.Length >= 2 && fields[0] == "desktop-settings" && Guid.TryParseExact(fields[1], "D", out parsed)) {
+                object value = null;
+                try { value = settings.Settings(fields); }
+                catch (Exception) { /* The web settings page offers a readback and retry. */ }
+                browser.PostWebMessageAsJson(json.Serialize(new { kind = "desktop-settings", id = fields[1], result = value }));
+                return;
+            }
             if (fields.Length != 4 || fields[0] != "reference-drop" ||
                 !Guid.TryParseExact(fields[1], "D", out parsed) || !Guid.TryParseExact(fields[2], "D", out parsed) ||
                 !Guid.TryParseExact(fields[3], "D", out parsed)) return;
@@ -254,6 +315,13 @@ internal sealed class LocalWindow : Form
         if (closing || !loaded) { closing = true; return; }
         e.Cancel = true;
         if (checkingClose) return;
+        bool quit = quitRequested;
+        quitRequested = false;
+        if (!quit && e.CloseReason == CloseReason.UserClosing && DesktopSettings.KeepInBackground) {
+            tray.Visible = true;
+            Hide();
+            return;
+        }
         checkingClose = true;
         try
         {

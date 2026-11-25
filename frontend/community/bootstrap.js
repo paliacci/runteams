@@ -1,6 +1,6 @@
 /* Account-free composition of the canonical business UI, without its own markup. */
 import {LocalClient} from './client.js';
-import {NativeCloseGuard} from './native.js';
+import {NativeCloseGuard, windowsSettingsBridge} from './native.js';
 const client=new LocalClient({fetcher:globalThis.fetch.bind(globalThis),request:globalThis.RunTeamsRequests.request});
 if(document.documentElement?.hasAttribute('data-native'))document.documentElement.classList.add('runteams-native-macos');
 let languageSync=Promise.resolve();
@@ -104,4 +104,4 @@ const closeGuard=new NativeCloseGuard(()=>{
  const hasDraft=value=>Boolean(value?.input?.trim()||value?.attachments?.length||value?.capabilities?.length||value?.queue);
  return {pending:Boolean(configuration?.pending||globalThis.RunTeamsWorkState?.pendingSave&&!globalThis.RunTeamsWorkState?.saveRejected||source?.saving||source?.pending||source?.buildSending||source?.build?.latest?.state==='running'||pending||operation||S?.conversationPanel?.busy||S?.settingsPreferencePending||globalThis.RunTeamsBackups?.pending||['saving','error'].includes(S?.docReader?.saveStatus)),dirty:!!configuration?.dirty||!!globalThis.RunTeamsWorkState?.saveRejected||!!source?.editing||Object.values(S?.conversationPanelDrafts||{}).some(hasDraft)};
 },()=>{closing=true;document.body?.setAttribute('inert','');});
-window.RunTeamsLocalDesktop=Object.freeze({checkClose:discard=>closeGuard.checkClose(discard),prepareClose:discard=>closeGuard.prepareClose(discard)});
+window.RunTeamsLocalDesktop=Object.freeze({settings:windowsSettingsBridge(window.chrome?.webview),checkClose:discard=>closeGuard.checkClose(discard),prepareClose:discard=>closeGuard.prepareClose(discard)});

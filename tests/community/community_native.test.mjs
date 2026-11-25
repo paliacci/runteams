@@ -1,6 +1,23 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {NativeCloseGuard} from '../../frontend/community/native.js';
+import {NativeCloseGuard, windowsSettingsBridge} from '../../frontend/community/native.js';
+
+test('Windows settings resolve only the matching native receipt', async () => {
+  const listeners = new Set(), sent = [];
+  const bridge = windowsSettingsBridge({
+    addEventListener: (_, listener) => listeners.add(listener),
+    removeEventListener: (_, listener) => listeners.delete(listener),
+    postMessage: message => sent.push(message)
+  });
+  const first = bridge.postMessage({action:'get'});
+  const second = bridge.postMessage({action:'set',key:'close_action',value:'background'});
+  assert.equal(sent[1].split(':').slice(2).join(':'), 'set:close_action:background');
+  for (const index of [1, 0]) {
+    for (const listener of listeners) listener({data:{kind:'desktop-settings',id:sent[index].split(':')[1],result:{index}}});
+  }
+  assert.deepEqual(await Promise.all([first, second]), [{index:0}, {index:1}]);
+  assert.equal(listeners.size, 0);
+});
 
 test('ready page freezes new interactions before native shutdown', () => {
   let frozen = false;
