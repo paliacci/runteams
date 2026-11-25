@@ -7,11 +7,11 @@ import base64
 import hashlib
 import json
 import os
-from pathlib import Path
 import re
 import tempfile
 
 from runteams_core.foundation.contracts import ContractError
+from runteams_core.foundation.regular_files import storage_path
 
 MAX_FILE = 20 * 1024 * 1024
 MAX_ENCODED = 32 * 1024 * 1024
@@ -33,7 +33,7 @@ def _document(core, identifier, write=False):
 
 
 def _directory(core, name, create=False):
-    root = Path(core.root) / 'artifacts' / name
+    root = storage_path(core.root) / 'artifacts' / name
     if root.parent.is_symlink() or root.is_symlink():
         raise ContractError('文档资料目录无效。')
     if create:
@@ -146,7 +146,8 @@ def references(core, document, document_id):
     refs = []
     for identifier in identifiers:
         read(core, document_id, identifier)
-        refs.append(str(_directory(core, 'rich-assets') / (identifier + '.json')))
+        # Keep the library reference portable. Extended Windows paths are for file I/O.
+        refs.append(str(core.root / 'artifacts' / 'rich-assets' / (identifier + '.json')))
     return sorted(refs)
 
 

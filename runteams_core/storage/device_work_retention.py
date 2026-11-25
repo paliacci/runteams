@@ -5,6 +5,7 @@ import shutil
 from pathlib import Path
 
 from runteams_core.foundation.contracts import ContractError
+from runteams_core.foundation.regular_files import storage_path
 
 RETENTION_DAYS=30
 REQUESTED='device_work.cleanup_requested'
@@ -104,9 +105,9 @@ def _finish(core,value):
         refs=[core.repository.storage.file_path(ref) for ref in value['artifact_refs']+value.get('attachment_refs',[])]
         refs=[ref for ref in refs if ref not in protected]
         core._delete_artifact_files(refs)
-        artifact_root=(Path(core.root)/'artifacts').resolve()
+        artifact_root=(storage_path(core.root)/'artifacts').resolve()
         for ref in refs:
-            path=Path(ref).resolve()
+            path=storage_path(ref).resolve()
             if artifact_root in path.parents and path.is_file():raise CleanupIncomplete()
         if value.get('kind')!='document':
             remove_inputs(core,[int(value['task_id'])])

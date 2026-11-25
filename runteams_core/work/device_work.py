@@ -20,6 +20,7 @@ import uuid
 
 from runteams_core.storage import device_data
 from runteams_core.foundation.contracts import ContractError
+from runteams_core.foundation.regular_files import storage_path
 
 DIRECTORY = 'work'
 DATABASE = 'runteams.db'
@@ -130,7 +131,7 @@ class _WorkLock:
                 finally:
                     self.local.depth -= 1
                 return
-            path = Path(storage.path).parent / filename
+            path = storage_path(storage.path).parent / filename
             _directory(path.parent)
             if path.is_symlink():
                 raise ContractError('本机工作锁路径无效。')
@@ -328,7 +329,9 @@ class DeviceWorkStorage:
         relative = safe_relative(reference[len(FILE_PREFIX):])
         root = Path(self.path).parent
         path = root / relative
-        if root not in path.resolve().parents or any(p.is_symlink() for p in (path, *path.parents) if p != root.parent):
+        disk_root = storage_path(root)
+        disk_path = disk_root / relative
+        if disk_root not in disk_path.resolve().parents or any(p.is_symlink() for p in (disk_path, *disk_path.parents) if p != disk_root.parent):
             raise ContractError('本机工作文件引用无效。')
         return str(path)
 

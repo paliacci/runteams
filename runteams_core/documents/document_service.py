@@ -7,6 +7,7 @@ from pathlib import Path
 import re
 
 from runteams_core.foundation.contracts import ContractError
+from runteams_core.foundation.regular_files import storage_path
 from runteams_core.storage.repository_service import RepositoryService
 from runteams_core.storage.repository import utc_now
 from runteams_core.employees import employee_documents
@@ -39,7 +40,7 @@ def _normalize_agent_document_key(value, fallback=""):
 
 class Documents(RepositoryService):
     def _delete_artifact_files(self, artifact_refs):
-        artifact_root = (self.root / "artifacts").resolve()
+        artifact_root = storage_path(self.root / "artifacts").resolve()
         refs = [raw_ref for raw_ref in artifact_refs if raw_ref]
         if not refs:
             return
@@ -53,7 +54,7 @@ class Documents(RepositoryService):
             if raw_ref in still_referenced:
                 continue
             try:
-                path = Path(raw_ref).resolve()
+                path = storage_path(raw_ref).resolve()
                 if path != artifact_root and artifact_root in path.parents and path.is_file():
                     path.unlink()
                     parent = path.parent
@@ -71,7 +72,7 @@ class Documents(RepositoryService):
     def _agent_document_path(self, key, digest_value):
         """Return a safe immutable path for a document authored from Agent Chat."""
         root = (self.root / "artifacts" / "agent-documents").resolve()
-        root.mkdir(parents=True, exist_ok=True)
+        storage_path(root).mkdir(parents=True, exist_ok=True)
         destination = (root / "{}-{}.md".format(key, digest_value[:12])).resolve()
         if root not in destination.parents:
             raise ContractError("文档路径不安全")
@@ -136,8 +137,8 @@ class Documents(RepositoryService):
         return chain[-1] if chain else candidates[-1]
 
     def _read_document_body(self, row):
-        path = Path(str(row["ref"] or "")).resolve()
-        root = (self.root / "artifacts").resolve()
+        path = storage_path(row["ref"] or "").resolve()
+        root = storage_path(self.root / "artifacts").resolve()
         try:
             safe = path != root and root in path.parents
         except ValueError:
@@ -488,15 +489,15 @@ class Documents(RepositoryService):
             if digest_value == str(meta.get("sha256") or ""):
                 return {"id": int(latest["id"]), "created_revision": False}
             directory = (self.root / "artifacts" / str(latest["employee_run_id"])).resolve()
-            directory.mkdir(parents=True, exist_ok=True)
+            storage_path(directory).mkdir(parents=True, exist_ok=True)
             destination = directory / "{}-{}".format(digest_value[:12], Path(filename).name)
-            destination.write_bytes(body)
+            storage_path(destination).write_bytes(body)
             previous = Path(str(latest["ref"]))
             meta.update({"sha256": digest_value, "size": len(body)})
             connection.execute(
                 "UPDATE artifacts SET ref=?,meta_json=? WHERE id=?",
                 (str(destination), json.dumps(meta, ensure_ascii=False), int(latest["id"])))
-        if previous != destination and previous.is_file():
+        if previous != destination and storage_path(previous).is_file():
             self._delete_artifact_files([str(previous)])
         return {"id": int(latest["id"]), "created_revision": False}
 
@@ -572,10 +573,10 @@ class Documents(RepositoryService):
                     self.root, latest_meta.get("employee_id"), key, digest_value)
             else:
                 directory = (self.root / "artifacts" / str(latest["employee_run_id"])).resolve()
-                directory.mkdir(parents=True, exist_ok=True)
+                storage_path(directory).mkdir(parents=True, exist_ok=True)
                 destination = directory / "{}-{}".format(
                     digest_value[:12], Path(filename).name)
-            destination.write_bytes(body)
+            storage_path(destination).write_bytes(body)
             meta = {"path": filename, "content_model": self.document_model_for_path(filename),
                     "sha256": digest_value, "size": len(body),
                     "revision": revision, "revision_of": root,
@@ -903,8 +904,8 @@ class Documents(RepositoryService):
         if suffix not in self.DOCUMENT_TEXT_SUFFIXES:
             return False
         try:
-            path = Path(str(ref or "")).resolve()
-            root = (self.root / "artifacts").resolve()
+            path = storage_path(ref or "").resolve()
+            root = storage_path(self.root / "artifacts").resolve()
             if root not in path.parents or not path.is_file():
                 return False
             if path.stat().st_size > self.DOCUMENT_SEARCH_MAX_BYTES:

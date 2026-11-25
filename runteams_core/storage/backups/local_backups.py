@@ -12,6 +12,7 @@ import uuid
 import zipfile
 
 from runteams_core.foundation import durable_files
+from runteams_core.foundation.regular_files import storage_path
 from runteams_core.storage.backups import backup_files as disk, library_backup as backup
 from runteams_core.storage.local_library import private_directory, scope_for, SCHEMA as LIBRARY_SCHEMA
 from runteams_core.application.local_host_lock import RuntimeBusy, acquire
@@ -86,7 +87,7 @@ class LocalBackups:
         self.record(identifier,value)
         temporary=self.root/('.snapshot-'+identifier);packed=self.root/('.archive-'+identifier+'.zip')
         try:
-            if temporary.exists():shutil.rmtree(temporary)
+            if temporary.exists():shutil.rmtree(storage_path(temporary))
             packed.unlink(missing_ok=True)
             backup.snapshot(app,temporary);disk.pack(temporary,packed)
             # Verify the actual portable transport before publishing a receipt.
@@ -102,7 +103,7 @@ class LocalBackups:
                 self.record(identifier,{**value,'state':'failed','error':failure(error)})
             raise
         finally:
-            if temporary.exists():shutil.rmtree(temporary)
+            if temporary.exists():shutil.rmtree(storage_path(temporary))
             packed.unlink(missing_ok=True)
 
     def inspect_archive(self, path):
@@ -112,7 +113,7 @@ class LocalBackups:
         except (zipfile.BadZipFile,zipfile.LargeZipFile,NotImplementedError,sqlite3.Error,OSError,KeyError,TypeError,json.JSONDecodeError,UnicodeError) as error:
             raise ValueError('备份文件损坏、缺失或格式无效。') from error
         finally:
-            if directory.exists():shutil.rmtree(directory)
+            if directory.exists():shutil.rmtree(storage_path(directory))
 
     def upload(self, stream, length, identifier):
         identifier=operation_id(identifier)
@@ -155,7 +156,7 @@ class LocalBackups:
                 durable_files.move(previous,base, replace=True)
             if not base.exists():raise ValueError('原资料目录不可用，请保留恢复文件。')
             self.record(identifier,{**pending['receipt'],'state':'failed','error':'恢复未完成，原资料已保留。'})
-            shutil.rmtree(stage)
+            shutil.rmtree(storage_path(stage))
         elif previous.exists() and base.exists():
             # Rename published the whole new tree; finish its receipt, never
             # replay another restore over newly written data.
@@ -163,7 +164,7 @@ class LocalBackups:
             if marker!={'schema':LIBRARY_SCHEMA,'library_id':pending['library_id']}:raise ValueError('恢复资料库身份不一致。')
             disk.replace_json(self.root/'state.json',{'schema':'runteams.library-backup-host/1','generation':pending['generation']})
             self.record(identifier,{**pending['receipt'],'state':'completed'})
-            try:shutil.rmtree(previous)
+            try:shutil.rmtree(storage_path(previous))
             except OSError:return
             self.path('imports',pending['import_id'],'.zip').unlink(missing_ok=True)
         else:
@@ -208,13 +209,13 @@ class LocalBackups:
                             self.inspect_archive(archive);self.record(identifier,{**value,'state':'completed','backup_id':identifier})
                     else:self.record(identifier,{**value,'state':'failed','error':'上次备份未完成，原资料保持不变。'})
                     temporary=self.root/('.snapshot-'+identifier)
-                    if temporary.exists():shutil.rmtree(temporary)
+                    if temporary.exists():shutil.rmtree(storage_path(temporary))
                     (self.root/('.archive-'+identifier+'.zip')).unlink(missing_ok=True)
                 elif value['kind']=='restore':
                     stage=self.directory/('.restore-stage-'+identifier);previous=self.directory/('.restore-previous-'+identifier)
                     if previous.exists():raise ValueError('恢复记录缺失，请保留原资料目录。')
                     self.record(identifier,{**value,'state':'failed','error':'上次恢复未开始，原资料保持不变。'})
-                    if stage.exists():shutil.rmtree(stage)
+                    if stage.exists():shutil.rmtree(storage_path(stage))
                 else:raise ValueError('备份操作记录无效。')
         finally:
             if lease:lease.rollback();lease.close()
@@ -245,10 +246,11 @@ class LocalBackups:
         try:
             disk.unpack(source,extracted);backup.verify(extracted)
             scope=scope_for(manifest['library_id']);target=stage/'libraries'/scope['storage_namespace'];target.mkdir(mode=0o700,parents=True)
-            for name in manifest['directories']:(target/disk.safe_name(name)).mkdir(mode=0o700,parents=True,exist_ok=True)
-            (target/'workspaces/assistant').mkdir(mode=0o700,parents=True,exist_ok=True)
+            disk_target = storage_path(target)
+            for name in manifest['directories']:(disk_target/disk.safe_name(name)).mkdir(mode=0o700,parents=True,exist_ok=True)
+            (disk_target/'workspaces/assistant').mkdir(mode=0o700,parents=True,exist_ok=True)
             for name in manifest['files']:
-                path=target/disk.safe_name(name);path.parent.mkdir(mode=0o700,parents=True,exist_ok=True);shutil.copyfile(extracted/name,path);path.chmod(0o600)
+                path=disk_target/disk.safe_name(name);path.parent.mkdir(mode=0o700,parents=True,exist_ok=True);shutil.copyfile(storage_path(extracted)/name,path);path.chmod(0o600)
                 with path.open('r+b') as f:os.fsync(f.fileno())
             backup.folders(target,final_root=app.base/'libraries'/scope['storage_namespace'])
             backup.verify_payload(target,manifest,portable=False)
@@ -259,7 +261,7 @@ class LocalBackups:
             quarantine_employee_schedules(target);quarantine_pipeline_schedules(target)
             app.runtime.retire_employee_services()
             disk.write_json(stage/'.local-library.json',{'schema':LIBRARY_SCHEMA,'library_id':manifest['library_id']})
-            for folder in sorted((p for p in stage.rglob('*') if p.is_dir()),key=lambda p:len(p.parts),reverse=True):folder.chmod(0o700);durable_files.sync_directory(folder)
+            for folder in sorted((p for p in storage_path(stage).rglob('*') if p.is_dir()),key=lambda p:len(p.parts),reverse=True):folder.chmod(0o700);durable_files.sync_directory(folder)
             stage.chmod(0o700);durable_files.sync_directory(stage)
             pending={'operation_id':identifier,'import_id':import_id,'library_id':manifest['library_id'],'generation':str(uuid.uuid4()),'stage':stage.name,'previous':previous.name,'receipt':receipt}
             self.record(identifier,receipt);disk.replace_json(self.root/'restore-pending.json',pending)
@@ -274,8 +276,8 @@ class LocalBackups:
                 result=self.status(identifier)
                 if result['state']=='completed':return result
             else:
-                if stage.exists():shutil.rmtree(stage)
+                if stage.exists():shutil.rmtree(storage_path(stage))
                 self.record(identifier,{**receipt,'state':'failed','error':'备份恢复未完成，原资料保持不变。'})
             raise
         finally:
-            if extracted.exists():shutil.rmtree(extracted)
+            if extracted.exists():shutil.rmtree(storage_path(extracted))

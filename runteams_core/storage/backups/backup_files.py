@@ -2,12 +2,13 @@
 from contextlib import closing
 import hashlib
 import os
-from pathlib import Path, PureWindowsPath
+from pathlib import PureWindowsPath
 import shutil
 import sqlite3
 import zipfile
 
 from runteams_core.foundation import archive_paths
+from runteams_core.foundation.regular_files import storage_path
 from runteams_core.foundation.durable_files import publish_json
 
 MAX_ARCHIVE = 512 * 1024 * 1024
@@ -30,6 +31,7 @@ def safe_name(name):
 
 
 def file_digest(path):
+    path = storage_path(path)
     digest=hashlib.sha256()
     with path.open('rb') as source:
         while block:=source.read(1024*1024):digest.update(block)
@@ -37,11 +39,16 @@ def file_digest(path):
 
 
 def files(directory):
-    directory=Path(directory)
+    directory=storage_path(directory)
     if not directory.is_dir() or directory.is_symlink() or any(p.is_symlink() for p in directory.rglob('*')):
         raise ValueError('备份不能包含符号链接。')
     return {p.relative_to(directory).as_posix():file_digest(p)
             for p in directory.rglob('*') if p.is_file()}
+
+
+def directories(directory):
+    root = storage_path(directory)
+    return sorted(path.relative_to(root).as_posix() for path in root.rglob('*') if path.is_dir())
 
 
 def verify_files(directory, expected, *, required='personal.sqlite3'):
@@ -74,6 +81,7 @@ def readonly_database(path):
 
 
 def copy_tree(source, destination, check):
+    source, destination = storage_path(source), storage_path(destination)
     before=files(source)
     directories=sorted(p.relative_to(source).as_posix() for p in source.rglob('*') if p.is_dir())
     for name in directories:(destination/safe_name(name)).mkdir(mode=0o700,parents=True,exist_ok=True)
@@ -87,6 +95,7 @@ def copy_tree(source, destination, check):
 
 
 def pack(source, destination):
+    source = storage_path(source)
     names=files(source)
     with zipfile.ZipFile(destination,'x',compression=zipfile.ZIP_DEFLATED) as archive:
         for path in source.rglob('*'):
@@ -98,6 +107,7 @@ def pack(source, destination):
 
 
 def unpack(source, destination):
+    destination = storage_path(destination)
     if source.is_symlink() or source.stat().st_size>MAX_ARCHIVE:raise ValueError('备份文件过大或不可用。')
     destination.mkdir(mode=0o700)
     with zipfile.ZipFile(source) as archive:

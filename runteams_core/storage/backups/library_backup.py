@@ -10,6 +10,7 @@ import uuid
 
 from runteams_core.storage.backups import backup_files as disk
 from runteams_core.foundation.local_json import strict_json
+from runteams_core.foundation.regular_files import storage_path
 from runteams_core.storage.local_library import scope_for
 
 SCHEMA='runteams.library-backup/1'
@@ -22,6 +23,7 @@ PORTABLE_WORKSPACE='library://workspaces/assistant'
 
 
 def load(path):
+    path = storage_path(path)
     if path.is_symlink() or not path.is_file() or path.stat().st_size>64*1024*1024:raise ValueError('备份记录路径或大小无效。')
     return strict_json(path.read_bytes())
 
@@ -72,7 +74,7 @@ def verify_work(directory, scope):
             if meta.get('content_model')!=rich.MODEL or meta.get('data_view'):
                 raise ValueError('文档归属或格式无效。')
             if not isinstance(ref,str) or not ref.startswith(work.FILE_PREFIX+'artifacts/agent-documents/'):raise ValueError('文档文件引用无效。')
-            body_path=directory/'work'/disk.safe_name(ref[len(work.FILE_PREFIX):])
+            body_path=storage_path(directory)/'work'/disk.safe_name(ref[len(work.FILE_PREFIX):])
             if body_path.stat().st_size>2*1024*1024:raise ValueError('文档内容超过存储上限。')
             body=body_path.read_bytes()
             value=rich.validate(body.decode())
@@ -96,7 +98,7 @@ def verify_work(directory, scope):
             if event['prev_hash']!=previous or event['event_hash']!=calculated:raise ValueError('文档执行回执校验失败。')
             previous=event['event_hash']
     work.verify(directory,scope)
-    template_root=directory/'work/artifacts/rich-templates'
+    template_root=storage_path(directory)/'work/artifacts/rich-templates'
     if (template_root/'index.json').exists():
         index=load(template_root/'index.json');seen=set()
         if not isinstance(index,list) or len(index)>100:raise ValueError('文档模板索引无效。')
@@ -187,7 +189,7 @@ def verify(directory):
     datetime.fromisoformat(manifest['created_at']);scope_for(manifest['library_id'])
     disk.verify_files(directory,manifest['files'])
     directories=manifest['directories']
-    actual=sorted(p.relative_to(directory).as_posix() for p in directory.rglob('*') if p.is_dir())
+    actual=disk.directories(directory)
     if not isinstance(directories,list) or directories!=actual:raise ValueError('备份目录不完整。')
     for name in directories:disk.safe_name(name)
     allowed=set(DATABASES)|{'manifest.json'}
@@ -242,11 +244,15 @@ def _snapshot_payload(binding,destination,check):
         disk.snapshot_database(work/device_work.DATABASE,target/device_work.DATABASE)
         excluded={device_work.DATABASE,device_work.DATABASE+'-wal',device_work.DATABASE+'-shm','.writer.lock'}
         before={n:v for n,v in disk.files(work).items() if n.split('/')[0] not in excluded}
+        work_files, target_files = storage_path(work), storage_path(target)
         for name in before:
-            path=target/disk.safe_name(name);path.parent.mkdir(mode=0o700,parents=True,exist_ok=True);shutil.copyfile(work/name,path);path.chmod(0o600)
+            path = target_files / disk.safe_name(name)
+            path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+            shutil.copyfile(work_files / name, path)
+            path.chmod(0o600)
         if before!={n:v for n,v in disk.files(work).items() if n.split('/')[0] not in excluded} or any(disk.file_digest(target/n)!=v for n,v in before.items()):raise ValueError('免费版文档文件正在变化，请稍后重试。')
     check()
-    manifest={'schema':SCHEMA,'library_id':binding.library_id,'storage_namespace':scope['storage_namespace'],'created_at':datetime.now(timezone.utc).isoformat(),'files':disk.files(destination),'directories':sorted(p.relative_to(destination).as_posix() for p in destination.rglob('*') if p.is_dir())}
+    manifest={'schema':SCHEMA,'library_id':binding.library_id,'storage_namespace':scope['storage_namespace'],'created_at':datetime.now(timezone.utc).isoformat(),'files':disk.files(destination),'directories':disk.directories(destination)}
     disk.write_json(destination/'manifest.json',manifest);verify(destination)
     return manifest
 

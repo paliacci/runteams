@@ -9,9 +9,9 @@ import json
 import uuid
 import re
 from contextlib import nullcontext
-from pathlib import Path
 
 from runteams_core.foundation.contracts import ContractError
+from runteams_core.foundation.regular_files import storage_path
 from runteams_core.storage.repository import utc_now
 
 MODEL = 'rich-document'
@@ -210,7 +210,9 @@ def write(core, *, name, document, document_id=None, base_revision=0, document_k
             raise ContractError('文档已被更新，请重新读取版本后再恢复。')
         key = meta.get('document_key') or _normalize_agent_document_key(document_key or uuid.uuid4().hex, title)
         destination = core._agent_document_path(key, digest).with_suffix('.json')
-        if not destination.exists(): destination.write_bytes(body)
+        body_path = storage_path(destination)
+        if not body_path.exists():
+            body_path.write_bytes(body)
         updated = {**meta, 'path': key+'.rich.json', 'content_model': MODEL, 'sha256': digest,
                    'size': len(body), 'revision': revision+1, 'document_key': key,
                    'source': meta.get('source','agent_chat'), 'purpose':'document', 'author':author,
