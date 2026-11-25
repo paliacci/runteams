@@ -1,4 +1,10 @@
 *.pdf binary
+# These files are compared and hashed byte-for-byte by sdk/ui/build.py.
+sdk/ui/catalog.json text eol=lf
+sdk/ui/build-manifest.json text eol=lf
+sdk/ui/foundation/*.css text eol=lf
+sdk/ui/dist/** text eol=lf
+web/ui/kit/components/** text eol=lf
 web/rich-document/licenses/DEPENDENCIES.txt -whitespace
 web/vendor/licenses/RESOURCE_VIEWER_DEPENDENCIES.txt -whitespace
 web/fonts/hanken-grotesk-LICENSE.txt -whitespace
