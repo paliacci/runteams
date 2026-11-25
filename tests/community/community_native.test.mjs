@@ -24,6 +24,23 @@ test('ready page freezes new interactions before native shutdown', () => {
   const guard = new NativeCloseGuard(() => ({dirty:false,pending:false}), () => { frozen = true; });
   assert.equal(guard.prepareClose(), 'ready'); assert.equal(frozen, true);
 });
+
+test('Windows board updates preserve the library generation and JSON key as one payload', async () => {
+  let receive, message;
+  const bridge = windowsSettingsBridge({
+    addEventListener: (_, listener) => { receive = listener; },
+    removeEventListener() {},
+    postMessage: raw => { message = raw; }
+  });
+  const key = 'runteams.pipeline-board:资料:{"page_id":"一"}';
+  const value = JSON.stringify({hidden:['review'], colors:{work:'blue'}});
+  const writing = bridge.postMessage({action:'workspace-board-write', library:'library', generation:'generation', key, value});
+  const [kind, id, action, library, generation, ...payload] = message.split(':');
+  assert.deepEqual([kind, action, library, generation], ['desktop-settings', 'workspace-board-write', 'library', 'generation']);
+  assert.deepEqual(JSON.parse(payload.join(':')), {key, value});
+  receive({data:{kind:'desktop-settings', id, result:{saved:true}}});
+  assert.deepEqual(await writing, {saved:true});
+});
 test('dirty draft stays editable until explicit discard is chosen', () => {
   let freezes = 0;
   const guard = new NativeCloseGuard(() => ({dirty:true,pending:false}), () => { freezes++; });

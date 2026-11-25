@@ -17,9 +17,10 @@ export function windowsSettingsBridge(webview) {
       try {
         const fields = ['desktop-settings', id, action];
         if (action === 'set') fields.push(key, String(value));
-        if (action === 'workspace-read' || action === 'workspace-write') {
+        if (action.startsWith('workspace-')) {
           fields.push(library, generation);
           if (action === 'workspace-write') fields.push(value);
+          if (action === 'workspace-board-write') fields.push(JSON.stringify({key, value}));
         }
         webview.postMessage(fields.join(':'));
       } catch { finish(null); }

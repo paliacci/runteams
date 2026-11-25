@@ -592,21 +592,33 @@ const boardColumns=s=>[...s.data.pipeline.positions,...(s.data.pipeline.states||
 const boardKey=s=>'runteams.pipeline-board:'+s.storageScope+':'+JSON.stringify(s.reference);
 function boardPreferences(s){
  if(!s.boardPreferences){
-  try{s.boardPreferences=JSON.parse(workspaceBusinessStorage.getItem(boardKey(s))||'{}')||{};}
+  try{
+   const key=boardKey(s),storage=RunTeamsHost.workspace.boardStorage(),native=storage?.getItem(key);
+   const raw=native??workspaceBusinessStorage.getItem(key);
+   s.boardPreferences=JSON.parse(raw||'{}')||{};
+   if(storage&&native==null&&raw)storage.setItem(key,raw).catch(()=>boardSaveError(s));
+  }
   catch(error){s.boardPreferences={};}
  }
  return s.boardPreferences;
 }
+function boardSaveError(s){if(owned(s))toast('无法保存看板显示设置。请重试。','err','pipelineBoard.displaySaveFailed');}
 function saveBoard(s,patch){
  if(!owned(s))return;
  const next={...boardPreferences(s),...patch};
  try{
   const key=boardKey(s),value=JSON.stringify(next);
-  workspaceBusinessStorage.setItem(key,value);
-  if(workspaceBusinessStorage.getItem(key)!==value)throw Error('显示设置写入未确认');
+  const storage=RunTeamsHost.workspace.boardStorage()||workspaceBusinessStorage;
+  const saved=storage.setItem(key,value);
+  if(!saved&&storage.getItem(key)!==value)throw Error('显示设置写入未确认');
   s.boardPreferences=next;
+  saved?.catch?.(()=>{
+   if(s.boardPreferences!==next)return;
+   s.boardPreferences=null;
+   if(owned(s)){render();boardSaveError(s);}
+  });
  }
- catch(error){toast('无法保存看板显示设置。请重试。','err','pipelineBoard.displaySaveFailed');}
+ catch(error){boardSaveError(s);}
  render();
 }
 function columns(s,includeHidden=false){

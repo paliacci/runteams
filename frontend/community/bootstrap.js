@@ -73,6 +73,28 @@ window.chrome?.webview?.addEventListener?.('message',event=>{
  if(event.data?.kind==='work-alert-delivery')alertError(event.data.ok?'':'delivery');
 });
 let workspaceScope=null,lastWorkspace=null,workspaceSaveError=false;
+let boardStorage=null;
+if(desktopSettings)RunTeamsHost.configure({workspace:{boardStorage:()=>boardStorage}});
+async function loadDesktopBoards(scope){
+ const response=await desktopSettings.postMessage({action:'workspace-boards-read',...scope});
+ const saved=new Map(Object.entries(response.boards)),edits=new Map();
+ return {
+  getItem:key=>edits.get(key)?.value??saved.get(key)??null,
+  async setItem(key,value){
+   if(closing)throw Error('窗口正在关闭。');
+   const edit={value};
+   edits.set(key,edit);pending++;
+   try{
+    const result=await desktopSettings.postMessage({action:'workspace-board-write',...scope,key,value});
+    if(result.saved!==true)throw Error('无法保存看板显示设置。');
+    saved.set(key,value);
+   }finally{
+    if(edits.get(key)===edit)edits.delete(key);
+    pending--;
+   }
+  }
+ };
+}
 async function saveDesktopWorkspace(raw){
  if(!workspaceScope||closing||raw===lastWorkspace)return;
  lastWorkspace=raw;pending++;
@@ -161,6 +183,16 @@ export async function boot(value){
    }
    catch{S.nativeSettingsError='本机设置暂时无法读取';}
    const scope={library:identity.library_id,generation:identity.generation};
+   boardStorage=null;
+   try{boardStorage=await loadDesktopBoards(scope);}
+   catch(error){
+    console.error('Windows board preferences could not be read',error);
+    // Retry the read before allowing an edit to replace unknown saved preferences.
+    boardStorage={getItem:()=>null,async setItem(){
+     boardStorage=await loadDesktopBoards(scope);
+     throw Error('看板显示设置已重新读取。请重试。');
+    }};
+   }
    try{
     const saved=await desktopSettings.postMessage({action:'workspace-read',...scope});
     savedWindows=saved.windows;loadedScope=scope;

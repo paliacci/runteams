@@ -29,7 +29,7 @@
     ?['schema','source_id','pipeline_source','storage_kind','library_id']:null,
    creationModeControl:empty,readCreationMode:nothing},
   assets:{remember:nothing,reset:nothing,marketRows:empty,placeholderEmployee:no,placeholderPipeline:no},
-  workspace:{savedScope:()=>undefined,savedWindows:()=>undefined,storage:()=>null,reset:nothing},
+  workspace:{savedScope:()=>undefined,savedWindows:()=>undefined,storage:()=>null,boardStorage:()=>null,reset:nothing},
   sidebar:{context:()=>({signedIn:false}),authority:nothing,authorityFailed:nothing},
  };
  const configured=new Set();
