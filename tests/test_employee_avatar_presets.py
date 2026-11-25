@@ -13,7 +13,8 @@ from runteams_core.foundation.resources import root
 from runteams_core.authoring.creator_contracts import canonical, strict_json, tree
 from runteams_core.authoring.source.creator_source_archive import pack, inspect
 from runteams_core.authoring.source.creator_source_import import inspect_source
-from runteams_core.authoring.source.creator_local_source import LocalSources
+from runteams_core.authoring.source.creator_local_source import LocalSources, snapshot
+from runteams_core.foundation.regular_files import storage_path
 from runteams_core.authoring.source.creator_source_revisions import Revisions
 
 
@@ -78,12 +79,17 @@ class EmployeeAvatarPresetTests(unittest.TestCase):
             'employees/main.json':canonical({'schema':'runteams.employee-source/3','key':'main','name':'Employee','avatar':'preset:bottts:nova','soul_file':'employees/soul.md','skill_dirs':[],
                 'runtime_requirement':{'provider':'codex','model':'','effort':''}}), 'employees/soul.md':b'', 'notes.txt':b'Keep me'}
         with tempfile.TemporaryDirectory() as directory:
-            store = LocalSources(Path(directory).resolve()); sid = tree(files)['sha256']
+            store = LocalSources(Path(directory).resolve() / 'creator-sources'); sid = tree(files)['sha256']
             store.save(pack(files), sid, inspect_source)
             request = {'base_revision':sid,'operation_key':'avatar-test-001','employee_source':'employees/main.json','name':'Employee','avatar':avatars.preset_reference('colleague-060')}
             result = avatars.edit(store, sid, request)
             self.assertEqual(result, avatars.edit(store, sid, request))
             revisions = Revisions(store, sid); restored = inspect(revisions.export(result['revision']))
+            with tempfile.TemporaryDirectory(dir=storage_path(tempfile.gettempdir())) as backup:
+                destination = Path(tempfile.gettempdir()) / Path(backup).name / ('备份-' + 'a' * 80) / ('修订-' + 'b' * 80)
+                snapshot(Path(directory), destination, None, lambda: None)
+                copied = Revisions(LocalSources(destination / 'creator-sources'), sid)
+                self.assertEqual(inspect(copied.export(result['revision'])), restored)
             employee = strict_json(restored['employees/main.json'])
             self.assertEqual(restored[employee['avatar']], avatars.prepare_picture(request['avatar'])[1])
             self.assertEqual(restored['notes.txt'], files['notes.txt'])

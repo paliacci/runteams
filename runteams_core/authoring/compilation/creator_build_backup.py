@@ -1,6 +1,6 @@
 """Device backup closure for source trials; no work content enters asset export."""
 import os
-from pathlib import Path
+from runteams_core.foundation.regular_files import storage_path
 
 from runteams_core.authoring.creator_contracts import canonical, digest, strict_json, tree
 from runteams_core.authoring.compilation.creator_local_build import LocalBuilds
@@ -24,7 +24,7 @@ def pointers(root):
 
 
 def snapshot(source,destination,_scope,check):
-    source=Path(source);destination=Path(destination)
+    source=storage_path(source);destination=storage_path(destination)
     sources=source/'creator-sources'
     if sources.exists():
         store=LocalSources(sources,check)
@@ -60,7 +60,7 @@ def snapshot(source,destination,_scope,check):
 
 
 def verify(directory,_manifest):
-    directory=Path(directory);sources=directory/'creator-sources';index={}
+    directory=storage_path(directory);sources=directory/'creator-sources';index={}
     if sources.exists():
         store=LocalSources(sources)
         for path in sources.iterdir():

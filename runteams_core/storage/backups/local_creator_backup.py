@@ -8,11 +8,12 @@ from runteams_core.authoring.creator_contracts import read_folder, tree
 from runteams_core.authoring.creator_local_authoring import valid_context, _pending
 from runteams_core.authoring.compilation.creator_build_backup import verify as verify_builds
 from runteams_core.foundation.local_json import strict_json
+from runteams_core.foundation.regular_files import storage_path
 
 
 def verify(directory, scope):
     directory=Path(directory)
-    root=directory/'creator-sources'
+    root=storage_path(directory)/'creator-sources'
     store=LocalSources(root) if root.exists() else None
     if store:
         for entry in root.iterdir():

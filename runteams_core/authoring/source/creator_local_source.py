@@ -216,7 +216,7 @@ def current_store(expected_scope):
 
 
 def snapshot(source, destination, _scope, check):
-    source = Path(source) / 'creator-sources'
+    source = regular_files.storage_path(source) / 'creator-sources'
     if not source.exists() and not source.is_symlink():
         return
     store = LocalSources(source, check)
@@ -225,7 +225,7 @@ def snapshot(source, destination, _scope, check):
     for key in sorted(p.name for p in source.iterdir() if HASH.fullmatch(p.name)):
         metadata = store.describe(key)
         raw = store.archive(key, metadata=metadata)
-        target = Path(destination) / 'creator-sources' / key
+        target = regular_files.storage_path(destination) / 'creator-sources' / key
         target.mkdir(mode=0o700, parents=True)
         for name, body in [('draft.json', canonical(metadata)), ('source.zip', raw)]:
             with (target / name).open('xb') as stream:
