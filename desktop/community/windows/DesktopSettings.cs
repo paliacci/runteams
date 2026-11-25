@@ -60,6 +60,11 @@ internal sealed class DesktopSettings : IDisposable
 
     private static readonly string[] AppearanceKeys = { "theme", "interface_font_size", "code_font_size", "restore_windows" };
 
+    private static bool ValidLanguage(string value)
+    {
+        return value == "system" || value == "zh-CN" || value == "en";
+    }
+
     private static object AppearanceValue(string key, string value)
     {
         if (key == "theme" && (value == "light" || value == "dark" || value == "system")) return value;
@@ -97,11 +102,12 @@ internal sealed class DesktopSettings : IDisposable
                     prefs.SetValue(key, value == "true" ? 1 : 0, RegistryValueKind.DWord);
                 if (value == "false") UpdatePower(false);
             } else if ((key == "close_action" && (value == "background" || value == "quit")) ||
-                       AppearanceValue(key, value) != null) {
+                       (key == "language" && ValidLanguage(value)) || AppearanceValue(key, value) != null) {
                 using (var prefs = Registry.CurrentUser.CreateSubKey(Preferences)) prefs.SetValue(key, value);
             } else throw new ArgumentException("Invalid desktop preference.");
         } else if (fields.Length != 3 || fields[2] != "get") throw new ArgumentException("Invalid settings request.");
-        return new { launch_at_login = LaunchAtLogin, prevent_sleep = PreventSleep,
+        string language = Read(Preferences, "language") as string;
+        return new { language = ValidLanguage(language) ? language : null, launch_at_login = LaunchAtLogin, prevent_sleep = PreventSleep,
                      close_action = KeepInBackground ? "background" : "quit", runtime_error = powerError,
                      appearance = ReadAppearance() };
     }

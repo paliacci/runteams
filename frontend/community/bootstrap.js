@@ -26,12 +26,14 @@ async function saveDesktopWorkspace(raw){
   console.error('Windows workspace could not be saved',error);
  }finally{pending--;}
 }
-async function saveAppearance(key,value){
+async function saveDesktopPreference(key,value){
  if(closing)throw Error('窗口正在关闭。');
  pending++;
  try{
   const saved=await desktopSettings.postMessage({action:'set',key,value});
-  if(saved.appearance?.[key]!==value)throw Error('外观设置未确认');
+  const confirmed=key==='language'?saved.language:saved.appearance?.[key];
+  if(confirmed!==value)throw Error('本机设置未确认');
+  return true;
  }finally{pending--;}
 }
 async function connect(){
@@ -89,7 +91,15 @@ export async function boot(value){
   const identity=await connect();
   let savedWindows,loadedScope=null;
   if(desktopSettings){
-   try{const saved=await desktopSettings.postMessage({action:'get'});host.restoreAppearance(saved.appearance);}
+   const locale=globalThis.RunTeamsLocale,initial=locale?.preference;
+   try{
+    const saved=await desktopSettings.postMessage({action:'get'});
+    host.restoreAppearance(saved.appearance);
+    if(locale&&locale.preference===initial){
+     if(saved.language&&saved.language!==initial)locale.restorePreference(saved.language);
+     else if(saved.language==null&&['en','zh-CN'].includes(initial))await saveDesktopPreference('language',initial);
+    }
+   }
    catch{S.nativeSettingsError='本机设置暂时无法读取';}
    const scope={library:identity.library_id,generation:identity.generation};
    try{
@@ -137,4 +147,6 @@ const closeGuard=new NativeCloseGuard(()=>{
  const hasDraft=value=>Boolean(value?.input?.trim()||value?.attachments?.length||value?.capabilities?.length||value?.queue);
  return {pending:Boolean(configuration?.pending||globalThis.RunTeamsWorkState?.pendingSave&&!globalThis.RunTeamsWorkState?.saveRejected||source?.saving||source?.pending||source?.buildSending||source?.build?.latest?.state==='running'||pending||operation||S?.conversationPanel?.busy||S?.settingsPreferencePending||globalThis.RunTeamsBackups?.pending||['saving','error'].includes(S?.docReader?.saveStatus)),dirty:workspaceSaveError||!!configuration?.dirty||!!globalThis.RunTeamsWorkState?.saveRejected||!!source?.editing||Object.values(S?.conversationPanelDrafts||{}).some(hasDraft)};
 },()=>{closing=true;document.body?.setAttribute('inert','');});
-window.RunTeamsLocalDesktop=Object.freeze({settings:desktopSettings,saveAppearance:desktopSettings?saveAppearance:null,saveWorkspace:desktopSettings?saveDesktopWorkspace:null,checkClose:discard=>closeGuard.checkClose(discard),prepareClose:discard=>closeGuard.prepareClose(discard)});
+window.RunTeamsLocalDesktop=Object.freeze({settings:desktopSettings,saveAppearance:desktopSettings?saveDesktopPreference:null,
+ saveLanguage:desktopSettings?value=>saveDesktopPreference('language',value):null,saveWorkspace:desktopSettings?saveDesktopWorkspace:null,
+ checkClose:discard=>closeGuard.checkClose(discard),prepareClose:discard=>closeGuard.prepareClose(discard)});

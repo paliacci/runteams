@@ -15,7 +15,7 @@ async function subject(){
  return {module,calls,wait:async()=>{while(!finish)await new Promise(resolve=>setImmediate(resolve));},finish:value=>finish(value)};
 }
 
-test('a Windows appearance change awaits native readback before the window closes',async()=>{
+test('Windows appearance and language changes await native readback before the window closes',async()=>{
  const events=new EventTarget();let request;
  globalThis.chrome={webview:{addEventListener:events.addEventListener.bind(events),
   removeEventListener:events.removeEventListener.bind(events),postMessage(message){request=message.split(':');}}};
@@ -25,13 +25,19 @@ test('a Windows appearance change awaits native readback before the window close
   const save=desktop.saveAppearance('interface_font_size',16);
   assert.equal(desktop.checkClose(),'pending');
   assert.deepEqual(request.slice(2),['set','interface_font_size','16']);
-  const reply=value=>events.dispatchEvent(Object.assign(new Event('message'),{data:{
-   kind:'desktop-settings',id:request[1],result:{appearance:{interface_font_size:value}}
+  const reply=result=>events.dispatchEvent(Object.assign(new Event('message'),{data:{
+   kind:'desktop-settings',id:request[1],result
   }}));
-  reply(16);await save;
+  reply({appearance:{interface_font_size:16}});await save;
   assert.equal(desktop.checkClose(),'ready');
   const failed=desktop.saveAppearance('interface_font_size',18);
-  reply(16);await assert.rejects(failed);
+  reply({appearance:{interface_font_size:16}});await assert.rejects(failed);
+  const language=desktop.saveLanguage('en');
+  assert.deepEqual(request.slice(2),['set','language','en']);
+  assert.equal(desktop.checkClose(),'pending');
+  reply({language:'en'});assert.equal(await language,true);
+  const rejected=desktop.saveLanguage('zh-CN');
+  reply({language:'en'});await assert.rejects(rejected);
   assert.equal(desktop.checkClose(),'ready');
  }finally{delete globalThis.chrome;}
 });

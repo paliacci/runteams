@@ -65,16 +65,21 @@
   for(const listener of listeners)try{listener(detail);}catch(error){console.error('Language listener failed',error);}
   window.dispatchEvent(new CustomEvent('runteams:languagechange',{detail}));
  }
- function setPreference(value){
+ function storePreference(value,source){
   if(!valid(value))throw new RangeError('Unsupported language preference');
   let persisted=true;try{localStorage.setItem(storageKey,value);persisted=localStorage.getItem(storageKey)===value;}catch{persisted=false;}
-  const previous=language;preference=value;language=resolve(value);publish(previous,'selection');
+  const previous=language;preference=value;language=resolve(value);publish(previous,source);
+  return persisted;
+ }
+ function setPreference(value){
+  const persisted=storePreference(value,'selection');
   const nativeStorage=window.webkit?.messageHandlers?.runteamsLanguage;
-  const nativeSave=nativeStorage?Promise.resolve().then(()=>nativeStorage.postMessage(value)).then(result=>result===true,()=>false):null;
+  const save=nativeStorage?choice=>nativeStorage.postMessage(choice):window.RunTeamsLocalDesktop?.saveLanguage;
+  const nativeSave=save?Promise.resolve().then(()=>save(value)).then(result=>result===true,()=>false):null;
   return Object.freeze({preference,language,persisted,...(nativeSave?{nativeSave}:{})});
  }
  function sync(source){const previous=language;preference=loadPreference();language=resolve(preference);publish(previous,source);}
- const api={storageKey,fallback,t,register,apply,messageLocale,setPreference,
+ const api={storageKey,fallback,t,register,apply,messageLocale,setPreference,restorePreference:value=>storePreference(value,'native'),
   get preference(){return preference;},get language(){return language;},
   onChange(listener){if(typeof listener!=='function')throw new TypeError('Expected a language listener');listeners.add(listener);return()=>listeners.delete(listener);},
   formatNumber(value,options){return new Intl.NumberFormat(language,options).format(value);},
