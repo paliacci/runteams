@@ -1949,7 +1949,14 @@ function adoptCreatedEmployeeConversation(panel,session,expectedGeneration){
 
 
 /* module-function:conversationPanelConfig */
-function conversationPanelConfig(panel=S.conversationPanel){return panel?{channel_id:panel.channel_id,model:panel.model,reasoning_effort:catalogModel(S.channels.find(c=>String(c.id)===String(panel.channel_id)),panel.model)?normalizedEffort(S.channels.find(c=>String(c.id)===String(panel.channel_id)),panel.model,panel.reasoning_effort):panel.reasoning_effort,extensions_enabled:false,...(panel.kind==="general"?{context:conversationContext(panel)}:{})}:{};}
+function conversationPanelConfig(panel=S.conversationPanel){
+  if(!panel)return {};
+  const channel=S.channels.find(c=>String(c.id)===String(panel.channel_id));
+  const config={channel_id:panel.channel_id,model:panel.model,reasoning_effort:catalogModel(channel,panel.model)?normalizedEffort(channel,panel.model,panel.reasoning_effort):panel.reasoning_effort,extensions_enabled:false};
+  // Existing team conversations keep their server-owned workspace and discussion binding.
+  if(panel.kind==="general"&&!(panel.id&&panel.context?.source_pipeline_workspace))config.context=conversationContext(panel);
+  return config;
+}
 
 /* module-function:conversationPanelModelItems */
 function conversationPanelModelItems(panel=S.conversationPanel){normalizeConversationModelConfig(panel);return chatModelItems(conversationPanelConfig(panel));}

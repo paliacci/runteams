@@ -9,6 +9,17 @@ const workReaders = workspace.slice(workspace.indexOf(' let activityConnection;'
   workspace.indexOf(' const operationErrorFallback='));
 const flow = panels.slice(panels.indexOf('const flowKey='), panels.indexOf('function inputDraft('));
 
+test('changing the model in a team discussion sends only runtime settings', () => {
+  const host = vm.createContext({S: {channels: []}, catalogModel: () => null,
+    normalizedConversationContext: panel => ({...panel.context, context_type: 'general', intent: 'general'})});
+  vm.runInContext(fs.readFileSync('web/modules/conversation.js', 'utf8'), host);
+  const panel = {kind: 'general', id: 27, channel_id: 4, model: 'fixture', reasoning_effort: 'low',
+    context: {source_pipeline_workspace: {source_id: 'team'}, source_pipeline_discussion: 'planning'}};
+  assert.deepEqual({...host.conversationPanelConfig(panel)},
+    {channel_id: 4, model: 'fixture', reasoning_effort: 'low', extensions_enabled: false});
+  assert.equal(host.conversationPanelConfig({...panel, context: {}}).context.intent, 'general');
+});
+
 test('a failed team pause can be retried after active work stops', () => {
   const source = workspace.slice(workspace.indexOf(' function runtimeLabelKey('), workspace.indexOf(' function boardWorkflows('));
   const render = vm.runInNewContext(source + '\nruntimeAction', {ICON: () => ''});
