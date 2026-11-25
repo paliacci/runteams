@@ -259,8 +259,9 @@ def _materialize(snapshot, workspace):
     import tempfile
     from pathlib import Path
     from runteams_core.assets import local_assets
+    from runteams_core.foundation.regular_files import storage_path
     resources = {}
-    directory = Path(workspace) / '.runteams' / 'configuration'
+    directory = storage_path(workspace) / '.runteams' / 'configuration'
     for parent in (directory.parent, directory):
         if parent.is_symlink():
             raise ValueError('工作配置目录无效。')

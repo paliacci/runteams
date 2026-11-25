@@ -5,6 +5,7 @@ import hashlib
 import re
 import shutil
 
+from runteams_core.foundation.regular_files import storage_path
 
 PUBLIC_KEYS = ("id", "name", "mime_type", "size", "kind", "file_count", "ref")
 LOCAL_INPUT_REF = re.compile(r'device-input://([1-9][0-9]*)/([a-f0-9]{24})/([a-f0-9]{64})')
@@ -45,9 +46,9 @@ def task_root(core_root, task_id):
         if not ID_MIN <= int(task_id) <= ID_MAX:
             raise ValueError('本机任务资料编号无效')
         from runteams_core.employees.employee_workspaces import _directory
-        directory = _directory(Path(core_root) / 'task-inputs')
+        directory = _directory(storage_path(core_root) / 'task-inputs')
         return _directory(directory / ('task-' + str(int(task_id))))
-    root = Path(core_root).resolve() / "task-inputs" / "task-{}".format(int(task_id))
+    root = storage_path(core_root).resolve() / "task-inputs" / "task-{}".format(int(task_id))
     root.mkdir(parents=True, exist_ok=True)
     return root
 
@@ -117,7 +118,7 @@ def copy_chat_attachment(core_root, task_id, chat_id, item, *, operation_id):
 
 
 def discard_task(core_root, task_id):
-    root = Path(core_root).resolve()
+    root = storage_path(core_root).resolve()
     target = (root / "task-inputs" / "task-{}".format(int(task_id))).resolve()
     inputs_root = (root / "task-inputs").resolve()
     if target.parent != inputs_root:
@@ -190,8 +191,8 @@ def source_for_item(core_root, task_id, item):
 def materialize(core_root, task_id, items, workspace, database=None,
                 input_directory=".runteams/inputs"):
     """Copy task snapshots into the current employee workspace and return public inputs."""
-    workspace_root = Path(workspace).resolve()
-    destination = (workspace_root / input_directory).resolve()
+    workspace_root = storage_path(workspace).resolve()
+    destination = storage_path(workspace_root / input_directory).resolve()
     if workspace_root not in destination.parents:
         raise ValueError("交接文件目录必须在本次工作区内")
     shutil.rmtree(destination, ignore_errors=True)
@@ -212,8 +213,8 @@ def materialize(core_root, task_id, items, workspace, database=None,
             with Repository(database).connect() as connection:
                 row = connection.execute("SELECT ref FROM artifacts WHERE id=? AND trashed_at IS NULL",
                                          (int(artifact_match.group(1)),)).fetchone()
-            source = Path(row["ref"]).resolve() if row else None
-            if source is None or Path(core_root).resolve()/"artifacts" not in source.parents or not source.is_file():
+            source = storage_path(row["ref"]).resolve() if row else None
+            if source is None or storage_path(core_root).resolve()/"artifacts" not in source.parents or not source.is_file():
                 raise ValueError("交接产物已不可用")
             item["artifact_id"] = int(artifact_match.group(1))
         if source is None:
@@ -229,9 +230,10 @@ def materialize(core_root, task_id, items, workspace, database=None,
             index += 1
         used.add(candidate.casefold())
         target = destination / candidate
+        source = storage_path(source)
         if source.is_dir():
             shutil.copytree(source, target)
         else:
             shutil.copy2(source, target)
-        materialized.append(dict(item, path=str(target.relative_to(Path(workspace).resolve()))))
+        materialized.append(dict(item, path=str(target.relative_to(workspace_root))))
     return materialized

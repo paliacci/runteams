@@ -1077,9 +1077,11 @@ def recover(core, identifier):
 def _export_report(core, chat_id, document):
     from runteams_core.documents.document_export import export_document
     from runteams_core.employees.employee_workspaces import workspace
+    from runteams_core.foundation.durable_files import move
+    from runteams_core.foundation.regular_files import storage_path
 
     raw, _, _ = export_document(core, document)
-    managed = Path(workspace(chat_id)) / '.runteams'
+    managed = storage_path(workspace(chat_id)) / '.runteams'
     directory = managed / 'handoff-reports'
     for path in (managed, directory):
         if path.is_symlink():
@@ -1087,22 +1089,26 @@ def _export_report(core, chat_id, document):
         path.mkdir(mode=0o700, exist_ok=True)
     checksum = hashlib.sha256(raw).hexdigest()
     target = directory / (str(document['id']) + '-' + checksum + '.json')
+    if not target.exists() and not target.is_symlink():
+        stream = tempfile.NamedTemporaryFile(dir=directory, delete=False)
+        temporary = Path(stream.name)
+        try:
+            with stream:
+                stream.write(raw)
+            temporary.chmod(0o400)
+            try:
+                move(temporary, target)
+            except FileExistsError:
+                pass  # Another reader published the same report. Verify its bytes below.
+        finally:
+            if temporary.exists():
+                temporary.chmod(0o600)
+                temporary.unlink()
     if target.is_symlink():
         raise ContractError('工作汇报副本不能是链接。')
-    if target.exists():
-        with target.open('rb') as stream:
-            if hashlib.file_digest(stream, 'sha256').hexdigest() != checksum:
-                raise ContractError('已有工作汇报副本已变化。')
-    else:
-        with tempfile.NamedTemporaryFile(dir=directory, delete=False) as stream:
-            temporary = Path(stream.name)
-            try:
-                stream.write(raw)
-                stream.flush()
-                temporary.chmod(0o400)
-                temporary.replace(target)
-            finally:
-                temporary.unlink(missing_ok=True)
+    with target.open('rb') as stream:
+        if hashlib.file_digest(stream, 'sha256').hexdigest() != checksum:
+            raise ContractError('已有工作汇报副本已变化。')
     return {'path': str(target), 'sha256': checksum, 'access': 'read-copy'}
 
 
