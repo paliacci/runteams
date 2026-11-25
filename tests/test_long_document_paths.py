@@ -3,9 +3,10 @@ import json
 import os
 from pathlib import Path
 import shutil
+import subprocess
+import sys
 from tempfile import TemporaryDirectory
 import unittest
-from unittest.mock import patch
 from uuid import uuid4
 
 from runteams_core.application.local_application import LocalApplication
@@ -18,9 +19,15 @@ class LongDocumentPathTests(unittest.TestCase):
     def test_delete_and_restore_document_with_attachment(self):
         temporary = self.enterContext(TemporaryDirectory())
         library = Path(temporary) / ('资料库 ' + 'ab' * 25)
-        self.enterContext(patch.dict(os.environ, RUNTEAMS_DATA=str(library), RUNTEAMS_AUTOMATION_DISPATCH='0'))
-        app = LocalApplication(library)
         self.addCleanup(shutil.rmtree, storage_path(library))
+        subprocess.run([sys.executable, '-B', '-c',
+            'import runpy, sys; runpy.run_path(sys.argv[1])["LongDocumentPathTests"]("round_trip").debug()',
+            __file__], check=True, timeout=120,
+            env={**os.environ, 'RUNTEAMS_DATA': str(library), 'RUNTEAMS_AUTOMATION_DISPATCH': '0'})
+
+    def round_trip(self):
+        library = Path(os.environ['RUNTEAMS_DATA'])
+        app = LocalApplication(library)
         self.addCleanup(app.close)
         body = rich_documents.from_markdown('长路径正文')
         file = {'name': '离线样例.txt', 'type': 'text/plain', 'data': 'data:text/plain;base64,QUJD'}
