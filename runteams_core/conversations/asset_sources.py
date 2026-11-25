@@ -340,7 +340,8 @@ def original(bank, source, bundled, directory, *, for_work=False):
 
 
 def _write_original(src, name, size, sha, directory, for_work=False):
-    directory = Path(directory)
+    destination = Path(directory)
+    root = directory = storage_path(destination)
     if directory.is_symlink() or not directory.is_dir():
         raise ValueError('资料输出目录无效。')
     if for_work:
@@ -350,6 +351,7 @@ def _write_original(src, name, size, sha, directory, for_work=False):
                 raise ValueError('知识库工作目录无效。')
             directory.mkdir(mode=0o700, exist_ok=True)
     target = directory / Path(name).name
+    result = {'name':name, 'path':str(destination / target.relative_to(root)), 'size':size}
     if not target.exists():
         temp = tempfile.NamedTemporaryFile(dir=directory, delete=False)
         try:
@@ -364,7 +366,7 @@ def _write_original(src, name, size, sha, directory, for_work=False):
             except FileExistsError:
                 pass
             else:
-                return {'name':name,'path':str(target),'size':size}
+                return result
         finally:
             Path(temp.name).unlink(missing_ok=True)
     with knowledge_archive.regular(target) as existing:
@@ -372,7 +374,7 @@ def _write_original(src, name, size, sha, directory, for_work=False):
             knowledge_archive.copy_checked(existing, None, size, sha)
         except CreatorContractError as error:
             raise CreatorContractError('knowledge_name_conflict', '目标文件夹已有内容不同的同名文件。请选择其他文件夹。') from error
-    return {'name':name,'path':str(target),'size':size}
+    return result
 
 
 _viewer_lock = threading.Lock()

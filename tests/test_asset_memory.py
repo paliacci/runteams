@@ -502,10 +502,11 @@ class AssetMemoryTests(TestCase):
             self.assertLess(len(str(copy).encode('utf-16-le')), 520)
         self.assertEqual(copy.suffix, '.wav')
         self.assertEqual(copy.read_bytes(), content)
-        with TemporaryDirectory(dir=storage_path(gettempdir())) as destination:
+        with TemporaryDirectory(dir=storage_path(gettempdir())) as directory:
+            destination = Path(gettempdir()) / Path(directory).name
             exported = asset_sources.original(bank, identifier, {}, destination)
-            self.assertEqual(Path(exported['path']).name, name)
-            self.assertEqual(Path(exported['path']).read_bytes(), content)
+            self.assertEqual(Path(exported['path']), destination / name)
+            self.assertEqual(storage_path(exported['path']).read_bytes(), content)
 
     def test_legacy_word_index_tracks_the_original_revision(self):
         from runteams_core.conversations import asset_sources
