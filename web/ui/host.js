@@ -21,7 +21,7 @@
   resources:{tree:()=>null,detail:()=>null,origin:empty,publication:empty},
   employeeConfiguration:{
    scope:state=>state.localLibrary?.cache_scope||'',
-   request:(target,method,body)=>api(target,method,body??undefined)
+   request:(target,method,body)=>api(target,method,body??undefined,{readCurrent:method==='GET'})
   },
   pipeline:{
    positionRuntime:(request,body)=>request('position-runtime',body),

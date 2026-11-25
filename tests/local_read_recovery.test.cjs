@@ -105,6 +105,27 @@ async function sidebarFixture(){
  const refresh=()=>Promise.allSettled([c.refreshChatDirectory({readPriority:'background'}),pipelines.refreshCatalog({readPriority:'background'})]);
  return {c,attempts,delays,refresh,pipelines,transport};
 }
+test('opening an employee refreshes its configuration when a concurrent workspace write supersedes the read',async()=>{
+ const {c}=await sidebarFixture();
+ const configuration='/api/creator-source/drafts/sample/configuration?employee_source=employees/main.json';
+ let start,release,reads=0,writes=0;
+ const started=new Promise(resolve=>{start=resolve;});
+ const pending=new Promise(resolve=>{release=resolve;});
+ c.window.fetch=async(path,options)=>{
+  if(options.method==='POST'){writes++;return new Response('{}');}
+  assert.equal(path,configuration);
+  const revision=++reads;
+  if(revision===1){start();await pending;}
+  return new Response(JSON.stringify({revision}));
+ };
+ const result=c.RunTeamsHost.employeeConfiguration.request(configuration,'GET');
+ await started;
+ await c.api('/api/conversations','POST',{});
+ release();
+ assert.equal((await result).revision,2);
+ assert.equal(writes,1);
+});
+
 test('background directory refresh retains confirmed data during disconnect and reports only a failed retry',async()=>{
  const {c,refresh,attempts,delays,pipelines}=await sidebarFixture();
  c.offline=true;await refresh();
