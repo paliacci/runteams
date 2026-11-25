@@ -1228,6 +1228,7 @@ globalThis.RUNTEAMS_LOCALES = {
   "pipelineBoard.runtimeRunning": "运行中",
   "pipelineBoard.paused": "已暂停",
   "pipelineBoard.pausing": "正在暂停",
+  "pipelineBoard.retryPause": "重试暂停",
   "pipelineBoard.activeCount": "{count} 项进行中",
   "pipelineBoard.attentionCount": "{count} 项待处理",
   "pipelineBoard.statusSeparator": "，",

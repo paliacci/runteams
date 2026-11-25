@@ -316,13 +316,14 @@
  function runtimeAction(s,disabled){
   const runtime=s.data?.runtime;
   if(!runtime)return '';
-  const loading=s.controlBusy==='submitting'||runtime.status==='pausing';
-  const pausing=runtime.status==='pausing';
-  const labelKey=pausing?'pausing':loading&&s.controlLabelKey||runtimeLabelKey(s.data);
+  const retryPause=runtime.status==='pausing'&&!!runtime.pause_error&&!runtime.active_workflow_ids?.length;
+  const pausing=runtime.status==='pausing'&&!retryPause;
+  const loading=s.controlBusy==='submitting'||pausing;
+  const labelKey=retryPause?'retryPause':pausing?'pausing':loading&&s.controlLabelKey||runtimeLabelKey(s.data);
   const running=labelKey!=='paused',action=running?'pause':'start';
-  const label=pausing?'正在暂停':running?'运行中':'已暂停';
-  const accessible=pausing?'pausing':running?'pausePipeline':'startPipeline';
-  const actionLabel=pausing?label:running?'暂停智能体团队':'启动智能体团队';
+  const label=retryPause?'重试暂停':pausing?'正在暂停':running?'运行中':'已暂停';
+  const accessible=retryPause||pausing?labelKey:running?'pausePipeline':'startPipeline';
+  const actionLabel=retryPause||pausing?label:running?'暂停智能体团队':'启动智能体团队';
   return `<button type="button" class="source-pipeline-runtime-action" ${disabled||s.controlPending||s.controlBusy||loading?'disabled':''} ${loading?'aria-busy="true"':''} onclick="RunTeamsSourcePipelines.control('${action}')"
    aria-label="${actionLabel}" title="${actionLabel}" data-app-i18n-aria-label="pipelineBoard.${accessible}" data-app-i18n-title="pipelineBoard.${accessible}">
    ${loading?'<span class="pipeline-run-spinner" aria-hidden="true"></span>':ICON(running?'pause':'play')}<span data-app-i18n="pipelineBoard.${labelKey}">${label}</span>

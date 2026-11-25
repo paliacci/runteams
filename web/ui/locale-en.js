@@ -1198,6 +1198,7 @@ globalThis.RUNTEAMS_LOCALES.en = {
   "pipelineBoard.runtimeRunning": "Running",
   "pipelineBoard.paused": "Paused",
   "pipelineBoard.pausing": "Pausing…",
+  "pipelineBoard.retryPause": "Retry pause",
   "pipelineBoard.activeCount": "{count} in progress",
   "pipelineBoard.attentionCount": "{count} awaiting attention",
   "pipelineBoard.statusSeparator": ", ",

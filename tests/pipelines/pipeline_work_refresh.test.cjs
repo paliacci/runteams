@@ -9,6 +9,24 @@ const workReaders = workspace.slice(workspace.indexOf(' let activityConnection;'
   workspace.indexOf(' const operationErrorFallback='));
 const flow = panels.slice(panels.indexOf('const flowKey='), panels.indexOf('function inputDraft('));
 
+test('a failed team pause can be retried after active work stops', () => {
+  const source = workspace.slice(workspace.indexOf(' function runtimeLabelKey('), workspace.indexOf(' function boardWorkflows('));
+  const render = vm.runInNewContext(source + '\nruntimeAction', {ICON: () => ''});
+  const runtime = {status: 'pausing', active_workflow_ids: [], pause_error: 'workspace unavailable'};
+  const board = {data: {runtime}};
+  const retry = render(board, false);
+  assert.match(retry, /pipelineBoard\.retryPause/);
+  assert.match(retry, /control\('pause'\)/);
+  assert.doesNotMatch(retry, /disabled/);
+  runtime.active_workflow_ids = [17];
+  assert.match(render(board, false), /disabled/);
+  runtime.active_workflow_ids = [];
+  runtime.pause_error = '';
+  assert.match(render(board, false), /disabled/);
+  runtime.status = 'paused';
+  assert.match(render(board, false), /control\('start'\)/);
+});
+
 test('only the exact execution that supplied the current pending result moves to the heading', () => {
   const env = vm.createContext({window: {addEventListener() {}}});
   vm.runInContext(fs.readFileSync('web/ui/work-records.js', 'utf8'), env);
