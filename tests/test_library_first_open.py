@@ -6,11 +6,23 @@ import unittest
 import uuid
 
 from runteams_core.foundation.durable_files import publish_json
+from runteams_core.foundation.regular_files import storage_path
 from runteams_core.foundation.identity import device_namespace, library_identity
 from runteams_core.storage.local_library import LocalLibrary
 
 
 class LibraryFirstOpenTests(unittest.TestCase):
+    def test_replace_json_in_deep_restore_directory(self):
+        with tempfile.TemporaryDirectory(dir=storage_path(tempfile.gettempdir())) as folder:
+            root = Path(tempfile.gettempdir()) / Path(folder).name
+            parent = root / ('恢复-' + 'a' * 80) / ('资料-' + 'b' * 80) / ('对话-' + 'c' * 60)
+            storage_path(parent).mkdir(parents=True)
+            record = parent / 'folders.json'
+            publish_json(record, {'state': '创建'})
+            publish_json(record, {'state': '恢复'}, replace=True)
+            self.assertEqual(json.loads(storage_path(record).read_bytes()), {'state': '恢复'})
+            self.assertEqual([p.name for p in storage_path(parent).iterdir()], ['folders.json'])
+
     def test_concurrent_first_launch_and_account_reopen(self):
         with tempfile.TemporaryDirectory() as folder:
             base = Path(folder) / '资料 库'

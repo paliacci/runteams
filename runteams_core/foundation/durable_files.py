@@ -1,8 +1,9 @@
 """Publish complete JSON records atomically on the destination filesystem."""
 import json
 import os
-from pathlib import Path
 import uuid
+
+from runteams_core.foundation.regular_files import storage_path
 
 
 def move(temporary, destination, *, replace=False):
@@ -57,7 +58,7 @@ def _publish(temporary, destination, replace):
 
 
 def publish_json(path, value, *, replace=False):
-    destination = Path(path)
+    destination = storage_path(path)
     temporary = destination.with_name('.pending-' + uuid.uuid4().hex)
     descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     try:
