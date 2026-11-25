@@ -1,9 +1,11 @@
 """Read local Office documents for the knowledge viewer and for source citations."""
 from contextlib import closing
 from datetime import datetime
+from pathlib import Path
 import io
 import subprocess
 import sys
+import tempfile
 from zipfile import ZipFile
 
 from runteams_core.foundation.contracts import ContractError
@@ -116,14 +118,26 @@ def preview(suffix, raw):
                         yield sheet.name, ([_xls_cell(cell, book.datemode) for cell in row] for row in sheet.get_rows())
                 return _sheets(worksheets())
         elif suffix == '.doc':
-            if sys.platform != 'darwin':
+            if sys.platform not in ('darwin', 'win32'):
                 raise ContractError('此系统暂不支持旧版 Word 正文预览。')
             data = raw.read(MAX_XML + 1)
             if len(data) > MAX_XML:
                 raise ContractError('Word 文件过大。')
-            converted = subprocess.run(['/usr/bin/textutil', '-convert', 'txt', '-format', 'doc',
-                '-encoding', 'UTF-8', '-noload', '-nostore', '-stdin', '-stdout'],
-                input=data, capture_output=True, timeout=30, check=True)
+            if sys.platform == 'win32':
+                # A third-party Windows Search filter must not block or crash the library service.
+                with tempfile.TemporaryDirectory(prefix='runteams-word-') as directory:
+                    document = Path(directory) / 'original.doc'
+                    document.write_bytes(data)
+                    worker = Path(__file__).with_name('windows_doc_reader.py')
+                    converted = subprocess.run([sys.executable, '-I', '-B', worker, document, str(MAX_TEXT)],
+                        capture_output=True, timeout=15, creationflags=subprocess.CREATE_NO_WINDOW)
+                    if converted.returncode == 2:
+                        raise ContractError('Word 正文过长。')
+                    converted.check_returncode()
+            else:
+                converted = subprocess.run(['/usr/bin/textutil', '-convert', 'txt', '-format', 'doc',
+                    '-encoding', 'UTF-8', '-noload', '-nostore', '-stdin', '-stdout'],
+                    input=data, capture_output=True, timeout=30, check=True)
             text = converted.stdout.decode('utf-8-sig')
         else:
             raise ContractError('不支持的 Office 文件类型。')
