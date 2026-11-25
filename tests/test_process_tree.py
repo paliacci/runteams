@@ -78,3 +78,16 @@ class ProcessTreeTests(unittest.TestCase):
         self.assertEqual((result.stdout, result.stderr, result.returncode), ('out\n', 'err\n', 7))
         with self.assertRaises(subprocess.TimeoutExpired):
             process_tree.run([sys.executable, '-c', 'import time; time.sleep(15)'], timeout=.1)
+
+    def test_probe_leaves_owner_input_for_the_service(self):
+        owner = (
+            'import subprocess, sys\n'
+            'from runteams_core.foundation import process_tree\n'
+            'probe = "import sys; print(repr(sys.stdin.buffer.read()))"\n'
+            'result = process_tree.run([sys.executable, "-c", probe], timeout=5, stdout=subprocess.PIPE)\n'
+            'print(result.stdout.decode().strip())\n'
+            'print(repr(sys.stdin.buffer.read()))\n'
+        )
+        result = subprocess.run([sys.executable, '-c', owner], input=b'owner', stdout=subprocess.PIPE,
+                                check=True, timeout=10)
+        self.assertEqual(result.stdout.splitlines(), [b"b''", b"b'owner'"])

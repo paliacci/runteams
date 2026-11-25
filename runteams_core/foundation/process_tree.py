@@ -71,9 +71,9 @@ def stop(process, *, grace=1):
         owner.stopped = True
 
 
-def run(argv, *, timeout, **options):
-    """Run a bounded probe and release its descendants on every exit path."""
-    process = start(argv, **options)
+def run(argv, *, timeout, stdin=subprocess.DEVNULL, **options):
+    """Run a bounded probe without sharing the desktop service's owner pipe."""
+    process = start(argv, stdin=stdin, **options)
     try:
         stdout, stderr = process.communicate(timeout=timeout)
         return subprocess.CompletedProcess(argv, process.returncode, stdout, stderr)
