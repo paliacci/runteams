@@ -77,7 +77,7 @@ class LocalAssets:
             if path.is_symlink():
                 raise ValueError('本机资产存储路径无效。')
         try:
-            fd = os.open(self.path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+            fd = os.open(self.path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
         except FileExistsError:
             pass
         else:

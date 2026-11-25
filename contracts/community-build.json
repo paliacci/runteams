@@ -377,7 +377,20 @@
     "sdk/runtime/internal/requests.d.ts",
     "sdk/runtime/internal/requests.js",
     "sdk/runtime/package.json",
-    "sdk/shared/guards.js"
+    "sdk/shared/guards.js",
+    "runteams_core/agents/tools/public_site_audit.py",
+    "runteams_core/application/http/ui_asset_versions.py",
+    "runteams_core/assets/bundled_knowledge.py",
+    "runteams_core/assets/knowledge_archive.py",
+    "runteams_core/authoring/source/employee_starters.py",
+    "runteams_core/authoring/source/knowledge_packages.py",
+    "runteams_core/authoring/source/selected_asset.py",
+    "runteams_core/documents/document_folders.py",
+    "runteams_core/employees/employee_workbench_summary.py",
+    "runteams_core/pipelines/chat_pipeline_flow.py",
+    "runteams_core/pipelines/pipeline_choice_index.py",
+    "runteams_core/pipelines/pipeline_task_delivery.py",
+    "runteams_creator_dev/knowledge.py"
   ],
   "runtime_assets": [
     "web/index.html",
@@ -708,7 +721,8 @@
     "desktop/notarization.py",
     "desktop/creator/CreatorDesktopHost.swift",
     "desktop/creator/CreatorCloudWork.swift",
-    "desktop/creator/CreatorWebHost.swift"
+    "desktop/creator/CreatorWebHost.swift",
+    "desktop/community/windows/RunTeamsLocal.cs"
   ],
   "native_build_entrypoint": "desktop/community/build.py",
   "build_sources": [
@@ -832,7 +846,9 @@
     "web/rich-document/licenses/KaTeX-LICENSE",
     "web/vendor/licenses/DOMPURIFY-LICENSE",
     "web/vendor/licenses/MARKED-LICENSE.md",
-    "runteams_core/devtools/check_ui_boundary.py"
+    "runteams_core/devtools/check_ui_boundary.py",
+    "desktop/community/windows/build.py",
+    "desktop/community/windows/installer.iss"
   ],
   "notices": [
     "LICENSE",

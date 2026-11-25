@@ -54,7 +54,9 @@ class ProcessTreeTests(unittest.TestCase):
                 'try: subprocess.run([sys.executable, "-c", *sys.argv[1:]], timeout=5)\n'
                 'except OSError: pass'
             )
-            result = process_tree.run([sys.executable, '-c', parent, grandchild, str(marker)],
+            # A Windows venv's python.exe is a redirector that starts another
+            # process. Exercise the real interpreter inside the one-process job.
+            result = process_tree.run([sys._base_executable, '-c', parent, grandchild, str(marker)],
                                       windows_limits={'processes': 1}, timeout=8)
             self.assertEqual(result.returncode, 0)
             self.assertFalse(marker.exists())

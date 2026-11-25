@@ -1,6 +1,5 @@
 """Strict Developer ID signing primitives; local ad-hoc signing is explicit."""
 from dataclasses import dataclass
-import hashlib
 import json
 from pathlib import Path
 import plistlib
@@ -90,18 +89,8 @@ class Signer:
             raise ValueError('The signed JavaScript runtime is missing its JIT entitlement')
 
 
-def seal_runtime(root):
-    """Reseal our verified staging copy after signing; upstream lock is unchanged."""
-    from runteams_core.agents.environment.agent_environment import payload_files, verify_runtime
-    root=Path(root);manifest=json.loads((root/'runtime.json').read_bytes())
-    manifest['files']=payload_files(root)
-    raw=json.dumps(manifest,sort_keys=True,separators=(',',':')).encode()
-    (root/'runtime.json').write_bytes(raw)
-    (root/'runtime.sha256').write_text(hashlib.sha256(raw).hexdigest()+'\n')
-    verify_runtime(root)
-
-
 def sign_runtime(root,signer):
+    from runteams_core.devtools.prepare_agent_python import seal_runtime
     from runteams_core.agents.environment.agent_environment import verify_runtime
     verify_runtime(root)
     for path in sorted(Path(root).rglob('*')):

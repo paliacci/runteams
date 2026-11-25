@@ -3136,6 +3136,7 @@ globalThis.RUNTEAMS_LOCALES.en = {
   "shell.collapse": "Hide Sidebar",
   "shell.expand": "Show Sidebar",
   "shell.searchLabel": "Search conversations, Agent Teams, and documents",
+  "shell.searchTitleCtrl": "Search (Ctrl+K)",
   "shell.searchTitle": "Search (⌘K)",
   "shell.createEmployee": "Create Employee",
   "shell.documents": "Documents",

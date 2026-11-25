@@ -36,7 +36,7 @@ def main(argv=None):
     presentation = parser.add_mutually_exclusive_group()
     presentation.add_argument('--open', action='store_true', help='在浏览器中打开本机资产界面')
     presentation.add_argument('--desktop', action='store_true', help='启动独立原生本机壳')
-    parser.add_argument('--desktop-host', type=Path, help='明确指定已构建的本机版.app')
+    parser.add_argument('--desktop-host', type=Path, help='指定 RunTeamsLocal.exe 或已构建的本机版 .app')
     parser.add_argument('--owner-stdin', action='store_true', help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
     if args.desktop_host and not args.desktop:

@@ -2,7 +2,25 @@
 
 免费本机版的唯一 macOS 构建入口是 `desktop/community/build.py`。构建机需要 macOS ARM64、Swift/Xcode 工具及 Python 3.12。
 
-## 本机验收包
+## Windows x64 本机验收包
+
+在 Windows x64 上使用 Python 3.12、.NET Framework 4.8 和 Inno Setup 6。将 ISCC.exe 所在目录加入构建终端的 PATH，或通过 `--iscc` 指定编译器。安装包为当前用户安装 RunTeams Local，并创建开始菜单快捷方式。桌面窗口使用 Microsoft Edge WebView2 Evergreen Runtime。
+
+```powershell
+py -3.12 -m venv .venv
+.\.venv\Scripts\python -m pip install -r requirements/build.txt
+.\.venv\Scripts\python -X utf8 desktop/community/windows/build.py --output ..\artifacts
+```
+
+构建工具校验锁定的 Python 运行时和 WebView2 SDK，随包附带业务代码、前端资源、Python 依赖和许可证。首次构建需要联网。可用 `--runtime` 复用已验证的运行时，用 `--webview-sdk` 指向对应的 NuGet 包。运行 `RunTeamsLocal.exe --data-dir <目录>` 可指定验收资料库。Windows 构建当前生成未签名的本机验收包。
+
+安装后，在装有 `requirements/runtime.txt` 的测试环境中执行以下回归。测试在独立的资料库和 WebView2 配置目录中打开实际安装的桌面窗口。
+
+```powershell
+.\.venv\Scripts\python tests/windows_desktop_smoke.py "$env:LOCALAPPDATA\Programs\RunTeams Local\RunTeamsLocal.exe"
+```
+
+## macOS 本机验收包
 
 先按仓库内的锁与开发工具准备可信的 Python、MCP Node 运行时和编译器；构建不猜测其他工程或个人安装路径。
 

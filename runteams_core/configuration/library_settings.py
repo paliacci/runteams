@@ -27,7 +27,7 @@ class LibrarySettings:
         self.check(); private_directory(self.binding.root)
         for path in (self.path,Path(str(self.path)+'-wal'),Path(str(self.path)+'-shm')):
             if path.is_symlink(): raise ValueError('Invalid settings path')
-        try: descriptor=os.open(self.path,os.O_CREAT|os.O_EXCL|os.O_WRONLY|os.O_NOFOLLOW,0o600)
+        try: descriptor=os.open(self.path,os.O_CREAT|os.O_EXCL|os.O_WRONLY,0o600)
         except FileExistsError: pass
         else: os.close(descriptor)
         connection=sqlite3.connect(self.path,timeout=30)

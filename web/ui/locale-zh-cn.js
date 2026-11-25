@@ -3137,6 +3137,7 @@ globalThis.RUNTEAMS_LOCALES = {
   "shell.collapse": "折叠侧边栏",
   "shell.expand": "展开侧边栏",
   "shell.searchLabel": "搜索对话、智能体团队和文档",
+  "shell.searchTitleCtrl": "搜索（Ctrl+K）",
   "shell.searchTitle": "搜索（⌘K）",
   "shell.createEmployee": "创建员工",
   "shell.documents": "文档",

@@ -27,6 +27,8 @@ CAPABILITIES = ('library.read', 'assets.list', 'assets.create', 'assets.read', '
 
 class LocalServer(ThreadingHTTPServer):
     daemon_threads = True
+    # WebView2 can queue a burst of connections when a workspace page reloads.
+    request_queue_size = 128
     allow_reuse_address = True  # Restart after closed HTTP connections; never SO_REUSEPORT.
 
     def __init__(self, application, port):

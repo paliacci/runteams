@@ -96,7 +96,9 @@
 
   function topActions(icon, extra = '', options = {}) {
     const pending = options.pending === true;
-    return windowActions(`${historyActions(icon,pending)}<button class="rail-window-action rail-top-search" type="button" title="搜索（⌘K）" aria-label="搜索对话、智能体团队和文档" data-app-i18n-aria-label="shell.searchLabel" data-app-i18n-title="shell.searchTitle" aria-keyshortcuts="Meta+K" ${pending ? 'disabled' : ''} onclick="openRailSearch(this)">${icon('search-rail')}</button>${extra}<button class="rail-window-action rail-collapse" type="button" title="折叠侧边栏" aria-label="折叠侧边栏" data-app-i18n-aria-label="shell.collapse" data-app-i18n-title="shell.collapse" ${pending ? 'disabled' : ''} onclick="collapseRail()">${icon('rail-panel-close')}</button>`,pending);
+    const appleKeyboard = /Mac|iPhone|iPad/.test(global.navigator?.platform || '');
+    const shortcut = appleKeyboard ? '⌘K' : 'Ctrl+K';
+    return windowActions(`${historyActions(icon,pending)}<button class="rail-window-action rail-top-search" type="button" title="搜索（${shortcut}）" aria-label="搜索对话、智能体团队和文档" data-app-i18n-aria-label="shell.searchLabel" data-app-i18n-title="${appleKeyboard ? 'shell.searchTitle' : 'shell.searchTitleCtrl'}" aria-keyshortcuts="${appleKeyboard ? 'Meta+K' : 'Control+K'}" ${pending ? 'disabled' : ''} onclick="openRailSearch(this)">${icon('search-rail')}</button>${extra}<button class="rail-window-action rail-collapse" type="button" title="折叠侧边栏" aria-label="折叠侧边栏" data-app-i18n-aria-label="shell.collapse" data-app-i18n-title="shell.collapse" ${pending ? 'disabled' : ''} onclick="collapseRail()">${icon('rail-panel-close')}</button>`,pending);
   }
 
   function collapsedActions(icon) {

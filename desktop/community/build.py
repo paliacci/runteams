@@ -13,7 +13,7 @@ import tempfile
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
-from desktop.macos_signing import Signer, macho, executable_macho, sign_runtime, seal_runtime, verify_release_app
+from desktop.macos_signing import Signer, macho, executable_macho, sign_runtime, verify_release_app
 
 BUNDLE_ID = 'ai.runteams.community'
 from runteams_core.devtools.community_source import load_contract
@@ -141,7 +141,7 @@ def build(output=None, build_python=None, data_directory=None, validate_only=Fal
             shutil.copyfile(ROOT/item['path'],path)
             if hashlib.sha256(path.read_bytes()).hexdigest()!=item['sha256']:raise ValueError('Notice changed during copy')
         runtime=core/'runtime-dependencies/agent-python';runtime.parent.mkdir(parents=True)
-        from runteams_core.devtools.prepare_agent_python import stage,prepare
+        from runteams_core.devtools.prepare_agent_python import stage,prepare,seal_runtime
         runtime_source=config.pop('_runtime_source')
         if runtime_source:stage(runtime_source,runtime)
         else:prepare(runtime)

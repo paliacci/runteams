@@ -43,6 +43,13 @@ def notices(archive, staging, payload):
     tar = shutil.which('tar')
     if not tar:
         raise ValueError('Release tooling requires tar with Zstandard support')
+    if os.name == 'nt':
+        # Windows ships bsdtar, but some versions lack its zstd filter.
+        import zstandard
+        uncompressed = staging / 'python-full.tar'
+        with archive.open('rb') as source, uncompressed.open('xb') as target:
+            zstandard.ZstdDecompressor().copy_stream(source, target)
+        archive = uncompressed
     paths = subprocess.check_output([tar, '-tf', str(archive)], text=True).splitlines()
     selected = [name for name in paths if name == 'python/PYTHON.json' or
                 (name.startswith('python/licenses/') and not name.endswith('/'))]
@@ -120,6 +127,17 @@ def prepare(output, *, archive=None, signing_identity='-'):
         agent_environment.verify_runtime(payload)
         payload.rename(output)
     return {key: manifest[key] for key in ('schema', 'platform', 'version', 'archive_sha256', 'modules')}
+
+
+def seal_runtime(root):
+    """Seal the verified staging copy after configuring or signing it."""
+    root = Path(root)
+    manifest = json.loads((root / 'runtime.json').read_bytes())
+    manifest['files'] = agent_environment.payload_files(root)
+    raw = json.dumps(manifest, sort_keys=True, separators=(',', ':')).encode()
+    (root / 'runtime.json').write_bytes(raw)
+    (root / 'runtime.sha256').write_text(hashlib.sha256(raw).hexdigest() + '\n')
+    agent_environment.verify_runtime(root)
 
 
 def stage(source, output):
