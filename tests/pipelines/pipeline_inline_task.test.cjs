@@ -114,6 +114,43 @@ test('cancel creation from the floating menu cannot dispatch after the menu clos
  menu.options.onClose();menu.items[1].fn();f.flush();await f.advance(10000);
  assert.equal(f.s.composer,null);assert.equal(f.calls.filter(c=>c.action==='dispatch').length,0);
 });
+test('queued title conflicts preserve the draft and only retry after an explicit save',async()=>{
+ for(const retry of [false,true]){
+  const f=fixture(),row={id:7,title:'Original',state:'ready',card_actions:{edit:true,pause:true,visit:4}};
+  f.s.data.workflows=[row];
+  const controls=new Map(),commands=[];
+  const modal={isConnected:true,querySelector(selector){
+   if(!controls.has(selector))controls.set(selector,{focus(){},select(){}});
+   return controls.get(selector);
+  }};
+  Object.assign(f.context,{
+   openDialog:()=>modal,closeModal:()=>{modal.isConnected=false;},
+   RunTeamsLocale:{apply(){},t:(_key,vars)=>vars.title||'Save'},
+   cardState:()=>({pending:null,error:'Title conflict'}),
+   refresh:async()=>{row.title='Concurrent title';return true;},
+   cardCommand:async(_id,action,options)=>{
+    commands.push({action,options});
+    if(action==='pause'){row.state='paused';row.card_actions.resume=true;return {};}
+    return options.expected_title==='Concurrent title'?{}:null;
+   }
+  });
+  await f.context.editCard(null,7);
+  const input=modal.querySelector('input'),save=modal.querySelector('[data-card-save]');
+  input.value='My draft';await save.onclick();
+  assert.equal(input.value,'My draft');
+  assert.equal(modal.querySelector('[role="alert"]').textContent,'Concurrent title');
+  if(retry){
+   await save.onclick();
+   assert.equal(commands.at(-1).options.expected_title,'Concurrent title');
+   assert.equal(commands.at(-1).options.title,'My draft');
+   assert.equal(commands.at(-1).options.expected_visit,4);
+  }else{
+   await modal.querySelector('[data-card-cancel]').onclick();
+   assert.equal(commands.length,2);
+  }
+  assert.equal(modal.isConnected,false);
+ }
+});
 test('an uncertain card mutation checks its original receipt and retains the operation id',async()=>{
  const f=fixture();f.s.data.workflows=[{id:7,state:'ready',title:'Task',card_actions:{visit:2}}];f.context.referenceKey=()=> 'fixture';f.context.RunTeamsWorkState.getItem=()=>null;
  let requests=[];f.context.request=async(action,data)=>{requests.push({action,data:structuredClone(data)});throw Error('lost response');};
