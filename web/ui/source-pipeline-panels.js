@@ -152,12 +152,16 @@ async function save(retry=false,s=current()){
 }
 async function rename(name,original){
  const s=current(),p=s&&state(s);
- if(!p||p.loading||p.saving||p.draft||p.pending||RunTeamsWorkState.getItem(storageKey(s)))throw Object.assign(Error('请先在智能体团队设置中处理未保存的修改。'),{pipelineRenameKey:'renameDraft'});
- const value=await host().request('settings',{reference:s.reference});
+ const guardDraft=()=>{
+  if(!p||p.saving||p.draft||p.pending||RunTeamsWorkState.getItem(storageKey(s)))
+   throw Object.assign(Error('请先在智能体团队设置中处理未保存的修改。'),{pipelineRenameKey:'renameDraft'});
+ };
+ guardDraft();
+ const loaded=await read(s);
  if(!owned(s))return;
- if(p.loading||p.saving||p.draft||p.pending)throw Object.assign(Error('请先在智能体团队设置中处理未保存的修改。'),{pipelineRenameKey:'renameDraft'});
- if(value.asset.pipeline.name!==original)throw Object.assign(Error('智能体团队名称已在其他窗口更新，请重新编辑。'),{pipelineRenameKey:'renameConflict'});
- p.data=value;p.conflict=false;
+ if(!loaded)throw Error(p.error||'无法读取智能体团队设置。');
+ guardDraft();
+ if(p.data.asset.pipeline.name!==original)throw Object.assign(Error('智能体团队名称已在其他窗口更新，请重新编辑。'),{pipelineRenameKey:'renameConflict'});
  const asset=draft();if(!asset)throw Object.assign(Error('当前智能体团队名称不可编辑。'),{pipelineRenameKey:'renameUnavailable'});
  asset.pipeline.name=name;
  await save();
