@@ -327,6 +327,30 @@ class CardDispatchTests(TestCase):
         for thread in list(self.runtime.employee_jobs.values()): thread.join(2)
         self.assertEqual(len(self.executed), 1)
 
+    def test_deadline_passes_between_failed_claim_and_worker_read(self):
+        from datetime import datetime, timedelta, timezone
+        identifier = work.create(self.core, self.command)['workflow']['id']
+        def set_due(value):
+            with self.core.repository.connect() as connection:
+                connection.execute('UPDATE workflow_runs SET available_at=? WHERE id=?',
+                                   (value.isoformat(), identifier))
+        set_due(datetime.now(timezone.utc) + timedelta(minutes=1))
+        claim = self.core.claim_workflow
+        attempts = []
+        def cross_deadline(value):
+            result = claim(value)
+            attempts.append(result)
+            if len(attempts) == 1:
+                set_due(datetime.now(timezone.utc) - timedelta(seconds=1))
+            return result
+        with patch.object(self.core, 'claim_workflow', side_effect=cross_deadline):
+            self.runtime.activate_employee_host()
+            self.assertTrue(self.done.wait(5))
+            for thread in list(self.runtime.employee_jobs.values()):
+                thread.join(5)
+        self.assertIsNone(attempts[0])
+        self.assertEqual(len(self.executed), 1)
+
     def test_card_recovery_breadcrumb_is_registered_with_owned_work_ui_state(self):
         from runteams_core.work import work_ui_state
         operation = str(uuid.uuid4()); key = 'pipeline-card:fixture:7'

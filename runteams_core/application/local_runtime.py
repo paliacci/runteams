@@ -214,6 +214,7 @@ class LocalRuntime:
                         with self.scope():
                             core=self.work_core()
                             with core.repository.audit_context(actor_id=self.app.binding.library_id,source='executor'):
+                                retried_deadline = None
                                 while not self.closing:
                                     claimed=core.claim_workflow(identifier)
                                     if claimed is None:
@@ -228,7 +229,14 @@ class LocalRuntime:
                                             if 0 < delay <= 6:
                                                 core._cancel_event(identifier,reset=True).wait(delay)
                                                 continue
+                                            # The deadline may pass between the atomic claim and
+                                            # this read. Retry once, even if a different admission
+                                            # rule still prevents this ready row from running.
+                                            if delay <= 0 and retried_deadline != due['available_at']:
+                                                retried_deadline = due['available_at']
+                                                continue
                                         break
+                                    retried_deadline = None
                                     try:core.execute_claimed_workflow(claimed,core.runtime())
                                     except Exception as error:
                                         from runteams_core.employees.employee_chat_work import finish, snapshot
