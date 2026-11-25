@@ -341,7 +341,8 @@
   const list=runs.length?`<div class="employee-automation-records">${runs.map(r=>`<div>
    <b>${copy(...runState(r.status))}</b>
    <span>${r.scheduled_for?.startsWith('manual:')?copy('scheduledAutomation.manual','手动运行'):automationRunTimeMarkup(r.scheduled_for)}</span>
-   ${r.reason?`<p>${esc(r.reason)}</p>`:''}
+   ${r.reason?`<p>${r.status==='skipped'&&r.reason==='用户已跳过这一次定时。'
+    ?copy('scheduledAutomation.skippedByUser','用户已跳过这一次定时。'):esc(r.reason)}</p>`:''}
    ${r.status==='failed'&&completedWork.has(r.workflow_id)?`<p>${copy('scheduledAutomation.linkedTaskCompleted','关联任务现已完成。')}</p>`:''}
    ${r.workflow_id?`<button class="btn" onclick="closeModal();${owner.pipeline?`RunTeamsSourcePipelines.openWork(${Number(r.workflow_id)})`:`openCoreWorkflow(${Number(r.workflow_id)},{storageScope:'device'})`}">${copy('scheduledAutomation.openWork','查看工作记录')}</button>`:''}
    ${r.chat_id&&!owner.pipeline?`<button class="btn" onclick="closeModal();openConversationSession(${Number(r.chat_id)},'general')">${copy('workRecordDetail.openConversation','打开对话')}</button>`:''}

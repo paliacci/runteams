@@ -1749,6 +1749,7 @@ globalThis.RUNTEAMS_LOCALES.en = {
   "scheduledAutomation.cachedHistory": "Couldn’t refresh run history. Showing the last loaded records.",
   "scheduledAutomation.historyFailed": "Couldn’t load run history. Close this window and try again.",
   "scheduledAutomation.manual": "Manual Run",
+  "scheduledAutomation.skippedByUser": "You skipped this scheduled run.",
   "scheduledAutomation.openWork": "Open Work Record",
   "scheduledAutomation.linkedTaskCompleted": "The linked task is now complete.",
   "scheduledAutomation.delete": "Delete Automation",

@@ -32,7 +32,7 @@ test('automation reads the bound employee before the directory has loaded',async
  assert.equal(t.automation.current().items[0].id,7);
 });
 
-test('failed schedule history shows completion only for its own recovered team task',async()=>{
+function historyDialog(){
  const owner={pipeline:true,owner:{data:{workflows:[{id:9,state:'completed'},{id:10,state:'failed'}]}}};
  const item={id:2,name:'Daily review',runs:[]};
  let body;
@@ -42,15 +42,33 @@ test('failed schedule history shows completion only for its own recovered team t
    copy:key=>key,runState:status=>[status],esc:s=>s,vars:()=>'',automationRunTimeMarkup:()=>'',
    openDialog:options=>{body=options.body;return {querySelector:()=>null}}}
  );
+ return async(pipeline,run)=>{
+  owner.pipeline=pipeline;item.runs=[run];
+  await records(item.id);
+  return body;
+ };
+}
+
+test('failed schedule history shows completion only for its own recovered team task',async()=>{
+ const render=historyDialog();
  for(const [pipeline,status,id,showCompletion] of [
   [true,'failed',9,true],[true,'failed',10,false],[true,'failed',11,false],
   [true,'completed',9,false],[false,'failed',9,false]
  ]){
-  owner.pipeline=pipeline;
-  item.runs=[{status,workflow_id:id}];
-  await records(item.id);
+  const body=await render(pipeline,{status,workflow_id:id});
   assert.equal(body.includes('scheduledAutomation.linkedTaskCompleted'),showCompletion);
   assert.ok(body.includes('<b>'+status+'</b>'));
+ }
+});
+
+test('employee and team history translate a user-skipped occurrence and retain other reasons',async()=>{
+ const render=historyDialog();
+ for(const pipeline of [false,true]){
+  const manual=await render(pipeline,{status:'skipped',reason:'用户已跳过这一次定时。'});
+  assert.ok(manual.includes('scheduledAutomation.skippedByUser'));
+  const other=await render(pipeline,{status:'skipped',reason:'Custom skip reason'});
+  assert.ok(other.includes('Custom skip reason'));
+  assert.ok(!other.includes('scheduledAutomation.skippedByUser'));
  }
 });
 
