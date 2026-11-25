@@ -74,7 +74,6 @@ window.chrome?.webview?.addEventListener?.('message',event=>{
 });
 let workspaceScope=null,lastWorkspace=null,workspaceSaveError=false;
 let boardStorage=null;
-if(desktopSettings)RunTeamsHost.configure({workspace:{boardStorage:()=>boardStorage}});
 async function loadDesktopBoards(scope){
  const response=await desktopSettings.postMessage({action:'workspace-boards-read',...scope});
  const saved=new Map(Object.entries(response.boards)),edits=new Map();
@@ -239,6 +238,6 @@ const closeGuard=new NativeCloseGuard(()=>{
  const hasDraft=value=>Boolean(value?.input?.trim()||value?.attachments?.length||value?.capabilities?.length||value?.queue);
  return {pending:Boolean(configuration?.pending||globalThis.RunTeamsWorkState?.pendingSave&&!globalThis.RunTeamsWorkState?.saveRejected||source?.saving||source?.pending||source?.buildSending||source?.build?.latest?.state==='running'||pending||operation||S?.conversationPanel?.busy||S?.settingsPreferencePending||globalThis.RunTeamsBackups?.pending||['saving','error'].includes(S?.docReader?.saveStatus)),dirty:workspaceSaveError||!!configuration?.dirty||!!globalThis.RunTeamsWorkState?.saveRejected||!!source?.editing||Object.values(S?.conversationPanelDrafts||{}).some(hasDraft)};
 },()=>{closing=true;document.body?.setAttribute('inert','');});
-window.RunTeamsLocalDesktop=Object.freeze({settings:desktopSettings,saveAppearance:desktopSettings?saveDesktopPreference:null,
+window.RunTeamsLocalDesktop=Object.freeze({settings:desktopSettings,boardStorage:()=>boardStorage,saveAppearance:desktopSettings?saveDesktopPreference:null,
  saveLanguage:desktopSettings?value=>saveDesktopPreference('language',value):null,saveWorkspace:desktopSettings?saveDesktopWorkspace:null,
  checkClose:discard=>closeGuard.checkClose(discard),prepareClose:discard=>closeGuard.prepareClose(discard)});

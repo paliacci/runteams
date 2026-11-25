@@ -11,5 +11,6 @@
  global.RunTeamsApplication=application;
  global.RunTeamsHost.configure({lifecycle:{boot:(_options,host)=>application.boot(host),request:application.request,stream:application.stream,
   pollNotifications:()=>module().then(value=>value.pollWorkAlerts())},
+  workspace:{boardStorage:()=>global.RunTeamsLocalDesktop?.boardStorage?.()??null},
   settings:{read:application.readSettings,save:application.saveSettings}});
 })(window);
