@@ -9,6 +9,7 @@ import json
 import os
 import tempfile
 import secrets
+import sys
 import threading
 import time
 from runteams_core.assets import knowledge_archive
@@ -238,6 +239,12 @@ def catalog(bank, offset=0, *, bundled=None, limit=CATALOG_SIZE, include_persona
         if limit is None:
             limit = count + len(bundled)
     items = [dict(r) for r in rows]
+    if sys.platform == 'win32':
+        for item in items:
+            if item['pages'] == 0 and Path(item['name']).suffix.lower() == '.doc':
+                # Older libraries stored the original without a Word text index.
+                # As with bundled files, the first excerpt determines the page count.
+                item.pop('pages')
     start = max(0, offset-count)
     keys = sorted(bundled, key=lambda k: (bundled[k]['path'], k))
     for key in keys[start:start+limit-len(items)]:
@@ -246,6 +253,25 @@ def catalog(bank, offset=0, *, bundled=None, limit=CATALOG_SIZE, include_persona
                       'employee_name':r.get('employee_name')})
     total = count + len(keys)
     return {'sources':items, 'total':total, 'next_offset':offset+limit if offset+limit<total else None}
+
+
+def _index_unread_word(bank, source):
+    with device_data.connect(readonly=True) as c:
+        row = c.execute(
+            "SELECT name,revision,original FROM asset_sources WHERE id=? AND bank=? AND pages=0 "
+            "AND lower(name) LIKE '%.doc' AND length(original)<=?", (source, bank, office_text.MAX_XML)).fetchone()
+    if row is None:
+        return
+    pages = readable_pages(row['name'], row['original'])
+    if not pages:
+        return
+    # Decode outside the write transaction. A concurrent replacement keeps its own index.
+    with device_data.connect() as c:
+        changed = c.execute('UPDATE asset_sources SET pages=? WHERE id=? AND bank=? AND revision=? AND pages=0',
+            (len(pages), source, bank, row['revision'])).rowcount
+        if changed:
+            c.executemany('INSERT INTO asset_source_pages(source_id,page,text) VALUES(?,?,?)',
+                ((source, index, text) for index, text in enumerate(pages, 1)))
 
 
 def excerpt(bank, source, page, offset, *, bundled=None):
@@ -268,6 +294,8 @@ def excerpt(bank, source, page, offset, *, bundled=None):
         return {'name':name,'revision':row['sha256'],'pages':len(pages),'page':page,'offset':offset,'length':len(text),
                 'text':text[offset:offset+EXCERPT_SIZE],
                 'next_offset':offset+EXCERPT_SIZE if offset+EXCERPT_SIZE<len(text) else None}
+    if sys.platform == 'win32':
+        _index_unread_word(bank, source)
     with device_data.connect(readonly=True) as c:
         row = c.execute(
             'SELECT s.name,s.revision,s.pages,p.page,substr(p.text,?,?) AS text,length(p.text) AS length '

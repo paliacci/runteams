@@ -441,6 +441,27 @@ class AssetMemoryTests(TestCase):
             page = asset_history.query({'action':'history'}, owner, employee['chat_id'])
             self.assertEqual([r['chat'] for r in page['messages']], [employee['chat_id']])
 
+    def test_legacy_word_index_tracks_the_original_revision(self):
+        from runteams_core.conversations import asset_sources
+        from runteams_core.storage import device_data
+        bank, name = 'word-index-test', '资料.doc'
+        with device_data.connect() as connection:
+            identifier = asset_sources._store(connection, bank, name, b'first', [])
+
+        def replace_during_read(_, original):
+            self.assertEqual(original, b'first')
+            with device_data.connect() as connection:
+                asset_sources._store(connection, bank, name, b'second', [])
+            return ['stale text']
+
+        with patch.object(asset_sources, 'readable_pages', side_effect=replace_during_read):
+            asset_sources._index_unread_word(bank, identifier)
+        with patch.object(asset_sources, 'readable_pages', return_value=['second text']) as read:
+            asset_sources._index_unread_word(bank, identifier)
+            asset_sources._index_unread_word(bank, identifier)
+            read.assert_called_once_with(name, b'second')
+        self.assertEqual(asset_sources.excerpt(bank, identifier, 1, 0)['text'], 'second text')
+
     def test_workbook_preview_and_new_chat_use_original_sheet_and_row(self):
         from io import BytesIO
         from openpyxl import Workbook
