@@ -24,6 +24,10 @@ def main():
     environment['RUNTEAMS_AUTOMATION_DISPATCH'] = '0'
     with tempfile.TemporaryDirectory(prefix='runteams-community-install-') as directory:
         environment['HOME'] = directory
+        if os.name == 'nt':
+            environment.update(USERPROFILE=directory,
+                               APPDATA=str(Path(directory) / 'AppData/Roaming'),
+                               LOCALAPPDATA=str(Path(directory) / 'AppData/Local'))
         subprocess.run([args.python, '-I', '-B', '-c',
             "from pathlib import Path;from runteams_core.storage import local_database; import os;p=Path(local_database.DB_PATH);assert p.is_relative_to(Path(os.environ['HOME']))"],
             cwd=directory, env=environment, check=True)

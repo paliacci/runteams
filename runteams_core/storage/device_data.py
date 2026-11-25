@@ -67,7 +67,7 @@ def check(expected):
 
 
 def _knowledge_schema(version):
-    knowledge = (resource_root() / 'contracts/device-asset-knowledge.sql').read_text()
+    knowledge = (resource_root() / 'contracts/device-asset-knowledge.sql').read_text(encoding='utf-8')
     if version < 8:
         knowledge = knowledge.split('ALTER TABLE asset_sources', 1)[0]
     return knowledge if version >= 7 else knowledge.replace('pages >= 0', 'pages > 0')
@@ -76,11 +76,11 @@ def _knowledge_schema(version):
 @lru_cache(maxsize=8)
 def schema(version=SCHEMA_VERSION):
     directory = resource_root() / 'contracts'
-    statements = [(directory / name).read_text() for name in ('device-user-data.sql', 'chat-tables.sql')]
+    statements = [(directory / name).read_text(encoding='utf-8') for name in ('device-user-data.sql', 'chat-tables.sql')]
     statements.append('CREATE INDEX device_messages_chat ON chat_messages(chat_id,id);')
-    statements.extend((directory / name).read_text() for name in (
+    statements.extend((directory / name).read_text(encoding='utf-8') for name in (
         'device-creator-work.sql', 'device-runtime-links.sql'))
-    statements.append((directory / 'device-collections.sql').read_text())
+    statements.append((directory / 'device-collections.sql').read_text(encoding='utf-8'))
     if version >= 6:
         statements.append(_knowledge_schema(version))
     return '\n'.join(statements)
