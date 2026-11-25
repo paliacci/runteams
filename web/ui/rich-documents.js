@@ -62,6 +62,8 @@
     const response=await api('/api/core/documents/'+Number(state.doc.id),'POST',{content_model:'rich-document',name:data.name,document:data.document,base_revision:data.base_revision});
     if(S.docReader!==state||account!==workspaceAccountCacheToken()||!frame.isConnected)return false;
     if(response?.error||response?.conflict)throw Error(response.error||'文档已变化，请重新打开后核对。');
+    if(response.device_page_ids)deviceChatRemember({device_page_ids:response.device_page_ids});
+    if(response.id!==state.doc.id)state.revisions=[];
     state.doc={...state.doc,...response};state.text=JSON.stringify(data.document);if(state.richProtocol!==2)state.richDirty=false;state.saveStatus='saved';state.saveError='';
     const title=document.getElementById('doc_bar_title');
     if(title){

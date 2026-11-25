@@ -3065,6 +3065,11 @@ function docFromArtifact(artifact,context={}){
     document_key:String(meta.document_key||context.document_key||""),
     data_view:meta.data_view||context.data_view||null};
 }
+function documentReaderUsesDevice(id,doc){
+  if(S.localLibrary||doc?.storage_scope==='device')return true;
+  const path='/api/core/documents/'+id;
+  return deviceWorkPath(path)!==path;
+}
 async function openDocumentReaderById(id,options={}){
   const numericId=Number(id);
   if(!Number.isInteger(numericId)||numericId<=0)return false;
@@ -3088,9 +3093,8 @@ async function openDocumentReaderById(id,options={}){
   try{
     let doc=revisionId?null:docsById(numericId),detail=null;
     if(!doc){
-      const rootPath=`/api/core/documents/${numericId}`;
-      const deviceRoot=deviceWorkPath(rootPath)!==rootPath;
-      const path=revisionId?`/api/${deviceRoot?"device/work":"core"}/documents/${revisionId}?historical=1`:rootPath;
+      const deviceRoot=documentReaderUsesDevice(numericId);
+      const path=`/api/${deviceRoot?"device/work":"core"}/documents/${revisionId||numericId}${revisionId?"?historical=1":""}`;
       if(deviceRoot)detail=await api(path);
       else{const response=await fetch(path,{cache:"no-store"});
         if(!response.ok)throw new Error("文档不存在或已移到垃圾箱");
@@ -4367,8 +4371,8 @@ async function loadDocumentReader(doc,openSequence=_documentOpenSequence,preload
     return;
   }
   try{
-    const path=`/api/core/documents/${Number(doc.id)}${state.revisionId||doc.is_current_revision===false?"?historical=1":""}`;
-    const local=!preloaded&&deviceWorkPath(path)!==path;
+    const local=!preloaded&&documentReaderUsesDevice(Number(doc.id),doc);
+    const path=`/api/${local?"device/work":"core"}/documents/${Number(doc.id)}${state.revisionId||doc.is_current_revision===false?"?historical=1":""}`;
     const response=preloaded||local?null:await fetch(path,{cache:"no-store"});
     if(response&&!response.ok)throw new Error("文档内容没有取到");
     const detail=preloaded||(local?await api(path):await response.json());
@@ -4518,6 +4522,7 @@ async function loadDocumentRevisions(doc,openSequence=_documentOpenSequence){
     const result=await api(`/api/core/artifacts/${Number(doc.id)}/revisions`);
     if(result.error)throw new Error(result.error);
     if(!S.docReader||openSequence!==_documentOpenSequence||Number(S.docReader.doc.id)!==Number(doc.id))return;
+    if(result.device_page_ids)deviceChatRemember({device_page_ids:result.device_page_ids});
     S.docReader.revisions=result.revisions||[];
     documentReaderSyncRevisionUI();
   }catch(error){

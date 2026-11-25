@@ -7,6 +7,22 @@ const source=fs.readFileSync(process.env.RUNTEAMS_DOCUMENT_SOURCE||'web/index.ht
 function code(name){const start=new RegExp('^(?:async )?function '+name+'\\(','m').exec(source);assert.ok(start);const tail=source.slice(start.index),next=/^(?:(?:async )?function |(?:let|const|class) )/m.exec(tail.slice(start[0].length));return next?tail.slice(0,start[0].length+next.index):tail;}
 function load(name,context){vm.createContext(context);vm.runInContext(code(name),context);return context[name];}
 
+test('fresh local revision IDs open through the owning library before route IDs are refreshed',async()=>{
+ const doc={id:51,storage_scope:'device',is_current_revision:false};
+ const S={localLibrary:{library_id:'library'},docReader:{doc,revisionId:51}};
+ const calls=[];
+ const context={S,_documentOpenSequence:1,deviceWorkPath:path=>path,docKind:()=>'rich-document',
+  docEditable:()=>false,documentReaderRenderContent(){},loadDocumentRevisions(){},
+  async api(path){calls.push(path);return {...doc,content:'earlier revision'};},
+  async fetch(){throw Error('Expected the local session transport');}};
+ load('documentReaderUsesDevice',context);
+ await load('loadDocumentReader',context)(doc);
+ assert.deepEqual(calls,['/api/device/work/documents/51?historical=1']);
+ assert.equal(S.docReader.status,'ready');
+ assert.equal(S.docReader.text,'earlier revision');
+ assert.equal(S.docReader.editing,false);
+});
+
 test('a real local library opens documents without a signed-in account and cannot enter an organization',()=>{
  const S={account:{signed_in:false},localLibrary:{library_id:'library'}};const available=load('documentsLocalAvailable',{S,RunTeamsHost:{session:{workspace:s=>s.activeOrganization,ready:s=>s.account.signed_in,actor:()=>''}}});
  assert.equal(available(),true);S.activeOrganization='organization';assert.equal(available(),false);S.activeOrganization='';S.localLibrary=null;assert.equal(available(),false);
