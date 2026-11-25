@@ -19,6 +19,7 @@ internal sealed class LocalWindow : Form
     private Uri origin;
     private int navigationVersion;
     private DesktopSettings settings;
+    private DesktopWorkspace workspace;
     private readonly ContextMenuStrip trayMenu = new ContextMenuStrip();
     private readonly NotifyIcon tray = new NotifyIcon();
     private bool quitRequested;
@@ -217,6 +218,7 @@ internal sealed class LocalWindow : Form
             // credential stays in this process and is never injected into the page.
             string sessionToken = (string)info["session_token"];
             settings = new DesktopSettings(origin, sessionToken);
+            workspace = new DesktopWorkspace(environment.UserDataFolder, libraryPath);
             browser.WebMessageReceived += async (sender, e) => await HandleWebMessage(browser, e, sessionToken);
             browser.NavigationStarting += delegate(object sender, CoreWebView2NavigationStartingEventArgs e) {
                 Uri destination;
@@ -259,11 +261,14 @@ internal sealed class LocalWindow : Form
         object result = null;
         var json = new JavaScriptSerializer();
         try {
-            string[] fields = e.TryGetWebMessageAsString().Split(':');
+            string[] fields = e.TryGetWebMessageAsString().Split(new[] { ':' }, 6);
             Guid parsed;
             if (fields.Length >= 2 && fields[0] == "desktop-settings" && Guid.TryParseExact(fields[1], "D", out parsed)) {
                 object value = null;
-                try { value = settings.Settings(fields); }
+                try {
+                    value = fields.Length >= 3 && fields[2].StartsWith("workspace-", StringComparison.Ordinal)
+                        ? workspace.Handle(fields) : settings.Settings(fields);
+                }
                 catch (Exception) { /* The web settings page offers a readback and retry. */ }
                 browser.PostWebMessageAsJson(json.Serialize(new { kind = "desktop-settings", id = fields[1], result = value }));
                 return;

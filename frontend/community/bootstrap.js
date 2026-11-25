@@ -13,6 +13,19 @@ function syncLanguage(){
 globalThis.RunTeamsLocale?.onChange(()=>{syncLanguage().catch(error=>console.error('Language preference could not be saved',error));});
 let connected,revision=0,operation=null,pending=0,host,closing=false;
 const desktopSettings=windowsSettingsBridge(window.chrome?.webview);
+let workspaceScope=null,lastWorkspace=null,workspaceSaveError=false;
+async function saveDesktopWorkspace(raw){
+ if(!workspaceScope||closing||raw===lastWorkspace)return;
+ lastWorkspace=raw;pending++;
+ try{
+  const result=await desktopSettings.postMessage({action:'workspace-write',...workspaceScope,value:raw});
+  if(result.saved!==true)throw Error('工作窗口未能保存。');
+  if(lastWorkspace===raw)workspaceSaveError=false;
+ }catch(error){
+  if(lastWorkspace===raw){lastWorkspace=null;workspaceSaveError=true;}
+  console.error('Windows workspace could not be saved',error);
+ }finally{pending--;}
+}
 async function saveAppearance(key,value){
  if(closing)throw Error('窗口正在关闭。');
  pending++;
@@ -74,13 +87,20 @@ export async function boot(value){
  host=value;const {state:S}=host;
  try{
   const identity=await connect();
+  let savedWindows,loadedScope=null;
   if(desktopSettings){
    try{const saved=await desktopSettings.postMessage({action:'get'});host.restoreAppearance(saved.appearance);}
    catch{S.nativeSettingsError='本机设置暂时无法读取';}
+   const scope={library:identity.library_id,generation:identity.generation};
+   try{
+    const saved=await desktopSettings.postMessage({action:'workspace-read',...scope});
+    savedWindows=saved.windows;loadedScope=scope;
+   }catch(error){console.error('Windows workspace could not be read',error);}
   }
   await syncLanguage();
   S.localLibrary=identity;S.accountSessionReady=true;S.accountSessionError='';
-  host.restoreWorkspace();
+  host.restoreWorkspace(savedWindows);
+  lastWorkspace=savedWindows;workspaceScope=loadedScope;
   const route=host.route(),deferRoutePaint=!new URL(location.href).searchParams.has('settings')&&!['home','chat-new'].includes(route.kind);
   S.settingsPreferencesState='loading';
   Object.assign(S,{surface:'team',railMode:'assistant',railNavTab:S.railNavTab==='bots'?'bots':'team',booting:deferRoutePaint,bootRoute:route,bootError:null,
@@ -115,6 +135,6 @@ const closeGuard=new NativeCloseGuard(()=>{
  const source=globalThis.RunTeamsCreatorAuthor?.current();
  const configuration=globalThis.RunTeamsEmployeeConfiguration?.closeState();
  const hasDraft=value=>Boolean(value?.input?.trim()||value?.attachments?.length||value?.capabilities?.length||value?.queue);
- return {pending:Boolean(configuration?.pending||globalThis.RunTeamsWorkState?.pendingSave&&!globalThis.RunTeamsWorkState?.saveRejected||source?.saving||source?.pending||source?.buildSending||source?.build?.latest?.state==='running'||pending||operation||S?.conversationPanel?.busy||S?.settingsPreferencePending||globalThis.RunTeamsBackups?.pending||['saving','error'].includes(S?.docReader?.saveStatus)),dirty:!!configuration?.dirty||!!globalThis.RunTeamsWorkState?.saveRejected||!!source?.editing||Object.values(S?.conversationPanelDrafts||{}).some(hasDraft)};
+ return {pending:Boolean(configuration?.pending||globalThis.RunTeamsWorkState?.pendingSave&&!globalThis.RunTeamsWorkState?.saveRejected||source?.saving||source?.pending||source?.buildSending||source?.build?.latest?.state==='running'||pending||operation||S?.conversationPanel?.busy||S?.settingsPreferencePending||globalThis.RunTeamsBackups?.pending||['saving','error'].includes(S?.docReader?.saveStatus)),dirty:workspaceSaveError||!!configuration?.dirty||!!globalThis.RunTeamsWorkState?.saveRejected||!!source?.editing||Object.values(S?.conversationPanelDrafts||{}).some(hasDraft)};
 },()=>{closing=true;document.body?.setAttribute('inert','');});
-window.RunTeamsLocalDesktop=Object.freeze({settings:desktopSettings,saveAppearance:desktopSettings?saveAppearance:null,checkClose:discard=>closeGuard.checkClose(discard),prepareClose:discard=>closeGuard.prepareClose(discard)});
+window.RunTeamsLocalDesktop=Object.freeze({settings:desktopSettings,saveAppearance:desktopSettings?saveAppearance:null,saveWorkspace:desktopSettings?saveDesktopWorkspace:null,checkClose:discard=>closeGuard.checkClose(discard),prepareClose:discard=>closeGuard.prepareClose(discard)});

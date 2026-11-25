@@ -1,6 +1,6 @@
 export function windowsSettingsBridge(webview) {
   if (!webview) return null;
-  return { postMessage({action, key, value}) {
+  return { postMessage({action, key, value, library, generation}) {
     const id = crypto.randomUUID();
     return new Promise((resolve, reject) => {
       function finish(result) {
@@ -17,6 +17,10 @@ export function windowsSettingsBridge(webview) {
       try {
         const fields = ['desktop-settings', id, action];
         if (action === 'set') fields.push(key, String(value));
+        if (action === 'workspace-read' || action === 'workspace-write') {
+          fields.push(library, generation);
+          if (action === 'workspace-write') fields.push(value);
+        }
         webview.postMessage(fields.join(':'));
       } catch { finish(null); }
     });

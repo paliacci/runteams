@@ -419,7 +419,7 @@ function accountAppearanceRetry(){
 function accountSyncDeviceAppearance(event){
  if(event.storageArea&&event.storageArea!==localStorage)return;
  if(event.key===null||event.key==='runteams_device_theme'){S.account.theme=loadAccountPrefs().theme;if(S.appearanceSaveFailures)delete S.appearanceSaveFailures.theme;applyAccountTheme(S.account.theme);}
- if(event.key===null||event.key==='runteams_device_display_v1'){if(S.appearanceSaveFailures)for(const key of ['interface_font_size','code_font_size','restore_windows'])delete S.appearanceSaveFailures[key];accountApplyDisplayPrefs();void accountPersistDesktopAppearance(key,value);}
+ if(event.key===null||event.key==='runteams_device_display_v1'){if(S.appearanceSaveFailures)for(const key of ['interface_font_size','code_font_size','restore_windows'])delete S.appearanceSaveFailures[key];accountApplyDisplayPrefs();}
  if(event.key===null||['runteams_device_theme','runteams_device_display_v1'].includes(event.key))accountSettingsPaint();
 }
 function accountAppearanceSettings(){
