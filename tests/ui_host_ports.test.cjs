@@ -13,6 +13,12 @@ function context(){
 }
 (async()=>{
  const local=context();
+ local.navigator={platform:'Win32'};
+ assert.equal(local.accountExtensionCommand('codex','mcp add --help'),"& 'codex' mcp add --help");
+ assert.equal(local.accountExtensionCommand("/opt/O'Brien/claude",'plugin install',"a'b"),"'/opt/O'\"'\"'Brien/claude' plugin install -- 'a'\"'\"'b'");
+ local.navigator={platform:'MacIntel'};
+ assert.equal(local.accountExtensionCommand("C:\\QA Tools\\O'Brien.exe",'plugin remove','组‘’‚‛'),"& 'C:\\QA Tools\\O''Brien.exe' plugin remove -- '组'‘'’'‚'‛'");
+ assert.equal(local.accountExtensionCommand('codex','plugin --help'),"'codex' plugin --help");
  const initial=local.RunTeamsHost.session.headers(local.S);
  local.S.localLibrary.generation=2;
  assert.equal(initial['X-RunTeams-Library-Generation'],1);

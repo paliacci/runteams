@@ -695,7 +695,7 @@ function accountToolsAddMenu(anchor){
 function accountToolsAddGuide(kind){
  const detail={key:'guide',context:settingsContext(),token:(S.settingsExtensionDialogSequence||0)+1,commands:[]};S.settingsExtensionDialogSequence=detail.token;S.settingsExtensionDetail=detail;
  const sources=(S.settingsExtensions?.channels||[]).filter(row=>row.ready&&['codex','claude-code'].includes(row.provider));
- if(kind==='mcp')detail.commands=sources.map(row=>({label:row.name||providerDefinition(row.provider)?.label||row.provider,command:accountExtensionShellArgument(row.runtime?.executable||(row.provider==='codex'?'codex':'claude'))+' mcp add --help'}));
+ if(kind==='mcp')detail.commands=sources.map(row=>({label:row.name||providerDefinition(row.provider)?.label||row.provider,command:accountExtensionCommand(row.runtime?.executable||(row.provider==='codex'?'codex':'claude'),'mcp add --help')}));
  const skill=kind==='skills',title=skill?'添加技能':'添加 MCP 连接',titleKey=skill?'addSkill':'addMcp';
  const body=skill?`<p>${toolsCopy('addSkillHint','将技能放入来源 Agent 的技能目录，然后重新读取。')}</p><p>${toolsCopy('addSkillDiscovery','Agent 会自动发现原生技能。插件附带的技能可通过插件目录添加。')}</p>`:`<p>${toolsCopy('addMcpHint','在对应 Agent 中添加 MCP 连接，然后重新读取。')}</p>`;
  const commands=detail.commands.map((command,index)=>`<p>${esc(command.label)} <button class="btn"${toolsAttrs('copyCommand')} onclick="accountCopySettingsExtensionCommand(${detail.token},${index})">复制命令</button></p><code class="install-command">${esc(command.command)}</code>`).join('');
@@ -814,14 +814,21 @@ async function accountReadSettingsExtensions(force=false){
  const read={context,mutation,selection,scope,force};S.settingsExtensionsRead=read;S.settingsExtensionsScope=scope;S.settingsExtensions=accountFilterSettingsExtensions(S.settingsExtensions,selection);S.settingsExtensionsState='loading';accountSettingsPaint();
  read.promise=(async()=>{try{const result=await modelChannelData().extensions(force,{settings:true,catalog});if(!result){if(S.settingsExtensionsRead===read){S.settingsExtensionsState='error';S.settingsExtensionsScope='';}return false;}if(context!==settingsContext()||S.settingsExtensionsRead!==read)return false;if(result.error)throw Error(result.error);if(read.mutation!==(S.channelMutationVersion||0))throw Error('渠道已改变，请重新读取');const confirmedSelection=environmentConnectedChannelIds().join(',');S.settingsExtensions=accountMergeSettingsExtensions(accountFilterSettingsExtensions(result,confirmedSelection),S.settingsExtensions);S.settingsExtensionsScope=scopeKey();S.settingsExtensionsState='ready';S.settingsExtensionsConfirmedScope=S.settingsExtensionsScope;return true;}catch(error){if(context===settingsContext()&&S.settingsExtensionsRead===read)S.settingsExtensionsState='error';return false;}finally{if(S.settingsExtensionsRead===read)S.settingsExtensionsRead=null;if(context===settingsContext())accountSettingsPaint();}})();return read.promise;
 }
-function accountExtensionShellArgument(value){return "'"+String(value).replaceAll("'","'\"'\"'")+"'";}
+function accountExtensionCommand(executable,subcommand,argument){
+ const windows=/^(?:[a-z]:[\\/]|\\\\)/i.test(executable)||(!executable.startsWith('/')&&/^Win/i.test(globalThis.navigator?.platform||''));
+ // PowerShell also treats typographic single quotes as string delimiters.
+ const quote=value=>"'"+(windows?String(value).replace(/['\u2018-\u201b]/g,"'$&"):String(value).replaceAll("'","'\"'\"'"))+"'";
+ const invocation=(windows?'& ':'')+quote(executable)+' '+subcommand;
+ return argument===undefined?invocation:invocation+' -- '+quote(argument);
+}
 function accountSettingsExtensionCommands(item,key){
  const source=accountSettingsExtensionSource(item),provider=accountSettingsExtensionProvider(item),exe=source.runtime?.executable||({codex:'codex','claude-code':'claude'}[provider]);if(!exe||!['codex','claude-code'].includes(provider)||key==='skills'||item._settingsStale||['error','loading'].includes(S.settingsExtensionsState))return [];
- const binary=accountExtensionShellArgument(exe),id=accountExtensionShellArgument(item.id||item.name||'');if(!item.id&&!item.name)return [];
+ const id=item.id||item.name;if(!id)return [];
+ const command=(subcommand,argument)=>accountExtensionCommand(exe,subcommand,argument);
  if(key==='available_plugins'&&(source.ready!==true||source.read_states?.plugins!=='ready'))return [];
- if(key==='available_plugins')return [{label:'安装插件',labelKey:'installPlugin',command:binary+' plugin '+(provider==='codex'?'add':'install')+' -- '+id},{label:'查看管理方式',labelKey:'viewManagement',command:binary+' plugin --help'}];
- if(key==='plugins')return [{label:'查看管理方式',labelKey:'viewManagement',command:binary+' plugin --help'},...(provider==='claude-code'?[{label:item.enabled===false?'启用插件':'停用插件',labelKey:item.enabled===false?'enablePlugin':'disablePlugin',command:binary+' plugin '+(item.enabled===false?'enable':'disable')+' -- '+id}]:[]),{label:'卸载插件',labelKey:'removePlugin',command:binary+' plugin '+(provider==='codex'?'remove':'uninstall')+' -- '+id}];
- return [{label:'查看连接配置',labelKey:'viewConnection',command:binary+' mcp get -- '+id},...(accountSettingsExtensionStatus(item,key)==='需要登录'?[{label:'登录此连接',labelKey:'signInConnection',command:binary+' mcp login -- '+id}]:[]),{label:'查看管理方式',labelKey:'viewManagement',command:binary+' mcp --help'}];
+ if(key==='available_plugins')return [{label:'安装插件',labelKey:'installPlugin',command:command(provider==='codex'?'plugin add':'plugin install',id)},{label:'查看管理方式',labelKey:'viewManagement',command:command('plugin --help')}];
+ if(key==='plugins')return [{label:'查看管理方式',labelKey:'viewManagement',command:command('plugin --help')},...(provider==='claude-code'?[{label:item.enabled===false?'启用插件':'停用插件',labelKey:item.enabled===false?'enablePlugin':'disablePlugin',command:command(item.enabled===false?'plugin enable':'plugin disable',id)}]:[]),{label:'卸载插件',labelKey:'removePlugin',command:command(provider==='codex'?'plugin remove':'plugin uninstall',id)}];
+ return [{label:'查看连接配置',labelKey:'viewConnection',command:command('mcp get',id)},...(accountSettingsExtensionStatus(item,key)==='需要登录'?[{label:'登录此连接',labelKey:'signInConnection',command:command('mcp login',id)}]:[]),{label:'查看管理方式',labelKey:'viewManagement',command:command('mcp --help')}];
 }
 function accountSettingsExtensionIdentity(item){return JSON.stringify([String(item.channel_id),String(item.id||item.name),String(item.plugin_id||'')]);}
 function accountSettingsExtensionDetail(key,index){
