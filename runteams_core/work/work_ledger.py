@@ -1,5 +1,6 @@
 """Canonical claim, concurrency, cancellation and durable work ledger mechanics."""
 import json
+import re
 import threading
 from datetime import datetime, timezone
 from runteams_core.storage.repository import utc_now
@@ -7,6 +8,43 @@ from runteams_core.foundation.contracts import (
     ContractError, PIPELINE_APPROVAL_DECISIONS, PIPELINE_OUTCOME_PREFIX,
     PIPELINE_STATUS_FIRST,
 )
+
+def work_alerts(repository, after=None):
+    """Read newly committed transitions. Opening a window starts at the ledger head."""
+    if after is not None and (not isinstance(after, str) or not re.fullmatch(r'[0-9]{1,16}', after)
+                              or int(after) > 2**53 - 1):
+        raise ValueError('工作提醒游标无效。')
+    with repository.read_snapshot() as connection:
+        head = connection.execute('SELECT COALESCE(MAX(id),0) FROM events').fetchone()[0]
+        if after is None or int(after) >= head:
+            return {'cursor': head, 'items': []}
+        rows = connection.execute(
+            "WITH batch AS (SELECT id,stream,type,data_json FROM events WHERE id>? ORDER BY id LIMIT 128) "
+            "SELECT e.id,e.type,w.id AS workflow_id,w.state,w.cursor_key,t.trashed_at,"
+            "json_extract(e.data_json,'$.to') AS target,"
+            "json_extract(w.snapshot_json,'$.pipeline_work.reference') AS pipeline,"
+            "json_extract(w.snapshot_json,'$.work_chat_id') AS chat_id "
+            "FROM batch e LEFT JOIN workflow_runs w ON e.stream LIKE 'workflow_run:%' "
+            "AND w.id=CAST(substr(e.stream,14) AS INTEGER) "
+            "LEFT JOIN tasks t ON t.id=w.task_id ORDER BY e.id", (int(after),)).fetchall()
+    categories = {'needs_approval': 'confirmation', 'needs_human': 'information', 'blocked': 'failure',
+                  'interrupted': 'failure', 'failed': 'failure', 'completed': 'completion'}
+    items = {}
+    for row in rows:
+        state = row['state']
+        if state not in categories or row['trashed_at']:
+            continue
+        # A route to a final column can finish a pipeline without a workflow.completed event.
+        routed = (row['type'] == 'workflow.routed' and row['target'] == row['cursor_key']
+                  and state in ('completed', 'needs_human', 'blocked'))
+        transition = 'workflow.approval_requested' if state == 'needs_approval' else 'workflow.' + state
+        if row['type'] != transition and not routed:
+            continue
+        items[row['workflow_id']] = {'event_id': row['id'], 'workflow_id': row['workflow_id'],
+            'category': categories[state], 'reference': json.loads(row['pipeline']) if row['pipeline'] else None,
+            'chat_id': row['chat_id']}
+    return {'cursor': rows[-1]['id'], 'items': list(items.values())}
+
 
 class WorkLedger:
     def claim_workflow(self, workflow_run_id=None):

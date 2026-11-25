@@ -13,6 +13,63 @@ function syncLanguage(){
 globalThis.RunTeamsLocale?.onChange(()=>{syncLanguage().catch(error=>console.error('Language preference could not be saved',error));});
 let connected,revision=0,operation=null,pending=0,host,closing=false;
 const desktopSettings=windowsSettingsBridge(window.chrome?.webview);
+let alertCursor=null,readingAlerts=false;
+function alertError(value){
+ const state=host?.state;
+ if(state&&state.notificationDeliveryError!==value){
+  state.notificationDeliveryError=value;
+  if(state.settingsTab==='notifications')globalThis.accountSettingsPaint?.();
+ }
+}
+async function openWorkAlert(item,scope){
+ if(closing||client.generation!==scope)return;
+ try{
+  await desktopSettings.postMessage({action:'notifications-activate'});
+  if(closing||client.generation!==scope)return;
+  if(item.reference){
+   const board=globalThis.RunTeamsSourcePipelines;
+   if(!board.pageRoute(item.reference))await board.readCatalog();
+   const route=board.pageRoute(item.reference);
+   if(!route||client.generation!==scope)throw Error();
+   await board.openFromLink(route+'?results=1&delivery=workflow-'+item.workflow_id);
+  }else if(item.chat_id)await globalThis.openConversationSession(item.chat_id,'general');
+ }catch{globalThis.toast?.('无法打开这条提醒。','err','notifications.openFailed');}
+}
+export async function pollWorkAlerts(foreground){
+ const state=host?.state;
+ if(!desktopSettings||closing||!state?.localLibrary||readingAlerts)return;
+ if(foreground===undefined)foreground=document.hasFocus();
+ if(globalThis.Notification?.permission!=='granted'||state.settingsPreferences?.notification_timing==='never'){
+  alertCursor=null;return;
+ }
+ if(state.settingsPreferencesState!=='ready'||state.settingsPreferencePending)return;
+ const scope=client.generation;
+ readingAlerts=true;
+ try{
+  const after=alertCursor?.scope===scope?'?after='+alertCursor.id:'';
+  const result=await request('/api/work-alerts'+after);
+  if(closing||client.generation!==scope)return;
+  alertCursor={scope,id:result.cursor};
+  const prefs=state.settingsPreferences||{};
+  if(Notification.permission!=='granted'||prefs.notification_timing==='never')return;
+  const labels={confirmation:['titleConfirmation','需要确认'],information:['titleInformation','需要补充信息'],
+   failure:['titleFailure','工作失败'],completion:['titleCompletion','工作完成']};
+  for(const item of result.items){
+   if(prefs[item.category]===false||foreground&&prefs.notification_timing!=='always')continue;
+   const [key,fallback]=labels[item.category],locale=globalThis.RunTeamsLocale;
+   const note=new Notification(locale?.t('notifications.'+key,{},fallback)||fallback,{
+    body:locale?.t('notifications.openDetails',{},'打开 RunTeams 查看详情。')||'打开 RunTeams 查看详情。',
+    silent:prefs.sound===false,tag:'runteams-work-'+item.workflow_id});
+   note.onclick=()=>{note.close();void openWorkAlert(item,scope);};
+   note.onerror=()=>alertError('delivery');
+  }
+  alertError('');
+ }catch{alertError('read');}
+ finally{readingAlerts=false;}
+}
+window.chrome?.webview?.addEventListener?.('message',event=>{
+ if(event.data?.kind==='work-alerts')void pollWorkAlerts(event.data.foreground);
+});
 let workspaceScope=null,lastWorkspace=null,workspaceSaveError=false;
 async function saveDesktopWorkspace(raw){
  if(!workspaceScope||closing||raw===lastWorkspace)return;
@@ -130,6 +187,7 @@ export async function boot(value){
   await host.loadChats({identityReady:true}).catch(error=>{S.chatDirectoryError=error.message;});
   try{const prefs=await readSettings();S.settingsPreferences=prefs.settings;S.settingsPreferencesState='ready';}
   catch(error){S.settingsPreferencesState='error';}
+  void pollWorkAlerts();
   await models;host.normalize();paint();
   if(!new URL(location.href).searchParams.has('settings')){const route=host.route();if(route.kind==='docs'&&!route.documentId)await host.openDocuments();else if(route.kind==='trash')await host.openTrash();else if(!['home','chat-new'].includes(route.kind))await host.openRoute();}
   // Background directory/model reads may render too. Keep the URL shell until

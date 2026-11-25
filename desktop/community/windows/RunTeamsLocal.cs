@@ -22,6 +22,8 @@ internal sealed class LocalWindow : Form
     private DesktopWorkspace workspace;
     private readonly ContextMenuStrip trayMenu = new ContextMenuStrip();
     private readonly NotifyIcon tray = new NotifyIcon();
+    private readonly Timer notificationTimer = new Timer { Interval = 5000 };
+    private bool notificationPermission, updatingNotificationPermission;
     private bool quitRequested;
 
     [STAThread]
@@ -162,6 +164,7 @@ internal sealed class LocalWindow : Form
         tray.ContextMenuStrip = trayMenu;
         tray.DoubleClick += delegate { RestoreWindow(); };
         Disposed += delegate {
+            notificationTimer.Dispose();
             tray.Dispose();
             trayMenu.Dispose();
             if (settings != null) settings.Dispose();
@@ -219,6 +222,29 @@ internal sealed class LocalWindow : Form
             string sessionToken = (string)info["session_token"];
             settings = new DesktopSettings(origin, sessionToken);
             workspace = new DesktopWorkspace(environment.UserDataFolder, libraryPath);
+            // WebView2 permissions belong to an origin. The service port changes on restart.
+            try {
+                browser.NotificationReceived += delegate(object sender, CoreWebView2NotificationReceivedEventArgs e) {
+                    if (e.SenderOrigin.TrimEnd('/') != origin.GetLeftPart(UriPartial.Authority)
+                        || !DesktopSettings.NotificationsEnabled) e.Handled = true;
+                };
+                await SetNotificationPermission(browser, DesktopSettings.NotificationsEnabled);
+                // A hidden WebView throttles JavaScript timers. Wake the library from the window thread.
+                notificationTimer.Tick += async delegate {
+                    if (!loaded || closing || updatingNotificationPermission) return;
+                    bool enabled = DesktopSettings.NotificationsEnabled;
+                    if (enabled != notificationPermission) {
+                        try { await SetNotificationPermission(browser, enabled); }
+                        catch (InvalidOperationException) { return; }
+                        if (closing || IsDisposed) return;
+                    }
+                    if (!enabled) return;
+                    bool foreground = Visible && WindowState != FormWindowState.Minimized && ActiveForm == this;
+                    browser.PostWebMessageAsJson(foreground ? "{\"kind\":\"work-alerts\",\"foreground\":true}"
+                                                            : "{\"kind\":\"work-alerts\",\"foreground\":false}");
+                };
+                notificationTimer.Start();
+            } catch (NotImplementedException) { /* Older runtimes can still open the library. */ }
             // Supply the saved language before the first page parses its locale scripts.
             string languageScript = null;
             string language = DesktopSettings.SavedLanguage;
@@ -282,7 +308,18 @@ internal sealed class LocalWindow : Form
             if (fields.Length >= 2 && fields[0] == "desktop-settings" && Guid.TryParseExact(fields[1], "D", out parsed)) {
                 object value = null;
                 try {
-                    value = fields.Length >= 3 && fields[2].StartsWith("workspace-", StringComparison.Ordinal)
+                    if (fields.Length == 3 && (fields[2] == "notifications-enable" || fields[2] == "notifications-disable")) {
+                        bool enabled = fields[2] == "notifications-enable";
+                        await SetNotificationPermission(browser, enabled);
+                        DesktopSettings.NotificationsEnabled = enabled;
+                        value = new { enabled = enabled };
+                    } else if (fields.Length == 3 && fields[2] == "notifications-settings") {
+                        Process.Start(new ProcessStartInfo("ms-settings:notifications") { UseShellExecute = true });
+                        value = new { ok = true };
+                    } else if (fields.Length == 3 && fields[2] == "notifications-activate") {
+                        RestoreWindow();
+                        value = new { ok = true };
+                    } else value = fields.Length >= 3 && fields[2].StartsWith("workspace-", StringComparison.Ordinal)
                         ? workspace.Handle(fields) : settings.Settings(fields);
                 }
                 catch (Exception) { /* The web settings page offers a readback and retry. */ }
@@ -321,6 +358,16 @@ internal sealed class LocalWindow : Form
         }
         if (id != null && version == navigationVersion && !closing && !IsDisposed && !view.IsDisposed)
             browser.PostWebMessageAsJson(json.Serialize(new { kind = "reference-drop", id, result }));
+    }
+
+    private async Task SetNotificationPermission(CoreWebView2 browser, bool enabled)
+    {
+        updatingNotificationPermission = true;
+        try {
+            await browser.Profile.SetPermissionStateAsync(CoreWebView2PermissionKind.Notifications,
+                origin.GetLeftPart(UriPartial.Authority), enabled ? CoreWebView2PermissionState.Allow : CoreWebView2PermissionState.Default);
+            notificationPermission = enabled;
+        } finally { updatingNotificationPermission = false; }
     }
 
     private void Fail(string message)

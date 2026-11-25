@@ -144,6 +144,11 @@ class LocalApplication:
                     return language_policy.snapshot()
                 if method == 'POST':
                     return language_policy.save(data)
+        if method == 'GET' and path == '/api/work-alerts':
+            _fields(data, set(), {'after'})
+            from runteams_core.work.work_ledger import work_alerts
+            with self.runtime.scope():
+                return work_alerts(self.runtime.work_core().repository, data.get('after'))
         if path == '/api/settings':
             if method == 'GET':
                 _fields(data, set())

@@ -437,6 +437,8 @@ function accountNotificationSettings(){
  const controlLabel=(html,key)=>html.replace(/<button\b/,`<button data-app-i18n-aria-label="notifications.${key}"`);
  const rows=[['confirmation','需要确认'],['information','需要补充信息'],['failure','工作失败'],['completion','工作完成']].map(([key,text])=>accountSettingsRow(label(key,text),controlLabel(accountSettingsSwitch(key,prefs[key],off),key))).join('');
  const openSettings=`<button type="button" class="btn" data-notification-settings data-app-i18n="notifications.openSettings" onclick="accountSettingsOpenNotificationSystem()">打开系统设置</button>`;
+ const windows=window.RunTeamsLocalDesktop?.settings;
+ const windowsButton=(enabled)=>`<button type="button" class="btn" data-notification-permission onclick="accountSettingsNotificationPermission(${enabled})" ${S.notificationPermissionPending?'disabled aria-busy="true"':''}>${enabled?label('allow','允许通知'):label('disable','关闭通知')}</button>`;
  let error='',reload=false,loadingKey='systemLoading',loadingText='正在读取系统通知权限…';
  if(S.notificationPermissionError){
   const key=permissionUnknown?'permissionUnknown':S.notificationPermissionRetry==='settings'?'openSettingsFailed':native?'deliveryFailed':'browserPermissionHint';
@@ -455,7 +457,8 @@ function accountNotificationSettings(){
  if(unsupported)system=`<p class="settings-footnote">${label('unsupported','当前环境不支持桌面通知。')}</p>`;
  else if(native&&(S.nativeSettingsLoading||!S.nativeSettingsError)&&!['default','granted','denied'].includes(permission)&&(!permissionUnknown||S.nativeSettingsLoading))system=accountSettingsGroup(systemTitle,accountSettingsRow(accountSettingsControlSkeleton('line','系统通知状态','notifications.systemLoading'),accountSettingsControlSkeleton('select','系统通知操作','notifications.systemLoading')));
  else if(!permissionUnreadable){
-  if(permission==='granted')system=accountSettingsGroup(systemTitle,accountSettingsRow(label('granted','系统通知已允许'),native?openSettings:''));
+  if(windows)system=accountSettingsGroup(systemTitle,accountSettingsRow(permission==='granted'?label('granted','系统通知已允许'):label('allowDesktop','允许桌面通知'),windowsButton(permission!=='granted')+openSettings,label('allowHint','允许 RunTeams 显示工作提醒。')));
+  else if(permission==='granted')system=accountSettingsGroup(systemTitle,accountSettingsRow(label('granted','系统通知已允许'),native?openSettings:''));
   else if(permission==='denied')system=accountSettingsGroup(systemTitle,accountSettingsRow(label('denied','系统通知未获允许'),native?openSettings:'',native?label('systemPermissionHint','请在系统设置中允许 RunTeams 发送通知。'):label('browserPermissionHint','请在浏览器的网站设置中允许通知。')));
   else {
    const request=S.notificationPermissionPending?label('requesting','正在请求通知权限…'):label('allow','允许通知');
@@ -477,15 +480,27 @@ function accountFocusNotificationState(){
  const target=panel?.querySelector('[data-notification-retry]:not(:disabled)')||panel?.querySelector('[data-notification-settings], [data-notification-permission]:not(:disabled)')||panel?.querySelector('.settings-page-head h2');
  target?.focus({preventScroll:true});
 }
-async function accountSettingsNotificationPermission(){
+async function accountSettingsNotificationPermission(enabled=true){
  if(S.notificationPermissionPending||S.notificationPermissionRetry==='read')return;
  const focused=document.activeElement?.hasAttribute?.('data-notification-permission');
  S.notificationPermissionPending=true;S.notificationPermissionError='';S.notificationPermissionRetry='';accountSettingsPaint();
- try{if(accountNativeNotificationBridge()){const result=await accountNativeNotificationBridge().postMessage({action:'permission'});if(!['granted','denied'].includes(result?.notification_permission)||typeof result.prevent_sleep!=='boolean'||typeof result.launch_at_login!=='boolean'||!['background','quit'].includes(result.close_action))throw Error('通知权限未确认');S.nativeSettings=result;}else if(typeof Notification!=='undefined')await Notification.requestPermission();else throw Error('不支持通知');}
+ try{
+  if(window.RunTeamsLocalDesktop?.settings){
+   const result=await window.RunTeamsLocalDesktop.settings.postMessage({action:enabled?'notifications-enable':'notifications-disable'});
+   if(result?.enabled!==enabled||(Notification.permission==='granted')!==enabled)throw Error('通知权限未确认');
+   RunTeamsHost.lifecycle.pollNotifications();
+  }else if(accountNativeNotificationBridge()){const result=await accountNativeNotificationBridge().postMessage({action:'permission'});if(!['granted','denied'].includes(result?.notification_permission)||typeof result.prevent_sleep!=='boolean'||typeof result.launch_at_login!=='boolean'||!['background','quit'].includes(result.close_action))throw Error('通知权限未确认');S.nativeSettings=result;}else if(typeof Notification!=='undefined')await Notification.requestPermission();else throw Error('不支持通知');
+ }
  catch(error){S.notificationPermissionError='通知权限待确认，请重新读取系统通知权限后再设置。';S.notificationPermissionRetry='read';}
  finally{S.notificationPermissionPending=false;accountSettingsPaint();if(focused)accountFocusNotificationState();}
 }
 async function accountSettingsOpenNotificationSystem(){
+ if(window.RunTeamsLocalDesktop?.settings){
+  S.notificationPermissionError='';S.notificationPermissionRetry='';
+  try{if(!(await window.RunTeamsLocalDesktop.settings.postMessage({action:'notifications-settings'}))?.ok)throw Error();}
+  catch{S.notificationPermissionError='未能打开系统通知设置。';S.notificationPermissionRetry='settings';}
+  finally{accountSettingsPaint();}return;
+ }
  S.notificationPermissionError='';S.notificationPermissionRetry='';try{const bridge=accountNativeNotificationBridge();if(!bridge){S.notificationPermissionError='请在浏览器的网站设置中允许通知。';return;}const result=await bridge.postMessage({action:'notification_settings'});if(result?.ok!==true)throw Error('系统设置未打开');}catch(error){S.notificationPermissionError='未能打开系统通知设置，请从系统设置中打开 RunTeams 的通知选项。';S.notificationPermissionRetry='settings';}finally{accountSettingsPaint();}
 }
 async function accountSettingsRetryNotifications(){
@@ -508,7 +523,7 @@ async function accountSettingsRetryNotifications(){
   accountSettingsPaint();
  }finally{if(focused)accountFocusNotificationState();}
 }
-function accountNotifyPreferencesChanged(clear=false){const bridge=accountNativeNotificationBridge();if(bridge)bridge.postMessage({action:'notifications_changed',clear}).catch(()=>{S.notificationPermissionError='工作提醒暂时不可用，请重新读取服务状态。';accountSettingsPaint();});}
+function accountNotifyPreferencesChanged(clear=false){if(window.RunTeamsLocalDesktop?.settings){RunTeamsHost.lifecycle.pollNotifications();return;}const bridge=accountNativeNotificationBridge();if(bridge)bridge.postMessage({action:'notifications_changed',clear}).catch(()=>{S.notificationPermissionError='工作提醒暂时不可用，请重新读取服务状态。';accountSettingsPaint();});}
 
 
 
@@ -877,7 +892,7 @@ function accountNativeNotificationBridge(){return window.webkit?.messageHandlers
 function accountNativeNotificationStatus(value){if(!value||!['default','granted','denied'].includes(value.notification_permission)||typeof value.notification_alerts!=='boolean'||typeof value.notification_sound!=='boolean')return;S.nativeSettings={...S.nativeSettings,...value};if(['granted','denied'].includes(value.notification_permission)&&S.notificationPermissionRetry!=='settings'){S.notificationPermissionError='';S.notificationPermissionRetry='';}if(S.settingsTab==='notifications')accountSettingsPaint();}
 async function accountReadNativeSettings(){const bridge=accountNativeSettingsBridge();if(!bridge||S.nativeSettingsLoading||S.nativeSettingsSaving)return;S.nativeSettingsLoading=true;accountSettingsPaint();try{const value=await bridge.postMessage({action:'get',workspace:RunTeamsHost.session.workspace(S)});if(!value||typeof value.prevent_sleep!=='boolean'||typeof value.launch_at_login!=='boolean'||!['background','quit'].includes(value.close_action))throw Error('本机设置未确认');S.nativeSettings=value;S.nativeSettingsError='';S.nativeSettingsRetry=null;if(['default','granted','denied'].includes(value.notification_permission)&&S.notificationPermissionRetry!=='settings'){S.notificationPermissionError='';S.notificationPermissionRetry='';}}catch(error){S.nativeSettingsError='本机设置暂时无法读取';}finally{S.nativeSettingsLoading=false;accountSettingsStartRuntimeMonitor();accountSettingsPaint();}}
 async function accountSaveNativeSetting(key,value){const bridge=accountNativeSettingsBridge();if(!bridge||S.nativeSettingsSaving||S.nativeSettingsLoading||S.nativeSettingsError)return;S.nativeSettingsSaving=true;S.nativeSettingsError='';S.nativeSettingsRetry={key,value};accountSettingsPaint();try{const result=await bridge.postMessage({action:'set',key,value});if(!result||typeof result.prevent_sleep!=='boolean'||typeof result.launch_at_login!=='boolean'||!['background','quit'].includes(result.close_action)||result[key]!==value)throw Error('设置未确认');S.nativeSettings=result;S.nativeSettingsRetry=null;}catch(error){S.nativeSettingsError='本机设置未能保存，请重试。';}finally{S.nativeSettingsSaving=false;accountSettingsStartRuntimeMonitor();accountSettingsPaint();}}
-function accountSettingsStartRuntimeMonitor(){if(accountNativeNotificationBridge()){RunTeamsHost.lifecycle.notificationsReady?.();return;}if(S.settingsRuntimeTimer)return;S.settingsRuntimeTimer=setInterval(RunTeamsHost.lifecycle.pollNotifications,5000);RunTeamsHost.lifecycle.pollNotifications();}
+function accountSettingsStartRuntimeMonitor(){if(window.RunTeamsLocalDesktop?.settings)return;if(accountNativeNotificationBridge()){RunTeamsHost.lifecycle.notificationsReady?.();return;}if(S.settingsRuntimeTimer)return;S.settingsRuntimeTimer=setInterval(RunTeamsHost.lifecycle.pollNotifications,5000);RunTeamsHost.lifecycle.pollNotifications();}
 
 
 

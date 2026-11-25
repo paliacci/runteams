@@ -9,6 +9,7 @@
   readSettings:()=>module().then(value=>value.readSettings()),saveSettings:patch=>module().then(value=>value.saveSettings(patch))
  });
  global.RunTeamsApplication=application;
- global.RunTeamsHost.configure({lifecycle:{boot:(_options,host)=>application.boot(host),request:application.request,stream:application.stream},
+ global.RunTeamsHost.configure({lifecycle:{boot:(_options,host)=>application.boot(host),request:application.request,stream:application.stream,
+  pollNotifications:()=>module().then(value=>value.pollWorkAlerts())},
   settings:{read:application.readSettings,save:application.saveSettings}});
 })(window);

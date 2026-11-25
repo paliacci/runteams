@@ -2884,6 +2884,7 @@ globalThis.RUNTEAMS_LOCALES.en = {
   "notifications.openSettings": "Open System Settings",
   "notifications.requesting": "Requesting permission…",
   "notifications.allow": "Allow Notifications",
+  "notifications.disable": "Turn Off Notifications",
   "notifications.allowDesktop": "Allow Desktop Notifications",
   "notifications.allowHint": "Allow RunTeams to show work alerts.",
   "notifications.systemPermissionHint": "To receive notifications, allow them for RunTeams in System Settings.",

@@ -43,6 +43,14 @@ internal sealed class DesktopSettings : IDisposable
             return registry == null ? null : registry.GetValue(name);
     }
     private static bool PreventSleep { get { return Equals(Read(Preferences, "prevent_sleep"), 1); } }
+    internal static bool NotificationsEnabled
+    {
+        get { return Equals(Read(Preferences, "notifications"), 1); }
+        set {
+            using (var prefs = Registry.CurrentUser.CreateSubKey(Preferences))
+                prefs.SetValue("notifications", value ? 1 : 0, RegistryValueKind.DWord);
+        }
+    }
     internal static bool KeepInBackground
     {
         get {
