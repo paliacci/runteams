@@ -67,6 +67,7 @@ function restoreBatch(kinds,{localLibrary={library_id:'library'},readDocuments,r
   refreshDocuments:async()=>{calls.push('documents');await readDocuments?.(context.S);},
   refreshDeviceDirectory:async options=>{assert.equal(options.identityOnly,true);calls.push('identities');},
   refreshDeviceWorkDirectory:async()=>calls.push('workflows'),
+  refreshChatDirectory:async options=>{assert.equal(options.afterMutation,true);calls.push('chats');},
   RunTeamsEmployeeDirectory:{refreshAfterMutation:async()=>calls.push('employees')},
   RunTeamsSourcePipelines:{refreshCatalog:async()=>calls.push('pipelines')},
   render:()=>calls.push('render'),toast:(_message,_severity,key)=>notices.push(key),
@@ -92,6 +93,11 @@ test('a mixed restore keeps the work and pipeline directory refreshes',async()=>
  const {calls,restored,run}=restoreBatch(['document','task','pipeline'],{localLibrary:null});
  await run();assert.deepEqual(calls,['trash','employees','workflows','pipelines','render']);
  assert.deepEqual(restored,['document','task','pipeline']);
+});
+
+test('restoring a local team refreshes its standalone discussions',async()=>{
+ const {calls,run}=restoreBatch(['pipeline']);
+ await run();assert.deepEqual(calls,['trash','employees','identities','pipelines','chats','render']);
 });
 
 test('a partial document restore keeps the failed selection and the narrow refresh',async()=>{

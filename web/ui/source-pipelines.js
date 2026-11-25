@@ -117,7 +117,8 @@
    try{
     const result=await request('trash',{reference:row.reference});
     if(result.trashed!==true)throw Error('未能确认垃圾箱状态。');
-    await Promise.all([refreshCatalog(),RunTeamsEmployeeDirectory.refreshAfterMutation()]);
+    await Promise.all([refreshCatalog(),RunTeamsEmployeeDirectory.refreshAfterMutation(),
+     S.localLibrary&&refreshChatDirectory({afterMutation:true}).catch(()=>{})]);
     if(token!==scope())return;
     if(S.activeWorkspaceKey===windowKey&&S.workspaceWindows?.length===1)await openTrash();
     else closeWorkspaceWindow(windowKey);

@@ -1730,8 +1730,13 @@ function updateWorkspaceNavigationError(){S.navigationError=S.chatDirectoryError
 async function refreshChatDirectory(options={}){
   RunTeamsHost.lifecycle.resumeFeedback?.();
  const generation=_workspaceBusinessGeneration,token=workspaceAccountCacheToken(),scope=`${generation}:${token}`;
- if(refreshChatDirectory.pending?.scope===scope)return refreshChatDirectory.pending;
  const current=()=>generation===_workspaceBusinessGeneration&&token===workspaceAccountCacheToken();
+ if(refreshChatDirectory.pending?.scope===scope){
+  if(!options.afterMutation)return refreshChatDirectory.pending;
+  await refreshChatDirectory.pending.catch(()=>{});
+  if(current())return refreshChatDirectory({...options,afterMutation:false});
+  return;
+ }
  const pending=(async()=>{try{
   if(RunTeamsHost.session.workspace(S))throw new Error('当前工作区暂时无法加载会话，请稍后重试。');
   const result=await api('/api/chats?device=1',undefined,undefined,{readCurrent:true,readPriority:options.readPriority,
@@ -2210,7 +2215,7 @@ function trashActionPath(kind,id,action,scope='device'){
   if(scope!=='device'||!trashSources().device||!['task','document'].includes(kind))throw Error('请重新选择本机垃圾箱中的项目。');
   return `/api/device/work/${kind==='task'?'workflows':'artifacts'}/${id}/${action}`;
 }
-async function refreshTrashAfterMutation({documentsOnly=false,employeesChanged=false}={}){
+async function refreshTrashAfterMutation({documentsOnly=false,employeesChanged=false,pipelinesChanged=false}={}){
   const binding=trashBinding();
   await refreshTrash();
   if(binding!==trashBinding())return;
@@ -2218,7 +2223,8 @@ async function refreshTrashAfterMutation({documentsOnly=false,employeesChanged=f
   if(documentsOnly)await refreshDocuments();
   else{
     // Directory reads have their own recovery state.
-    await Promise.allSettled([S.localLibrary?refreshDeviceDirectory({identityOnly:true}):refreshDeviceWorkDirectory(),RunTeamsSourcePipelines.refreshCatalog()]);
+    await Promise.allSettled([S.localLibrary?refreshDeviceDirectory({identityOnly:true}):refreshDeviceWorkDirectory(),RunTeamsSourcePipelines.refreshCatalog(),
+      S.localLibrary&&pipelinesChanged&&refreshChatDirectory({afterMutation:true})]);
   }
   if(binding===trashBinding())render();
 }
@@ -2940,7 +2946,8 @@ async function runListBatch(kind,action,entries,scope){
     try{
       if(current()){
         if(kind==='trash'){
-          await refreshTrashAfterMutation({documentsOnly,employeesChanged:action==='restore'&&items.some(entry=>['employee','pipeline'].includes(entry.kind))});
+          await refreshTrashAfterMutation({documentsOnly,employeesChanged:action==='restore'&&items.some(entry=>['employee','pipeline'].includes(entry.kind)),
+            pipelinesChanged:action==='restore'&&items.some(entry=>entry.kind==='pipeline')});
           refreshFailed=!!S.trashError||(documentsOnly&&!!S.documentsError);
         }
         else if(S.surface==='docs'&&!S.docReader){await refreshDocuments();refreshFailed=!!S.documentsError;}
