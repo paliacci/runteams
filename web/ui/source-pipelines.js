@@ -763,18 +763,41 @@
  }
  async function editCard(event,id){
   event?.preventDefault();event?.stopPropagation();const s=current();let row=s?.data?.workflows.find(row=>Number(row.id)===Number(id));if(!row?.card_actions?.edit)return;
-  const resume=row.card_actions.pause;
+  let resume=row.card_actions.pause;
+  const visit=row.card_actions.visit;
   if(resume){if(!await cardCommand(id,'pause'))return;if(!matches(s))return;row=s.data.workflows.find(row=>Number(row.id)===Number(id));}
+  if(!row?.card_actions?.edit||row.card_actions.visit!==visit)return;
   const title=row.title,host=openDialog({className:'modal-input modal-rename',title:'编辑任务',titleKey:'workflowDetail.editTask',closeOnScrim:false,closeLabelKey:'employeeSettings.closeDialog',body:`<label class="field"><span data-app-i18n="taskEdit.name">任务名称</span><input class="inp" id="pipeline_card_title" maxlength="200" value="${esc(title)}" autocomplete="off"></label><p class="field-error" role="alert" hidden></p>`,footer:'<div class="grow"></div><button type="button" class="btn" data-card-cancel data-app-i18n="employeeSettings.cancel">取消</button><button type="button" class="btn pri" data-card-save data-app-i18n="taskEdit.save">保存</button>'});
   const input=host.querySelector('input'),error=host.querySelector('[role="alert"]'),save=host.querySelector('[data-card-save]');
-  let saving=false;
+  let saving=false,expectedTitle=title,canDismiss=!resume;
+  const dismiss=()=>{closeModal();document.querySelector(`.source-pipeline-workspace [data-workflow-id="${Number(id)}"]`)?.focus({preventScroll:true});};
   const finish=async cancel=>{
-   if(cancel&&!resume&&!saving){closeModal();document.querySelector(`.source-pipeline-workspace [data-workflow-id="${Number(id)}"]`)?.focus({preventScroll:true});return;}
-   if(saving||!matches(s))return;const value=cancel?title:input.value.trim();if(!value){input.focus();return;}
+   if(saving||!matches(s)||!cancel&&save.disabled)return;
+   if(cancel&&(canDismiss||cardState(s,id).pending)){dismiss();return;}
+   const value=cancel?expectedTitle:input.value.trim();if(!value){input.focus();return;}
    saving=true;save.disabled=true;
-   const result=await cardCommand(id,'edit',{title:value,expected_title:title,resume_after_edit:resume});
-   if(result){closeModal();requestAnimationFrame(()=>document.querySelector(`.source-pipeline-workspace [data-workflow-id="${Number(id)}"]`)?.focus({preventScroll:true}));}
-   else if(host.isConnected){const f=cardState(s,id);error.hidden=false;error.textContent=f.error;input.disabled=!!f.pending;save.textContent=RunTeamsLocale.t(f.pending?'pipelineBoard.checkControl':'taskEdit.save',{},f.pending?'核对操作结果':'保存');save.disabled=false;saving=false;}
+   const result=await cardCommand(id,'edit',{title:value,expected_title:expectedTitle,expected_visit:visit,resume_after_edit:resume});
+   if(result&&host.isConnected)dismiss();
+   else if(host.isConnected){
+    const f=cardState(s,id);let message=f.error,editable=true;
+    if(!f.pending){
+     canDismiss=true;
+     if(await refresh({afterEdit:true,silent:true})){
+      const latest=s.data.workflows.find(work=>Number(work.id)===Number(id));
+      editable=!!latest?.card_actions?.edit&&latest.card_actions.visit===visit;
+      if(editable&&latest.title!==expectedTitle){
+       expectedTitle=latest.title;
+       resume=resume&&latest.state==='paused'&&latest.card_actions.resume;
+       message=RunTeamsLocale.t('taskEdit.titleChanged',{title:expectedTitle});
+      }
+     }
+     if(!host.isConnected||!matches(s))return;
+     if(cancel){dismiss();toast(message,'err');return;}
+    }
+    error.hidden=false;error.textContent=message;input.disabled=!!f.pending;
+    save.textContent=RunTeamsLocale.t(f.pending?'pipelineBoard.checkControl':'taskEdit.save',{},f.pending?'核对操作结果':'保存');
+    save.disabled=!editable;saving=false;
+   }
   };
   host.querySelector('[data-card-cancel]').onclick=()=>finish(true);host.querySelector('.modal-x').onclick=()=>finish(true);save.onclick=()=>finish(false);
   input.onkeydown=event=>{if(event.key==='Enter'&&!event.isComposing){event.preventDefault();void finish(false);}};

@@ -2047,6 +2047,7 @@ globalThis.RUNTEAMS_LOCALES = {
   "taskEdit.employeeTask": "员工任务",
   "taskEdit.pipelineTask": "智能体团队任务",
   "taskEdit.name": "任务名称",
+  "taskEdit.titleChanged": "任务名称已改为“{title}”。你的输入已保留。再次保存可更新名称，取消可保留当前任务。",
   "taskEdit.nameHint": "给任务起个简短的名字",
   "taskEdit.description": "任务说明",
   "taskEdit.descriptionHint": "说明工作目标和完成标准",

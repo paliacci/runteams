@@ -2017,6 +2017,7 @@ globalThis.RUNTEAMS_LOCALES.en = {
   "taskEdit.employeeTask": "Employee Task",
   "taskEdit.pipelineTask": "Agent Team Task",
   "taskEdit.name": "Task Name",
+  "taskEdit.titleChanged": "The task was renamed to “{title}”. Your input is still here. Save again to use your title, or cancel to keep the current task.",
   "taskEdit.nameHint": "Give this task a short name",
   "taskEdit.description": "Task Description",
   "taskEdit.descriptionHint": "Describe the goal and what counts as done",
