@@ -5,6 +5,7 @@ import {send} from './host-bridge.js';
 export function connectOutline(paper,{publish=send,listen=window}={}){
  let targets=new Map(),headings=[],sequence=0,previous='',scheduled=0,disposed=false;
  const identities=new WeakMap();
+ let requestedHeading=null;
  const sync=()=>{
   scheduled=0;if(disposed||!paper.isConnected)return;
   targets=new Map();headings=[];
@@ -19,6 +20,19 @@ export function connectOutline(paper,{publish=send,listen=window}={}){
   const root=document.scrollingElement||document.documentElement;
   let active_id='';const atBottom=root.scrollHeight>root.clientHeight&&root.scrollTop+root.clientHeight>=root.scrollHeight-4;
   for(const item of headings){const rect=targets.get(item.id).getBoundingClientRect();if(rect.height>0&&rect.top<=(atBottom?window.innerHeight:72))active_id=item.id;}
+  // Several headings can share the same scroll destination near the end of the paper.
+  if(requestedHeading){
+   const node=targets.get(requestedHeading.id);
+   if(!node)requestedHeading=null;
+   else{
+    const top=root.scrollTop+node.getBoundingClientRect().top-32;
+    const destination=Math.max(0,Math.min(top,root.scrollHeight-root.clientHeight));
+    if(Math.abs(root.scrollTop-destination)<=1){
+     active_id=requestedHeading.id;
+     requestedHeading.reached=true;
+    }else if(requestedHeading.reached)requestedHeading=null;
+   }
+  }
   const title=paper.querySelector('.title-input');const name=(title?.value||paper.querySelector(':scope>h1')?.textContent||'文档').trim();
   const next=JSON.stringify({name,items:headings,active_id});if(next!==previous){previous=next;publish('outline',JSON.parse(next));}
  };
@@ -28,6 +42,7 @@ export function connectOutline(paper,{publish=send,listen=window}={}){
  const jump=event=>{
   const data=event.data;if(event.source!==parent||event.origin!==location.origin||data?.channel!=='runteams-rich-document/1'||data.token!==location.hash.slice(1)||data.type!=='outline-jump')return;
   sync();const node=data.id?targets.get(data.id):paper;if(!node)return;
+  requestedHeading=data.id?{id:data.id,reached:false}:null;
   const root=document.scrollingElement||document.documentElement;
   const top=data.id?root.scrollTop+node.getBoundingClientRect().top-32:0;
   window.scrollTo({top:Math.max(0,top),behavior:window.matchMedia('(prefers-reduced-motion: reduce)').matches?'instant':'smooth'});
