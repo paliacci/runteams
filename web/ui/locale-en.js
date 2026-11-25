@@ -1172,6 +1172,8 @@ globalThis.RUNTEAMS_LOCALES.en = {
   "pipelineBoard.iconChange": "Change Agent Team icon",
   "pipelineBoard.iconPicker": "Choose an Agent Team icon",
   "pipelineBoard.rename": "{name}, edit Agent Team name",
+  "pipelineBoard.newDiscussion": "New Discussion",
+  "pipelineBoard.discussionFailed": "Couldn’t open the team discussion. Try again.",
   "pipelineBoard.chat": "Chat",
   "pipelineBoard.chatWelcome": "Discuss this Agent Team",
   "pipelineBoard.collapseMessages": "Hide messages",

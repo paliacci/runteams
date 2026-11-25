@@ -598,11 +598,12 @@ class LocalRuntime:
                 directory['items'].extend(self.work_core().page_ids())
                 return directory
             if method == 'GET' and path == '/api/chats':
+                from runteams_core.pipelines.pipeline_chat_binding import directory_rows
                 from runteams_core.storage import device_data
                 from runteams_core.employees.employee_session_view import public_session, work_session_record
                 rows = self.store.list_chats(device_only=True)
                 rows = [{**row,'context':json.loads(row.get('context_json') or '{}')} for row in rows]
-                rows = [row for row in rows if (row['subject_type'] == 'workspace' or work_session_record(row)) and row['scope_type'] == 'global' and not row['context'].get('source_pipeline_workspace')]
+                rows = directory_rows(row for row in rows if (row['subject_type'] == 'workspace' or work_session_record(row)) and row['scope_type'] == 'global')
                 rows = [row for row in rows if row.get('kind') == 'general' or self.source_chat(row)]
                 return {'chats': [public_session(dict(row, public_id=device_data.public_id(row['id'])), include_background=False) for row in rows]}
             if method == 'POST' and path == '/api/conversations':

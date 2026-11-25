@@ -425,6 +425,22 @@ class AssetMemoryTests(TestCase):
             self.assertNotEqual(fresh['id'], open_chat(discussion_id=str(uuid4()))['id'])
             self.assertEqual(fresh['context']['source_pipeline_workspace'], self.team)
 
+    def test_chat_directory_lists_visible_discussions_under_their_team(self):
+        from runteams_core.conversations.page_paths import page_id
+        from runteams_core.pipelines import pipeline_chat_binding, source_pipeline_trash
+        def row(identifier, **context):
+            return dict(id=identifier, kind='general', subject_type='workspace', context=context)
+
+        ordinary = row(1)
+        board = row(2, source_pipeline_workspace=self.team)
+        discussion = row(3, source_pipeline_workspace=self.team, source_pipeline_discussion='planning')
+        invalid = row(4, source_pipeline_workspace={'source_id': 'missing'}, source_pipeline_discussion='draft')
+        rows = [discussion, ordinary, board, invalid]
+        self.assertEqual(pipeline_chat_binding.directory_rows(rows), [discussion, ordinary])
+        self.assertEqual(discussion['owner_path'], '/pipelines/' + page_id(self.team))
+        with patch.object(source_pipeline_trash, 'hidden_source_references', return_value=[self.team]):
+            self.assertEqual(pipeline_chat_binding.directory_rows(rows), [ordinary])
+
     def test_employee_history_supports_legacy_identity_and_skips_work(self):
         from runteams_core.conversations import asset_history
         from runteams_core.storage import device_data

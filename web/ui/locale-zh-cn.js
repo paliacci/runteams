@@ -1202,6 +1202,8 @@ globalThis.RUNTEAMS_LOCALES = {
   "pipelineBoard.iconChange": "更换智能体团队图标",
   "pipelineBoard.iconPicker": "选择智能体团队图标",
   "pipelineBoard.rename": "{name}，编辑智能体团队名称",
+  "pipelineBoard.newDiscussion": "新建讨论",
+  "pipelineBoard.discussionFailed": "无法打开团队讨论，请重试。",
   "pipelineBoard.chat": "对话",
   "pipelineBoard.chatWelcome": "讨论这个智能体团队",
   "pipelineBoard.collapseMessages": "收起消息",

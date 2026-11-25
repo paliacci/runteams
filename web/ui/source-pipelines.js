@@ -407,6 +407,27 @@
   const attrs=editable?` type="button" onclick="RunTeamsSourcePipelines.editIcon(event)" aria-label="更换智能体团队图标" title="更换智能体团队图标" data-app-i18n-aria-label="pipelineBoard.iconChange" data-app-i18n-title="pipelineBoard.iconChange" aria-haspopup="dialog" aria-expanded="false"`:' aria-hidden="true"';
   return `<${tag} ${allowEdit?'id="pipeline_avatar"':''} class="av pipeline-avatar ${src?'has-image':'is-default'}${editable?' worker-avatar-button':''}"${attrs}>${src?`<img src="${esc(src)}" alt="" onerror="workerAvatarLoadFailed(this)">`:ICON('flow')}</${tag}>`;
  }
+ async function newDiscussion(){
+  const s=current();
+  if(!s?.data||!S.localLibrary||s.creatingDiscussion)return;
+  const currentVisit=navigationTicket(),config=defaultChatConfig(null);
+  s.discussionId??=crypto.randomUUID();
+  s.creatingDiscussion=true;render();
+  try{
+   const {session}=await request('conversation',{reference:s.reference,discussion_id:s.discussionId,
+    runtime:{channel_id:config.channel_id,model:config.model,reasoning_effort:config.reasoning_effort}});
+   if(!matches(s)||!currentVisit())return;
+   if(!session?.public_id||session.storage_scope!=='device'||session.context?.source_pipeline_discussion!==s.discussionId||
+      referenceKey(session.context.source_pipeline_workspace)!==referenceKey(s.reference)||session.owner_path!=='/pipelines/'+s.routeEntry.page_id)throw Error();
+   deviceChatRemember(session);
+   await openRailConversationSession(session.id,{device:true,ownerPath:session.owner_path});
+   delete s.discussionId;
+  }catch(error){
+   if(matches(s)&&currentVisit())toast(error.message||'无法打开团队讨论，请重试。','err',error.message?undefined:'pipelineBoard.discussionFailed');
+  }finally{
+   s.creatingDiscussion=false;if(matches(s))render();
+  }
+ }
  function header(){
   const s=current();if(!s)return '';
   if(s.loading)return RunTeamsSkeletons.workspaceHeader({pipeline:true});
@@ -415,7 +436,8 @@
   const titleAttributes=`${s.data?.name||s.name?'':' data-app-i18n="pipelineBoard.pipeline"'}${canRename?` role="button" tabindex="0" data-pipeline-rename data-app-i18n-aria-label="pipelineBoard.rename" data-app-i18n-vars="${esc(JSON.stringify({name}))}"`+' aria-label="'+esc(name)+'，编辑智能体团队名称" onclick="RunTeamsSourcePipelines.editName(event)" onkeydown="RunTeamsSourcePipelines.editName(event)"':''}`;
   const icon=`<span class="conversation-panel-context-icon bot">${pipelineIcon(s)}</span>`;
   const heading=RunTeamsShell.workspaceHeading(name,titleAttributes,statusMarkup(s),canRename);
-  const controls=`<div class="conversation-panel-controls">${runtimeAction(s,disabled)}${RunTeamsAssetOverview.trigger(disabled)}</div>`;
+  const discussion=S.localLibrary?`<button type="button" class="btn sm" onclick="RunTeamsSourcePipelines.newDiscussion()" ${disabled||s.creatingDiscussion?'disabled':''}>${ICON('square-pen')}<span data-app-i18n="pipelineBoard.newDiscussion">新建讨论</span></button>`:'';
+  const controls=`<div class="conversation-panel-controls">${discussion}${runtimeAction(s,disabled)}${RunTeamsAssetOverview.trigger(disabled)}</div>`;
   return RunTeamsShell.pageHeader(icon+heading,controls,true);
  }
  function boardEmpty(s,columns,cards){
@@ -1296,5 +1318,5 @@
  setInterval(()=>void pollWorkspace({detailOnly:true}),2000);
  window.addEventListener('focus',()=>void pollWorkspace());
  document.addEventListener('visibilitychange',()=>{if(document.hidden)stopActivity();else void pollWorkspace();});
- window.RunTeamsSourcePipelines={pipelineIcon,cardFeedback,cardKeydown,cardMenu,cardCommand,editCard,draftMenu,restoreCard,taskWorkspace,openEmployeeTask,workCommitted,workContext,ensureWorkContext,request,select,operationError,current,sameScope,refreshCatalog,readCatalog,pageRoute,selectDockChat,catalogState,items:()=>catalogScope===scope()?rows.slice():[],sidebar,sidebarAvatar,sidebarMenu,openRoute,openFromLink,openVersion,refresh,retryRecovery,openReference,key,referenceKey,boot,header,editName,editIcon,board,workspace,conversation,dockPanel,messageToggle,toggleMessages,restoreMessageVisibility,animateComposer,retryBoard,control,compose,composeDraft,cancelCompose,composerKeydown,composerFocusin,composerFocusout,submit,openWork,refreshOpenWork,applyWorkReply,syncActivity,retainActivity,drawer,reset,newPipeline,closeCreation,readCreationChoices,create,retryControl,retryAdmission,creationName:value=>{if(creation)creation.name=value;}};
+ window.RunTeamsSourcePipelines={newDiscussion,pipelineIcon,cardFeedback,cardKeydown,cardMenu,cardCommand,editCard,draftMenu,restoreCard,taskWorkspace,openEmployeeTask,workCommitted,workContext,ensureWorkContext,request,select,operationError,current,sameScope,refreshCatalog,readCatalog,pageRoute,selectDockChat,catalogState,items:()=>catalogScope===scope()?rows.slice():[],sidebar,sidebarAvatar,sidebarMenu,openRoute,openFromLink,openVersion,refresh,retryRecovery,openReference,key,referenceKey,boot,header,editName,editIcon,board,workspace,conversation,dockPanel,messageToggle,toggleMessages,restoreMessageVisibility,animateComposer,retryBoard,control,compose,composeDraft,cancelCompose,composerKeydown,composerFocusin,composerFocusout,submit,openWork,refreshOpenWork,applyWorkReply,syncActivity,retainActivity,drawer,reset,newPipeline,closeCreation,readCreationChoices,create,retryControl,retryAdmission,creationName:value=>{if(creation)creation.name=value;}};
 })();

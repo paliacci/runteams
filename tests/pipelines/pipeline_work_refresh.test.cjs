@@ -9,6 +9,33 @@ const workReaders = workspace.slice(workspace.indexOf(' let activityConnection;'
   workspace.indexOf(' const operationErrorFallback='));
 const flow = panels.slice(panels.indexOf('const flowKey='), panels.indexOf('function inputDraft('));
 
+test('a team discussion retries its original creation and leaves the board only once', async () => {
+  const team = {data: {}, reference: {source_id: 'team'}, routeEntry: {page_id: '1atest00'}};
+  const attempts = [], opened = [];
+  let finish;
+  const create = vm.runInNewContext(workspace.slice(workspace.indexOf(' async function newDiscussion('),
+    workspace.indexOf(' function header(')) + '\nnewDiscussion', {
+    S: {localLibrary: {}}, current: () => team, matches: s => s === team, navigationTicket: () => () => true,
+    defaultChatConfig: () => ({}), crypto: require('node:crypto'), render() {}, toast() {},
+    request: async (_, body) => {
+      attempts.push(body.discussion_id);
+      if (attempts.length === 1) throw Error('Receipt lost');
+      return new Promise(resolve => { finish = resolve; });
+    },
+    referenceKey: ref => ref.source_id, deviceChatRemember() {}, openRailConversationSession: id => opened.push(id),
+  });
+  await create();
+  const retry = create();
+  await create();
+  assert.equal(attempts.length, 2);
+  assert.equal(attempts[0], attempts[1]);
+  finish({session: {id: 12, public_id: '2btest00', owner_path: '/pipelines/1atest00', storage_scope: 'device',
+    context: {source_pipeline_workspace: team.reference, source_pipeline_discussion: attempts[0]}}});
+  await retry;
+  assert.deepEqual(opened, [12]);
+  assert.equal(team.discussionId, undefined);
+});
+
 test('changing the model in a team discussion sends only runtime settings', () => {
   const host = vm.createContext({S: {channels: []}, catalogModel: () => null,
     normalizedConversationContext: panel => ({...panel.context, context_type: 'general', intent: 'general'})});
