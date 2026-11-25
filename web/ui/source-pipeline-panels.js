@@ -10,20 +10,31 @@ function persist(s){const p=state(s);if(!p.draft&&!p.pending){RunTeamsWorkState.
 function select(kind){host().select(kind);}
 async function settings({activityExpanded=false}={}){const s=current();if(!s)return;host().select('settings',{activityExpanded});return loadSettingsData(s);}
 async function read(s=current()){
- if(!owned(s))return;const p=state(s);if(p.loading)return;p.loading=true;render();
+ if(!owned(s))return false;
+ const p=state(s);
  const selection=S.sel,overview=selection?.type==='source-pipeline'&&selection.id==='settings';
- try{const {configuration_states,...value}=await host().request('settings',{reference:s.reference,...(overview?{include_configuration:true}:{})});if(!owned(s))return false;
-  if(overview&&selection===S.sel)selection.configurationSnapshot=configuration_states;
-  if(p.draft&&p.data?.source_revision!==value.source_revision)p.conflict=!p.pending;
-  else{p.data=value;p.conflict=false;}
-  if(!(p.draft&&p.error==='pipelineEditor.saveRejected'))p.error='';
-  if(S.sel?.type==='source-pipeline'&&S.sel.id==='position'){
-   void readPositionRuntime(s,S.sel.positionKey);
-   openPositionConfiguration(s);
-  }
-  return true;
- }catch(error){if(owned(s))p.error=error.message;return false;}
- finally{p.loading=false;if(owned(s))render();}
+ if(p.loading){
+  if(!overview||p.loading.selection===selection)return p.loading.result;
+  await p.loading.result;
+  return owned(s)&&S.sel===selection&&read(s);
+ }
+ const result=Promise.resolve().then(async()=>{
+  try{const {configuration_states,...value}=await host().request('settings',{reference:s.reference,...(overview?{include_configuration:true}:{})});if(!owned(s))return false;
+   if(overview&&selection===S.sel)selection.configurationSnapshot=configuration_states;
+   if(p.draft&&p.data?.source_revision!==value.source_revision)p.conflict=!p.pending;
+   else{p.data=value;p.conflict=false;}
+   if(!(p.draft&&p.error==='pipelineEditor.saveRejected'))p.error='';
+   if(S.sel?.type==='source-pipeline'&&S.sel.id==='position'){
+    void readPositionRuntime(s,S.sel.positionKey);
+    openPositionConfiguration(s);
+   }
+   return true;
+  }catch(error){if(owned(s))p.error=error.message;return false;}
+  finally{p.loading=false;if(owned(s))render();}
+ });
+ p.loading={selection:overview?selection:null,result};
+ render();
+ return result;
 }
 function draft(){const s=current(),p=s&&state(s);if(!p?.data||p.pending||p.saving||p.commitRefresh||s.data.ui.mode!=='creator')return null;p.draft||=structuredClone(p.data.asset);return p.draft;}
 async function refreshCommitted(s){
@@ -332,20 +343,23 @@ async function loadSettingsData(s){
  return read(s);
 }
 async function readEmployeeChoices(){
- const s=current(),p=s&&state(s);if(!p||p.choicesLoading)return;
- p.choicesLoading=true;render();
- let result;
- try{
-  const reply=await host().request('creation-choices');
-  if(Array.isArray(reply.items))result=reply;
- }catch{/* Keep the current binding on a catalog read failure. */}
- p.choicesLoading=false;
- if(!owned(s))return;
- if(result){
-  p.choices=result.items;p.choiceErrors=Array.isArray(result.errors)?result.errors:[];
-  p.choicesFailed=!p.choices.length&&p.choiceErrors.length>0;
- }else p.choicesFailed=true;
+ const s=current(),p=s&&state(s);if(!p)return;
+ if(p.choicesLoading)return p.choicesLoading;
+ const reading=Promise.resolve().then(async()=>{
+  let result;
+  try{
+   const reply=await host().request('creation-choices');
+   if(Array.isArray(reply.items))result=reply;
+  }catch{/* Keep the current binding on a catalog read failure. */}
+  if(!owned(s))return;
+  if(result){
+   p.choices=result.items;p.choiceErrors=Array.isArray(result.errors)?result.errors:[];
+   p.choicesFailed=!p.choices.length&&p.choiceErrors.length>0;
+  }else p.choicesFailed=true;
+ }).finally(()=>{p.choicesLoading=false;if(owned(s))render();});
+ p.choicesLoading=reading;
  render();
+ return reading;
 }
 function employeeChoicesStatus(p){
  const retry='RunTeamsSourcePipelinePanels.readEmployeeChoices()';
@@ -510,7 +524,6 @@ async function addStageMenu(trigger){
   await readChoices();
  }
  async function readChoices(){
-  if(p.choicesLoading)return;
   const reading=readEmployeeChoices();
   paint();await reading;if(!routing)paint();
   if(!nodes&&document.activeElement===document.body)menu.querySelector('[data-stage-search], [data-stage-tab="roles"]')?.focus({preventScroll:true});
