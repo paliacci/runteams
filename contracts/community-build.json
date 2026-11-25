@@ -780,6 +780,7 @@
     "runteams_core/devtools/python_sources.py",
     "runteams_core/devtools/source_root.py",
     "runteams_core/devtools/verify_install.py",
+    "runteams_core/devtools/verify_sdist.py",
     "runteams_creator_dev/MCP_AUTHORING.md",
     "runteams_creator_dev/PROJECT_AGENTS.md",
     "runteams_creator_dev/PROJECT_CLAUDE.md",
