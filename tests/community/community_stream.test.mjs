@@ -51,3 +51,30 @@ test('lost acceptance restores the saved attachment cards',async()=>{
   return Response.json({messages:[{id:1,role:'user',attachments,metadata:{local_turn_id:operation}},{id:2,role:'bot',text:'done',metadata:{local_turn_id:operation}}]});
  });client.libraryId=lib;const events=[];await client.stream('/api/chat/123/stream',{message:'read image'},e=>events.push(e));assert.deepEqual(events[0].attachments,attachments);
 });
+
+test('recovery tolerates brief history failures and delivers the saved stop notice without another POST', async () => {
+  const attachments = [{id: 'saved-image', name: '截图.png', kind: 'image'}];
+  const notice = {kind: 'stopped', text: '已停止。'};
+  let operation, reads = 0, posts = 0;
+  const client = createLocalClient(async (path, options) => {
+    if (path.endsWith('/stream')) {
+      posts++;
+      operation = JSON.parse(options.body).operation_id;
+      throw new TypeError('connection lost');
+    }
+    if (++reads <= 2) return Response.json({error: 'unavailable'}, {status: 503});
+    return Response.json({messages: [
+      {id: 11, role: 'user', attachments, metadata: {local_turn_id: operation}},
+      {id: 12, role: 'bot', text: 'partial', metadata: {local_turn_id: operation, stopped: true, system_notice: notice}},
+    ]});
+  });
+  client.libraryId = lib;
+  const events = [];
+  await client.stream('/api/chat/123/stream', {message: 'read image'}, event => events.push(event));
+  assert.equal(posts, 1);
+  assert.equal(reads, 3);
+  assert.deepEqual(events.map(event => event.type), ['accepted', 'result']);
+  assert.deepEqual(events[0].attachments, attachments);
+  assert.equal(events[1].incomplete, true);
+  assert.deepEqual(events[1].system_notice, notice);
+});

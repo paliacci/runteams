@@ -2407,11 +2407,19 @@ async function conversationSubmit(surface,send){
   if(conversationSendDisabled(surface,!!busy,conversationInputValue(conversationInputElement(surface)))){conversationSyncSendState(surface);return;}
   if(busy){if(conversationQueueEnabled())return conversationQueueEnqueue(surface);if(conversationCanSteer(surface))return conversationSteer(surface);return;}
   const queue=conversationQueueState(surface);if(queue?.items.length){if(!conversationQueueEnqueue(surface))return;return conversationQueueResume(surface);}
-  const messages=panel?(panel.messages||[]):(S.chatMsgs||[]),beforeCount=messages.length;
+  const messages=panel?(panel.messages||[]):(S.chatMsgs||[]),beforeCount=messages.length,previousFailure=messages.at(-1);
   const text=conversationInputValue(conversationInputElement(surface)),attachments=conversationAttachments(surface).slice(),capabilities=conversationCapabilities(surface).map(item=>({...item}));
   await send();
   if((surface==="panel"&&S.conversationPanel!==panel))return;
   const after=panel?(panel.messages||[]):(S.chatMsgs||[]),added=after.slice(beforeCount),failure=added.find(message=>message.ephemeral);
+  const retry=previousFailure?.retryAccepted===false&&previousFailure.retryDraft;
+  if(retry&&after[beforeCount-1]===previousFailure&&added.some(message=>message.role==="user"&&message.id)
+    &&retry.text.trim()===text.trim()&&retry.attachments.length===attachments.length
+    &&retry.attachments.every((item,index)=>item===attachments[index])
+    &&JSON.stringify(retry.capabilities)===JSON.stringify(capabilities)){
+    after.splice(beforeCount-1,1);
+    render();
+  }
   if(!failure)return;
   if(added.some(message=>message.role==="user")){failure.retryAccepted=true;return;}
   failure.retryDraft={text,attachments,capabilities};

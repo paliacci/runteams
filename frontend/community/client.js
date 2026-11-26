@@ -52,12 +52,27 @@ export class LocalClient {
       if(!accepted && [400,403,404,409,413,415,422].includes(error.status))throw error;
       const chatPath=path.replace(/\/stream$/,'');
       try {
+        let consecutiveFailures = 0;
         for(let attempt=0;attempt<600;attempt++){
-          const saved=await this.request(chatPath), messages=saved.messages||[];
+          let saved;
+          try {
+            // A stop request may invalidate an in-flight read. Follow the
+            // same operation after that write or a brief service interruption.
+            saved=await this.request(chatPath,'GET',undefined,{readCurrent:true});
+            consecutiveFailures = 0;
+          } catch (readError) {
+            const transient = readError instanceof TypeError
+              || [502,503,504].includes(readError.status)
+              || ['request_superseded','read_timeout','network_error'].includes(readError.code);
+            if(!transient || ++consecutiveFailures>=3)throw readError;
+            await new Promise(resolve=>setTimeout(resolve,1000));
+            continue;
+          }
+          const messages=saved.messages||[];
           const user=messages.find(m=>m.role==='user'&&m.metadata?.local_turn_id===payload.operation_id);
           const reply=messages.find(m=>m.role==='bot'&&m.metadata?.local_turn_id===payload.operation_id);
           if(user&&!accepted)deliver({type:'accepted',message_id:user.id,operation_id:payload.operation_id,attachments:user.attachments||[],capabilities:user.capabilities||[]});
-          if(reply){deliver({type:'result',message_id:reply.id,reply:reply.text,applied:reply.applied||[],run_cards:reply.metadata?.run_cards||[],device_page_ids:saved.device_page_ids||[],failed:!!reply.metadata?.failed,incomplete:!!reply.metadata?.stopped,...(saved.context?.creator_local_source_id?{session:saved}:{})});return;}
+          if(reply){deliver({type:'result',message_id:reply.id,reply:reply.text,applied:reply.applied||[],run_cards:reply.metadata?.run_cards||[],device_page_ids:saved.device_page_ids||[],failed:!!reply.metadata?.failed,incomplete:!!reply.metadata?.stopped,...(reply.metadata?.system_notice?{system_notice:reply.metadata.system_notice}:{}),...(saved.context?.creator_local_source_id?{session:saved}:{})});return;}
           if(!user&&!saved.active_turn?.active)throw Object.assign(error,{confirmedAbsent:true});
           if(!user||!saved.active_turn?.active)break;
           // Observe the existing accepted worker; never resubmit a model call.
