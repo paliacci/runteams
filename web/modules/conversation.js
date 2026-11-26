@@ -789,7 +789,7 @@ function botConversationBody(m,index,surface,chatId=null){
 async function copyConversationMessage(surface,index,button){const message=_conversationMsg(surface,index),text=String(message?.text||'');if(!text)return;try{await navigator.clipboard.writeText(message.role==='bot'&&typeof RunTeamsReplyContent!=='undefined'?RunTeamsReplyContent.plainText(text):text);conversationCopied(button);}catch(error){toast('无法复制。请手动选择要复制的文字。','err','conversationDetail.copyFailed');}}
 
 /* module-function:editConversationMessage */
-function editConversationMessage(surface,index){const message=_conversationMsg(surface,index);if(!message)return;const panel=surface==="panel"?S.conversationPanel:null;if(surface==="chat"?S.chatBusy:panel?.busy)return toast("请等助手完成当前工作后再编辑。","info","conversationDetail.editBusy");if(!message.id)return toast("这条消息尚未保存，暂时无法从这里重新开始。","info","conversationDetail.editUnsaved");confirmModal("从这条消息重新开始？","重新发送时，这条消息及后续对话会被替换。已执行的任务和智能体团队，以及文件改动都会保留。",()=>{const capabilities=(message.capabilities||[]).map(item=>({...item})),restored=conversationDraftFromMessage(message.text,capabilities,message.metadata?.folder_refs),draft=restored.text,attachments=[...(message.attachments||[]).map(item=>({...item,localId:`rewind-${surface}-${item.id}`,reuseId:item.id})),...restored.folders];clearConversationAttachments(surface);setConversationAttachments(surface,attachments);setConversationCapabilities(surface,capabilities);setConversationDraftValue(surface,draft);if(surface==="panel"){panel.messages=panel.messages.slice(0,index);panel.editRewind={messageId:message.id};}else{S.chatMsgs=S.chatMsgs.slice(0,index);S.chatRewind={messageId:message.id};}render();toast("修改消息，然后重新发送。","info","conversationDetail.editReady");requestAnimationFrame(()=>{const box=conversationInputElement(surface);if(box){setConversationInputValue(box,draft,capabilities);box.focus();restoreConversationSelection(surface,draft.length);}});},false,{
+function editConversationMessage(surface,index){const message=_conversationMsg(surface,index);if(!message)return;const panel=surface==="panel"?S.conversationPanel:null;if(panel?.localTurnRecovery)return toast("请先核对上一条消息。","info","conversationDetail.checkPreviousFirst");if(surface==="chat"?S.chatBusy:panel?.busy)return toast("请等助手完成当前工作后再编辑。","info","conversationDetail.editBusy");if(!message.id)return toast("这条消息尚未保存，暂时无法从这里重新开始。","info","conversationDetail.editUnsaved");confirmModal("从这条消息重新开始？","重新发送时，这条消息及后续对话会被替换。已执行的任务和智能体团队，以及文件改动都会保留。",()=>{const capabilities=(message.capabilities||[]).map(item=>({...item})),restored=conversationDraftFromMessage(message.text,capabilities,message.metadata?.folder_refs),draft=restored.text,attachments=[...(message.attachments||[]).map(item=>({...item,localId:`rewind-${surface}-${item.id}`,reuseId:item.id})),...restored.folders];clearConversationAttachments(surface);setConversationAttachments(surface,attachments);setConversationCapabilities(surface,capabilities);setConversationDraftValue(surface,draft);if(surface==="panel"){panel.messages=panel.messages.slice(0,index);panel.editRewind={messageId:message.id};}else{S.chatMsgs=S.chatMsgs.slice(0,index);S.chatRewind={messageId:message.id};}render();toast("修改消息，然后重新发送。","info","conversationDetail.editReady");requestAnimationFrame(()=>{const box=conversationInputElement(surface);if(box){setConversationInputValue(box,draft,capabilities);box.focus();restoreConversationSelection(surface,draft.length);}});},false,{
   titleKey:"conversationDetail.rewindTitle",messageKey:"conversationDetail.rewindMessage",
   action:"编辑消息",actionKey:"conversationDetail.editMessage",cancelKey:"trash.cancel",closeKey:"conversationDetail.close"
 });}
@@ -881,6 +881,104 @@ function conversationFailureCopy(text,copyOverride=''){
 
 /* module-function:conversationHasConfirmedReply */
 function conversationHasConfirmedReply(messages,userMessageId){const index=(messages||[]).findIndex(message=>message.role==='user'&&userMessageId!=null&&String(message.id)===String(userMessageId));if(index<0)return false;for(const message of messages.slice(index+1)){if(message.role==='user'){if(message.metadata?.question_request_id)continue;break;}if(message.id&&(message.metadata?.trace?.complete===true||message.trace?.complete===true))return true;}return false;}
+
+/* module-function:conversationLocalTurnMarkup */
+function conversationLocalTurnMarkup(recovery){
+  if(!recovery)return "";
+  const {checking,absent}=recovery;
+  const [key,copy]=checking?["employeeWork.checkingMessage","正在核对上一条消息…"]
+    :absent?["conversationDetail.previousNotSent","上一条消息未发送。当前草稿已保留。"]
+    :recovery.readFailed?["employeeWork.messageCheckFailed","无法核对上一条消息。"]
+    :recovery.accepted?["conversationDetail.previousReplyPending","上一条消息已发送，回复尚未确认。"]
+    :["employeeWork.sendingUnconfirmed","尚未确认上一条消息是否已发送。"];
+  const status=`<span role="status" data-app-i18n="${key}">${copy}</span>`;
+  const actions=absent
+    ?`<button type="button" class="btn ghost sm" data-recovery-action="restore" data-app-i18n="conversationDetail.restorePreviousDraft" onclick="checkConversationLocalTurn(this)">恢复原草稿</button>
+       <button type="button" class="btn ghost sm" data-recovery-action="discard" data-app-i18n="conversationDetail.discardPreviousDraft" onclick="checkConversationLocalTurn(this)">舍弃原草稿</button>`
+    :`<button type="button" class="btn ghost sm" data-recovery-action="check" aria-disabled="${!!checking}" data-app-i18n="employeeWork.checkMessage" onclick="checkConversationLocalTurn(this)">核对状态</button>`;
+  return `<div class="creator-send-pending" data-local-turn-recovery="${esc(recovery.operationId)}">${status}${actions}</div>`;
+}
+
+/* module-function:checkConversationLocalTurn */
+async function checkConversationLocalTurn(button){
+  const panel=S.conversationPanel,recovery=panel?.localTurnRecovery;
+  if(!recovery||panel.busy||recovery.checking||!button.isConnected
+    ||button.closest("[data-local-turn-recovery]")?.dataset.localTurnRecovery!==recovery.operationId)return;
+  const generation=conversationQueueGeneration(),action=button.dataset.recoveryAction;
+  const current=()=>conversationQueueGeneration()===generation&&panel.localTurnRecovery===recovery;
+  const visible=()=>S.conversationPanel===panel&&conversationPanelIsVisibleHere(panel);
+  const notice=()=>document.querySelector("[data-local-turn-recovery]");
+  const updateNotice=()=>{
+    if(!visible())return;
+    const old=notice(),action=old?.contains(document.activeElement)&&document.activeElement.dataset.recoveryAction;
+    if(!old)return;
+    old.outerHTML=conversationLocalTurnMarkup(recovery);
+    const next=notice();
+    RunTeamsLocale.apply(next);
+    if(action)(next.querySelector(`[data-recovery-action="${action}"]`)||next.querySelector("button"))?.focus({preventScroll:true});
+  };
+  if(!recovery.absent){
+    recovery.checking=true;updateNotice();
+    try{
+      const saved=await api(`/api/chat/${panel.id}`,"GET",undefined,{readCurrent:true});
+      if(!current())return;
+      if(!Array.isArray(saved.messages)||typeof saved.active_turn?.active!=="boolean")throw new Error("Invalid conversation history");
+      recovery.readFailed=false;
+      const matches=message=>message.metadata?.local_turn_id===recovery.operationId;
+      const user=saved.messages.find(message=>message.role==="user"&&matches(message));
+      const reply=saved.messages.find(message=>message.role==="bot"&&matches(message));
+      if(!user&&(recovery.accepted||saved.active_turn.active))return;
+      panel.messages=saved.messages.map(storedConversationMessage);
+      panel.draft=saved.draft||panel.draft;
+      panel.identity=saved.context?.identity||panel.identity;
+      panel.status=saved.status||panel.status;
+      if(user&&!recovery.accepted){
+        recovery.accepted=true;
+        if(recovery.queuedId){conversationQueueAccepted("panel",panel,recovery.queuedId);delete recovery.queuedId;}
+        else panel.editRewind=null;
+        recovery.draft?.attachments.forEach(item=>{if(item.preview)URL.revokeObjectURL(item.preview);});
+        recovery.draft=null;
+      }else if(!user){
+        recovery.absent=true;
+        const queued=panel.messageQueue?.items.find(item=>item.id===recovery.queuedId);
+        if(queued){queued.uncertain=false;conversationQueueSave("panel",panel);}
+      }
+      if(user&&!reply&&!visible())return;
+      recovery.hasReply=!!reply;
+    }catch(error){
+      if(current())recovery.readFailed=true;
+      return;
+    }finally{
+      recovery.checking=false;
+      if(current())updateNotice();
+    }
+  }
+  if(!current())return;
+  const editor=visible()?conversationInputElement("panel"):null;
+  const active=document.activeElement,editorFocused=active===editor,buttonFocused=notice()?.contains(active);
+  const selection=editorFocused?conversationSelectionOffsets(editor):null;
+  const draft=recovery.absent?recovery.draft:null;
+  const hasDraft=!!(panel.input?.trim()||panel.attachments?.length||panel.capabilities?.length||panel.example_materials);
+  if(draft&&action!=="discard"&&hasDraft){
+    if(action==="restore")toast("请清空当前草稿后再恢复原草稿。","info","conversationDetail.clearBeforeRestore");
+  }else if(recovery.absent||recovery.hasReply){
+    if(draft&&action!=="discard")Object.assign(panel,draft);
+    else if(draft){
+      draft.attachments.forEach(item=>{if(item.preview)URL.revokeObjectURL(item.preview);});
+      panel.editRewind=null;
+    }
+    delete panel.localTurnRecovery;
+    captureConversationPanelDraft({panel,fromState:true});
+  }
+  if(visible()){
+    render();
+    const box=conversationInputElement("panel");
+    if(editorFocused||buttonFocused&&!panel.localTurnRecovery)box?.focus({preventScroll:true});
+    else if(buttonFocused)notice()?.querySelector(`[data-recovery-action="${action}"]`)?.focus({preventScroll:true});
+    if(selection)restoreConversationSelection("panel",selection.start,selection.end);
+    if(recovery.hasReply){RunTeamsAssetOverview.refreshKnowledgeAfterTurn(panel);void syncConversationWork(true);}
+  }
+}
 
 /* module-function:retryFailedConversationMessage */
 function retryFailedConversationMessage(surface,index){
@@ -2203,7 +2301,7 @@ function conversationQueueSave(surface,owner=conversationQueueOwner(surface)){
 function conversationQueuePreviewText(value){return String(value||'').replace(/[ \t\r\n]+$/,'');}
 function conversationQueueMarkup(surface){
   const q=conversationQueueState(surface);if(!q?.items.length)return '';
-  const busy=surface==='panel'?S.conversationPanel?.busy:S.chatBusy,blocked=q.items.some(item=>item.uncertain);
+  const busy=surface==='panel'?S.conversationPanel?.busy:S.chatBusy,blocked=q.items.some(item=>item.uncertain)||!!conversationQueueOwner(surface)?.localTurnRecovery;
   const items=q.items.map((item,index)=>{
     const sending=q.sending===item.id,vars=esc(JSON.stringify({index:index+1}));
     const editText=q.editText??item.text;
@@ -2273,14 +2371,14 @@ function conversationQueueDelete(surface,id){
   const q=conversationQueueState(surface);if(!q||q.sending===id)return;q.items=q.items.filter(item=>item.id!==id);
   if(q.editing===id){delete q.editing;delete q.editText;}conversationQueueSave(surface);conversationQueuePaint(surface);if(!q.paused)void conversationQueueDrain(surface);
 }
-function conversationQueueResume(surface){const q=conversationQueueState(surface);if(!q||q.items.some(item=>item.uncertain))return;q.paused=false;void conversationQueueDrain(surface);}
+function conversationQueueResume(surface){const owner=conversationQueueOwner(surface),q=conversationQueueState(surface,owner);if(!q||owner.localTurnRecovery||q.items.some(item=>item.uncertain))return;q.paused=false;void conversationQueueDrain(surface,owner);}
 function conversationQueueAccepted(surface,owner,id){
   const q=conversationQueueState(surface,owner);q.items=q.items.filter(item=>item.id!==id);q.accepted=id;
   conversationQueueSave(surface,owner);if(surface!=='panel'||S.conversationPanel===owner)conversationQueuePaint(surface);
 }
 async function conversationQueueDrain(surface,owner=conversationQueueOwner(surface)){
   const q=conversationQueueState(surface,owner),busy=surface==='panel'?owner?.busy:S.chatBusy;
-  if(!q||q.generation!==conversationQueueGeneration()||q.paused||q.sending||q.editing||busy||!q.items.length||S.workspaceStartup?.pending)return;
+  if(!q||q.generation!==conversationQueueGeneration()||q.paused||q.sending||q.editing||busy||!q.items.length||S.workspaceStartup?.pending||owner?.localTurnRecovery)return;
   if(typeof RunTeamsCreatorWork!=='undefined'&&RunTeamsCreatorWork.hasPending(owner.id)){q.paused=true;return;}
   if(surface!=='panel'&&String(S.chatId)!==String(owner.id))return;
   if(q.items[0].uncertain){q.paused=true;return;}
@@ -2312,7 +2410,7 @@ function conversationRuntimeReady(surface,panel=null){
 }
 function conversationSendDisabled(surface,busy,value){
   const owner=(surface==="panel"?S.conversationPanel:S),hasText=!!String(value||"").replace(CAPABILITY_MARKER_RE,"").trim();
-  if(S.workspaceStartup?.pending||owner?.steerSending)return true;
+  if(S.workspaceStartup?.pending||owner?.steerSending||owner?.localTurnRecovery)return true;
   if(!busy&&surface==='panel'&&conversationEmployeeGuidance(owner)?.unconfirmed)return true;
   if(!busy&&surface==='panel'&&typeof conversationEmployeeAssetMissing==='function'&&conversationEmployeeAssetMissing(owner))return true;
   if(!busy&&!conversationRuntimeReady(surface))return true;

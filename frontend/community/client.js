@@ -78,8 +78,9 @@ export class LocalClient {
           // Observe the existing accepted worker; never resubmit a model call.
           await new Promise(resolve=>setTimeout(resolve,1000));
         }
-        if(!accepted)error.localPending=true;
-      } catch(recoveryError) { if(recoveryError.confirmedAbsent)throw recoveryError; if(!accepted)error.localPending=true; }
+      } catch(recoveryError) { if(recoveryError.confirmedAbsent)throw recoveryError; }
+      error.localTurnId=payload.operation_id;
+      if(!accepted)error.localPending=true;
       throw error;
     }
   }

@@ -18,12 +18,32 @@ test('lost acceptance recovers stored reply without running model twice',async()
  assert.equal(posts,1);assert.deepEqual(events.map(e=>e.type),['accepted','result']);assert.equal(events[1].reply,'saved');
 });
 test('unconfirmed loss retains the session and prevents blind cleanup',async()=>{
- const client=createLocalClient(async()=>{throw Error('offline');});client.libraryId=lib;
- await assert.rejects(client.stream('/api/chat/123/stream',{message:'hello'},()=>{}),e=>e.localPending===true);
+ let operation;
+ const client=createLocalClient(async(path,options)=>{
+  if(path.endsWith('/stream'))operation=JSON.parse(options.body).operation_id;
+  throw Error('offline');
+ });client.libraryId=lib;
+ await assert.rejects(client.stream('/api/chat/123/stream',{message:'hello'},()=>{}),e=>e.localPending===true&&e.localTurnId===operation);
 });
 test('explicit rejection never fetches history or retries a turn',async()=>{
  let calls=0;const client=createLocalClient(async()=>{calls++;return Response.json({error:'attachment unavailable'},{status:400});});client.libraryId=lib;
- await assert.rejects(client.stream('/api/chat/123/stream',{message:'hello'},()=>{}),e=>e.status===400);assert.equal(calls,1);
+ await assert.rejects(client.stream('/api/chat/123/stream',{message:'hello'},()=>{}),e=>e.status===400&&!e.localTurnId);assert.equal(calls,1);
+});
+
+test('a stalled result keeps the same operation ID even if acceptance was already delivered', async () => {
+ let operation;
+ const client = createLocalClient(async (path, options) => {
+  if (path.endsWith('/stream')) {
+   operation = JSON.parse(options.body).operation_id;
+   return stream([{type: 'accepted', operation_id: operation, message_id: 7}]);
+  }
+  return Response.json({error: 'History unavailable'}, {status: 403});
+ });
+ client.libraryId = lib;
+ const events = [];
+ await assert.rejects(client.stream('/api/chat/123/stream', {message: 'hello'}, event => events.push(event)),
+  error => error.localTurnId === operation && !error.localPending);
+ assert.deepEqual(events.map(event => event.type), ['accepted']);
 });
 test('401 renews only the local cookie and reuses the same operation',async()=>{
  const ops=[];const client=createLocalClient(async(path,opts)=>{
