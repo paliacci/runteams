@@ -929,6 +929,17 @@ function conversationMessages(messages,options={}){
 /* module-function:conversationThinkingElapsed */
 function conversationThinkingElapsed(startedAt){const started=Number(startedAt)||Date.now(),seconds=Math.max(0,Math.floor((Date.now()-started)/1000));return {seconds,label:`正在处理 ${agentTraceDuration({durationSec:seconds})}`};}
 
+/* module-function:refreshSentConversationMessage */
+function refreshSentConversationMessage(message,index,surface,chatId){
+  const row=document.querySelector(`[data-local-message="${message.localId}"]`);
+  if(!row||index<0)return;
+  const template=document.createElement("template");
+  template.innerHTML=conversationMessages([{...message,originalIndex:index}],{chatId,surface});
+  const replacement=template.content.querySelector("[data-local-message]");
+  row.replaceWith(replacement);
+  RunTeamsLocale.apply(replacement);
+}
+
 /* module-function:conversationThinking */
 function conversationThinking(label="",startedAt=Date.now()){
   const surface=S.conversationPanel?"panel":"chat";
@@ -1662,7 +1673,7 @@ async function sendChat(options={}){
     if(folderAtSend)await RunTeamsWorkFolders.bind(S.chatId,folderAtSend);
     const rewind=queued?null:S.chatRewind,reuseAttachmentIds=files.filter(x=>x.reuseId).map(x=>x.reuseId);
     attempted=true;await (typeof RunTeamsCreatorWork==='undefined'?streamApi:RunTeamsCreatorWork.send)("/api/chat/"+S.chatId+"/stream",{message:msg,...conversationFolderSendFields(folderRefs,msg.length-annotatedMessage.length),attachments:uploads,attachment_tokens:attachmentTokens,local_asset_ids:files.filter(x=>x.kind==="local_asset"&&!x.reuseId).map(x=>x.grant_id),capabilities:pendingCapabilities,rewind_message_id:rewind&&rewind.messageId,reuse_attachment_ids:reuseAttachmentIds},event=>{
-      if(event.type==="accepted"){accepted=true;if(typeof RunTeamsChatActivity!=='undefined')RunTeamsChatActivity.started(S,queueOwner.id,activityContextAtSend);if(queued)conversationQueueAccepted("chat",queueOwner,queued.id);if(!queued)S.chatRewind=null;sent.id=event.message_id;sent.state="sent";sent.attachments=(event.attachments||[]).map(x=>({...x}));sent.capabilities=event.capabilities||pendingCapabilities;pending.forEach(x=>{if(x.preview)URL.revokeObjectURL(x.preview);});if(startedAsNew)activateCreatedChat();else if(String(S.chatId)===String(queueOwner.id))render();if(S.chatStopRequested)api(`/api/chat/${S.chatId}/cancel`,"POST",{}).catch(()=>{});}
+      if(event.type==="accepted"){accepted=true;if(typeof RunTeamsChatActivity!=='undefined')RunTeamsChatActivity.started(S,queueOwner.id,activityContextAtSend);if(queued)conversationQueueAccepted("chat",queueOwner,queued.id);if(!queued)S.chatRewind=null;sent.id=event.message_id;sent.state="sent";sent.attachments=(event.attachments||[]).map(x=>({...x}));sent.capabilities=event.capabilities||pendingCapabilities;pending.forEach(x=>{if(x.preview)URL.revokeObjectURL(x.preview);});if(startedAsNew)activateCreatedChat();else if(String(S.chatId)===String(queueOwner.id))refreshSentConversationMessage(sent,S.chatMsgs.indexOf(sent),"chat",S.chatId);if(S.chatStopRequested)api(`/api/chat/${S.chatId}/cancel`,"POST",{}).catch(()=>{});}
       else if(event.type==="steer_accepted"){conversationSteerAccepted("chat",event);}else if(event.type==="agent_event"){if(S.chatStopRequested)return;if(event.event?.kind==="turn_control"){S.chatCanSteer=!!event.event.can_steer;conversationSyncSendState("chat");return;}applyAgentStreamEvent(live,event.event);if(event.event?.message)conversationQuestionAnswerMessage("chat",event.event.message,null,event.event.prefix_message);refreshLiveAgentMessage(live,"chat");}
       else if(event.type==="result")out=event;
       else if(event.type==="cancelled")cancelled=true;
