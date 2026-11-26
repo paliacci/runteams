@@ -2586,6 +2586,7 @@ globalThis.RUNTEAMS_LOCALES.en = {
   "conversationDetail.previousNotSent": "The previous message wasn't sent. Your current draft is safe.",
   "conversationDetail.previousReplyPending": "The previous message was sent. Its reply is still unconfirmed.",
   "conversationDetail.restorePreviousDraft": "Restore Previous Draft",
+  "conversationDetail.restorePreviousAttachments": "Add any missing attachments again.",
   "conversationDetail.discardPreviousDraft": "Discard Previous Draft",
   "conversationDetail.clearBeforeRestore": "Clear the current draft before restoring the previous one.",
   "conversationDetail.replyFailed": "Response Failed",

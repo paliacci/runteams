@@ -2616,6 +2616,7 @@ globalThis.RUNTEAMS_LOCALES = {
   "conversationDetail.previousNotSent": "上一条消息未发送。当前草稿已保留。",
   "conversationDetail.previousReplyPending": "上一条消息已发送，回复尚未确认。",
   "conversationDetail.restorePreviousDraft": "恢复原草稿",
+  "conversationDetail.restorePreviousAttachments": "部分附件需要重新添加。",
   "conversationDetail.discardPreviousDraft": "舍弃原草稿",
   "conversationDetail.clearBeforeRestore": "请清空当前草稿后再恢复原草稿。",
   "conversationDetail.replyFailed": "回复失败",

@@ -943,7 +943,6 @@ async function checkConversationLocalTurn(button){
         const queued=panel.messageQueue?.items.find(item=>item.id===recovery.queuedId);
         if(queued){queued.uncertain=false;conversationQueueSave("panel",panel);}
       }
-      if(user&&!reply&&!visible())return;
       recovery.hasReply=!!reply;
     }catch(error){
       if(current())recovery.readFailed=true;
@@ -962,14 +961,18 @@ async function checkConversationLocalTurn(button){
   if(draft&&action!=="discard"&&hasDraft){
     if(action==="restore")toast("请清空当前草稿后再恢复原草稿。","info","conversationDetail.clearBeforeRestore");
   }else if(recovery.absent||recovery.hasReply){
-    if(draft&&action!=="discard")Object.assign(panel,draft);
+    if(draft&&action!=="discard"){
+      const {missingAttachments,...restored}=draft;
+      Object.assign(panel,restored);
+      if(missingAttachments&&visible())toast("部分附件需要重新添加。","info","conversationDetail.restorePreviousAttachments");
+    }
     else if(draft){
       draft.attachments.forEach(item=>{if(item.preview)URL.revokeObjectURL(item.preview);});
       panel.editRewind=null;
     }
     delete panel.localTurnRecovery;
-    captureConversationPanelDraft({panel,fromState:true});
   }
+  captureConversationPanelDraft({panel,fromState:true});
   if(visible()){
     render();
     const box=conversationInputElement("panel");
@@ -2298,7 +2301,7 @@ function conversationQueueSave(surface,owner=conversationQueueOwner(surface)){
   const key=surface==='panel'?conversationPanelDraftKey(owner):`chat:${owner.id}`,queue=conversationQueueSnapshot(owner),saved=S.conversationPanelDrafts[key]||{};
   if(surface==='panel'){saved.input=owner.input||'';saved.attachments=(owner.attachments||[]).map(serializableConversationDraftAttachment).filter(Boolean);saved.capabilities=serializableConversationDraftValue(owner.capabilities||[],[]);}
   if(queue)S.conversationPanelDrafts[key]={...saved,queue,saved_at:Date.now()};
-  else if(saved.queue){delete saved.queue;if(!saved.input&&!saved.attachments?.length&&!saved.capabilities?.length)delete S.conversationPanelDrafts[key];}
+  else if(saved.queue){delete saved.queue;if(!saved.input&&!saved.attachments?.length&&!saved.capabilities?.length&&!saved.localTurnRecovery)delete S.conversationPanelDrafts[key];}
   saveConversationPanelDrafts();
 }
 function conversationQueuePreviewText(value){return String(value||'').replace(/[ \t\r\n]+$/,'');}

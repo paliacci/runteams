@@ -6898,16 +6898,54 @@ function railConversationIsVisible(panel=S.conversationPanel){return !!(panel&&c
 /* module:conversation:conversationPanelDraftKey */
 function serializableConversationDraftValue(value,fallback){try{return JSON.parse(JSON.stringify(value));}catch(e){return fallback;}}
 function serializableConversationDraftAttachment(item){if(!item||item.file||(!item.pickToken&&!item.reuseId&&item.kind!=="local_asset"&&item.kind!=="folder_path"))return null;return serializableConversationDraftValue(item,null);}
+function conversationLocalTurnSnapshot(recovery){
+  if(!recovery||!/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(recovery.operationId))return null;
+  const pending=recovery.draft;
+  let draft=null;
+  if(pending){
+    const attachments=[];
+    let missingAttachments=pending.missingAttachments===true;
+    for(const item of Array.isArray(pending.attachments)?pending.attachments:[]){
+      const saved=serializableConversationDraftAttachment(item);
+      if(saved){delete saved.preview;attachments.push(saved);}
+      else if(item)missingAttachments=true;
+    }
+    draft={input:String(pending.input||""),attachments,missingAttachments,
+      capabilities:serializableConversationDraftValue(pending.capabilities||[],[]),
+      example_materials:serializableConversationDraftValue(pending.example_materials,null),
+      editRewind:serializableConversationDraftValue(pending.editRewind,null)};
+  }
+  return {operationId:recovery.operationId,accepted:recovery.accepted===true,draft,
+    queuedId:typeof recovery.queuedId==="string"?recovery.queuedId:null};
+}
 function saveConversationPanelDrafts(){try{const entries=Object.entries(S.conversationPanelDrafts||{}).sort((a,b)=>Number(b[1]?.saved_at||0)-Number(a[1]?.saved_at||0)).slice(0,30);S.conversationPanelDrafts=Object.fromEntries(entries);workspaceBusinessStorage.setItem(CONVERSATION_DRAFTS_KEY,JSON.stringify(S.conversationPanelDrafts));}catch(e){}}
 let _conversationPanelDraftSaveTimer=null;
 function scheduleConversationPanelDraftSave(){clearTimeout(_conversationPanelDraftSaveTimer);_conversationPanelDraftSaveTimer=setTimeout(()=>captureConversationPanelDraft(),180);}
-function captureConversationPanelDraft(options={}){const panel=options.panel||S.conversationPanel;if(!panel||panel.loading||panel.error||S.workspaceStartup?.pending&&!S.workspaceStartup.contentReady&&!S.workspaceStartup.navigationDetached||S.workspaceStartup?.existing&&S.workspaceStartup.panel===panel)return;const key=conversationPanelDraftKey(panel),box=document.getElementById("conversation_box");if(box&&!options.fromState&&panel===S.conversationPanel)panel.input=conversationInputValue(box);const input=panel.input||"",attachments=(panel.attachments||[]).map(serializableConversationDraftAttachment).filter(Boolean),capabilities=serializableConversationDraftValue(panel.capabilities||[],[]);const queue=conversationQueueSnapshot(panel);if(!input&&!attachments.length&&!capabilities.length&&!queue)delete S.conversationPanelDrafts[key];else S.conversationPanelDrafts[key]={input,attachments,capabilities,queue,example_materials:serializableConversationDraftValue(panel.example_materials,null),saved_at:Date.now()};saveConversationPanelDrafts();}
+function captureConversationPanelDraft(options={}){
+  const panel=options.panel||S.conversationPanel;
+  if(!panel||panel.loading||panel.error||S.workspaceStartup?.pending&&!S.workspaceStartup.contentReady&&!S.workspaceStartup.navigationDetached||S.workspaceStartup?.existing&&S.workspaceStartup.panel===panel)return;
+  const key=conversationPanelDraftKey(panel),box=document.getElementById("conversation_box");
+  if(box&&!options.fromState&&panel===S.conversationPanel)panel.input=conversationInputValue(box);
+  const input=panel.input||"",attachments=(panel.attachments||[]).map(serializableConversationDraftAttachment).filter(Boolean),
+    capabilities=serializableConversationDraftValue(panel.capabilities||[],[]),queue=conversationQueueSnapshot(panel),
+    localTurnRecovery=conversationLocalTurnSnapshot(panel.localTurnRecovery);
+  if(!input&&!attachments.length&&!capabilities.length&&!queue&&!localTurnRecovery)delete S.conversationPanelDrafts[key];
+  else S.conversationPanelDrafts[key]={input,attachments,capabilities,queue,localTurnRecovery,
+    example_materials:serializableConversationDraftValue(panel.example_materials,null),saved_at:Date.now()};
+  const replaced=options.replacedDraft;
+  if(replaced?.snapshot&&replaced.key!==key&&S.conversationPanelDrafts[replaced.key]===replaced.snapshot)delete S.conversationPanelDrafts[replaced.key];
+  saveConversationPanelDrafts();
+}
 function clearConversationPanelDraft(panel=S.conversationPanel,key=conversationPanelDraftKey(panel)){if(!key)return;delete S.conversationPanelDrafts[key];saveConversationPanelDrafts();}
 function restoreConversationPanelDraft(panel=S.conversationPanel){
   if(!panel)return false;
   const saved=S.conversationPanelDrafts[conversationPanelDraftKey(panel)];
   if(!saved)return false;
   conversationQueueRestore(panel,saved.queue);
+  if(panel.id!=null&&saved.localTurnRecovery&&!panel.localTurnRecovery){
+    const recovery=conversationLocalTurnSnapshot(saved.localTurnRecovery);
+    if(recovery)panel.localTurnRecovery=recovery;
+  }
   panel.attachments=(saved.attachments||[]).slice();
   const restored=conversationRestoreLegacyFolders(saved.input);
   panel.input=restored.text;
@@ -7220,10 +7258,10 @@ async function sendConversationPanel(options={}){
   }catch(e){
     if(e?.localTurnId&&panel.id){
       if(businessGenerationAtSend===_workspaceBusinessGeneration){
-        const draft=accepted||queued?null:{input:rawDraft,capabilities:pendingCapabilities,attachments:pending,example_materials:exampleAtSend};
+        const draft=accepted||queued?null:{input:rawDraft,capabilities:pendingCapabilities,attachments:pending,example_materials:exampleAtSend,editRewind:panel.editRewind};
         panel.localTurnRecovery={operationId:e.localTurnId,accepted,draft,queuedId:accepted?null:queued?.id};
-        if(draft&&savedDraftAtSend&&draftKeyAtSend!==conversationPanelDraftKey(panel)&&S.conversationPanelDrafts[draftKeyAtSend]===savedDraftAtSend)clearConversationPanelDraft(panel,draftKeyAtSend);
         panel.messages=panel.messages.filter(message=>message!==live&&(accepted||message!==sent));
+        captureConversationPanelDraft({panel,fromState:true,replacedDraft:draft?{key:draftKeyAtSend,snapshot:savedDraftAtSend}:null});
       }
     }else{
       configurationRequired=e?.configurationRequired===true;const error=(e&&e.message)||String(e),guided=configurationRequired||handleAgentChannelError(error,{channelId:panel.channel_id,model:panel.model,continuation:accepted||queued||e.localPending?null:()=>sendConversationPanel()});if((accepted||e.localPending)&&panel.id){try{const saved=await api("/api/chat/"+panel.id);panel.messages=(saved.messages||[]).map(storedConversationMessage);panel.draft=saved.draft||panel.draft;panel.identity=saved.context?.identity||panel.identity;panel.status=saved.status||panel.status;if(!guided&&!e.creatorPending&&!conversationHasConfirmedReply(panel.messages,sent.id)&&!panel.messages.some(message=>message.ephemeral&&message.text===error))panel.messages.push({role:"bot",text:error,ephemeral:true,errorLocaleKey:e?.messageKey,retryAccepted:accepted,...(!accepted?{retryDraft:{text:rawDraft,capabilities:pendingCapabilities,attachments:pending}}:{})});}catch(ignore){panel.messages=panel.messages.filter(m=>m!==live);if(!guided&&!e.creatorPending)panel.messages.push({role:"bot",text:error,ephemeral:true,errorLocaleKey:e?.messageKey,retryAccepted:accepted,...(!accepted?{retryDraft:{text:rawDraft,capabilities:pendingCapabilities,attachments:pending}}:{})});}}else{if(createdSession&&panel.id){try{await api(`/api/chat/${panel.id}/delete`,"POST");}catch(ignore){}if(createdWindowKey)replaceConversationWindowKey(panel,createdWindowKey,conversationNewWindowKey(panel.context?.purpose),conversationNewRoute(panel.context?.purpose),businessGenerationAtSend);panel.id=null;if(S.conversationPanel===panel&&activeRailMode()==="assistant")syncRailRoute("new",true);}panel.messages=panel.messages.filter(m=>m!==sent&&m!==live);if(!queued){panel.input=rawDraft;panel.example_materials=exampleAtSend;panel.attachments=pending;panel.capabilities=pendingCapabilities;}if(!guided&&!e.creatorPending)panel.messages.push({role:"bot",text:error,ephemeral:true,errorLocaleKey:e?.messageKey,retryAccepted:accepted,...(!accepted?{retryDraft:{text:rawDraft,capabilities:pendingCapabilities,attachments:pending}}:{})});}

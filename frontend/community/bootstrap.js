@@ -241,9 +241,9 @@ const closeGuard=new NativeCloseGuard(()=>{
  const S=host?.state;
  const source=globalThis.RunTeamsCreatorAuthor?.current();
  const configuration=globalThis.RunTeamsEmployeeConfiguration?.closeState();
- const hasDraft=value=>Boolean(value?.input?.trim()||value?.attachments?.length||value?.capabilities?.length||value?.queue);
+ const hasDraft=value=>Boolean(value?.input?.trim()||value?.attachments?.length||value?.capabilities?.length||value?.queue||value?.missingAttachments);
  const hasUnconfirmedDraft=Object.values(S?.conversationPanelsByChat||{}).some(panel=>hasDraft(panel.localTurnRecovery?.draft));
- return {pending:Boolean(configuration?.pending||globalThis.RunTeamsWorkState?.pendingSave&&!globalThis.RunTeamsWorkState?.saveRejected||source?.saving||source?.pending||source?.buildSending||source?.build?.latest?.state==='running'||pending||operation||S?.conversationPanel?.busy||S?.settingsPreferencePending||globalThis.RunTeamsBackups?.pending||['saving','error'].includes(S?.docReader?.saveStatus)),dirty:workspaceSaveError||!!configuration?.dirty||!!globalThis.RunTeamsWorkState?.saveRejected||!!source?.editing||hasUnconfirmedDraft||Object.values(S?.conversationPanelDrafts||{}).some(hasDraft)};
+ return {pending:Boolean(configuration?.pending||globalThis.RunTeamsWorkState?.pendingSave&&!globalThis.RunTeamsWorkState?.saveRejected||source?.saving||source?.pending||source?.buildSending||source?.build?.latest?.state==='running'||pending||operation||S?.conversationPanel?.busy||S?.settingsPreferencePending||globalThis.RunTeamsBackups?.pending||['saving','error'].includes(S?.docReader?.saveStatus)),dirty:workspaceSaveError||!!configuration?.dirty||!!globalThis.RunTeamsWorkState?.saveRejected||!!source?.editing||hasUnconfirmedDraft||Object.values(S?.conversationPanelDrafts||{}).some(draft=>hasDraft(draft)||hasDraft(draft.localTurnRecovery?.draft))};
 },()=>{closing=true;document.body?.setAttribute('inert','');});
 window.RunTeamsLocalDesktop=Object.freeze({settings:desktopSettings,boardStorage:()=>boardStorage,saveAppearance:desktopSettings?saveDesktopPreference:null,
  saveLanguage:desktopSettings?value=>saveDesktopPreference('language',value):null,saveWorkspace:desktopSettings?saveDesktopWorkspace:null,
