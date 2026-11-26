@@ -97,6 +97,35 @@ test('capturing the same conversation draft keeps a stable snapshot for desktop 
   assert.deepEqual(desktop(), saved());
 });
 
+test('an unsent edit reopens at its original message and keeps the preceding history', () => {
+  const {host, saved} = draftsHost();
+  host.captureConversationPanelDraft({panel:{id:21, input:'新正文', editRewind:{messageId:13}}, fromState:true});
+  const history = [{id:11,role:'user'}, {id:12,role:'bot'}, {id:13,role:'user'}, {id:14,role:'bot'}];
+  const reopened = {id:21, messages:history};
+  draftsHost(saved()).host.restoreConversationPanelDraft(reopened);
+  assert.equal(reopened.input, '新正文');
+  assert.equal(reopened.editRewind.messageId, 13);
+  assert.deepEqual(reopened.messages, history.slice(0,2));
+  assert.equal(history.length, 4);
+
+  // Keep the original target if another window has already replaced it.
+  // The send must still be validated as an edit by the service.
+  const changed = {id:21, messages:[{id:15,role:'user'}]};
+  draftsHost(saved()).host.restoreConversationPanelDraft(changed);
+  assert.equal(changed.editRewind.messageId, 13);
+  assert.deepEqual(changed.messages, [{id:15,role:'user'}]);
+});
+
+test('the next draft typed during a running edit does not inherit the replacement target', () => {
+  const {host, saved} = draftsHost();
+  host.captureConversationPanelDraft({panel:{id:21, input:'下一条', busy:true, editRewind:{messageId:13}}, fromState:true});
+  const reopened = {id:21, messages:[{id:13,role:'user'}]};
+  draftsHost(saved()).host.restoreConversationPanelDraft(reopened);
+  assert.equal(reopened.editRewind, undefined);
+  assert.equal(reopened.messages.length, 1);
+  assert.equal(reopened.input, '下一条');
+});
+
 test('a confirmed empty desktop snapshot does not revive the old port mirror', () => {
   const previous = {'chat:12': {input: 'stale mirror'}};
   const host = vm.createContext({

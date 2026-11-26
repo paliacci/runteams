@@ -6936,9 +6936,11 @@ function captureConversationPanelDraft(options={}){
   const input=panel.input||"",attachments=(panel.attachments||[]).map(serializableConversationDraftAttachment).filter(Boolean),
     capabilities=serializableConversationDraftValue(panel.capabilities||[],[]),queue=conversationQueueSnapshot(panel),
     localTurnRecovery=conversationLocalTurnSnapshot(panel.localTurnRecovery);
-  if(!input.trim()&&!attachments.length&&!capabilities.length&&!queue&&!localTurnRecovery)delete S.conversationPanelDrafts[key];
+  const editId=panel.id!=null&&!panel.busy&&!panel.localTurnRecovery?panel.editRewind?.messageId:null;
+  if(!input.trim()&&!attachments.length&&!capabilities.length&&!queue&&!localTurnRecovery&&!editId)delete S.conversationPanelDrafts[key];
   else{
     const draft={input,attachments,capabilities,queue,localTurnRecovery,example_materials:serializableConversationDraftValue(panel.example_materials,null)};
+    if(editId)draft.editRewind={messageId:editId};
     const previous=S.conversationPanelDrafts[key],{saved_at,...content}=previous||{};
     if(JSON.stringify(content)!==JSON.stringify(draft))S.conversationPanelDrafts[key]={...draft,saved_at:Date.now()};
   }
@@ -6955,6 +6957,12 @@ function restoreConversationPanelDraft(panel=S.conversationPanel){
   if(panel.id!=null&&saved.localTurnRecovery&&!panel.localTurnRecovery){
     const recovery=conversationLocalTurnSnapshot(saved.localTurnRecovery);
     if(recovery)panel.localTurnRecovery=recovery;
+  }
+  const editId=saved.editRewind?.messageId;
+  if(panel.id!=null&&!panel.busy&&!panel.localTurnRecovery&&Number.isSafeInteger(editId)&&editId>0){
+    panel.editRewind={messageId:editId};
+    const index=panel.messages.findIndex(message=>message.id===editId&&message.role==="user");
+    if(index>=0)panel.messages=panel.messages.slice(0,index);
   }
   panel.attachments=(saved.attachments||[]).slice();
   const restored=conversationRestoreLegacyFolders(saved.input);
