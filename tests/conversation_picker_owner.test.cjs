@@ -30,6 +30,7 @@ function setup() {
     conversationInputValue: () => other.input,
     document: {getElementById: () => ({})}, conversationQueueSnapshot: () => null,
     workspaceBusinessStorage: {setItem: (_, value) => writes.push(JSON.parse(value))},
+    RunTeamsHost: {workspace: {saveDrafts() {}}},
     CONVERSATION_DRAFTS_KEY: 'drafts',
   });
   vm.runInContext(picker + draft, host);

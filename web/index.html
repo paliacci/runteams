@@ -530,7 +530,7 @@ function workspaceBusinessRequest(path){
   return /^\/api\/(?:core\/|workspace\/|chat(?:s|\/)|bots(?:\/|\?|$)|conversations(?:\/|\?|$)|interventions(?:\/|\?|$)|work-items(?:\/|\?|$)|documents(?:\/|\?|$)|automation(?:s|-attention|-run|\/)|trash(?:\/|\?|$)|attachments(?:\/|\?|$)|local-asset-grants(?:\/|\?|$)|local-references(?:\/|\?|$))/.test(path)&&
     !['/api/core/profile','/api/core/contracts'].includes(path);
 }
-function loadConversationPanelDrafts(){try{const value=JSON.parse(workspaceBusinessStorage.getItem(CONVERSATION_DRAFTS_KEY)||"{}"),now=Date.now();if(!value||typeof value!=="object"||Array.isArray(value))return {};return Object.fromEntries(Object.entries(value).filter(([,draft])=>draft&&typeof draft==="object"&&(!draft.saved_at||now-Number(draft.saved_at)<CONVERSATION_DRAFT_TTL)));}catch(e){return {};}}
+function loadConversationPanelDrafts(saved){try{const value=JSON.parse(saved??workspaceBusinessStorage.getItem(CONVERSATION_DRAFTS_KEY)??"{}"),now=Date.now();if(!value||typeof value!=="object"||Array.isArray(value))return {};return Object.fromEntries(Object.entries(value).filter(([,draft])=>draft&&typeof draft==="object"&&(!draft.saved_at||now-Number(draft.saved_at)<CONVERSATION_DRAFT_TTL)));}catch(e){return {};}}
 function normalizeWorkspaceWindows(rows){const seen=new Set(),valid=/^(?:chat:(?:new(?::create-employee)?|[0-9]+)|pipeline:(?:draft|[0-9][a-z][a-z0-9]{6})|document:[A-Za-z0-9_-]+|docs:list|trash|design-system)$/;return (Array.isArray(rows)?rows:[]).filter(item=>item&&typeof item.key==="string"&&(valid.test(item.key)||RunTeamsHost.shell.validWindowKey?.(item.key)===true)&&typeof item.route==="string"&&item.route).filter(item=>{if(seen.has(item.key))return false;seen.add(item.key);return true;});}
 function loadWorkspaceWindows(savedWindows){try{if(typeof accountDeviceDisplayPrefs==='function'&&!accountDeviceDisplayPrefs().restore_windows)return [];const value=JSON.parse(savedWindows??workspaceBusinessStorage.getItem(WORKSPACE_WINDOWS_KEY)??"[]");return normalizeWorkspaceWindows(value);}catch(e){return [];}}
 function saveWorkspaceWindows(){try{const windows=JSON.stringify((S.workspaceWindows||[]).map(row=>{
@@ -1170,7 +1170,7 @@ function renderBootShell(route,error){
  app.innerHTML=`<div class="body product-shell boot-body ${S.railCollapsed?'rail-collapsed ':''}" data-workspace-tabs-empty="false" style="grid-template-columns:${width}px 1fr 0">${bootRailSkeleton(rail.navTab)}${RunTeamsBoot.tabsSkeleton({scope:S.localLibrary?.library_id,verified:true})}<div class="mid" id="rgMid">${RunTeamsBoot.pagePending(route,{error,boot:true})}</div><div id="rgDrawer"></div></div>`;
  RunTeamsStaticPages.restoreComposer(composer,app);
 }
-async function boot(options={}){const result=await RunTeamsHost.lifecycle.boot(options,{state:S,render,newConversation:newRailConversationPanel,restoreAppearance:accountRestoreDesktopAppearance,restoreWorkspace:savedWindows=>{S.workspaceWindows=loadWorkspaceWindows(savedWindows);S.conversationPanelDrafts=loadConversationPanelDrafts();},restoreDraft:restoreConversationPanelDraft,restoreSettings:accountSettingsRestoreRoute,captureDraft:captureConversationPanelDraft,loadModels:()=>modelChannelData().configuration(true),loadChats:refreshDeviceDirectory,loadEmployees:refreshCoreTeam,loadPipelines:refreshPipelineAssets,remember:deviceChatRemember,normalize:()=>normalizeConversationModelConfig(S.conversationPanel),route:()=>RunTeamsRoutes.preview(location.href),openDocuments:()=>openDocs({route:false,folder:new URLSearchParams(location.search).get('folder')||''}),openTrash:()=>openTrash({route:false}),openRoute:()=>applyAppRoute({initial:true})});return result;}
+async function boot(options={}){const result=await RunTeamsHost.lifecycle.boot(options,{state:S,render,newConversation:newRailConversationPanel,restoreAppearance:accountRestoreDesktopAppearance,restoreWorkspace:(savedWindows,savedDrafts)=>{S.workspaceWindows=loadWorkspaceWindows(savedWindows);S.conversationPanelDrafts=loadConversationPanelDrafts(savedDrafts);},restoreDraft:restoreConversationPanelDraft,restoreSettings:accountSettingsRestoreRoute,captureDraft:captureConversationPanelDraft,loadModels:()=>modelChannelData().configuration(true),loadChats:refreshDeviceDirectory,loadEmployees:refreshCoreTeam,loadPipelines:refreshPipelineAssets,remember:deviceChatRemember,normalize:()=>normalizeConversationModelConfig(S.conversationPanel),route:()=>RunTeamsRoutes.preview(location.href),openDocuments:()=>openDocs({route:false,folder:new URLSearchParams(location.search).get('folder')||''}),openTrash:()=>openTrash({route:false}),openRoute:()=>applyAppRoute({initial:true})});return result;}
 
 function currentRailRouteValue(){if(activeRailMode()!=="assistant")return null;const panel=S.conversationPanel;return panel&&panel.id!=null?String(panel.id):"new";}
 function currentRailIntent(){const panel=S.conversationPanel;if(!panel||panel.id!=null)return "";return conversationIs(panel,"pipeline","create")?"pipeline-create":"";}
@@ -6919,7 +6919,13 @@ function conversationLocalTurnSnapshot(recovery){
   return {operationId:recovery.operationId,generation,accepted:recovery.accepted===true,draft,
     queuedId:typeof recovery.queuedId==="string"?recovery.queuedId:null};
 }
-function saveConversationPanelDrafts(){try{const entries=Object.entries(S.conversationPanelDrafts||{}).sort((a,b)=>Number(b[1]?.saved_at||0)-Number(a[1]?.saved_at||0)).slice(0,30);S.conversationPanelDrafts=Object.fromEntries(entries);workspaceBusinessStorage.setItem(CONVERSATION_DRAFTS_KEY,JSON.stringify(S.conversationPanelDrafts));}catch(e){}}
+function saveConversationPanelDrafts(){
+  const entries=Object.entries(S.conversationPanelDrafts||{}).sort((a,b)=>Number(b[1]?.saved_at||0)-Number(a[1]?.saved_at||0)).slice(0,30);
+  S.conversationPanelDrafts=Object.fromEntries(entries);
+  const raw=JSON.stringify(S.conversationPanelDrafts);
+  try{workspaceBusinessStorage.setItem(CONVERSATION_DRAFTS_KEY,raw);}catch(error){}
+  RunTeamsHost.workspace.saveDrafts(raw);
+}
 let _conversationPanelDraftSaveTimer=null;
 function scheduleConversationPanelDraftSave(){clearTimeout(_conversationPanelDraftSaveTimer);_conversationPanelDraftSaveTimer=setTimeout(()=>captureConversationPanelDraft(),180);}
 function captureConversationPanelDraft(options={}){
@@ -6930,9 +6936,12 @@ function captureConversationPanelDraft(options={}){
   const input=panel.input||"",attachments=(panel.attachments||[]).map(serializableConversationDraftAttachment).filter(Boolean),
     capabilities=serializableConversationDraftValue(panel.capabilities||[],[]),queue=conversationQueueSnapshot(panel),
     localTurnRecovery=conversationLocalTurnSnapshot(panel.localTurnRecovery);
-  if(!input&&!attachments.length&&!capabilities.length&&!queue&&!localTurnRecovery)delete S.conversationPanelDrafts[key];
-  else S.conversationPanelDrafts[key]={input,attachments,capabilities,queue,localTurnRecovery,
-    example_materials:serializableConversationDraftValue(panel.example_materials,null),saved_at:Date.now()};
+  if(!input.trim()&&!attachments.length&&!capabilities.length&&!queue&&!localTurnRecovery)delete S.conversationPanelDrafts[key];
+  else{
+    const draft={input,attachments,capabilities,queue,localTurnRecovery,example_materials:serializableConversationDraftValue(panel.example_materials,null)};
+    const previous=S.conversationPanelDrafts[key],{saved_at,...content}=previous||{};
+    if(JSON.stringify(content)!==JSON.stringify(draft))S.conversationPanelDrafts[key]={...draft,saved_at:Date.now()};
+  }
   const replaced=options.replacedDraft;
   if(replaced?.snapshot&&replaced.key!==key&&S.conversationPanelDrafts[replaced.key]===replaced.snapshot)delete S.conversationPanelDrafts[replaced.key];
   saveConversationPanelDrafts();

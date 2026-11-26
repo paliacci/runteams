@@ -5,8 +5,8 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Web.Script.Serialization;
 
-// WebView2 local storage is scoped to the port. Keep display preferences in the
-// WebView profile and partition it by the actual library directory.
+// WebView2 local storage is scoped to the port. Keep workspace state in the
+// WebView profile, partitioned by the actual library directory.
 internal sealed class DesktopWorkspace
 {
     private readonly string path;
@@ -28,6 +28,8 @@ internal sealed class DesktopWorkspace
         string scope = library.ToString("D") + "/" + generation.ToString("D");
         if (fields[2] == "workspace-boards-read" || fields[2] == "workspace-board-write")
             return Boards(fields, scope);
+        if (fields[2] == "workspace-drafts-read" || fields[2] == "workspace-drafts-write")
+            return Drafts(fields, scope);
         if (fields[2] == "workspace-read" && fields.Length == 5) {
             string windows = null;
             if (File.Exists(path)) {
@@ -40,6 +42,23 @@ internal sealed class DesktopWorkspace
             !(json.DeserializeObject(fields[5]) is object[])) throw new ArgumentException();
         string recordText = json.Serialize(new { scope, windows = fields[5] });
         WriteAtomic(path, recordText);
+        return new { saved = true };
+    }
+
+    private object Drafts(string[] fields, string scope)
+    {
+        string file = Path.ChangeExtension(path, ".drafts.json");
+        if (fields[2] == "workspace-drafts-read" && fields.Length == 5) {
+            string drafts = null;
+            if (File.Exists(file)) {
+                var record = json.Deserialize<Dictionary<string, string>>(File.ReadAllText(file, Encoding.UTF8));
+                drafts = record["scope"] == scope ? record["drafts"] : "{}";
+            }
+            return new { drafts };
+        }
+        if (fields[2] != "workspace-drafts-write" || fields.Length != 6 ||
+            !(json.DeserializeObject(fields[5]) is Dictionary<string, object>)) throw new ArgumentException();
+        WriteAtomic(file, json.Serialize(new { scope, drafts = fields[5] }));
         return new { saved = true };
     }
 

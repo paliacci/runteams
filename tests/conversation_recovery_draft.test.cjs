@@ -7,24 +7,26 @@ const vm = require('node:vm');
 const html = fs.readFileSync(path.join(__dirname, '../web/index.html'), 'utf8');
 const draftFunctions = html.slice(html.indexOf('function serializableConversationDraftValue('),
   html.indexOf('/* module:conversation:conversationModeTitle */'));
+const draftLoader = html.match(/^function loadConversationPanelDrafts[^\n]+/m)[0];
 const operationId = 'bf14b2c1-d096-4776-87e4-efe35ee40012';
 const generation = 'library-generation';
 
 function draftsHost(drafts = {}, libraryGeneration = generation) {
-  let stored;
+  let stored, desktop;
   const state = {conversationPanelDrafts: drafts, localLibrary: {generation: libraryGeneration}};
   const host = vm.createContext({
     S: state,
     document: {getElementById: () => null},
     CONVERSATION_DRAFTS_KEY: 'drafts',
     workspaceBusinessStorage: {setItem: (_key, value) => { stored = JSON.parse(value); }},
+    RunTeamsHost: {workspace: {saveDrafts: value => { desktop = JSON.parse(value); }}},
     conversationPanelDraftKey: panel => 'chat:' + panel.id,
     conversationQueueSnapshot: () => null,
     conversationQueueRestore: () => {},
     conversationRestoreLegacyFolders: value => ({text: value || '', folders: []}),
   });
   vm.runInContext(draftFunctions, host);
-  return {host, saved: () => stored};
+  return {host, saved: () => stored, desktop: () => desktop};
 }
 
 test('pending operation and next draft reopen separately with native file and folder tokens', () => {
@@ -83,4 +85,25 @@ test('a replacement library generation keeps the next draft without restoring an
   draftsHost(data, 'replacement-generation').host.restoreConversationPanelDraft(panel);
   assert.equal(panel.input, 'current draft');
   assert.equal(panel.localTurnRecovery, undefined);
+});
+
+test('capturing the same conversation draft keeps a stable snapshot for desktop close', () => {
+  const {host, saved, desktop} = draftsHost();
+  const panel = {id: 21, input: '未发送', localTurnRecovery: {operationId, generation, accepted: true}};
+  host.captureConversationPanelDraft({panel, fromState: true});
+  const original = host.S.conversationPanelDrafts['chat:21'];
+  host.captureConversationPanelDraft({panel, fromState: true});
+  assert.equal(host.S.conversationPanelDrafts['chat:21'], original);
+  assert.deepEqual(desktop(), saved());
+});
+
+test('a confirmed empty desktop snapshot does not revive the old port mirror', () => {
+  const previous = {'chat:12': {input: 'stale mirror'}};
+  const host = vm.createContext({
+    CONVERSATION_DRAFTS_KEY: 'drafts', CONVERSATION_DRAFT_TTL: 1000,
+    workspaceBusinessStorage: {getItem: () => JSON.stringify(previous)},
+  });
+  vm.runInContext(draftLoader, host);
+  assert.equal(JSON.stringify(host.loadConversationPanelDrafts('{}')), '{}');
+  assert.equal(JSON.stringify(host.loadConversationPanelDrafts(null)), JSON.stringify(previous));
 });

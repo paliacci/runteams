@@ -25,7 +25,7 @@ test('ready page freezes new interactions before native shutdown', () => {
   assert.equal(guard.prepareClose(), 'ready'); assert.equal(frozen, true);
 });
 
-test('Windows board updates preserve the library generation and JSON key as one payload', async () => {
+test('Windows board and draft updates preserve the library generation and JSON payload', async () => {
   let receive, message;
   const bridge = windowsSettingsBridge({
     addEventListener: (_, listener) => { receive = listener; },
@@ -40,6 +40,13 @@ test('Windows board updates preserve the library generation and JSON key as one 
   assert.deepEqual(JSON.parse(payload.join(':')), {key, value});
   receive({data:{kind:'desktop-settings', id, result:{saved:true}}});
   assert.deepEqual(await writing, {saved:true});
+  const raw = JSON.stringify({'chat:42': {input: '本地:草稿'}});
+  const saving = bridge.postMessage({action:'workspace-drafts-write', library:'library', generation:'generation', value:raw});
+  const [, draftId, actionName, draftLibrary, draftGeneration, ...draftPayload] = message.split(':');
+  assert.deepEqual([actionName, draftLibrary, draftGeneration], ['workspace-drafts-write', 'library', 'generation']);
+  assert.equal(draftPayload.join(':'), raw);
+  receive({data:{kind:'desktop-settings', id:draftId, result:{saved:true}}});
+  assert.deepEqual(await saving, {saved:true});
 });
 test('dirty draft stays editable until explicit discard is chosen', () => {
   let freezes = 0;

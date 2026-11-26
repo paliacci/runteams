@@ -73,6 +73,7 @@ window.chrome?.webview?.addEventListener?.('message',event=>{
  if(event.data?.kind==='work-alert-delivery')alertError(event.data.ok?'':'delivery');
 });
 let workspaceScope=null,lastWorkspace=null,workspaceSaveError=false;
+let draftScope=null,durableDrafts='{}',requestedDrafts='{}',savingDrafts=false,draftSaveError=false;
 let boardStorage=null;
 async function loadDesktopBoards(scope){
  const response=await desktopSettings.postMessage({action:'workspace-boards-read',...scope});
@@ -105,6 +106,26 @@ async function saveDesktopWorkspace(raw){
   if(lastWorkspace===raw){lastWorkspace=null;workspaceSaveError=true;}
   console.error('Windows workspace could not be saved',error);
  }finally{pending--;}
+}
+async function saveDesktopDrafts(raw){
+ if(!draftScope||closing)return;
+ requestedDrafts=raw;
+ if(savingDrafts)return;
+ if(raw===durableDrafts){draftSaveError=false;return;}
+ const scope=draftScope;
+ savingDrafts=true;pending++;
+ try{
+  while(draftScope===scope&&requestedDrafts!==durableDrafts){
+   const snapshot=requestedDrafts;
+   const result=await desktopSettings.postMessage({action:'workspace-drafts-write',...scope,value:snapshot});
+   if(draftScope!==scope)return;
+   if(result.saved!==true)throw Error('对话草稿保存结果未确认。');
+   durableDrafts=snapshot;draftSaveError=false;
+  }
+ }catch(error){
+  if(draftScope===scope)draftSaveError=true;
+  console.error('Windows conversation drafts could not be saved',error);
+ }finally{savingDrafts=false;pending--;}
 }
 async function saveDesktopPreference(key,value){
  if(closing)throw Error('窗口正在关闭。');
@@ -169,7 +190,8 @@ export async function boot(value){
  host=value;const {state:S}=host;
  try{
   const identity=await connect();
-  let savedWindows,loadedScope=null;
+  let savedWindows,savedDrafts,loadedScope=null;
+  draftScope=null;
   if(desktopSettings){
    const locale=globalThis.RunTeamsLocale,initial=locale?.preference;
    try{
@@ -196,10 +218,18 @@ export async function boot(value){
     const saved=await desktopSettings.postMessage({action:'workspace-read',...scope});
     savedWindows=saved.windows;loadedScope=scope;
    }catch(error){console.error('Windows workspace could not be read',error);}
+   try{
+    const saved=await desktopSettings.postMessage({action:'workspace-drafts-read',...scope});
+    if(saved.drafts!==null&&typeof saved.drafts!=='string')throw Error('对话草稿读取结果无效。');
+    savedDrafts=saved.drafts;draftScope=scope;
+    durableDrafts=requestedDrafts=savedDrafts??'{}';draftSaveError=false;
+   }catch(error){console.error('Windows conversation drafts could not be read',error);}
   }
   await syncLanguage();
   S.localLibrary=identity;S.accountSessionReady=true;S.accountSessionError='';
-  host.restoreWorkspace(savedWindows);
+  host.restoreWorkspace(savedWindows,savedDrafts);
+  if(draftScope&&savedDrafts===null&&Object.keys(S.conversationPanelDrafts||{}).length)
+   void saveDesktopDrafts(JSON.stringify(S.conversationPanelDrafts));
   lastWorkspace=savedWindows;workspaceScope=loadedScope;
   const startupLocation=location.href;
   const route=host.route(),deferRoutePaint=!new URL(startupLocation).searchParams.has('settings')&&!['home','chat-new'].includes(route.kind);
@@ -244,8 +274,13 @@ const closeGuard=new NativeCloseGuard(()=>{
  const hasDraft=value=>Boolean(value?.input?.trim()||value?.attachments?.length||value?.capabilities?.length||value?.queue||value?.missingAttachments);
  const hasRecoveryDraft=({localTurnRecovery}={})=>localTurnRecovery?.generation===S?.localLibrary?.generation&&hasDraft(localTurnRecovery?.draft);
  const hasUnconfirmedDraft=Object.values(S?.conversationPanelsByChat||{}).some(hasRecoveryDraft);
- return {pending:Boolean(configuration?.pending||globalThis.RunTeamsWorkState?.pendingSave&&!globalThis.RunTeamsWorkState?.saveRejected||source?.saving||source?.pending||source?.buildSending||source?.build?.latest?.state==='running'||pending||operation||S?.conversationPanel?.busy||S?.settingsPreferencePending||globalThis.RunTeamsBackups?.pending||['saving','error'].includes(S?.docReader?.saveStatus)),dirty:workspaceSaveError||!!configuration?.dirty||!!globalThis.RunTeamsWorkState?.saveRejected||!!source?.editing||hasUnconfirmedDraft||Object.values(S?.conversationPanelDrafts||{}).some(draft=>hasDraft(draft)||hasRecoveryDraft(draft))};
+ const drafts=S?.conversationPanelDrafts||{};
+ const draftsSaved=draftScope&&draftScope.generation===S?.localLibrary?.generation&&durableDrafts===JSON.stringify(drafts);
+ const hasUnstoredDraft=panel=>panel?.attachments?.some(item=>item.file)||panel?.localTurnRecovery?.draft?.attachments?.some(item=>item.file);
+ const unstored=hasUnstoredDraft(S?.conversationPanel)||Object.values(S?.conversationPanelsByChat||{}).some(hasUnstoredDraft)
+  ||Object.values(S?.conversationPanelsByWorkspace||{}).some(hasUnstoredDraft);
+ return {pending:Boolean(configuration?.pending||globalThis.RunTeamsWorkState?.pendingSave&&!globalThis.RunTeamsWorkState?.saveRejected||source?.saving||source?.pending||source?.buildSending||source?.build?.latest?.state==='running'||pending||operation||S?.conversationPanel?.busy||S?.settingsPreferencePending||globalThis.RunTeamsBackups?.pending||['saving','error'].includes(S?.docReader?.saveStatus)),dirty:workspaceSaveError||draftSaveError||!!configuration?.dirty||!!globalThis.RunTeamsWorkState?.saveRejected||!!source?.editing||unstored||!draftsSaved&&(hasUnconfirmedDraft||Object.values(drafts).some(draft=>hasDraft(draft)||hasRecoveryDraft(draft)))};
 },()=>{closing=true;document.body?.setAttribute('inert','');});
-window.RunTeamsLocalDesktop=Object.freeze({settings:desktopSettings,boardStorage:()=>boardStorage,saveAppearance:desktopSettings?saveDesktopPreference:null,
+window.RunTeamsLocalDesktop=Object.freeze({settings:desktopSettings,boardStorage:()=>boardStorage,saveDrafts:desktopSettings?saveDesktopDrafts:null,saveAppearance:desktopSettings?saveDesktopPreference:null,
  saveLanguage:desktopSettings?value=>saveDesktopPreference('language',value):null,saveWorkspace:desktopSettings?saveDesktopWorkspace:null,
  checkClose:discard=>closeGuard.checkClose(discard),prepareClose:discard=>closeGuard.prepareClose(discard)});

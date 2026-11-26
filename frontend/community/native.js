@@ -19,7 +19,7 @@ export function windowsSettingsBridge(webview) {
         if (action === 'set') fields.push(key, String(value));
         if (action.startsWith('workspace-')) {
           fields.push(library, generation);
-          if (action === 'workspace-write') fields.push(value);
+          if (action === 'workspace-write' || action === 'workspace-drafts-write') fields.push(value);
           if (action === 'workspace-board-write') fields.push(JSON.stringify({key, value}));
         }
         webview.postMessage(fields.join(':'));
