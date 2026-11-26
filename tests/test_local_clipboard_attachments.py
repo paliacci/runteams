@@ -2,7 +2,8 @@
 from contextlib import ExitStack
 from http.client import HTTPConnection
 from pathlib import Path
-from tempfile import TemporaryDirectory
+from tempfile import TemporaryDirectory, gettempdir
+import base64
 import json
 import sys
 import threading
@@ -13,10 +14,50 @@ import uuid
 from runteams_core.application.local_application import LocalApplication
 from runteams_core.application.http.local_http import LocalServer
 from runteams_core.conversations import chat_attachments
+from runteams_core.foundation.regular_files import storage_path
 from runteams_core.storage import local_database
 
 
 class LocalClipboardAttachmentsTests(unittest.TestCase):
+    def test_native_file_and_folder_are_consumed_from_deep_staging_paths(self):
+        with TemporaryDirectory(dir=storage_path(gettempdir())) as temporary:
+            root = Path(gettempdir()) / Path(temporary).name
+            source = root / '资料'
+            relative = Path('一级 ' + 'a' * 62) / ('二级 ' + 'b' * 62) / '说明.txt'
+            original = source / relative
+            storage_path(original).parent.mkdir(parents=True)
+            storage_path(original).write_bytes(b'original folder contents')
+            separate = root / ('原件 ' + 'c' * 75 + '.txt')
+            separate.write_bytes(b'original file contents')
+            workspace = root / ('资料库 ' + 'd' * 95) / 'assistant'
+            target = root / ('会话 ' + 'e' * 95) / 'attachments'
+            with patch.object(chat_attachments.product_store, 'assistant_workspace', return_value=str(workspace)), \
+                    patch.object(chat_attachments, '_selection_scope', return_value='qa-library'):
+                selected = chat_attachments._stage_native_paths([str(separate), str(source)])
+                self.assertEqual([item['kind'] for item in selected], ['file', 'folder'])
+                storage_path(original).write_bytes(b'changed source')
+                separate.write_bytes(b'changed source')
+                tokens = [item['token'] for item in selected]
+                def fail_commit(_items):
+                    raise ValueError('commit failed')
+                with self.assertRaisesRegex(ValueError, 'commit failed'):
+                    chat_attachments.consume_native_to(target, tokens, finalize=fail_commit)
+                self.assertEqual(list(storage_path(target).iterdir()), [])
+                saved = chat_attachments.consume_native_to(target, tokens)
+                self.assertEqual(storage_path(target / saved[0]['stored_name']).read_bytes(), b'original file contents')
+                copied = target / saved[1]['stored_name'] / relative
+                self.assertGreater(len(str(copied)), 260)
+                self.assertEqual(storage_path(copied).read_bytes(), b'original folder contents')
+                with patch.object(chat_attachments, '_chat_dir', return_value=str(target)), \
+                        patch.object(chat_attachments, '_storage'):
+                    tree = json.loads(chat_attachments.snapshot_tree(10, saved[1]))['files']
+                    self.assertEqual(base64.b64decode(tree['folder/' + relative.as_posix()]), b'original folder contents')
+                    chat_attachments.discard(10, saved)
+                    self.assertEqual(list(storage_path(target).iterdir()), [])
+                self.assertEqual(list(storage_path(workspace / '.attachment-staging').iterdir()), [])
+                with self.assertRaisesRegex(ValueError, '过期'):
+                    chat_attachments.consume_native_to(target, tokens)
+
     def test_drop_paths_require_native_owner_and_current_library_generation(self):
         with ExitStack() as stack:
             root = Path(stack.enter_context(TemporaryDirectory()))

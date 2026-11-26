@@ -20,6 +20,7 @@ import warnings
 
 
 from runteams_core.documents.pdf_preview import PDF_LOCK
+from runteams_core.foundation.regular_files import storage_path
 from runteams_core.storage import product_store
 
 
@@ -64,7 +65,7 @@ def _selection_scope():
 
 
 def _selection_root():
-    path = os.path.join(product_store.assistant_workspace(), ".attachment-staging")
+    path = str(storage_path(os.path.join(product_store.assistant_workspace(), ".attachment-staging")))
     os.makedirs(path, exist_ok=True)
     return path
 
@@ -131,7 +132,7 @@ def _stage_native_paths(paths, *, allow_folders=True):
     selection_scope = _selection_scope()
     unique = []
     for raw in paths or []:
-        path = os.path.realpath(os.path.abspath(os.path.expanduser(str(raw or ""))))
+        path = os.path.realpath(storage_path(os.path.expanduser(str(raw or ""))))
         if path and path not in unique:
             unique.append(path)
     if len(unique) > MAX_NATIVE_SELECTIONS:
@@ -452,7 +453,7 @@ def _contained_path(chat_id, stored_name, require_file=True):
         contained = os.path.commonpath((root, path)) == root
     except ValueError:
         contained = False
-    if not contained or (require_file and not os.path.isfile(path)):
+    if not contained or (require_file and not storage_path(path).is_file()):
         raise ValueError("附件不存在")
     return path
 
@@ -674,7 +675,7 @@ def consume_native_to(target, tokens, max_total_bytes=MAX_TOTAL_BYTES, finalize=
         raise ValueError("附件总大小不能超过 25 MB")
 
     saved, created_dirs, rendered_images = [], [], 0
-    target = os.path.realpath(target)
+    target = os.path.realpath(storage_path(target))
     os.makedirs(target, exist_ok=True)
     try:
         for record in records:
@@ -757,7 +758,7 @@ def discard(chat_id, items):
         path = os.path.realpath(os.path.join(root, attachment_id))
         try:
             if os.path.commonpath((root, path)) == root:
-                shutil.rmtree(path, ignore_errors=True)
+                shutil.rmtree(storage_path(path), ignore_errors=True)
         except ValueError:
             continue
 
@@ -784,9 +785,9 @@ def snapshot_tree(chat_id, item):
     _storage().restore(chat_id, item)
     root = Path(_chat_dir(chat_id)).resolve() / identifier
     original = Path(_contained_path(chat_id, item.get('stored_name'), require_file=item['kind'] != 'folder'))
-    if original.parent != root or (item['kind'] == 'folder' and not original.is_dir()):
+    if original.parent != root or (item['kind'] == 'folder' and not storage_path(original).is_dir()):
         raise ValueError('原附件无法核对。')
-    return tree_bytes(root)
+    return tree_bytes(storage_path(root))
 
 
 def reveal_file(chat_id, attachment_id):
