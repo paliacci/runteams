@@ -40,7 +40,19 @@ export function BlockMenuContents({editor,blockId,onClose,rootRef}){
  const cap=capabilities(editor,blockId),block=cap.block;if(!block)return null;
  const context=editorContext(editor),indent=indentOptions(editor,blockId);
  const insertType=(type,level,rect)=>{if(['reference','link','image','file','math','template'].includes(type))return context.openTool(type,blockId,{rect});if(type==='columns')return insertColumns(editor,blockId);return insertAfter(editor,blockId,type,level);};
- const run=async action=>{if(busy)return;setBusy(true);try{if(!editor.isEditable||!editor.getBlock(blockId))return;separateHistory(editor);await action();separateHistory(editor);onClose();editor.focus();}catch(e){const message=e.message||copy('这次修改未完成，请重试。','Couldn’t complete the change. Try again.');setError(message);context?.report(message);}finally{setBusy(false);}};
+ const run=async action=>{
+  if(busy)return;
+  setBusy(true);
+  try{
+   if(!editor.isEditable||!editor.getBlock(blockId))return;
+   // A pointer can open this menu before the editor iframe receives focus.
+   if(!document.hasFocus())editor.focus();
+   separateHistory(editor);await action();separateHistory(editor);onClose();editor.focus();
+  }catch(e){
+   const message=e.message||copy('这次修改未完成，请重试。','Couldn’t complete the change. Try again.');
+   setError(message);context?.report(message);
+  }finally{setBusy(false);}
+ };
  const choose=(kind,event,keyboard=false)=>{opener.current=event.currentTarget;setPosition(bounds(event.currentTarget,216,kind==='insert'?408:kind==='colors'?170:160,true));setPanel(kind);if(keyboard)requestAnimationFrame(()=>sub.current?.querySelector('button:not(:disabled)')?.focus());};
  const back=()=>{setPanel(null);opener.current?.focus({preventScroll:true});};
  const row=(label,Icon,action,disabled=false,hint='')=><button type="button" role="menuitem" className="rt-menu-row" disabled={disabled||busy} title={disabled?hint||reason:label} onMouseDown={e=>e.preventDefault()} onClick={action}><Icon size={16}/><span>{label}</span></button>;
