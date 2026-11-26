@@ -333,11 +333,31 @@ function confirmRestore(index){
 function editorMarkup(s){const e=s.editing;if(!e)return '';return `<div class="skills-file-edit"><div class="skills-file-edit-actions"><button class="btn pri sm" onclick="RunTeamsCreatorAuthor.save()" ${busy(s)?'disabled':''} data-app-i18n="employeeResource.save">保存文件</button><button class="btn sm" onclick="RunTeamsCreatorAuthor.cancel()" ${s.saving||s.pending?'disabled':''} data-app-i18n="employeeResource.back">返回预览</button></div>${e.newFile?`<label><span data-app-i18n="employeeResource.path">文件路径</span><input aria-label="文件路径" data-app-i18n-aria-label="employeeResource.path" value="${esc(e.path)}" oninput="RunTeamsCreatorAuthor.pathChanged(this.value)" ${busy(s)?'disabled':''}></label>`:''}<label class="skills-file-upload"><span data-app-i18n="employeeResource.upload">上传文件</span><input type="file" aria-label="上传作品资源" data-app-i18n-aria-label="employeeResource.upload" onchange="RunTeamsCreatorAuthor.upload(this)" ${busy(s)?'disabled':''}></label><label class="skills-file-edit-label"><span data-app-i18n="employeeResource.content">文件内容</span><textarea id="creator_asset_text" aria-label="编辑作品文件" data-app-i18n-aria-label="employeeResource.content" oninput="RunTeamsCreatorAuthor.changed(this.value)" ${busy(s)?'readonly':''}>${esc(e.content)}</textarea></label></div>`;}
 function recoveryMarkup(s){
  return (s.pendingAuthoring||[]).map(item=>{
-  if(item.state==='running')return '<p role="status" data-app-i18n="employeeResource.agentEditing">Agent 正在修改源码…</p>';
-  const changes=(item.changes||[]).map(change=>`<li>${historyFileChangeMarkup(change.kind==='deleted'?'removed':change.kind==='added'?'added':'modified',change.path)}</li>`).join('');
-  const detail=item.error?`<details><summary data-app-i18n="employeeHistory.errorDetails">查看错误详情</summary><p>${esc(item.error)}</p></details>`:'';
-  return `<section><p data-app-i18n="employeeResource.recoverDetails">恢复会创建新修订。当前版本会保留。</p>${detail}<ul>${changes||'<li data-app-i18n="employeeResource.noDifferences">文件没有变化。</li>'}</ul><button class="btn sm" onclick="RunTeamsCreatorAuthor.recoverAuthoring(${Number(item.session_id)})" ${busy(s)?'disabled':''} data-app-i18n="employeeResource.recoverEdits">恢复这些修改</button></section>`;
+  const id=Number(item.session_id);
+  const row=S.chats?.find(chat=>String(chat.id)===String(id));
+  const title=row&&window.RunTeamsEmployeeDirectory?.sessionTitle(row);
+  const heading=`<h3 id="creator_recovery_${id}"><span data-app-i18n="employeeResource.recoveryChat" data-app-i18n-vars="${esc(JSON.stringify({id:String(id)}))}">对话 ${id}</span>${title?' · '+esc(title):''}</h3>`;
+  const disabled=busy(s)?'disabled':'';
+  let body;
+  if(item.state==='running'){
+   body='<p role="status" data-app-i18n="employeeResource.agentEditing">Agent 正在修改源码…</p>';
+  }else{
+   const open=`<button class="btn sm" onclick="RunTeamsCreatorAuthor.openRecoveryChat(${id})" ${disabled} data-app-i18n="employeeResource.openRecoveryChat">打开原对话</button>`;
+   if(item.error){
+    body=`<p data-app-i18n="employeeResource.repairRequired">请在原对话修正源码后再恢复。未提交的文件仍保留在工作目录中。</p><details><summary data-app-i18n="employeeHistory.errorDetails">查看错误详情</summary><p>${esc(item.error)}</p></details>${open}`;
+   }else{
+    const changes=(item.changes||[]).map(change=>`<li>${historyFileChangeMarkup(change.kind==='deleted'?'removed':change.kind==='added'?'added':'modified',change.path)}</li>`).join('');
+    body=`<p data-app-i18n="employeeResource.recoverDetails">恢复会创建新修订。当前版本会保留。</p><ul>${changes||'<li data-app-i18n="employeeResource.noDifferences">文件没有变化。</li>'}</ul><button class="btn sm" onclick="RunTeamsCreatorAuthor.recoverAuthoring(${id})" ${disabled} data-app-i18n="employeeResource.recoverEdits">恢复这些修改</button> ${open}`;
+   }
+  }
+  return `<section aria-labelledby="creator_recovery_${id}">${heading}${body}</section>`;
  }).join('');
+}
+function openRecoveryChat(sessionId){
+ const s=current();
+ if(!s||busy(s)||s.editing||!s.pendingAuthoring?.some(item=>item.session_id===sessionId&&item.state==='interrupted'))return;
+ closeOperation();close();
+ return openRailConversationSession(sessionId,{device:true,readCurrent:true});
 }
 function resourceReceiptMarkup(s){
  if(!s.pending)return '';
@@ -378,7 +398,7 @@ function syncOperationDialog(){
 document.addEventListener?.('pointerdown',event=>{const s=current();if(s?.historyOpen&&!event.target.closest?.('#creator_history_popover,#creator_history_trigger'))closeHistory(false);});
 document.addEventListener?.('keydown',event=>{if(event.key==='Escape'&&current()?.historyOpen){event.preventDefault();event.stopPropagation();closeHistory();}});
 async function continueWithAgent(){const s=current();if(!s?.localDraft||busy(s)||s.editing)return;s.saving=true;s.error='';repaint();try{const r=await localCall(s,'/'+s.localDraft.id+'/session',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runtime:draftRuntimeConfig()})});if(valid(s)){if(r.session?.storage_scope!=='device'||r.session?.context?.creator_local_source_id!==s.localDraft.id)throw Error('本机创作会话绑定无效');deviceChatRemember(r);s.saving=false;await openConversationSession(r.session.id,'employee_design');}}catch(e){if(valid(s))s.error=e.message;}finally{if(valid(s)){s.saving=false;repaint();}}}
-async function recoverAuthoring(sessionId){const s=current();if(!s?.localDraft||busy(s)||s.editing||s.pending)return;s.saving=true;s.error='';repaint();try{await localCall(s,'/'+s.localDraft.id+'/recovery',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({session_id:sessionId,base_revision:s.revision})});}catch(e){if(valid(s))s.error=e.message;}finally{if(valid(s)){s.saving=false;await sync(true);}}}
+async function recoverAuthoring(sessionId){const s=current();if(!s?.localDraft||busy(s)||s.editing||!s.pendingAuthoring?.some(item=>item.session_id===sessionId&&item.state==='interrupted'&&!item.error))return;s.saving=true;s.error='';repaint();try{await localCall(s,'/'+s.localDraft.id+'/recovery',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({session_id:sessionId,base_revision:s.revision})});}catch(e){if(valid(s))s.error=e.message;}finally{if(valid(s)){s.saving=false;await sync(true);}}}
 async function restore(revision){const s=current();if(!s?.history||busy(s)||s.editing||s.pending)return;s.saving=true;s.error='';s.pending={action:'restore',base_revision:s.revision,operation_key:crypto.randomUUID(),revision};persist(s);repaint();try{const {action,...body}=s.pending;const r=await localCall(s,'/'+s.localDraft.id+'/restore',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});if(valid(s))accept(s,r);}catch(e){if(valid(s)){if(e.rejected){s.pending=null;persist(s);}s.error=e.message;}}finally{if(valid(s)){s.saving=false;if(!s.pending)await sync(true);else openOperation('resource');}}}
 function save(){const s=current();if(!s?.editing)return;capture();return writeBytes(s,s.editing.path,new TextEncoder().encode(s.editing.content));}
 function remove(){const s=current();if(!s?.activeFile||s.editing)return;return commit([{path:s.activeFile,content_base64:null}]);}
@@ -503,5 +523,5 @@ function decorateHeader(){
   collapseLabel:s.configurationReturn?'返回员工设置':'关闭详情',collapseLabelKey:s.configurationReturn?'employeeHistory.backToSettings':undefined,extras:{text:'资源',textKey:'employeeSettings.resources',back,actions}});
 }
 for(const event of ['runteams:business-scope-will-change','runteams:business-scope-changed'])window.addEventListener(event,()=>{state?.exportRequest?.abort();if(operationOwner)closeOperation();releasePreview();state=null;});
-window.RunTeamsCreatorAuthor={choosePackage,attachKnowledge,historyList,leave,decorateHeader,openSource,openEmployee,close,exportSource,current,open,sync,select,edit,add,cancel,changed,pathChanged,save,remove,upload,receipt,retryLocalSave,drawer,capture,openLocal,history,closeHistory,retryHistory,confirmRestore,attachSourceActions,openOperation,closeOperation,restore,continueWithAgent,recoverAuthoring,buildLocal,readBuild,cancelBuild};
+window.RunTeamsCreatorAuthor={choosePackage,attachKnowledge,historyList,leave,decorateHeader,openSource,openEmployee,close,exportSource,current,open,sync,select,edit,add,cancel,changed,pathChanged,save,remove,upload,receipt,retryLocalSave,drawer,capture,openLocal,history,closeHistory,retryHistory,confirmRestore,attachSourceActions,openOperation,closeOperation,restore,continueWithAgent,openRecoveryChat,recoverAuthoring,buildLocal,readBuild,cancelBuild};
 })();

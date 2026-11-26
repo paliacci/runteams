@@ -2,6 +2,30 @@ import {test} from 'node:test';
 import {createHash} from 'node:crypto';
 import assert from 'node:assert/strict';
 import {setup} from './creator_author_fixture.cjs';
+test('unreadable pending source points to its original conversation and cannot be restored',async()=>{
+ const e=setup();await e.author.open();
+ const state=e.author.current(),opened=[];
+ state.pendingAuthoring=[
+  {session_id:11,state:'interrupted',changes:[],error:'source validation failed'},
+  {session_id:12,state:'running'},
+ ];
+ e.context.closeDetailWorkspace=()=>{e.S.sel=null;};
+ e.context.openRailConversationSession=(id,options)=>opened.push([id,options.device,options.readCurrent]);
+ e.author.decorateHeader();e.header().extras.actions.find(a=>a.id==='recovery').onPress();
+ const body=e.dialog().body;
+ assert.match(body,/aria-labelledby="creator_recovery_11"/);
+ assert.match(body,/aria-labelledby="creator_recovery_12"/);
+ assert.match(body,/employeeResource\.repairRequired/);
+ assert.match(body,/source validation failed/);
+ assert.match(body,/openRecoveryChat\(11\)/);
+ assert.doesNotMatch(body,/noDifferences|recoverAuthoring\(|openRecoveryChat\(12\)/);
+ const previous=e.calls.length;
+ await e.author.recoverAuthoring(11);await e.author.recoverAuthoring(12);
+ assert.equal(e.calls.length,previous);
+ e.author.openRecoveryChat(12);e.author.openRecoveryChat(99);e.author.openRecoveryChat(11);
+ assert.deepEqual(opened,[[11,true,true]]);
+ assert.equal(e.dialog(),null);
+});
 test('interrupted source changes can be reviewed and recovered from the resource header',async()=>{
  const e=setup();
  const changes=[{kind:'modified',path:'employees/soul.md'}];

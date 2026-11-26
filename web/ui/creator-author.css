@@ -49,6 +49,8 @@
 .creator-history-list>p{max-width:220px;margin:4px;font-size:12px;line-height:18px}
 .creator-operation-dialog{width:560px;max-width:calc(100vw - 32px)}
 .creator-operation-dialog .mb{max-height:calc(100dvh - 180px);overflow:auto}
+.creator-operation-dialog [aria-labelledby^="creator_recovery_"] h3{font-size:14px;line-height:1.4;overflow-wrap:anywhere}
+.creator-operation-dialog [aria-labelledby^="creator_recovery_"]+section{border-top:1px solid var(--border);margin-top:16px;padding-top:8px}
 .creator-operation-dialog .creator-build-status{border:0;padding:0;margin-bottom:16px}
 .creator-operation-dialog #creator_asset_text{min-height:260px;resize:vertical}
 .creator-operation-dialog .skills-file-edit{max-height:none}

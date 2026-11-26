@@ -441,6 +441,6 @@
   accept(session.employee);
  }
  const sourceFor=value=>(entryFor(value)||assetEntry(value))?.source||null;
- window.RunTeamsEmployeeDirectory=Object.freeze({entryFor,assetEntry,resolveAsset,forPanel,overviewEntry,rememberSessionEntry,panelReference,referenceKey,references,matches,employeePanel,status,statuses,paintStatus,rowMenu,pinnedKeys,sourceFor,refresh,refreshAfterMutation,isLoading,accept,current,assets,downloaded,downloadsReady,installations:()=>downloadsReady()?installations:[],assetIdentity,upsertAsset,open,settings,finishCreation,sessions,sessionMenu,newSession,pageRoute,openPage,workConversation,forgetConversation,reset});
+ window.RunTeamsEmployeeDirectory=Object.freeze({entryFor,assetEntry,resolveAsset,forPanel,overviewEntry,rememberSessionEntry,panelReference,referenceKey,references,matches,employeePanel,status,statuses,paintStatus,rowMenu,pinnedKeys,sourceFor,refresh,refreshAfterMutation,isLoading,accept,current,assets,downloaded,downloadsReady,installations:()=>downloadsReady()?installations:[],assetIdentity,upsertAsset,open,settings,finishCreation,sessions,sessionTitle,sessionMenu,newSession,pageRoute,openPage,workConversation,forgetConversation,reset});
  window.addEventListener('runteams:business-scope-changed',reset);
 })();
