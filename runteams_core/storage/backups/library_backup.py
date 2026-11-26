@@ -127,7 +127,10 @@ def folders(directory, *, source_root=None, final_root=None):
                 continue
             employee='library://employee-workspaces/'+key
             if source_root is not None:
-                selected=Path(item['path']);root=Path(source_root)
+                selected = Path(item['path'])
+                if not selected.is_absolute() or '..' in selected.parts:
+                    raise ValueError('托管工作目录不属于当前资料库，未自动改选目录。')
+                selected, root = storage_path(selected), storage_path(source_root)
                 if selected==root/'workspaces/assistant':portable=PORTABLE_WORKSPACE
                 elif group_name=='chats' and selected==root/'employee-workspaces'/key:portable=employee
                 else:raise ValueError('托管工作目录不属于当前资料库，未自动改选目录。')

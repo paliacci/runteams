@@ -15,6 +15,21 @@ from runteams_core.application.http.local_http import LocalServer
 
 
 class BackupPathTests(unittest.TestCase):
+    def test_managed_folder_saved_before_extended_path_upgrade_keeps_its_library(self):
+        from runteams_core.foundation.regular_files import storage_path
+        from runteams_core.storage.backups.library_backup import folders, PORTABLE_WORKSPACE
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            path = root/'conversation-folders'/'folders.json'
+            path.parent.mkdir()
+            old = {'defaults': {'example': {'path': str(root/'workspaces'/'assistant'), 'custom': False}}, 'chats': {}}
+            path.write_text(json.dumps(old), encoding='utf8')
+            with self.assertRaisesRegex(ValueError, '不属于当前资料库'):
+                folders(root, source_root=storage_path(root/'other'))
+            folders(root, source_root=storage_path(root))
+            self.assertEqual(json.loads(path.read_text('utf8'))['defaults']['example']['path'], PORTABLE_WORKSPACE)
+
     def test_deep_database_filename_survives_readonly_snapshot_and_immutable_read(self):
         from runteams_core.foundation.regular_files import storage_path
         from runteams_core.storage.backups.backup_files import snapshot_database, readonly_database
