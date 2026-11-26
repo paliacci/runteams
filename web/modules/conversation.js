@@ -1020,6 +1020,26 @@ function chatFileCard(item,chatId,body,extraClass=""){
   return `<button type="button" class="${classes}" data-reveal-attachment="/api/chat/${chatId}/attachment/${item.id}/reveal" onclick="revealChatAttachment(this)">${body}</button>`;
 }
 
+function previewChatImageAttachment(button){
+  const source=button.querySelector("img");
+  if(!source)return;
+  const title=source.alt||RunTeamsLocale.t('workRecordDetail.imagePreview',{},'图片预览');
+  const host=openChildDialog({className:'conversation-image-preview',title,
+    attrs:`role="dialog" aria-modal="true" aria-label="${esc(title)}"`,
+    closeLabelKey:'workRecordDetail.closePreview',manageFocus:true,
+    body:'<p role="alert" hidden data-app-i18n="workRecordDetail.fileFailed">无法读取文件</p>'});
+  const image=document.createElement('img'),error=host.querySelector('[role="alert"]');
+  image.alt=source.alt;
+  image.addEventListener('error',()=>{image.hidden=true;error.hidden=false;},{once:true});
+  host.querySelector('.conversation-image-preview .mb').prepend(image);
+  image.src=source.currentSrc||source.src;
+  host.addEventListener('keydown',event=>{
+    if(event.key!=='Escape'||event.isComposing||event.defaultPrevented)return;
+    event.preventDefault();event.stopPropagation();closeChildDialog();
+  });
+  RunTeamsLocale.apply(host);
+}
+
 /* module-function:chatMessageAttachments */
 function chatMessageAttachments(items,chatId=S.chatId){
   if(!items.length)return "";
@@ -1030,7 +1050,11 @@ function chatMessageAttachments(items,chatId=S.chatId){
       return chatFileCard(item,chatId,`${ICON(folder?"folder":"doc")}<span><b lang="${/[\u3400-\u9fff]/.test(item.name)?"zh":"en"}">${esc(item.name)}</b><small data-app-i18n="localReference.${folder?"folderDetail":"fileDetail"}">${folder?"文件夹":"文件"} · 仅在这台电脑使用</small></span>`,"local-reference");
     }
     const url=chatAttachmentUrl(item,chatId);
-    if(item.kind==="image"&&url)return `<a class="cmessage-image" href="${url}" target="_blank" rel="noopener noreferrer"><img src="${url}" alt="${esc(item.name)}"></a>`;
+    if(item.kind==="image"&&url){
+      const thumbnail=`<img src="${esc(url)}" alt="${esc(item.name)}">`;
+      if(globalThis.chrome?.webview)return `<button type="button" class="cmessage-image" aria-haspopup="dialog" onclick="previewChatImageAttachment(this)">${thumbnail}</button>`;
+      return `<a class="cmessage-image" href="${esc(url)}" target="_blank" rel="noopener noreferrer">${thumbnail}</a>`;
+    }
     const folder=item.kind==="folder",copy=folder?conversationAttachmentFolderCopy(item):null;
     const detail=copy?`<small data-app-i18n="${copy.key}" data-app-i18n-vars="${esc(JSON.stringify(copy.vars))}">${esc(copy.text)}</small>`:url?`<small>${esc(formatFileSize(item.size))}</small>` :`<small data-app-i18n="conversationAttachment.unavailable" data-app-i18n-vars="${esc(JSON.stringify({size:formatFileSize(item.size)}))}">附件不可用 · ${esc(formatFileSize(item.size))}</small>`;
     const body=`${ICON(folder?"folder":"doc")}<span><b>${esc(item.name)}</b>${detail}</span>`;
