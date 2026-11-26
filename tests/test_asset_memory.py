@@ -206,6 +206,17 @@ class AssetMemoryTests(TestCase):
             with self.assertRaises(ValueError):
                 asset_sources.drawer({**other, **excerpt})
 
+    def test_work_chat_drawer_reports_direct_chat_requirement_without_granting_access(self):
+        from runteams_core.conversations import asset_sources
+        chat = self.chat(self.team)['chat_id']
+        with patch.object(product_store, 'get_chat', return_value={'kind':'general', 'subject_type':'employee'}), \
+                patch.object(memory, '_binding', return_value={'writable':False}):
+            self.assertEqual(asset_sources.drawer({'chat':chat}),
+                             {'direct_chat_required':True, 'sources':[], 'total':0})
+            for request in [{'source':1, 'open':True}, {'upload':'begin', 'name':'sample.txt', 'size':5}]:
+                with self.subTest(request=request), self.assertRaises(PermissionError):
+                    asset_sources.drawer({'chat':chat, **request})
+
     def test_expanding_drawer_returns_whole_catalog_without_changing_agent_pagination(self):
         from runteams_core.conversations import asset_sources
         from runteams_core.pipelines.bound_pipeline_context import BoundPipelineContext

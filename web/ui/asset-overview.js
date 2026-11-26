@@ -403,7 +403,7 @@ const RunTeamsEnvironment = (() => {
    const query=s.expanded?{expanded:true}:{};
    const result=await RunTeamsSourcePipelines.request('asset-knowledge',{...s.owner,...query});
    if(knowledgeState()!==s||request!==s.request)return;
-   s.items=result.sources;s.total=result.total;
+   s.items=result.sources;s.total=result.total;s.directChatRequired=result.direct_chat_required===true;
   }catch(error){if(knowledgeState()===s&&request===s.request)s.error=error.message;}
   finally{if(knowledgeState()===s&&request===s.request){s.busy=false;render();}}
  }
@@ -569,7 +569,7 @@ const RunTeamsEnvironment = (() => {
   if(s&&!s.uploading)void readKnowledge(s);
  }
  function knowledgeAddAction(s){
-  return sectionAction(esc(knowledgeText('import')),'this.nextElementSibling.click()',s.busy)+
+  return sectionAction(esc(knowledgeText('import')),'this.nextElementSibling.click()',s.busy||s.total===null)+
    '<input type="file" hidden accept=".png,.jpg,.jpeg,.webp,.gif,.mp4,.mov,.wav,.mp3,.m4a,.ogg,.flac,.txt,.md,.markdown,.csv,.json,.srt,.vtt,.pdf,.doc,.docx,.xls,.xlsx" onchange="RunTeamsAssetOverview.uploadKnowledge(this.files[0])">';
  }
  function knowledgeEmpty(){
@@ -578,6 +578,8 @@ const RunTeamsEnvironment = (() => {
  function knowledgeSection(s){
   if(!s)return '';
   if(!s.request){s.request++;queueMicrotask(()=>{if(knowledgeState()===s&&!s.busy)void readKnowledge(s);});}
+  if(s.directChatRequired)return section(esc(knowledgeText('title')),'',
+   `<p data-app-i18n="assetKnowledge.directChatRequired">${esc(knowledgeText('directChatRequired'))}</p>`,'overview-knowledge');
   const toggle=s.total>knowledgePreviewLimit?listToggle(s.expanded,'overview-knowledge-files','RunTeamsAssetOverview.toggleKnowledge()',s.uploading):'';
   const rows=s.expanded?s.items:s.items.slice(0,knowledgePreviewLimit);
   const pending=s.total===null?knowledgePreviewLimit:s.busy&&s.expanded?Math.min(knowledgePreviewLimit,s.total-rows.length):0;

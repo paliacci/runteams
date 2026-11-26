@@ -443,6 +443,8 @@ def drawer(data):
             ref = employee_binding.authoring_reference(session)
         else:
             bound = asset_memory._binding(cid)
+            if bound and session['subject_type'] == 'employee' and not bound['writable'] and not args:
+                return {'direct_chat_required': True, 'sources': [], 'total': 0}
             if not bound or not bound['writable'] or session['subject_type'] != 'employee':
                 raise PermissionError('请在员工的直属对话中打开知识库。')
             ref = bound['reference']

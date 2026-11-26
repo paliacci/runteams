@@ -332,6 +332,7 @@ globalThis.RUNTEAMS_LOCALES = {
   "assetKnowledge.import": "导入",
   "assetKnowledge.source": "来源：{origin}",
   "assetKnowledge.empty": "暂无资料",
+  "assetKnowledge.directChatRequired": "请从员工页面打开直属对话，查看或导入知识库资料。",
   "assetKnowledge.loading": "正在读取资料…",
   "assetKnowledge.reload": "重新读取",
   "assetKnowledge.worksheet": "工作表",

@@ -302,6 +302,7 @@ globalThis.RUNTEAMS_LOCALES.en = {
   "assetKnowledge.import": "Import",
   "assetKnowledge.source": "Source: {origin}",
   "assetKnowledge.empty": "No files yet",
+  "assetKnowledge.directChatRequired": "Open a direct conversation from the employee page to view or import knowledge files.",
   "assetKnowledge.loading": "Loading files…",
   "assetKnowledge.reload": "Reload",
   "assetKnowledge.worksheet": "Worksheet",
