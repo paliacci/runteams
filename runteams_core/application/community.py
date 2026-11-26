@@ -9,6 +9,7 @@ import threading
 
 from runteams_core.application.local_application import LocalApplication
 from runteams_core.application.http.local_http import LocalServer
+from runteams_core.foundation.regular_files import storage_path
 
 
 def default_data_directory():
@@ -48,10 +49,11 @@ def main(argv=None):
         try: return launch(args.data_dir, args.port if args.port is not None else 0, args.desktop_host)
         except (OSError, ValueError) as error: parser.exit(2, str(error) + '\n')
     # One process opens exactly one library; bind host/runtime paths before imports.
-    os.environ['RUNTEAMS_DATA'] = str(args.data_dir.expanduser().resolve())
+    directory = storage_path(args.data_dir.expanduser())
+    os.environ['RUNTEAMS_DATA'] = str(directory.resolve())
     port = args.port if args.port is not None else (0 if args.owner_stdin else 8792)
     try:
-        application = LocalApplication(args.data_dir)
+        application = LocalApplication(directory)
         server = LocalServer(application, port)
     except (OSError, ValueError) as error:
         parser.exit(2, '无法打开本机资料库或监听端口：' + str(error) + '\n')

@@ -20,7 +20,7 @@ import uuid
 
 from runteams_core.storage import device_data
 from runteams_core.foundation.contracts import ContractError
-from runteams_core.foundation.regular_files import storage_path
+from runteams_core.foundation.regular_files import sqlite_file_uri, storage_path
 
 DIRECTORY = 'work'
 DATABASE = 'runteams.db'
@@ -241,7 +241,7 @@ class DeviceWorkStorage:
             # A reader must not acquire the definition/writer lock or create
             # an empty database. Verify the same schema and owner in its WAL
             # snapshot; initialization remains a writer operation.
-            connection = sqlite3.connect(Path(self.path).as_uri()+'?mode=ro', uri=True,
+            connection = sqlite3.connect(sqlite_file_uri(self.path)+'?mode=ro', uri=True,
                                          timeout=30, factory=_Connection)
         else:
             self.initialize()
@@ -376,7 +376,7 @@ def snapshot(source, destination, scope, check):
             # Hold the same SQLite writer gate as actual work updates, and
             # copy through a separate reader (backup on the writer would wait
             # for its own transaction). File verification remains inside it.
-            with (closing(sqlite3.connect(path.resolve().as_uri()+'?mode=ro', uri=True)) as original,
+            with (closing(sqlite3.connect(sqlite_file_uri(path)+'?mode=ro', uri=True)) as original,
                   closing(sqlite3.connect(target / DATABASE)) as copied):
                 original.backup(copied)
                 copied.execute('PRAGMA journal_mode=DELETE')
@@ -413,7 +413,7 @@ def verify(directory, scope):
         return
     if path.parent.is_symlink() or path.is_symlink() or any(p.is_symlink() for p in path.parent.rglob('*')):
         raise ContractError('本机工作备份路径无效。')
-    with closing(sqlite3.connect(path.resolve().as_uri() + '?mode=ro&immutable=1', uri=True)) as connection:
+    with closing(sqlite3.connect(sqlite_file_uri(path) + '?mode=ro&immutable=1', uri=True)) as connection:
         version = connection.execute('PRAGMA user_version').fetchone()[0]
         if (version != VERSION
                 or connection.execute('PRAGMA integrity_check').fetchone()[0] != 'ok'

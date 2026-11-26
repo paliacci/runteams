@@ -5,6 +5,8 @@ import json
 import sqlite3
 import string
 
+from runteams_core.foundation.regular_files import sqlite_file_uri
+
 DATABASE = 'page-ids.sqlite3'
 SCHEMA = """CREATE TABLE IF NOT EXISTS page_ids (
     identity TEXT PRIMARY KEY NOT NULL,
@@ -32,7 +34,7 @@ def lookup(directory, public_id):
         raise ValueError('资料库页面索引路径无效。')
     if not path.exists():
         return None
-    with closing(sqlite3.connect(path.as_uri() + '?mode=ro', uri=True, timeout=30)) as database:
+    with closing(sqlite3.connect(sqlite_file_uri(path) + '?mode=ro', uri=True, timeout=30)) as database:
         if not database.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='page_ids'").fetchone():
             return None
         row = database.execute('SELECT identity FROM page_ids WHERE public_id=?', (public_id,)).fetchone()

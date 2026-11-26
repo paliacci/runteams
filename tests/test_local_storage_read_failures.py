@@ -1,5 +1,6 @@
 """Storage exhaustion stays a typed read failure, never an empty successful list."""
 from http.client import HTTPConnection
+from contextlib import closing
 from pathlib import Path
 import json
 import sqlite3
@@ -11,6 +12,27 @@ from unittest.mock import patch
 from runteams_core.storage.local_read_errors import read_failure
 from runteams_core.application.local_application import LocalApplication
 from runteams_core.application.http.local_http import LocalServer
+
+
+class BackupPathTests(unittest.TestCase):
+    def test_deep_database_filename_survives_readonly_snapshot_and_immutable_read(self):
+        from runteams_core.foundation.regular_files import storage_path
+        from runteams_core.storage.backups.backup_files import snapshot_database, readonly_database
+
+        with tempfile.TemporaryDirectory(dir=storage_path(tempfile.gettempdir())) as folder:
+            directory = Path(folder)
+            for _ in range(5):
+                directory /= '资料 # %25' * 7
+            directory.mkdir(parents=True)
+            source, saved = directory/'source.sqlite3', directory/'snapshot.sqlite3'
+            with closing(sqlite3.connect(source)) as db, db:
+                db.execute('CREATE TABLE notes(text)')
+                db.execute('INSERT INTO notes VALUES(?)', ('原始记录',))
+            snapshot_database(source, saved)
+            with closing(readonly_database(saved)) as copy:
+                self.assertEqual(copy.execute('SELECT text FROM notes').fetchone(), ('原始记录',))
+                with self.assertRaises(sqlite3.OperationalError):
+                    copy.execute('DELETE FROM notes')
 
 
 def full_error():

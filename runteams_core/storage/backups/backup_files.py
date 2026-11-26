@@ -8,7 +8,7 @@ import sqlite3
 import zipfile
 
 from runteams_core.foundation import archive_paths
-from runteams_core.foundation.regular_files import storage_path
+from runteams_core.foundation.regular_files import sqlite_file_uri, storage_path
 from runteams_core.foundation.durable_files import publish_json
 
 MAX_ARCHIVE = 512 * 1024 * 1024
@@ -64,7 +64,7 @@ def verify_files(directory, expected, *, required='personal.sqlite3'):
 
 def snapshot_database(source, destination):
     if source.is_symlink() or not source.is_file():raise ValueError('本机数据库路径无效。')
-    with (closing(sqlite3.connect(source.resolve().as_uri()+'?mode=ro',uri=True)) as original,
+    with (closing(sqlite3.connect(sqlite_file_uri(source)+'?mode=ro',uri=True)) as original,
           closing(sqlite3.connect(destination)) as target):
         original.backup(target);target.execute('PRAGMA journal_mode=DELETE')
     destination.chmod(0o600)
@@ -72,7 +72,7 @@ def snapshot_database(source, destination):
 
 def readonly_database(path):
     if path.is_symlink() or not path.is_file():raise ValueError('备份数据库不可用。')
-    connection=sqlite3.connect(path.resolve().as_uri()+'?mode=ro&immutable=1',uri=True)
+    connection=sqlite3.connect(sqlite_file_uri(path)+'?mode=ro&immutable=1',uri=True)
     try:
         if connection.execute('PRAGMA integrity_check').fetchone()[0]!='ok' or connection.execute('PRAGMA foreign_key_check').fetchall():
             raise ValueError('备份数据库损坏。')

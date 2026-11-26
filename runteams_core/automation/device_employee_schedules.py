@@ -14,6 +14,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 from runteams_core.foundation.errors import Cancelled
+from runteams_core.foundation.regular_files import sqlite_file_uri
 
 from runteams_core.storage import device_data
 from runteams_core.automation.automation_time import checked_device_schedule
@@ -631,7 +632,7 @@ def verify(directory, scope, *, schedule_directory=DIRECTORY, pipeline=False):
         return
     if path.is_symlink() or path.parent.is_symlink():
         raise ContractError('自动化备份路径无效。')
-    with closing(sqlite3.connect(path.resolve().as_uri() + '?mode=ro', uri=True)) as c:
+    with closing(sqlite3.connect(sqlite_file_uri(path) + '?mode=ro', uri=True)) as c:
         if c.execute('PRAGMA integrity_check').fetchone()[0] != 'ok':
             raise ContractError('自动化备份损坏。')
         row = c.execute('SELECT version,scope FROM binding').fetchone()
@@ -664,7 +665,7 @@ def snapshot(source, destination, scope, check, *, schedule_directory=DIRECTORY,
     verify(source, scope, schedule_directory=schedule_directory, pipeline=pipeline)
     target = Path(destination) / schedule_directory / DATABASE
     target.parent.mkdir(mode=0o700)
-    with (closing(sqlite3.connect(path.resolve().as_uri() + '?mode=ro', uri=True)) as original,
+    with (closing(sqlite3.connect(sqlite_file_uri(path) + '?mode=ro', uri=True)) as original,
           closing(sqlite3.connect(target)) as copy):
         original.backup(copy)
     target.chmod(0o600)

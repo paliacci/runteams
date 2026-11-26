@@ -18,6 +18,17 @@ def storage_path(path):
     return Path('\\\\?\\' + absolute)
 
 
+def sqlite_file_uri(path):
+    """Encode a local SQLite filename with an empty URI authority."""
+    absolute = storage_path(path).resolve()
+    uri = absolute.as_uri()
+    if os.name == 'nt' and absolute.drive.startswith('\\\\'):
+        # pathlib treats the extended path prefix as a hostname. SQLite needs
+        # its leading double slash in the filename, after the empty authority.
+        return 'file://' + uri.removeprefix('file:')
+    return uri
+
+
 def is_link(info):
     return (stat.S_ISLNK(info.st_mode)
             or bool(getattr(info, 'st_file_attributes', 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT))

@@ -10,6 +10,8 @@ import sqlite3
 import threading
 from uuid import NAMESPACE_URL, uuid5
 
+from runteams_core.foundation.regular_files import sqlite_file_uri
+
 from runteams_core.automation import composio_realtime, fireflies_recaps
 from runteams_core.configuration.credentials import app_secrets
 from runteams_core.employees.mcp.composio_connections import ComposioError, accounts, request, slug
@@ -208,7 +210,7 @@ class ConnectedEmployeeRuntime:
         root = Path(local_database.DB_PATH).resolve().parent / 'host-credentials/mcp-connections'
         scope = self.config['scope']['cache_scope']
         db = root / (scope + '.sqlite3')
-        with closing(sqlite3.connect(db.as_uri() + '?mode=ro', uri=True)) as conn:
+        with closing(sqlite3.connect(sqlite_file_uri(db) + '?mode=ro', uri=True)) as conn:
             user = conn.execute("SELECT value FROM composio_settings WHERE name='user_id'").fetchone()
         if not user or user[0] != expected['user']:
             raise PermissionError('Composio 项目账户已变化。')
