@@ -7,9 +7,8 @@ const vm = require('node:vm');
 const shell = fs.readFileSync(path.join(__dirname, '../web/index.html'), 'utf8');
 const picker = shell.slice(shell.indexOf('async function openConversationAttachmentPicker('),
   shell.indexOf('function removeConversationAttachment('));
-const draft = ['serializableConversationDraftValue', 'serializableConversationDraftAttachment',
-  'saveConversationPanelDrafts', 'captureConversationPanelDraft']
-  .map(name => shell.match(new RegExp('^function ' + name + '\\([^\\n]+', 'm'))[0]).join('\n');
+const draft = shell.slice(shell.indexOf('function serializableConversationDraftValue('),
+  shell.indexOf('function clearConversationPanelDraft('));
 
 function setup() {
   let complete;
