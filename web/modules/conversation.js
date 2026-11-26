@@ -910,7 +910,7 @@ function conversationMessages(messages,options={}){
     if(m.role==="debug")return `<div class="conversation-debug-state-label" role="separator"><span>${esc(m.text)}</span></div>`;
     if(m.role==="user"){
       const capabilities=m.capabilities||[],{text,paths}=conversationSplitFolders(m.text,m.metadata?.folder_refs);
-      const files=chatMessageAttachments([...(m.attachments||[]),...paths.map(path=>({kind:"folder_path",path,name:conversationFolderName(path)}))],chatId);
+      const files=chatMessageAttachments([...(m.attachments||[]),...paths.map(path=>({kind:"folder_path",path,name:conversationFolderName(path)}))],chatId,m.state==="sending");
       const extensions=chatMessageCapabilities(capabilities),summary=m.metadata?.question_summary;
       const content=[
         summary?`<div class="cmessage-question-summary" title="${esc(summary)}">${esc(summary)}</div>`:"",
@@ -1041,7 +1041,7 @@ function previewChatImageAttachment(button){
 }
 
 /* module-function:chatMessageAttachments */
-function chatMessageAttachments(items,chatId=S.chatId){
+function chatMessageAttachments(items,chatId=S.chatId,pending=false){
   if(!items.length)return "";
   const markup=items.map(item=>{
     if(item.kind==="folder_path")return `<span class="cmessage-file folder" title="${esc(item.path)}">${ICON("folder")}<span><b>${esc(item.name)}</b></span></span>`;
@@ -1049,16 +1049,19 @@ function chatMessageAttachments(items,chatId=S.chatId){
       const folder=item.local_kind==="folder";
       return chatFileCard(item,chatId,`${ICON(folder?"folder":"doc")}<span><b lang="${/[\u3400-\u9fff]/.test(item.name)?"zh":"en"}">${esc(item.name)}</b><small data-app-i18n="localReference.${folder?"folderDetail":"fileDetail"}">${folder?"文件夹":"文件"} · 仅在这台电脑使用</small></span>`,"local-reference");
     }
-    const url=chatAttachmentUrl(item,chatId);
+    const url=pending?(item.preview||""):chatAttachmentUrl(item,chatId);
     if(item.kind==="image"&&url){
       const thumbnail=`<img src="${esc(url)}" alt="${esc(item.name)}">`;
       if(globalThis.chrome?.webview)return `<button type="button" class="cmessage-image" aria-haspopup="dialog" onclick="previewChatImageAttachment(this)">${thumbnail}</button>`;
       return `<a class="cmessage-image" href="${esc(url)}" target="_blank" rel="noopener noreferrer">${thumbnail}</a>`;
     }
     const folder=item.kind==="folder",copy=folder?conversationAttachmentFolderCopy(item):null;
-    const detail=copy?`<small data-app-i18n="${copy.key}" data-app-i18n-vars="${esc(JSON.stringify(copy.vars))}">${esc(copy.text)}</small>`:url?`<small>${esc(formatFileSize(item.size))}</small>` :`<small data-app-i18n="conversationAttachment.unavailable" data-app-i18n-vars="${esc(JSON.stringify({size:formatFileSize(item.size)}))}">附件不可用 · ${esc(formatFileSize(item.size))}</small>`;
+    const detail=copy?`<small data-app-i18n="${copy.key}" data-app-i18n-vars="${esc(JSON.stringify(copy.vars))}">${esc(copy.text)}</small>`
+      :url?`<small>${esc(formatFileSize(item.size))}</small>`
+      :pending?'<small data-app-i18n="conversationQueue.sending">正在发送…</small>'
+      :`<small data-app-i18n="conversationAttachment.unavailable" data-app-i18n-vars="${esc(JSON.stringify({size:formatFileSize(item.size)}))}">附件不可用 · ${esc(formatFileSize(item.size))}</small>`;
     const body=`${ICON(folder?"folder":"doc")}<span><b>${esc(item.name)}</b>${detail}</span>`;
-    return chatFileCard(item,chatId,body,folder?"folder":url?"":"unavailable");
+    return chatFileCard(item,chatId,body,folder?"folder":url||pending?"":"unavailable");
   }).join("");
   return `<div class="cmessage-files">${markup}</div>`;
 }
@@ -1651,7 +1654,7 @@ async function sendChat(options={}){
   const pending=queued?(queued.folders||[]):S.chatAttachments.slice(),files=pending.filter(x=>x.kind!=="folder_path"),pendingCapabilities=queued?[]:conversationCapabilitiesForSend("chat",rawDraft),annotatedMessage=conversationMessageFromDraft(rawDraft,pendingCapabilities,folderRefs,conversationFolderAttachments(pending)),firstPipelineRequest=S.chatMode==="pipeline-create"&&S.chatId==="new"&&hasUserText,msg=firstPipelineRequest&&!/^\s*(?:请)?(?:帮我)?创(?:建|造)(?:一个|一支)?智能体团队/.test(annotatedMessage)?`创建智能体团队：${annotatedMessage}`:annotatedMessage,attachmentTokens=files.filter(x=>x.pickToken).map(x=>x.pickToken),startedAsNew=S.chatId==="new",activityContextAtSend=typeof RunTeamsChatActivity==='undefined'?'':RunTeamsChatActivity.context(S);let uploads,accepted=false,out=null,createdSession=false,attempted=false,completed=false,configurationRequired=false;
   try{uploads=(typeof RunTeamsCreatorWork==='undefined'?null:RunTeamsCreatorWork.pendingInput(S.chatId)?.attachments)||await Promise.all(files.filter(x=>x.file).map(readChatFile));}catch(e){toast(e.message||"无法读取附件。请重新添加。","err",e.messageKey||(!e.message?"composer.attachmentRead":undefined),e.messageVars);return;}
   if(!conversationRuntimeReady("chat")){conversationSyncSendState("chat");return;}
-  const sent={role:"user",ts:new Date().toISOString(),text:annotatedMessage,metadata:conversationFolderSendFields(folderRefs),state:"sending",localId:"m"+Date.now()+Math.random().toString(16).slice(2),capabilities:pendingCapabilities,attachments:files.map(x=>({id:x.localId,name:x.name,size:x.size,mime_type:x.mime_type,kind:x.kind,local_kind:x.local_kind,grant_id:x.grant_id,preview:x.preview}))},live=newLiveAgentMessage("chat-live-");
+  const sent={role:"user",ts:new Date().toISOString(),text:annotatedMessage,metadata:conversationFolderSendFields(folderRefs),state:"sending",localId:"m"+Date.now()+Math.random().toString(16).slice(2),capabilities:pendingCapabilities,attachments:files.map(x=>({id:x.localId,name:x.name,size:x.size,mime_type:x.mime_type,kind:x.kind,file_count:x.file_count,local_kind:x.local_kind,grant_id:x.grant_id,preview:x.preview}))},live=newLiveAgentMessage("chat-live-");
   S.chatMsgs.push(sent,live);if(!queued){S.chatAttachments=[];S.chatCapabilities=[];S.chatDraft="";}S.chatBusy=true;S.chatCanSteer=false;S.chatStopping=false;S.chatStopRequested=false;S.chatActivity="";render();requestAnimationFrame(scrollChat);let cancelled=false;
   try{
     if(S.chatId==="new"){ const r=await api("/api/conversations","POST",{kind:"general",...S.chatCfg}); if(r.error)throw new Error(r.error); S.chatId=r.session.id;if(queueOwner.id!==S.chatId){const oldQueueKey=String(queueOwner.id);delete S.chatMessageQueues[oldQueueKey];queueOwner.id=S.chatId;S.chatMessageQueues[String(S.chatId)]=queueOwner;if(queueOwner.messageQueue?.items.length){const saved=S.conversationPanelDrafts[`chat:${oldQueueKey}`];if(saved?.queue)delete saved.queue;conversationQueueSave("chat",queueOwner);}}createdSession=true; }
@@ -1659,7 +1662,7 @@ async function sendChat(options={}){
     if(folderAtSend)await RunTeamsWorkFolders.bind(S.chatId,folderAtSend);
     const rewind=queued?null:S.chatRewind,reuseAttachmentIds=files.filter(x=>x.reuseId).map(x=>x.reuseId);
     attempted=true;await (typeof RunTeamsCreatorWork==='undefined'?streamApi:RunTeamsCreatorWork.send)("/api/chat/"+S.chatId+"/stream",{message:msg,...conversationFolderSendFields(folderRefs,msg.length-annotatedMessage.length),attachments:uploads,attachment_tokens:attachmentTokens,local_asset_ids:files.filter(x=>x.kind==="local_asset"&&!x.reuseId).map(x=>x.grant_id),capabilities:pendingCapabilities,rewind_message_id:rewind&&rewind.messageId,reuse_attachment_ids:reuseAttachmentIds},event=>{
-      if(event.type==="accepted"){accepted=true;if(typeof RunTeamsChatActivity!=='undefined')RunTeamsChatActivity.started(S,queueOwner.id,activityContextAtSend);if(queued)conversationQueueAccepted("chat",queueOwner,queued.id);if(!queued)S.chatRewind=null;sent.id=event.message_id;sent.state="sent";sent.attachments=(event.attachments||[]).map(x=>({...x}));sent.capabilities=event.capabilities||pendingCapabilities;pending.forEach(x=>{if(x.preview)URL.revokeObjectURL(x.preview);});if(startedAsNew)activateCreatedChat();else updatePendingChatMessage(sent.localId,"sent");if(S.chatStopRequested)api(`/api/chat/${S.chatId}/cancel`,"POST",{}).catch(()=>{});}
+      if(event.type==="accepted"){accepted=true;if(typeof RunTeamsChatActivity!=='undefined')RunTeamsChatActivity.started(S,queueOwner.id,activityContextAtSend);if(queued)conversationQueueAccepted("chat",queueOwner,queued.id);if(!queued)S.chatRewind=null;sent.id=event.message_id;sent.state="sent";sent.attachments=(event.attachments||[]).map(x=>({...x}));sent.capabilities=event.capabilities||pendingCapabilities;pending.forEach(x=>{if(x.preview)URL.revokeObjectURL(x.preview);});if(startedAsNew)activateCreatedChat();else if(String(S.chatId)===String(queueOwner.id))render();if(S.chatStopRequested)api(`/api/chat/${S.chatId}/cancel`,"POST",{}).catch(()=>{});}
       else if(event.type==="steer_accepted"){conversationSteerAccepted("chat",event);}else if(event.type==="agent_event"){if(S.chatStopRequested)return;if(event.event?.kind==="turn_control"){S.chatCanSteer=!!event.event.can_steer;conversationSyncSendState("chat");return;}applyAgentStreamEvent(live,event.event);if(event.event?.message)conversationQuestionAnswerMessage("chat",event.event.message,null,event.event.prefix_message);refreshLiveAgentMessage(live,"chat");}
       else if(event.type==="result")out=event;
       else if(event.type==="cancelled")cancelled=true;

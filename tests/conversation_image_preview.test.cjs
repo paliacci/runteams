@@ -23,6 +23,20 @@ test('the Windows desktop opens a dialog for a sent image and browsers keep the 
   assert.doesNotMatch(desktop, /target="_blank"/);
 });
 
+test('a pending native attachment shows sending while the folder keeps its file count', () => {
+  const host = vm.createContext({esc, ICON: () => '', formatFileSize: () => '74 B', S: {chatId: 1}});
+  vm.runInContext(handlers, host);
+  const items = [{...issue, id: 'pending-image'}, {id: 'pending-folder', kind: 'folder', name: '目录', file_count: 2}];
+  const sending = host.chatMessageAttachments(items, 1, true);
+  assert.match(sending, /data-app-i18n="conversationQueue.sending"/);
+  assert.match(sending, /2 个文件/);
+  assert.doesNotMatch(sending, /conversationAttachment.unavailable/);
+  assert.doesNotMatch(sending, /\/api\/chat\//);
+  assert.match(host.chatMessageAttachments(items, null), /conversationAttachment.unavailable/);
+  assert.match(host.chatMessageAttachments([{...items[0], preview: 'blob:local-preview'}], 1, true),
+    /src="blob:local-preview"/);
+});
+
 test('attachment preview uses the original image URL and the shared focus-managed dialog', () => {
   const imageEvents = {}, dialogEvents = {}, error = {hidden: true};
   const image = {addEventListener: (name, listener) => { imageEvents[name] = listener; }};
