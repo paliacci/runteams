@@ -199,6 +199,7 @@
     "runteams_core/conversations/local_conversation_folders.py",
     "runteams_core/conversations/local_conversation_inputs.py",
     "runteams_core/conversations/local_conversation_tools.py",
+    "runteams_core/conversations/native_attachment_staging.py",
     "runteams_core/conversations/asset_history.py",
     "runteams_core/conversations/asset_memory.py",
     "runteams_core/conversations/asset_sources.py",
