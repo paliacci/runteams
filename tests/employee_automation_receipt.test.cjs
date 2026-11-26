@@ -32,6 +32,18 @@ test('automation reads the bound employee before the directory has loaded',async
  assert.equal(t.automation.current().items[0].id,7);
 });
 
+test('automation row waits for the updated revision before enabling actions',()=>{
+ const row=vm.runInNewContext(
+  script.slice(script.indexOf(' const vars=name=>'),script.indexOf(" window.addEventListener('runteams:languagechange'"))+'\nrow',
+  {esc:String,copy:key=>key,ICON:()=>'',automationListSchedule:()=>'',pending:()=>null}
+ );
+ const plan={id:1,name:'Daily review',enabled:true,runs:[]};
+ const disabledControls=state=>Array.from(row(plan,state).matchAll(/<button\b[^>]*>/g),
+  ([tag])=>[tag.match(/data-schedule-control="([^"]+)"/)[1],/\sdisabled\b/.test(tag)]);
+ assert.deepEqual(disabledControls({loading:true,busy:false}),[['toggle',true],['history',false],['menu',true]]);
+ assert.deepEqual(disabledControls({loading:false,busy:false}),[['toggle',false],['history',false],['menu',false]]);
+});
+
 function historyDialog(){
  const owner={pipeline:true,owner:{data:{workflows:[{id:9,state:'completed'},{id:10,state:'failed'}]}}};
  const item={id:2,name:'Daily review',runs:[]};
