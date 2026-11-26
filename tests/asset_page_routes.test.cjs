@@ -3,6 +3,33 @@ const fs = require('node:fs');
 const test = require('node:test');
 const vm = require('node:vm');
 
+test('reopening a chat reads a background delivery and keeps a live local turn attached', async () => {
+  const source = fs.readFileSync('web/index.html', 'utf8');
+  const start = source.indexOf('function readConversationSession(');
+  const end = source.indexOf('function restoreConversationWorkspace(', start);
+  const stale = {id: 42, messages: []};
+  const delivered = {id: 42, messages: [{role: 'bot', text: 'Delivered'}]};
+  const state = {chats: [{id: 42}], conversationPanel: stale};
+  const calls = [];
+  const context = {
+    S: state, cachedConversationPanel: () => stale,
+    _workspaceStateByKey: new Map(), _conversationPanelLoadSequence: 0,
+    RunTeamsEmployeeDirectory: {employeePanel: () => false, forPanel: () => null, entryFor: () => null},
+    workspaceEmployeeWindowIdentity: () => null, hostConversationInRail() {}, closePop() {},
+    captureConversationPanelDraft() {}, rememberConversationPanel() {}, restoreConversationPanelDraft() {},
+    conversationPanelLoadingState: value => value, conversationPanelFromSession: value => value,
+    api: async (url, method, body, options) => { calls.push([url, options.readCurrent]); return delivered; },
+  };
+  vm.runInNewContext(source.slice(start, end), context);
+  const options = {readCurrent: true, focus: false, render: false};
+  assert.equal(await context.loadConversationPanelSession(42, options), delivered);
+  assert.deepEqual(calls, [['/api/chat/42?messages_limit=30', true]]);
+  state.conversationPanel = {id: 42, busy: true, messages: []};
+  const live = state.conversationPanel;
+  assert.equal(await context.loadConversationPanelSession(42, options), live);
+  assert.equal(calls.length, 1);
+});
+
 test('employee and pipeline links identify their objects on cold load and after loading chat IDs', () => {
   const host = {
     location: {origin: 'http://localhost'},

@@ -345,7 +345,7 @@
     ?copy('scheduledAutomation.skippedByUser','用户已跳过这一次定时。'):esc(r.reason)}</p>`:''}
    ${r.status==='failed'&&completedWork.has(r.workflow_id)?`<p>${copy('scheduledAutomation.linkedTaskCompleted','关联任务现已完成。')}</p>`:''}
    ${r.workflow_id?`<button class="btn" onclick="closeModal();${owner.pipeline?`RunTeamsSourcePipelines.openWork(${Number(r.workflow_id)})`:`openCoreWorkflow(${Number(r.workflow_id)},{storageScope:'device'})`}">${copy('scheduledAutomation.openWork','查看工作记录')}</button>`:''}
-   ${r.chat_id&&!owner.pipeline?`<button class="btn" onclick="closeModal();openConversationSession(${Number(r.chat_id)},'general')">${copy('workRecordDetail.openConversation','打开对话')}</button>`:''}
+   ${r.chat_id&&!owner.pipeline?`<button class="btn" onclick="closeModal();openConversationSession(${Number(r.chat_id)},'general',{readCurrent:true})">${copy('workRecordDetail.openConversation','打开对话')}</button>`:''}
    ${r.status==='interrupted'?`<button class="btn" onclick="closeModal();RunTeamsEmployeeAutomation.resolve(${Number(item.id)})">${copy('scheduledAutomation.markIncomplete','标记为未完成')}</button>`:''}
   </div>`).join('')}</div>`:owner.error?'':`<p>${copy('automationEditor.historyEmpty','还没有运行记录')}</p>`;
   const dialog=openDialog({

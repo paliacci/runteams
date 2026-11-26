@@ -1548,7 +1548,7 @@ function railSearchKeydown(event){
   else if(event.key==="ArrowUp"){event.preventDefault();S.railSearchIndex=(S.railSearchIndex-1+items.length)%items.length;railSearchSyncActive();}
   else if(event.key==="Enter"){event.preventDefault();items[S.railSearchIndex].click();}
 }
-function railSearchChoose(kind,id){closeRailSearch();if(kind==="document")openDocumentReaderById(id);else{const chat=S.chats.find(item=>Number(item.id)===Number(id));openConversationSession(id,chat?.kind||"general");}}
+function railSearchChoose(kind,id){closeRailSearch();if(kind==="document")openDocumentReaderById(id);else{const chat=S.chats.find(item=>Number(item.id)===Number(id));openConversationSession(id,chat?.kind||"general",{readCurrent:true});}}
 function railSearchNewChat(){closeRailSearch();newRailChat();}
 
 function activeRailMode(){return S.railMode==="assistant"?"assistant":"navigation";}
@@ -7076,8 +7076,8 @@ function localConversationLayout(id){
   }
   return '';
 }
-function readConversationSession(id){
-  return api('/api/chat/'+id+'?messages_limit=30');
+function readConversationSession(id,readCurrent=false){
+  return api('/api/chat/'+id+'?messages_limit=30','GET',undefined,{readCurrent});
 }
 async function loadConversationPanelSession(id,options={}){
   const embedded=options.embedded;
@@ -7096,7 +7096,8 @@ async function loadConversationPanelSession(id,options={}){
   };
   const employeeOpen=S.workspaceSwitchPending?.employeeOpen;
   if(employeeOpen)workspaceFinishSwitchPending();
-  if(typeof RunTeamsChatActivity!=='undefined'&&RunTeamsChatActivity.needsRefresh(S,id,cachedConversationPanel(id)||S.conversationPanel))options={...options,refresh:true};
+  const targetPanel=String(S.conversationPanel?.id)===String(id)?S.conversationPanel:cachedConversationPanel(id);
+  if((options.readCurrent&&targetPanel&&!targetPanel.busy)||typeof RunTeamsChatActivity!=='undefined'&&RunTeamsChatActivity.needsRefresh(S,id,targetPanel))options={...options,refresh:true};
   const current=S.conversationPanel;if(!options.refresh&&current&&!current.loading&&String(current.id)===String(id)){mount(current,{save:false,expand:options.expand});if(options.render!==false)render();if(options.focus!==false&&!current.busy)setTimeout(()=>document.getElementById("conversation_box")?.focus(),30);return current;}
   const sequence=++_conversationPanelLoadSequence,summary=S.chats.find(item=>String(item.id)===String(id));
   captureConversationPanelDraft();rememberConversationPanel(current);
@@ -7112,7 +7113,7 @@ async function loadConversationPanelSession(id,options={}){
     S.conversationPanel={...conversationPanelLoadingState({id,title:options.title||(summary&&summary.title)||"正在准备",railHosted:true}),loading:true,loadingLayout:employeeOpen?.layout,employeeListKey,retry:{id,title:options.title||(summary&&summary.title)||""}};mount(S.conversationPanel,{expand:options.expand});
     if(options.render!==false)render();
   }
-  let session;try{session=options.session||await readConversationSession(id);}catch(error){session={error:error.status===404?"这段对话已不存在":error.message||error};}if(sequence!==_conversationPanelLoadSequence||!stillHere())return;
+  let session;try{session=options.session||await readConversationSession(id,options.readCurrent);}catch(error){session={error:error.status===404?"这段对话已不存在":error.message||error};}if(sequence!==_conversationPanelLoadSequence||!stillHere())return;
   if(session.error||!session.id){S.conversationPanel={...S.conversationPanel,loading:false,error:session.error||"这段对话已不存在"};rememberConversationPanel();if(options.render!==false)render();return;}
   S.conversationPanel=conversationPanelFromSession(session,{railHosted:options.railHosted!==false});restoreConversationPanelDraft();mount(S.conversationPanel,{save:false,expand:options.expand});if(changingChat&&options.restoreWorkspace!==false)restoreConversationWorkspace(S.conversationPanel,targetSnapshot);
   if(options.render!==false)render();if(options.focus!==false)setTimeout(()=>document.getElementById("conversation_box")?.focus(),30);return S.conversationPanel;
@@ -7321,7 +7322,7 @@ async function openEmployeeSourceConversation(employeeId,options={}){
 
 async function openScopedConversationPanel(id,options={}){
   clearConversationAttachments("chat");clearConversationCapabilities("chat");syncRailWidthForMode("assistant");S.railMode="assistant";S.railCollapsed=false;saveRailLayout();S.chatId=null;S.chatMode="";S.chatMsgs=[];resetDetailWorkspace();
-  const panel=await loadConversationPanelSession(id,{railHosted:true,focus:false});if(!panel)return;
+  const panel=await loadConversationPanelSession(id,{railHosted:true,focus:false,readCurrent:options.readCurrent});if(!panel)return;
   if(panel.storage_scope==='device'&&panel.context?.creator_local_source_id){setAppUrl('/chat/'+Number(id),true);render();}
   else{await restoreWorkspaceForRailChat({forceWorkspace:true,replace:true});syncRailRoute(id,true);}if(options.focus!==false)setTimeout(()=>document.getElementById("conversation_box")?.focus(),40);
 }
@@ -7340,7 +7341,7 @@ async function openRailConversationSession(id,options={}){
   const suffix=options.session&&!employeePage?location.search+location.hash:'';
   setAppUrl(target+suffix,!!options.replace);
   const workspacePromise=dedicated?Promise.resolve(true):restoreWorkspaceForRailChat(options);
-  const loaded=await loadConversationPanelSession(id,{session:options.session,railHosted:true,focus:options.focus!==false,employeeKey:options.employeeKey});
+  const loaded=await loadConversationPanelSession(id,{session:options.session,railHosted:true,focus:options.focus!==false,employeeKey:options.employeeKey,readCurrent:options.readCurrent});
   await workspacePromise;
   if(!loaded||S.conversationPanel!==loaded||S.railMode!=="assistant")return;
   const owner=loaded.owner_path;
