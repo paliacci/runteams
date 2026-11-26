@@ -221,7 +221,7 @@
  }
  const vars=name=>`data-app-i18n-vars="${esc(JSON.stringify({name}))}"`;
  function row(item,s){
-  const id=Number(item.id),paused=!item.enabled,latest=item.runs?.[0],disabled=s.loading||s.busy||!!pending(s);
+  const id=Number(item.id),paused=!item.enabled,latest=item.runs?.[0],disabled=s.loading||s.busy||s.error||s.unavailable||!!pending(s);
   const enabled=paused?copy('automationList.paused','已暂停'):copy('automationList.enabled','已启用');
   const statusId='employee-schedule-status-'+id,description=`aria-describedby="${statusId}"`;
   const actionKey=paused?'scheduledAutomation.enableFor':'scheduledAutomation.pauseFor';

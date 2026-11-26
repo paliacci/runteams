@@ -41,6 +41,7 @@ test('automation row waits for the updated revision before enabling actions',()=
  const disabledControls=state=>Array.from(row(plan,state).matchAll(/<button\b[^>]*>/g),
   ([tag])=>[tag.match(/data-schedule-control="([^"]+)"/)[1],/\sdisabled\b/.test(tag)]);
  assert.deepEqual(disabledControls({loading:true,busy:false}),[['toggle',true],['history',false],['menu',true]]);
+ assert.deepEqual(disabledControls({loading:false,error:'Read failed'}),[['toggle',true],['history',false],['menu',true]]);
  assert.deepEqual(disabledControls({loading:false,busy:false}),[['toggle',false],['history',false],['menu',false]]);
 });
 
