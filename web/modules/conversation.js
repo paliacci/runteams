@@ -906,7 +906,7 @@ async function checkConversationLocalTurn(button){
     ||button.closest("[data-local-turn-recovery]")?.dataset.localTurnRecovery!==recovery.operationId)return;
   const generation=conversationQueueGeneration(),action=button.dataset.recoveryAction;
   const current=()=>conversationQueueGeneration()===generation&&panel.localTurnRecovery===recovery;
-  const visible=()=>S.conversationPanel===panel&&conversationPanelIsVisibleHere(panel);
+  const visible=()=>S.conversationPanel===panel;
   const notice=()=>document.querySelector("[data-local-turn-recovery]");
   const updateNotice=()=>{
     if(!visible())return;
@@ -974,7 +974,10 @@ async function checkConversationLocalTurn(button){
     render();
     const box=conversationInputElement("panel");
     if(editorFocused||buttonFocused&&!panel.localTurnRecovery)box?.focus({preventScroll:true});
-    else if(buttonFocused)notice()?.querySelector(`[data-recovery-action="${action}"]`)?.focus({preventScroll:true});
+    else if(buttonFocused){
+      const next=notice();
+      (next?.querySelector(`[data-recovery-action="${action}"]`)||next?.querySelector("button"))?.focus({preventScroll:true});
+    }
     if(selection)restoreConversationSelection("panel",selection.start,selection.end);
     if(recovery.hasReply){RunTeamsAssetOverview.refreshKnowledgeAfterTurn(panel);void syncConversationWork(true);}
   }
