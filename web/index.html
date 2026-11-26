@@ -6899,7 +6899,8 @@ function railConversationIsVisible(panel=S.conversationPanel){return !!(panel&&c
 function serializableConversationDraftValue(value,fallback){try{return JSON.parse(JSON.stringify(value));}catch(e){return fallback;}}
 function serializableConversationDraftAttachment(item){if(!item||item.file||(!item.pickToken&&!item.reuseId&&item.kind!=="local_asset"&&item.kind!=="folder_path"))return null;return serializableConversationDraftValue(item,null);}
 function conversationLocalTurnSnapshot(recovery){
-  if(!recovery||!/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(recovery.operationId))return null;
+  const generation=S.localLibrary?.generation;
+  if(!generation||recovery?.generation!==generation||!/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(recovery.operationId))return null;
   const pending=recovery.draft;
   let draft=null;
   if(pending){
@@ -6915,7 +6916,7 @@ function conversationLocalTurnSnapshot(recovery){
       example_materials:serializableConversationDraftValue(pending.example_materials,null),
       editRewind:serializableConversationDraftValue(pending.editRewind,null)};
   }
-  return {operationId:recovery.operationId,accepted:recovery.accepted===true,draft,
+  return {operationId:recovery.operationId,generation,accepted:recovery.accepted===true,draft,
     queuedId:typeof recovery.queuedId==="string"?recovery.queuedId:null};
 }
 function saveConversationPanelDrafts(){try{const entries=Object.entries(S.conversationPanelDrafts||{}).sort((a,b)=>Number(b[1]?.saved_at||0)-Number(a[1]?.saved_at||0)).slice(0,30);S.conversationPanelDrafts=Object.fromEntries(entries);workspaceBusinessStorage.setItem(CONVERSATION_DRAFTS_KEY,JSON.stringify(S.conversationPanelDrafts));}catch(e){}}
@@ -7259,7 +7260,7 @@ async function sendConversationPanel(options={}){
     if(e?.localTurnId&&panel.id){
       if(businessGenerationAtSend===_workspaceBusinessGeneration){
         const draft=accepted||queued?null:{input:rawDraft,capabilities:pendingCapabilities,attachments:pending,example_materials:exampleAtSend,editRewind:panel.editRewind};
-        panel.localTurnRecovery={operationId:e.localTurnId,accepted,draft,queuedId:accepted?null:queued?.id};
+        panel.localTurnRecovery={operationId:e.localTurnId,generation:S.localLibrary?.generation,accepted,draft,queuedId:accepted?null:queued?.id};
         panel.messages=panel.messages.filter(message=>message!==live&&(accepted||message!==sent));
         captureConversationPanelDraft({panel,fromState:true,replacedDraft:draft?{key:draftKeyAtSend,snapshot:savedDraftAtSend}:null});
       }
