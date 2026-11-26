@@ -6553,15 +6553,33 @@ function addConversationFiles(surface,files){
 async function openConversationAttachmentPicker(surface){
   closePop();
   if(!(S.appInfo&&S.appInfo.native_attachment_picker)){document.getElementById(surface==="panel"?"conversation_files":"chat_files")?.click();return;}
+  const panel=surface==="panel"?S.conversationPanel:null;
+  const chatId=S.chatId,windowKey=S.activeWorkspaceKey,generation=_workspaceBusinessGeneration;
+  const ownsSelection=()=>{
+    if(generation!==_workspaceBusinessGeneration)return false;
+    if(surface!=="panel")return S.chatId===chatId&&S.activeWorkspaceKey===windowKey;
+    if(!panel)return false;
+    const windows=S.workspaceWindows||[];
+    if(S.conversationPanel===panel&&(!windowKey||windows.some(row=>row.key===windowKey)))return true;
+    return windows.some(row=>_workspaceStateByKey.get(row.key)?.conversationPanel===panel);
+  };
   try{
     const result=await api("/api/attachments/pick","POST",{});
+    if(!ownsSelection())return;
     if(result.error){toast(result.error,"err");return;}
-    addConversationPickedAttachments(surface,result.items||[]);
-  }catch(e){toast("无法打开文件选择器，请重试。","err","composer.pickerFailed");}
+    addConversationPickedAttachments(surface,result.items||[],panel);
+  }catch(e){if(ownsSelection())toast("无法打开文件选择器，请重试。","err","composer.pickerFailed");}
 }
-function addConversationPickedAttachments(surface,items){
+function addConversationPickedAttachments(surface,items,panel=S.conversationPanel){
   const additions=items.map(item=>({localId:(surface==="panel"?"pp":"p")+item.token,pickToken:item.token,name:item.name,size:item.size,kind:item.kind,file_count:item.file_count||1,mime_type:item.kind==="folder"?"inode/directory":"application/octet-stream"}));
-  if(additions.length){setConversationAttachments(surface,[...conversationAttachments(surface),...additions]);rerenderConversation(surface);}
+  if(!additions.length)return;
+  if(surface==="panel"&&panel!==S.conversationPanel){
+    panel.attachments=[...(panel.attachments||[]),...additions];
+    captureConversationPanelDraft({panel,fromState:true});
+    return;
+  }
+  setConversationAttachments(surface,[...conversationAttachments(surface),...additions]);
+  rerenderConversation(surface);
 }
 function removeConversationAttachment(surface,id){const items=conversationAttachments(surface),item=items.find(x=>x.localId===id);if(item&&item.preview)URL.revokeObjectURL(item.preview);setConversationAttachments(surface,items.filter(x=>x.localId!==id));if(item?.kind==="folder_path")refreshConversationDraftItems(surface);else rerenderConversation(surface);}
 function clearConversationAttachments(surface){conversationAttachments(surface).forEach(x=>{if(x.preview)URL.revokeObjectURL(x.preview);});setConversationAttachments(surface,[]);}
@@ -6881,7 +6899,7 @@ function serializableConversationDraftAttachment(item){if(!item||item.file||(!it
 function saveConversationPanelDrafts(){try{const entries=Object.entries(S.conversationPanelDrafts||{}).sort((a,b)=>Number(b[1]?.saved_at||0)-Number(a[1]?.saved_at||0)).slice(0,30);S.conversationPanelDrafts=Object.fromEntries(entries);workspaceBusinessStorage.setItem(CONVERSATION_DRAFTS_KEY,JSON.stringify(S.conversationPanelDrafts));}catch(e){}}
 let _conversationPanelDraftSaveTimer=null;
 function scheduleConversationPanelDraftSave(){clearTimeout(_conversationPanelDraftSaveTimer);_conversationPanelDraftSaveTimer=setTimeout(()=>captureConversationPanelDraft(),180);}
-function captureConversationPanelDraft(options={}){const panel=S.conversationPanel;if(!panel||panel.loading||panel.error||S.workspaceStartup?.pending&&!S.workspaceStartup.contentReady&&!S.workspaceStartup.navigationDetached||S.workspaceStartup?.existing&&S.workspaceStartup.panel===panel)return;const key=conversationPanelDraftKey(panel),box=document.getElementById("conversation_box");if(box&&!options.fromState)panel.input=conversationInputValue(box);const input=panel.input||"",attachments=(panel.attachments||[]).map(serializableConversationDraftAttachment).filter(Boolean),capabilities=serializableConversationDraftValue(panel.capabilities||[],[]);const queue=conversationQueueSnapshot(panel);if(!input&&!attachments.length&&!capabilities.length&&!queue)delete S.conversationPanelDrafts[key];else S.conversationPanelDrafts[key]={input,attachments,capabilities,queue,example_materials:serializableConversationDraftValue(panel.example_materials,null),saved_at:Date.now()};saveConversationPanelDrafts();}
+function captureConversationPanelDraft(options={}){const panel=options.panel||S.conversationPanel;if(!panel||panel.loading||panel.error||S.workspaceStartup?.pending&&!S.workspaceStartup.contentReady&&!S.workspaceStartup.navigationDetached||S.workspaceStartup?.existing&&S.workspaceStartup.panel===panel)return;const key=conversationPanelDraftKey(panel),box=document.getElementById("conversation_box");if(box&&!options.fromState&&panel===S.conversationPanel)panel.input=conversationInputValue(box);const input=panel.input||"",attachments=(panel.attachments||[]).map(serializableConversationDraftAttachment).filter(Boolean),capabilities=serializableConversationDraftValue(panel.capabilities||[],[]);const queue=conversationQueueSnapshot(panel);if(!input&&!attachments.length&&!capabilities.length&&!queue)delete S.conversationPanelDrafts[key];else S.conversationPanelDrafts[key]={input,attachments,capabilities,queue,example_materials:serializableConversationDraftValue(panel.example_materials,null),saved_at:Date.now()};saveConversationPanelDrafts();}
 function clearConversationPanelDraft(panel=S.conversationPanel,key=conversationPanelDraftKey(panel)){if(!key)return;delete S.conversationPanelDrafts[key];saveConversationPanelDrafts();}
 function restoreConversationPanelDraft(panel=S.conversationPanel){
   if(!panel)return false;
