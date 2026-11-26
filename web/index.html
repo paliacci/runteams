@@ -6963,6 +6963,7 @@ function restoreConversationPanelDraft(panel=S.conversationPanel){
     panel.editRewind={messageId:editId};
     const index=panel.messages.findIndex(message=>message.id===editId&&message.role==="user");
     if(index>=0)panel.messages=panel.messages.slice(0,index);
+    else if(panel.historyPage?.has_more&&panel.messages[0]?.id>editId)panel.messages=[];
   }
   panel.attachments=(saved.attachments||[]).slice();
   const restored=conversationRestoreLegacyFolders(saved.input);

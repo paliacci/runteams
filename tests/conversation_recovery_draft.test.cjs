@@ -108,6 +108,12 @@ test('an unsent edit reopens at its original message and keeps the preceding his
   assert.deepEqual(reopened.messages, history.slice(0,2));
   assert.equal(history.length, 4);
 
+  const paged = {id:21, messages:[{id:15,role:'user'}], historyPage:{has_more:true}};
+  draftsHost(saved()).host.restoreConversationPanelDraft(paged);
+  assert.equal(paged.editRewind.messageId, 13);
+  assert.equal(paged.messages.length, 0);
+  assert.equal(paged.historyPage.has_more, true);
+
   // Keep the original target if another window has already replaced it.
   // The send must still be validated as an edit by the service.
   const changed = {id:21, messages:[{id:15,role:'user'}]};

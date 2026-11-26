@@ -1925,7 +1925,9 @@ async function loadOlderConversationMessages(){
     if(result.error)throw Object.assign(new Error(result.error),{code:result.code});
     if(!Array.isArray(result.messages)||typeof result.messages_page?.has_more!=='boolean'||result.messages_page.has_more!==!!result.messages_page.next_cursor||result.messages_page.next_cursor===cursor)throw new Error('较早的消息没有载入');
     const ids=new Set(panel.messages.map(item=>Number(item.id)));
-    panel.messages=[...result.messages.filter(item=>!ids.has(Number(item.id))).map(storedConversationMessage),...panel.messages];
+    const editId=panel.editRewind?.messageId;
+    const earlier=result.messages.filter(item=>!ids.has(Number(item.id))&&(!editId||Number(item.id)<editId));
+    panel.messages=[...earlier.map(storedConversationMessage),...panel.messages];
     panel.historyPage=result.messages_page;panel.historyReset=false;
   }catch(error){if(S.conversationPanel===panel){panel.historyError=error.message||'较早的消息没有载入';panel.historyReset=error.code==='invalid_cursor';}}
   finally{panel.historyLoading=false;if(S.conversationPanel===panel)render();}
