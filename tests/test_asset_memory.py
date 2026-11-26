@@ -477,6 +477,37 @@ class AssetMemoryTests(TestCase):
             self.assertEqual(office_text.preview('.doc', b'original')['text'], 'Word text')
         self.assertEqual(worker.call_args.kwargs['stdin'], subprocess.DEVNULL)
 
+    def test_windows_pdf_uses_explorer_open_and_respects_dispatch_errors(self):
+        from runteams_core.foundation import file_manager
+
+        with TemporaryDirectory() as folder, patch.object(file_manager.sys, 'platform', 'win32'), \
+                patch.object(file_manager, '_invoke_explorer_open') as invoke, \
+                patch.object(file_manager.os, 'startfile', create=True) as default:
+            pdf = Path(folder) / '原件.PDF'
+            pdf.write_bytes(b'%PDF-')
+            file_manager.open_path(pdf)
+            invoke.assert_called_once_with(pdf)
+            default.assert_not_called()
+
+            no_verb = OSError('no associated Open verb')
+            no_verb.winerror = 1155
+            invoke.side_effect = no_verb
+            file_manager.open_path(pdf)
+            default.assert_called_once_with(str(pdf))
+            default.reset_mock()
+
+            denied = PermissionError('denied')
+            denied.winerror = 5
+            invoke.side_effect = denied
+            with self.assertRaises(PermissionError):
+                file_manager.open_path(pdf)
+            default.assert_not_called()
+
+            directory = Path(folder) / '工作.PDF'
+            directory.mkdir()
+            file_manager.open_path(directory)
+            default.assert_called_once_with(str(directory))
+
     def test_external_viewer_keeps_long_original_name_and_cleans_up(self):
         from runteams_core.conversations import asset_sources
         from runteams_core.foundation import file_manager

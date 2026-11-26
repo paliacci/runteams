@@ -7,6 +7,14 @@ import sys
 
 def open_path(path):
     if sys.platform == 'win32':
+        if Path(path).suffix.casefold() == '.pdf' and Path(path).is_file():
+            try:
+                _invoke_explorer_open(path)
+                return
+            except OSError as error:
+                # Some file associations register only a default verb other than "open".
+                if getattr(error, 'winerror', None) != 1155:  # ERROR_NO_ASSOCIATION
+                    raise
         os.startfile(os.fspath(path))
     else:
         opener = 'open' if sys.platform == 'darwin' else 'xdg-open'
@@ -23,6 +31,38 @@ def reveal(path):
         subprocess.run(['open', '-R', str(path)], check=True, capture_output=True, timeout=10)
     else:
         open_path(path.parent)
+
+
+def _invoke_explorer_open(path):
+    """Invoke the file's Explorer Open command on the HTTP request thread."""
+    import ctypes
+    from ctypes import wintypes
+
+    class ShellExecuteInfo(ctypes.Structure):
+        _fields_ = [
+            ('cbSize', wintypes.DWORD), ('fMask', wintypes.ULONG), ('hwnd', wintypes.HWND),
+            ('lpVerb', wintypes.LPCWSTR), ('lpFile', wintypes.LPCWSTR), ('lpParameters', wintypes.LPCWSTR),
+            ('lpDirectory', wintypes.LPCWSTR), ('nShow', ctypes.c_int), ('hInstApp', wintypes.HINSTANCE),
+            ('lpIDList', wintypes.LPVOID), ('lpClass', wintypes.LPCWSTR), ('hkeyClass', wintypes.HKEY),
+            ('dwHotKey', wintypes.DWORD), ('hIcon', wintypes.HANDLE), ('hProcess', wintypes.HANDLE),
+        ]
+
+    ole = ctypes.OleDLL('ole32')
+    ole.CoInitializeEx.argtypes = [wintypes.LPVOID, wintypes.DWORD]
+    ole.CoUninitialize.restype = None
+    shell = ctypes.WinDLL('shell32', use_last_error=True)
+    shell.ShellExecuteExW.argtypes = [ctypes.POINTER(ShellExecuteInfo)]
+    shell.ShellExecuteExW.restype = wintypes.BOOL
+    # INVOKEIDLIST uses Explorer's context-menu handler. NOASYNC completes dispatch
+    # before this request thread releases its COM apartment.
+    info = ShellExecuteInfo(cbSize=ctypes.sizeof(ShellExecuteInfo), fMask=0x0C | 0x100,
+                            lpVerb='open', lpFile=os.fspath(path), nShow=1)
+    ole.CoInitializeEx(None, 0x2 | 0x4)  # APARTMENTTHREADED | DISABLE_OLE1DDE
+    try:
+        if not shell.ShellExecuteExW(ctypes.byref(info)):
+            raise ctypes.WinError(ctypes.get_last_error())
+    finally:
+        ole.CoUninitialize()
 
 
 def _select_in_explorer(path):
