@@ -325,6 +325,19 @@ def pending_changes(store, identity):
                 'changes':[{'path':p,'kind':'deleted' if p not in after else 'added' if p not in before else 'modified'}
                     for p in sorted(before.keys()|after.keys()) if before.get(p)!=after.get(p)]})
         finally:os.close(fd)
+    if result:
+        from runteams_core.storage import device_data
+        with device_data.connect(readonly=True) as connection:
+            for item in result:
+                row = connection.execute(
+                    "SELECT title, title_source, (SELECT substr(text,1,320) FROM chat_messages "
+                    "WHERE chat_id=chats.id AND role='user' ORDER BY id LIMIT 1) AS first_user_message_text "
+                    "FROM chats WHERE id=? AND kind='employee_design' "
+                    "AND json_extract(context_json,'$.creator_local_source_id')=?",
+                    (str(item['session_id']), identity),
+                ).fetchone()
+                if row:
+                    item['conversation'] = dict(row)
     return result
 
 

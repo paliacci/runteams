@@ -334,7 +334,7 @@ function editorMarkup(s){const e=s.editing;if(!e)return '';return `<div class="s
 function recoveryMarkup(s){
  return (s.pendingAuthoring||[]).map(item=>{
   const id=Number(item.session_id);
-  const row=S.chats?.find(chat=>String(chat.id)===String(id));
+  const row=item.conversation?{...item.conversation,id}:S.chats?.find(chat=>String(chat.id)===String(id));
   const title=row&&window.RunTeamsEmployeeDirectory?.sessionTitle(row);
   const heading=`<h3 id="creator_recovery_${id}"><span data-app-i18n="employeeResource.recoveryChat" data-app-i18n-vars="${esc(JSON.stringify({id:String(id)}))}">对话 ${id}</span>${title?' · '+esc(title):''}</h3>`;
   const disabled=busy(s)?'disabled':'';

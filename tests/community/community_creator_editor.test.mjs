@@ -6,14 +6,17 @@ test('unreadable pending source points to its original conversation and cannot b
  const e=setup();await e.author.open();
  const state=e.author.current(),opened=[];
  state.pendingAuthoring=[
-  {session_id:11,state:'interrupted',changes:[],error:'source validation failed'},
+  {session_id:11,state:'interrupted',changes:[],error:'source validation failed',
+   conversation:{title_source:'manual',title:'Draft review'}},
   {session_id:12,state:'running'},
  ];
  e.context.closeDetailWorkspace=()=>{e.S.sel=null;};
+ e.context.RunTeamsEmployeeDirectory={sessionTitle:row=>row.title};
  e.context.openRailConversationSession=(id,options)=>opened.push([id,options.device,options.readCurrent]);
  e.author.decorateHeader();e.header().extras.actions.find(a=>a.id==='recovery').onPress();
  const body=e.dialog().body;
  assert.match(body,/aria-labelledby="creator_recovery_11"/);
+ assert.match(body,/Draft review/);
  assert.match(body,/aria-labelledby="creator_recovery_12"/);
  assert.match(body,/employeeResource\.repairRequired/);
  assert.match(body,/source validation failed/);
