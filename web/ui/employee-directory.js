@@ -375,6 +375,12 @@
   const currentPanel=()=>currentEntry()&&S.conversationPanel===panel&&forPanel(panel)?.key===key&&S.surface!=='source-pipeline';
   const button=event.currentTarget;
   const items=[{label:'打开',labelKey:'employeeSettings.open',icon:'eye',fn:()=>{const target=button.isConnected?button:document.querySelector(`.bot-list-row[data-employee-key="${CSS.escape(key)}"]`);if(currentEntry()&&target)botListOpen(target);}}];
+  if(S.localLibrary&&currentPanel()&&entry.source){
+   items.push({label:'资源',labelKey:'employeeSettings.resources',icon:'folder',fn:()=>{
+    const source=currentEntry()?.source;
+    if(currentPanel()&&source)return RunTeamsCreatorAuthor.openSource(source);
+   }});
+  }
   if(currentPanel()&&window.RunTeamsCreatorWork?.hasWorkbench(panel)){
    items.push({label:'工作台',labelKey:'employeeWork.title',icon:'clipboard-check',fn:()=>{if(currentPanel())RunTeamsCreatorWork.showPanel();}});
   }

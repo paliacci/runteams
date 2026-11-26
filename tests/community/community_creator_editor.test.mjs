@@ -2,6 +2,33 @@ import {test} from 'node:test';
 import {createHash} from 'node:crypto';
 import assert from 'node:assert/strict';
 import {setup} from './creator_author_fixture.cjs';
+test('interrupted source changes can be reviewed and recovered from the resource header',async()=>{
+ const e=setup();
+ const changes=[{kind:'modified',path:'employees/soul.md'}];
+ let pending=[7,9].map(session_id=>({session_id,state:'interrupted',changes}));
+ let revision=e.id;
+ e.setRespond(async(path,options)=>{
+  if(path.endsWith('/workspace'))return {ok:true,json:async()=>({revision,source:{files:e.files},pending_authoring:pending})};
+  if(path.endsWith('/recovery')){
+   const body=JSON.parse(options.body);
+   assert.deepEqual(body,{session_id:pending[0].session_id,base_revision:revision});
+   pending=pending.slice(1);
+   revision='r-'+createHash('sha256').update(String(body.session_id)).digest('hex');
+   return {ok:true,json:async()=>({revision})};
+  }
+  return e.defaultRespond(path,options);
+ });
+ await e.author.open();e.author.decorateHeader();
+ const action=e.header().extras.actions.find(item=>item.id==='recovery');
+ action.onPress();assert.match(e.dialog().body,/employees\/soul\.md/);
+ await e.author.recoverAuthoring(7);
+ assert.doesNotMatch(e.dialog().body,/recoverAuthoring\(7\)/);
+ assert.match(e.dialog().body,/recoverAuthoring\(9\)/);
+ await e.author.recoverAuthoring(9);e.author.decorateHeader();
+ assert.equal(e.dialog(),null);
+ assert.ok(!e.header().extras.actions.some(item=>item.id==='recovery'));
+ action.onPress();assert.equal(e.dialog(),null);
+});
 test('same editor uses captured library generation and never reads official publications',async()=>{
  const e=setup();await e.author.open();assert.equal(e.author.current().file.content,'original source');
  assert.ok(e.calls.length>=5);for(const {path,options} of e.calls){assert.equal(options.headers['X-RunTeams-Library'],'library');assert.equal(options.headers['X-RunTeams-Library-Generation'],'generation-1');assert.equal(options.headers['X-RunTeams-Device-Scope'],undefined);assert.doesNotMatch(path,/publication|configuration/);}

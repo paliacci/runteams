@@ -357,6 +357,7 @@ function syncOperationDialog(){
  if(typeof openDialog!=='function')return;
  const s=current();if(!s||!s.localDraft&&!s.localSession){if(operationOwner)closeOperation();return;}
  if(s.operationView==='edit'&&!s.editing&&!s.pending)s.operationView=null;
+ if(s.operationView==='recovery'&&!busy(s)&&!s.error&&!s.pendingAuthoring?.length)s.operationView=null;
  const errorKey={
   '保存结果待核对，编辑内容已保留。':'employeeHistory.editUnconfirmed',
   '无法核对原操作结果。':'employeeHistory.checkFailed',
@@ -486,6 +487,11 @@ function decorateHeader(){
  if(s.localDraft){
   // A cached action is presentation only; the handler always checks live facts.
   const actionsProvider=extension();
+  if(s.pendingAuthoring?.some(item=>item.state==='interrupted')){
+   actions.push({id:'recovery',label:'未完成的修改',labelKey:'employeeResource.unfinishedEdits',popup:'dialog',disabled,onPress:()=>{
+    if(current()===s&&!busy(s)&&!s.editing&&s.pendingAuthoring.some(item=>item.state==='interrupted'))openOperation('recovery');
+   }});
+  }
   if(!actionsProvider)actions.push({id:'resources',label:'更多操作',labelKey:'employeeResource.more',popup:'dialog',disabled,onPress:()=>{if(current()===s)openOperation('resource');}});
   if(hasHistory(s))actions.push({id:'history',label:'历史版本',labelKey:'employeeHistory.title',platformId:'creator_history_trigger',popup:'dialog',expanded:!!s.historyOpen,disabled,onPress:()=>{if(current()===s)void history();}});
   if(actionsProvider)actions.push(...actionsProvider.header(s));
