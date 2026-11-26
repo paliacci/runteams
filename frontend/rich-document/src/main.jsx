@@ -7,6 +7,7 @@ import {extendedBlocks,blockReference} from './extended-blocks.jsx';
 import {EditorTools} from './editor-tools.jsx';
 import {registerEditor,locateBlock,walkBlocks,resolveDocumentReferences} from './editor-context.js';
 import {handleFragmentPaste,exportRecord} from './fragments.js';
+import {saveAsset} from './asset-store.js';
 import {request} from './host-bridge.js';
 import {en,zh} from '@blocknote/core/locales';
 import {EditorLanguage,useCopy,useEditorError} from './editor-locale.js';
@@ -114,8 +115,37 @@ function RichEditor({doc,record,embedded,theme,onReady}){
   const listener=e=>{if(e.source!==parent||e.origin!==location.origin||e.data?.channel!=='runteams-rich-document/1'||e.data.token!==location.hash.slice(1))return;if(e.data.type==='save-request'){if(e.data.flush_id)saver.current.before(()=>send('flushed',{flush_id:e.data.flush_id,ok:true}));else saver.current.flush();}if(e.data.type==='saved')saver.current.acknowledge(e.data);if(e.data.type==='header-action'){if(e.data.action==='export')void exportDocument();if(e.data.action==='retry-save'&&editing)saver.current.retry();}};
   const keydown=e=>{if(editing&&(e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='s'){e.preventDefault();saver.current.flush();}};
   const openBlock=e=>saver.current.before(()=>send('open-block',{document_id:e.detail.documentId,block_id:e.detail.blockId}));
+  const fileDropTarget=event=>{
+   if(!event.dataTransfer?.types.includes('Files'))return false;
+   event.preventDefault();
+   event.stopPropagation();
+   return editing&&editor.isEditable&&editor.domElement?.contains(event.target);
+  };
+  const dragover=event=>{
+   if(!event.dataTransfer?.types.includes('Files'))return;
+   event.dataTransfer.dropEffect=fileDropTarget(event)?'copy':'none';
+  };
+  const drop=async event=>{
+   if(!fileDropTarget(event))return;
+   const files=Array.from(event.dataTransfer.files);
+   if(!files.length)return;
+   const target=event.target.closest('[data-node-type="blockContainer"]');
+   const id=target?.dataset.id||editor.getTextCursorPosition().block.id;
+   setFeatureError('');
+   try{
+    const blocks=[];
+    for(const file of files){
+     const asset=await saveAsset(file);
+     if(!active.current||!editor.isEditable||!editor.getBlock(id))return;
+     const type=asset.type.startsWith('image/')?'image':asset.type.startsWith('video/')?'video':'file';
+     blocks.push({type,props:{assetId:asset.id,name:asset.name,mime:asset.type}});
+    }
+    editor.insertBlocks(blocks,id,'after');
+   }catch(error){if(active.current)setFeatureError(error.message);}
+  };
   window.addEventListener('runteams-open-block',openBlock);window.addEventListener('message',listener);window.addEventListener('keydown',keydown);send('dirty',{dirty:false});
-  return()=>{active.current=false;saver.current.dispose();window.removeEventListener('runteams-open-block',openBlock);window.removeEventListener('message',listener);window.removeEventListener('keydown',keydown);};
+  window.addEventListener('dragover',dragover,true);window.addEventListener('drop',drop,true);
+  return()=>{active.current=false;saver.current.dispose();window.removeEventListener('runteams-open-block',openBlock);window.removeEventListener('message',listener);window.removeEventListener('keydown',keydown);window.removeEventListener('dragover',dragover,true);window.removeEventListener('drop',drop,true);};
  },[]);
  useEffect(()=>{onReady?.(editor);},[editor,onReady]);
  const changed=()=>{if(editing)saver.current?.update(current());};
