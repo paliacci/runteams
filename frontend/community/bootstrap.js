@@ -201,7 +201,8 @@ export async function boot(value){
   S.localLibrary=identity;S.accountSessionReady=true;S.accountSessionError='';
   host.restoreWorkspace(savedWindows);
   lastWorkspace=savedWindows;workspaceScope=loadedScope;
-  const route=host.route(),deferRoutePaint=!new URL(location.href).searchParams.has('settings')&&!['home','chat-new'].includes(route.kind);
+  const startupLocation=location.href;
+  const route=host.route(),deferRoutePaint=!new URL(startupLocation).searchParams.has('settings')&&!['home','chat-new'].includes(route.kind);
   S.settingsPreferencesState='loading';
   Object.assign(S,{surface:'team',railMode:'assistant',railNavTab:S.railNavTab==='bots'?'bots':'team',booting:deferRoutePaint,bootRoute:route,bootError:null,
    workspaceStartup:null,navigationLoading:false,navigationError:'',
@@ -222,7 +223,12 @@ export async function boot(value){
   catch(error){S.settingsPreferencesState='error';}
   void pollWorkAlerts();
   await models;host.normalize();paint();
-  if(!new URL(location.href).searchParams.has('settings')){const route=host.route();if(route.kind==='docs'&&!route.documentId)await host.openDocuments();else if(route.kind==='trash')await host.openTrash();else if(!['home','chat-new'].includes(route.kind))await host.openRoute();}
+  // Interactive startup surfaces can navigate while the model catalog is pending.
+  if(deferRoutePaint&&location.href===startupLocation){
+   if(route.kind==='docs'&&!route.documentId)await host.openDocuments();
+   else if(route.kind==='trash')await host.openTrash();
+   else await host.openRoute();
+  }
   // Background directory/model reads may render too. Keep the URL shell until
   // the original route loader has committed its page, then publish it once.
   if(deferRoutePaint){S.booting=false;host.render();}
