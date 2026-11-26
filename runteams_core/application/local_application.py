@@ -21,7 +21,7 @@ class LocalApplication:
         self.backups.recover()
         self._generation=self.backups.generation
         self.base = directory / 'device-data'
-        self.provider = LocalLibrary()
+        self.provider = LocalLibrary(generation=self._generation)
         self.provider.work_factory=lambda **options:self.runtime.work_core(**options)
         self.binding = self.provider.resolve(self.base)
         self.assets = LocalAssets(self.binding.root, self.binding.library_id, self.check)
@@ -71,10 +71,8 @@ class LocalApplication:
         return {**self.binding.scope,'generation':self.backups.generation}
 
     def rebind(self):
-        if self._generation!=self.backups.generation:
-            from runteams_core.conversations import chat_attachments
-            chat_attachments.discard_native_selections(self.binding.scope)
         self._generation=self.backups.generation
+        self.provider.generation=self._generation
         self.binding=self.provider.resolve(self.base)
         self.assets=LocalAssets(self.binding.root,self.binding.library_id,self.check)
         self.settings=LibrarySettings(self.binding,self.check)

@@ -20,6 +20,7 @@ import warnings
 
 
 from runteams_core.documents.pdf_preview import PDF_LOCK
+from runteams_core.conversations import native_attachment_staging as staging
 from runteams_core.foundation.regular_files import storage_path
 from runteams_core.storage import product_store
 
@@ -54,20 +55,21 @@ TEXT_EXTENSIONS = {
 ALLOWED_EXTENSIONS = IMAGE_EXTENSIONS | TEXT_EXTENSIONS | {".pdf"}
 _IMAGE_FORMATS = {".png": "PNG", ".jpg": "JPEG", ".jpeg": "JPEG", ".webp": "WEBP"}
 _IGNORED_DIRECTORIES = {".git", ".svn", ".hg", "node_modules", "__pycache__"}
-_SELECTION_TTL = 30 * 60
-_SELECTIONS = {}
-_SELECTIONS_LOCK = threading.Lock()
 
 
 def _selection_scope():
     from runteams_core.storage.storage_context import current_provider
-    return current_provider().attachment_scope()
+    provider = current_provider()
+    return provider.attachment_scope(), getattr(provider, 'generation', None)
 
 
 def _selection_root():
-    path = str(storage_path(os.path.join(product_store.assistant_workspace(), ".attachment-staging")))
-    os.makedirs(path, exist_ok=True)
-    return path
+    from runteams_core.storage.storage_context import current_provider
+    provider = current_provider()
+    locator = getattr(provider, "attachment_staging_root", None)
+    path = locator() if locator and getattr(provider, "generation", None) else os.path.join(
+        product_store.assistant_workspace(), ".attachment-staging")
+    return staging.directory(path)
 
 
 def _picker_candidates():
@@ -97,17 +99,6 @@ def native_picker_available():
     return bool(native_picker_path())
 
 
-def _cleanup_selections():
-    cutoff = time.time() - _SELECTION_TTL
-    stale = []
-    with _SELECTIONS_LOCK:
-        for token, item in list(_SELECTIONS.items()):
-            if item.get("created_at", 0) < cutoff:
-                stale.append(_SELECTIONS.pop(token))
-    for item in stale:
-        shutil.rmtree(item.get("stage_dir") or "", ignore_errors=True)
-
-
 def _allowed_file(path):
     return os.path.splitext(path)[1].lower() in ALLOWED_EXTENSIONS
 
@@ -128,8 +119,9 @@ def _folder_files(root):
 
 def _stage_native_paths(paths, *, allow_folders=True):
     """把原生面板返回的路径复制成一次性快照；绝不把绝对路径返回给前端。"""
-    _cleanup_selections()
-    selection_scope = _selection_scope()
+    root = _selection_root()
+    staging.clean(root)
+    selection_scope = staging.scope_key(_selection_scope())
     unique = []
     for raw in paths or []:
         path = os.path.realpath(storage_path(os.path.expanduser(str(raw or ""))))
@@ -165,7 +157,7 @@ def _stage_native_paths(paths, *, allow_folders=True):
             if os.path.islink(source) or not os.path.exists(source):
                 raise ValueError("暂不支持符号链接或不存在的路径")
             token = secrets.token_hex(16)
-            stage_dir = os.path.join(_selection_root(), token)
+            stage_dir = root / token
             os.makedirs(stage_dir, exist_ok=False)
             created_dirs.append(stage_dir)
             if os.path.isfile(source):
@@ -173,11 +165,10 @@ def _stage_native_paths(paths, *, allow_folders=True):
                     raise ValueError("暂不支持 {} 格式".format(os.path.splitext(source)[1] or "无扩展名"))
                 size = account(source)
                 name = _safe_name(os.path.basename(source))
-                target = os.path.join(stage_dir, name)
+                target = stage_dir / ("original" + os.path.splitext(name)[1])
                 shutil.copyfile(source, target)
                 record = {"token": token, "kind": "image" if os.path.splitext(name)[1] in IMAGE_EXTENSIONS else "file",
-                          "name": name, "size": size, "file_count": 1, "path": target,
-                          "stage_dir": stage_dir, "created_at": time.time(), 'storage_scope':selection_scope}
+                          "name": name, "size": size, "file_count": 1}
             elif allow_folders and os.path.isdir(source):
                 name = os.path.basename(source.rstrip(os.sep)) or "文件夹"
                 if name.startswith(".") or name in _IGNORED_DIRECTORIES:
@@ -209,15 +200,11 @@ def _stage_native_paths(paths, *, allow_folders=True):
                     if total_files>MAX_FILES or total_bytes>MAX_BYTES:
                         raise ValueError('所选源码超过 500 个文件或 32 MB。')
                 record = {"token": token, "kind": "folder", "name": name[:120],
-                          "size": folder_size, "file_count": len(files), "path": folder_target,
-                          "sdk_source":sdk_files is not None,
-                          "stage_dir": stage_dir, "created_at": time.time(), 'storage_scope':selection_scope}
+                          "size": folder_size, "file_count": len(files), "sdk_source": sdk_files is not None}
             else:
                 raise ValueError("所选内容不是文件或文件夹")
+            staging.publish(stage_dir, dict(record, version=1, created_at=time.time(), scope=selection_scope))
             staged.append(record)
-        with _SELECTIONS_LOCK:
-            for record in staged:
-                _SELECTIONS[record["token"]] = record
         return [{k: record.get(k) for k in ("token", "kind", "name", "size", "file_count")}
                 for record in staged]
     except Exception:
@@ -325,14 +312,6 @@ def paste_native_folders():
 def pick_native(*, cancel_event=None):
     paths = pick_native_paths(cancel_event=cancel_event) if cancel_event is not None else pick_native_paths()
     return _stage_native_paths(paths)
-
-
-def discard_native_selections(scope):
-    """Discard only unsubmitted snapshots owned by this exact storage scope."""
-    with _SELECTIONS_LOCK:
-        records = [_SELECTIONS.pop(key) for key, value in list(_SELECTIONS.items()) if value.get('storage_scope') == scope]
-    for record in records:
-        shutil.rmtree(record['stage_dir'], ignore_errors=True)
 
 
 # --- 本地资产授权：复用同一原生选择器,但记录路径本身,而不是复制内容 --------
@@ -647,8 +626,7 @@ def _save(chat_id, uploads):
 def native_selection_budget(tokens):
     """A complete source folder retains the SDK byte budget in a chat turn."""
     from runteams_core.authoring.creator_contracts import MAX_BYTES
-    with _SELECTIONS_LOCK:
-        source=any((_SELECTIONS.get(str(token)) or {}).get('sdk_source') for token in tokens or [])
+    source = tokens and staging.contains_source(_selection_root(), staging.scope_key(_selection_scope()), map(str, tokens))
     return MAX_BYTES if source else MAX_TOTAL_BYTES
 
 
@@ -656,29 +634,28 @@ class AttachmentCommitUnknown(RuntimeError):
     """The acceptance transaction may own the snapshot; preserve it for replay."""
 
 
-def consume_native_to(target, tokens, max_total_bytes=MAX_TOTAL_BYTES, finalize=None):
+def consume_native_to(target, tokens, max_total_bytes=MAX_TOTAL_BYTES, finalize=None, *, claim=None, claim_used=None):
     """消费一次性选择令牌并落到指定的受管目录；成功后令牌立即失效。"""
-    _cleanup_selections()
     tokens = list(dict.fromkeys(str(token or "") for token in (tokens or []) if token))
     if not tokens:
         return []
     if len(tokens) > MAX_NATIVE_SELECTIONS:
         raise ValueError("一次最多选择 {} 个文件或文件夹".format(MAX_NATIVE_SELECTIONS))
-    with _SELECTIONS_LOCK:
-        records = [_SELECTIONS.get(token) for token in tokens]
-    if any(not record for record in records):
-        raise ValueError("附件选择已过期，请重新选择")
-    if any(record.get('storage_scope') != _selection_scope() for record in records):
-        raise PermissionError('账户已变化，请重新选择附件；原始暂存内容已保留。')
-    total = sum(int(record.get("size") or 0) for record in records)
-    if total > max(0, int(max_total_bytes or 0)):
-        raise ValueError("附件总大小不能超过 25 MB")
+    root = _selection_root()
+    staging.clean(root)
+    with staging.reserve(root, staging.scope_key(_selection_scope()), tokens, ALLOWED_EXTENSIONS, claim_used) as selections:
+        total = sum(record["size"] for _, record, _ in selections)
+        if total > max(0, int(max_total_bytes or 0)):
+            raise ValueError("附件总大小不能超过 25 MB")
+        return _consume_native_to(target, selections, finalize, claim)
 
-    saved, created_dirs, rendered_images = [], [], 0
+
+def _consume_native_to(target, selections, finalize, claim):
+    saved, created_dirs, claimed, rendered_images = [], [], [], 0
     target = os.path.realpath(storage_path(target))
     os.makedirs(target, exist_ok=True)
     try:
-        for record in records:
+        for _, record, source in selections:
             os.makedirs(target, exist_ok=True)
             attachment_id = secrets.token_hex(12)
             item_rel = attachment_id
@@ -692,7 +669,7 @@ def consume_native_to(target, tokens, max_total_bytes=MAX_TOTAL_BYTES, finalize=
             created_dirs.append(item_dir)
             if record["kind"] == "folder":
                 folder_name = "folder"
-                shutil.copytree(record["path"], os.path.join(item_dir, folder_name))
+                shutil.copytree(source, os.path.join(item_dir, folder_name))
                 saved.append({
                     "id": attachment_id, "name": record["name"], "mime_type": "inode/directory",
                     "size": record["size"], "kind": "folder", "file_count": record["file_count"],
@@ -703,7 +680,7 @@ def consume_native_to(target, tokens, max_total_bytes=MAX_TOTAL_BYTES, finalize=
                 continue
             name = _safe_name(record["name"])
             ext = os.path.splitext(name)[1].lower()
-            with open(record["path"], "rb") as handle:
+            with open(source, "rb") as handle:
                 data = handle.read()
             original_name = "original" + ext
             _write_bytes(os.path.join(item_dir, original_name), data)
@@ -717,21 +694,25 @@ def consume_native_to(target, tokens, max_total_bytes=MAX_TOTAL_BYTES, finalize=
                 "size": len(data), "kind": "image" if ext in IMAGE_EXTENSIONS else "file",
                 "stored_name": item_rel + "/" + original_name, "normalized": normalized,
             })
-        # A failed cloud upload leaves picker tokens and staged originals
-        # available for retry; it cannot consume a draft as a successful save.
+        # Claim the selection before committing. After an interrupted commit
+        # the original conversation receipt determines whether it can be reused.
+        for stage, record, _ in selections:
+            staging.publish(stage, dict(record, claim=claim or {}))
+            claimed.append((stage, record))
         if finalize:
             saved = finalize(saved)
-        with _SELECTIONS_LOCK:
-            consumed = [_SELECTIONS.pop(token, None) for token in tokens]
-        for record in consumed:
-            if record:
-                shutil.rmtree(record.get("stage_dir") or "", ignore_errors=True)
+        for stage, _, _ in selections:
+            shutil.rmtree(stage, ignore_errors=True)
         return saved
     except AttachmentCommitUnknown:
         raise
     except Exception:
-        for path in created_dirs:
-            shutil.rmtree(path, ignore_errors=True)
+        try:
+            for stage, record in claimed:
+                staging.publish(stage, record)
+        finally:
+            for path in created_dirs:
+                shutil.rmtree(path, ignore_errors=True)
         raise
 
 

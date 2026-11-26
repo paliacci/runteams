@@ -9,6 +9,7 @@ from runteams_core.foundation.durable_files import publish_json
 from runteams_core.storage.storage_context import StorageBinding
 
 SCHEMA = 'runteams.local-library/1'
+ATTACHMENT_STAGING = '.attachment-staging'
 
 
 def private_directory(path):
@@ -46,6 +47,13 @@ def scope_for(library_id):
 
 
 class LocalLibrary:
+    def __init__(self, *, generation=None):
+        self.generation = generation
+
+    def attachment_staging_root(self):
+        from runteams_core.storage.device_data import root
+        return root() / ATTACHMENT_STAGING
+
     def resource_discovery(self):
         from runteams_core.assets.resource_discovery import LocalResources
         return LocalResources(self)

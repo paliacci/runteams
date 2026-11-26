@@ -303,11 +303,7 @@ class LocalRuntime:
             raise RuntimeError('源码构建仍在停止，运行锁保持。')
         if not self.picker_lock.acquire(timeout=15):
             raise RuntimeError('资料选择仍在结束，运行锁保持。')
-        try:
-            from runteams_core.conversations import chat_attachments
-            chat_attachments.discard_native_selections(self.app.binding.scope)
-        finally:
-            self.picker_lock.release()
+        self.picker_lock.release()
         self.lease.rollback()
         self.lease.close()
         self.lease = None

@@ -5,6 +5,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory, gettempdir
 import base64
 import json
+import shutil
 import sys
 import threading
 import unittest
@@ -19,6 +20,94 @@ from runteams_core.storage import local_database
 
 
 class LocalClipboardAttachmentsTests(unittest.TestCase):
+    def test_native_selection_survives_restart_in_its_library_generation(self):
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            library = root / 'library'
+            original = root / '原件.txt'
+            original.write_bytes(b'bytes at selection')
+            with patch.object(local_database, 'DB_PATH', str(library / 'runteams.db')):
+                app = LocalApplication(library)
+                try:
+                    with app.runtime.scope():
+                        selected = chat_attachments._stage_native_paths([original])
+                        stage = chat_attachments._selection_root() / selected[0]['token']
+                        self.assertEqual(stage.parent.parent, storage_path(app.binding.root))
+                    identifier = str(uuid.uuid4())
+                    self.assertEqual(app.backups.create(app, identifier)['state'], 'completed')
+                    manifest = app.backups.inspect_archive(app.backups.path('archives', identifier, '.zip'))
+                    self.assertFalse(any('.attachment-staging' in name for name in manifest['files']))
+                finally:
+                    app.close()
+                self.assertTrue(stage.is_dir())
+                original.write_bytes(b'changed after selection')
+                app = LocalApplication(library)
+                try:
+                    with app.runtime.scope():
+                        generation = app.provider.generation
+                        app.provider.generation = str(uuid.uuid4())
+                        tokens = [item['token'] for item in selected]
+                        with self.assertRaisesRegex(PermissionError, '资料库已变化'):
+                            chat_attachments.consume_native_to(root / 'target', tokens)
+                        app.provider.generation = generation
+                        stored = chat_attachments.consume_native_to(root / 'target', tokens)
+                        self.assertEqual((root / 'target' / stored[0]['stored_name']).read_bytes(), b'bytes at selection')
+                        with self.assertRaisesRegex(ValueError, '过期'):
+                            chat_attachments.consume_native_to(root / 'target', tokens)
+                finally:
+                    app.close()
+
+    def test_interrupted_native_claims_use_the_original_conversation_receipt(self):
+        from runteams_core.conversations.local_conversation_inputs import prepare, request_digest
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            library = root / 'library'
+            originals = [root / name for name in ('accepted.txt', 'unaccepted.txt')]
+            for path in originals:
+                path.write_text(path.stem, encoding='utf-8')
+            with patch.object(local_database, 'DB_PATH', str(library / 'runteams.db')):
+                app = LocalApplication(library)
+                try:
+                    runtime = app.runtime
+                    with runtime.scope():
+                        chats = [runtime.store.get_chat(runtime.store.create_chat()) for _ in range(3)]
+                        first, second = chat_attachments._stage_native_paths(originals)
+                        first_stage = chat_attachments._selection_root() / first['token']
+                        remove = shutil.rmtree
+
+                        def interrupted_cleanup(path, **kwargs):
+                            if path != first_stage:
+                                remove(path, **kwargs)
+
+                        data = {'message': 'accepted', 'attachment_tokens': [first['token']]}
+                        with patch.object(chat_attachments.shutil, 'rmtree', side_effect=interrupted_cleanup):
+                            prepare(runtime, chats[0], data, str(uuid.uuid4()), request_digest(data))
+
+                        def uncertain(_items):
+                            raise chat_attachments.AttachmentCommitUnknown('receipt unavailable')
+
+                        with self.assertRaises(chat_attachments.AttachmentCommitUnknown):
+                            chat_attachments.consume_native_to(root / 'uncertain', [second['token']],
+                                finalize=uncertain, claim={'chat_id': chats[1]['id'], 'operation_id': str(uuid.uuid4())})
+                finally:
+                    app.close()
+                app = LocalApplication(library)
+                try:
+                    runtime = app.runtime
+                    with runtime.scope():
+                        target = runtime.store.get_chat(chats[2]['id'])
+                        with self.assertRaisesRegex(ValueError, '过期'):
+                            prepare(runtime, target, data, str(uuid.uuid4()), request_digest(data))
+                        self.assertEqual(runtime.store.get_chat(target['id'])['messages'], [])
+                        retry = {'message': 'recover', 'attachment_tokens': [second['token']]}
+                        _, items = prepare(runtime, target, retry, str(uuid.uuid4()), request_digest(retry))
+                        self.assertEqual([item['name'] for item in items], ['unaccepted.txt'])
+                        self.assertEqual([m['text'] for m in runtime.store.get_chat(chats[0]['id'])['messages']
+                                          if m['role'] == 'user'], ['accepted'])
+                        self.assertEqual(len(runtime.store.get_chat(target['id'])['messages']), 1)
+                finally:
+                    app.close()
+
     def test_native_file_and_folder_are_consumed_from_deep_staging_paths(self):
         with TemporaryDirectory(dir=storage_path(gettempdir())) as temporary:
             root = Path(gettempdir()) / Path(temporary).name

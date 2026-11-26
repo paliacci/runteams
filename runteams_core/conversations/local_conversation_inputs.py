@@ -106,13 +106,31 @@ def prepare(runtime, chat, data, operation, digest, *, capabilities=None, rewind
             message_id = confirmed['id']
         committed = True
         return items
+
+    def claim_used(claim):
+        if (not isinstance(claim, dict) or set(claim) != {'chat_id', 'operation_id'}
+                or type(claim['chat_id']) is not int or not isinstance(claim['operation_id'], str)):
+            return True
+        try:
+            owner = runtime.store.get_chat(claim['chat_id'])
+        except KeyError:
+            return True
+        if not owner:
+            return True
+        identifier = claim['operation_id']
+        return any((metadata := row.get('metadata') or {}).get('local_turn_id') == identifier
+                   or identifier in metadata.get('superseded_local_turns', {})
+                   for row in owner['messages'])
+
     try:
         uploaded = attachments.save(chat['id'], uploads)
         if tokens:
             # The finalizer commits the message before one-use tokens disappear.
             budget = attachments.MAX_TOTAL_BYTES - sum(int(item['size']) for item in uploaded + reused)
             items = attachments.consume_native_to(attachments._chat_dir(chat['id']), tokens,
-                                                   max_total_bytes=budget, finalize=admit)
+                                                   max_total_bytes=budget, finalize=admit,
+                                                   claim={'chat_id': chat['id'], 'operation_id': operation},
+                                                   claim_used=claim_used)
         else:
             items = admit([])
         return message_id, items
