@@ -44,8 +44,15 @@ export function moveColumn(model,id,offset){
 export function chartData(model,x,y){
  return model.rows.map((row,index)=>({category:row[x]==null?'':String(row[x]),value:!(model.invalidCells||[]).some(cell=>cell.row===index&&cell.id===y)&&typeof row[y]==='number'&&Number.isFinite(row[y])?row[y]:null}));
 }
+export function visualDataLink(block){
+ const {source,dataKey,linkMode}=block.props;
+ // Older source-backed charts may have their own dataKey while still following the table.
+ if(source&&linkMode!=='key')return 'source:'+source;
+ return dataKey?'key:'+dataKey:'block:'+block.id;
+}
 export function updateLinkedData(editor,block,model){
  const flatten=blocks=>blocks.flatMap(b=>[b,...flatten(b.children||[])]);
- const data=JSON.stringify(model),related=flatten(editor.document).filter(other=>['dataTable','barChart'].includes(other.type)&&(block.props.source?other.props.source===block.props.source:block.props.dataKey?other.props.dataKey===block.props.dataKey:other.id===block.id));
+ const link=visualDataLink(block),data=JSON.stringify(model);
+ const related=flatten(editor.document).filter(other=>['dataTable','barChart'].includes(other.type)&&visualDataLink(other)===link);
  editor.transact(()=>{for(const other of related)editor.updateBlock(other.id,{props:{data}});});
 }

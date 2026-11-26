@@ -1,6 +1,7 @@
 import {editorContext,walkBlocks,visitBlockReferences,blockLabel,separateHistory} from './editor-context.js';
 import {packAsset,unpackAsset} from './asset-store.js';
 import {request} from './host-bridge.js';
+import {visualDataLink} from './data-model.js';
 export const fragmentSchema='runteams.block-fragment/1';
 const clone=value=>JSON.parse(JSON.stringify(value));
 export async function captureFragment(editor,blocks){
@@ -18,7 +19,17 @@ export function cloneFragment(fragment,destinationSources,documentId){
  walkBlocks(blocks,b=>{if(b.id)blockIds.set(b.id,crypto.randomUUID());});
  for(const key of Object.keys(sources)){let next=key;if(Object.hasOwn(destinationSources,key)&&JSON.stringify(destinationSources[key])!==JSON.stringify(sources[key]))next=crypto.randomUUID();sourceIds.set(key,next);}
  const remapReference=props=>{if((!props.documentId||props.documentId===String(fragment.documentId??documentId))&&blockIds.has(props.blockId)){props.blockId=blockIds.get(props.blockId);props.documentId=String(documentId);}};
- walkBlocks(blocks,b=>{if(b.id)b.id=blockIds.get(b.id);if(b.props?.source)b.props.source=sourceIds.get(b.props.source);if(b.props?.dataKey){if(!dataKeys.has(b.props.dataKey))dataKeys.set(b.props.dataKey,crypto.randomUUID());b.props.dataKey=dataKeys.get(b.props.dataKey);}visitBlockReferences(b,remapReference);});
+ walkBlocks(blocks,b=>{
+  if(['dataTable','barChart'].includes(b.type)&&(b.props?.source||b.props?.dataKey)){
+   const link=visualDataLink(b);
+   if(!dataKeys.has(link))dataKeys.set(link,crypto.randomUUID());
+   b.props.dataKey=dataKeys.get(link);
+   if(b.props.source)b.props.linkMode='key';
+  }
+  if(b.id)b.id=blockIds.get(b.id);
+  if(b.props?.source)b.props.source=sourceIds.get(b.props.source);
+  visitBlockReferences(b,remapReference);
+ });
  return {blocks,sources:Object.fromEntries(Object.entries(sources).map(([key,value])=>[sourceIds.get(key),value]))};
 }
 export async function insertFragment(editor,fragment,anchorId){

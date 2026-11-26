@@ -94,10 +94,13 @@ def validate(value):
             if kind=='markdown' and not isinstance(props.get('text'),str):raise ContractError('文档正文无效。')
             if any(not isinstance(v, (str, int, float, bool)) for v in props.values()): raise ContractError('内容块设置无效。')
             allowed = {'markdown': {'text'}, 'metric': {'label','value'},
-                       'dataTable': {'source','title','data','dataKey'}, 'barChart': {'source','title','x','y','data','dataKey','chartType','unit'},
+                       'dataTable': {'source','title','data','dataKey','linkMode'}, 'barChart': {'source','title','x','y','data','dataKey','linkMode','chartType','unit'},
                        'jsonData': {'source','title'}}.get(kind)
             if allowed is not None and set(props)-allowed: raise ContractError('内容块包含不支持的设置。')
             if allowed is not None and any(not isinstance(v,str) for v in props.values()):raise ContractError('内容块设置应为文字。')
+            if kind in {'dataTable','barChart'}:
+                if props.get('linkMode','') not in {'','key'} or (props.get('linkMode')=='key' and not props.get('dataKey')):
+                    raise ContractError('数据联动设置无效。')
             if kind in {'dataTable','barChart'} and props.get('data'):
                 data_model(props['data'])
             if kind in {'dataTable','barChart','jsonData'}:

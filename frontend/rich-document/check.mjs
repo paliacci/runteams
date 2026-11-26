@@ -138,6 +138,24 @@ try{
  let refHolder;await act(async()=>{refHolder=editor.insertBlocks([{type:'paragraph',content:[features.referenceInline(editor,'target')]}],'second','after')[0];});assert.ok(document.querySelector('.rt-reference').textContent.includes('可引用的目标'));await act(async()=>editor.updateBlock('target',{content:'目标已更新'}));assert.ok(document.querySelector('.rt-reference').textContent.includes('目标已更新'));await act(async()=>editor.removeBlocks(['target']));assert.ok(document.querySelector('.rt-reference').disabled);await act(async()=>editor.undo());assert.ok(!document.querySelector('.rt-reference').disabled);checks.push('Block references update their labels from the target and clearly show deleted targets rather than stale content.');
  const fullFragment=await fragments.captureFragment(editor,[editor.getBlock('feature-data'),editor.getBlock('feature-chart')]);assert.equal(JSON.stringify(fullFragment.sources),featureSources);const cloneSource=JSON.stringify(fullFragment);const encoded=fragments.clipboardPayload(fullFragment);assert.ok(encoded.text.includes('评论数'));assert.equal(JSON.stringify(fragments.readClipboardFragment(encoded.html)),cloneSource);assert.equal(fragments.readClipboardFragment('<p>普通粘贴</p>'),null);assert.throws(()=>fragments.readClipboardFragment('<div data-runteams-fragment="!broken"></div>'));checks.push('The clipboard envelope round-trips full data blocks and sources, while ordinary HTML keeps the default paste path.');
  const conflict={...fullFragment,sources:{sample:{label:'不同证据',data:[{'应用':'新项目','评论数':1}]}}};const cloned=fragments.cloneFragment(conflict,bridge.editorContext(editor).getSources(),doc.id);assert.notEqual(cloned.blocks[0].id,'feature-data');assert.notEqual(cloned.blocks[0].props.source,'sample');assert.equal(cloned.blocks[0].props.source,cloned.blocks[1].props.source);assert.notEqual(cloned.blocks[0].props.dataKey,'linked-key');assert.equal(cloned.blocks[0].props.dataKey,cloned.blocks[1].props.dataKey);assert.equal(JSON.stringify(fullFragment),cloneSource);checks.push('Paste remaps conflicting source keys, block IDs and data-link keys without mutating originals or breaking related chart/table bindings.');
+ const {updateLinkedData}=await server.ssrLoadModule('/src/data-model.js');
+ const nested={...fullFragment,blocks:[{id:'group',type:'columns',children:fullFragment.blocks.map((b,i)=>({
+  id:'col-'+i,type:'column',children:[{...b,props:{...b.props,dataKey:i?'legacy-chart-key':''}}]
+ }))}]};
+ const copyPair=()=>fragments.cloneFragment(nested,fullFragment.sources,doc.id).blocks[0];
+ const firstPair=copyPair(),secondPair=copyPair(),members=group=>group.children.map(col=>col.children[0]);
+ const nestedEditor={document:[...nested.blocks,firstPair,secondPair],transact:fn=>fn(),updateBlock:id=>updated.push(id)};
+ let updated=[];
+ for(const group of nestedEditor.document){
+  for(const block of members(group)){
+   updated=[];updateLinkedData(nestedEditor,block,model);
+   assert.deepEqual(updated,members(group).map(b=>b.id));
+   assert.equal(block.props.source,'sample');
+  }
+ }
+ const combined=fragments.cloneFragment({...nested,blocks:[firstPair,secondPair]},fullFragment.sources,doc.id);
+ assert.notEqual(members(combined.blocks[0])[0].props.dataKey,members(combined.blocks[1])[0].props.dataKey);
+ checks.push('Source-backed template and clipboard copies isolate edits while each nested chart stays linked to its table.');
  const refsFragment={...fullFragment,documentId:'source-doc',blocks:[{id:'target-copy',type:'paragraph',content:'复制目标'},{id:'block-ref-copy',type:'reference',props:{documentId:'source-doc',blockId:'target-copy',label:'复制目标'}},{id:'inline-ref-copy',type:'paragraph',content:[{type:'blockReference',props:{documentId:'other-doc',blockId:'target-copy',label:'另一个文档'}}]}]};const mappedRefs=fragments.cloneFragment(refsFragment,{},'destination-doc');assert.equal(mappedRefs.blocks[1].props.blockId,mappedRefs.blocks[0].id);assert.equal(mappedRefs.blocks[1].props.documentId,'destination-doc');assert.equal(mappedRefs.blocks[2].content[0].props.documentId,'other-doc');assert.equal(mappedRefs.blocks[2].content[0].props.blockId,'target-copy');checks.push('Copied block references follow copied targets; a matching block ID in another document is never retargeted.');
 
  const beforePaste=editor.document.length;await act(async()=>fragments.insertFragment(editor,fullFragment,'second'));assert.equal(editor.document.length,beforePaste+2);await act(async()=>editor.undo());assert.equal(editor.document.length,beforePaste);assert.equal(JSON.stringify(bridge.editorContext(editor).getSources()),featureSources);checks.push('Whole-block paste is one undo action and preserves the immutable source evidence.');
