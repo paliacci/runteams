@@ -280,6 +280,7 @@
     "runteams_core/foundation/transport/loopback_rpc.py",
     "runteams_core/foundation/transport/native_view_transport.py",
     "runteams_core/foundation/windows_job.py",
+    "runteams_core/foundation/windows_working_directory.py",
     "runteams_core/pipelines/__init__.py",
     "runteams_core/pipelines/bound_pipeline_context.py",
     "runteams_core/pipelines/chat_position_runtime.py",

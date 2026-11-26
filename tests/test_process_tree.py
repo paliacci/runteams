@@ -11,6 +11,27 @@ from runteams_core.foundation import process_tree
 
 
 class ProcessTreeTests(unittest.TestCase):
+    @unittest.skipUnless(sys.platform == 'win32', 'Windows process working directories')
+    def test_deep_working_directory_without_short_names_preserves_edits_on_failure(self):
+        import os
+        from unittest.mock import patch
+        from runteams_core.foundation.regular_files import storage_path
+        from runteams_core.foundation.windows_working_directory import working_directory
+
+        with tempfile.TemporaryDirectory(dir=storage_path(tempfile.gettempdir())) as temporary:
+            deep = Path(temporary) / ('项目' * 34) / ('资料' * 34) / ('目录' * 34) / ('源码' * 34)
+            deep.mkdir(parents=True)
+            with patch('_winapi.GetShortPathName', side_effect=OSError('unavailable')):
+                with self.assertRaisesRegex(RuntimeError, 'interrupted'):
+                    with working_directory(deep) as alias:
+                        self.assertTrue(os.path.samefile(alias, deep))
+                        process_tree.run([sys.executable, '-c',
+                                          'from pathlib import Path; Path("source.txt").write_bytes(b"edited")'],
+                                         cwd=alias, timeout=10).check_returncode()
+                        raise RuntimeError('interrupted')
+            self.assertFalse(os.path.lexists(alias))
+            self.assertEqual((deep/'source.txt').read_bytes(), b'edited')
+
     def start_family(self, leader_exits):
         # The grandchild holds stdout open and ignores a graceful POSIX stop.
         # EOF proves it exited even when the leader was already reaped.

@@ -184,6 +184,17 @@ def _finish(revisions, root):
 
 @contextmanager
 def workspace(session):
+    with _checkout(session) as directory:
+        if os.name == 'nt':
+            from runteams_core.foundation.windows_working_directory import working_directory
+            with working_directory(directory) as native:
+                yield native
+        else:
+            yield directory
+
+
+@contextmanager
+def _checkout(session):
     revisions = source(session)
     root = _work_root(revisions, session['id'])
     try:
