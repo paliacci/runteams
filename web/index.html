@@ -6549,7 +6549,7 @@ function addConversationFiles(surface,files){
     const kind=/^image\//.test(file.type)||/\.(png|jpe?g|webp)$/i.test(file.name)?"image":"file";
     next.push({localId:(surface==="panel"?"pf":"f")+Date.now()+Math.random().toString(16).slice(2),name:file.name,size:file.size,mime_type:file.type||"application/octet-stream",kind,file,preview:kind==="image"?URL.createObjectURL(file):""});total+=file.size;count++;
   }
-  setConversationAttachments(surface,next);rerenderConversation(surface);
+  setConversationAttachments(surface,next);refreshConversationDraftItems(surface);
 }
 /* module:conversation:conversationFilesPicked */
 async function openConversationAttachmentPicker(surface){
@@ -6581,7 +6581,7 @@ function addConversationPickedAttachments(surface,items,panel=S.conversationPane
     return;
   }
   setConversationAttachments(surface,[...conversationAttachments(surface),...additions]);
-  rerenderConversation(surface);
+  refreshConversationDraftItems(surface);
 }
 function removeConversationAttachment(surface,id){const items=conversationAttachments(surface),item=items.find(x=>x.localId===id);if(item&&item.preview)URL.revokeObjectURL(item.preview);setConversationAttachments(surface,items.filter(x=>x.localId!==id));if(item?.kind==="folder_path")refreshConversationDraftItems(surface);else rerenderConversation(surface);}
 function clearConversationAttachments(surface){conversationAttachments(surface).forEach(x=>{if(x.preview)URL.revokeObjectURL(x.preview);});setConversationAttachments(surface,[]);}

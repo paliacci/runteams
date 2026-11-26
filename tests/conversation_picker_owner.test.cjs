@@ -25,7 +25,7 @@ function setup() {
     api: () => new Promise(resolve => { complete = resolve; }),
     conversationAttachments: () => state.conversationPanel.attachments,
     setConversationAttachments: (_, items) => { state.conversationPanel.attachments = items; },
-    rerenderConversation: surface => renders.push(surface),
+    refreshConversationDraftItems: surface => renders.push(surface),
     conversationPanelDraftKey: panel => panel.draftKey,
     conversationInputValue: () => other.input,
     document: {getElementById: () => ({})}, conversationQueueSnapshot: () => null,
@@ -44,6 +44,13 @@ function setup() {
   }
   return {host, state, origin, other, snapshots, renders, errors, writes, switchDraft, finish};
 }
+
+test('a native selection updates the active attachment list without rebuilding the composer', async () => {
+  const {host, origin, renders, finish} = setup();
+  await finish(host.openConversationAttachmentPicker('panel'));
+  assert.equal(origin.attachments[0].pickToken, 'token');
+  assert.deepEqual(renders, ['panel']);
+});
 
 test('a delayed native picker adds to its original open draft without repainting the visible draft', async () => {
   const {host, origin, other, renders, writes, switchDraft, finish} = setup();
