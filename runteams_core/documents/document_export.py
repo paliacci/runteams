@@ -1,7 +1,7 @@
 """Export committed content without an editor process."""
 from io import BytesIO
 import json
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 import re
 from zipfile import ZIP_DEFLATED, ZipFile
 from runteams_core.documents import rich_documents
@@ -33,7 +33,10 @@ def export_documents(core, identifiers):
                     if not name.lower().endswith(suffix):
                         name += suffix
             stem, suffix = Path(name.replace('\\', '/')).name.rsplit('.', 1)
-            stem = re.sub(r'[\x00-\x1f\x7f:]', '_', stem).strip(' .')[:160] or '文档'
+            stem = re.sub(r'[\x00-\x1f\x7f:*?"<>|]', '_', stem).strip(' .')
+            stem = stem.encode('utf-16-le')[:320].decode('utf-16-le', 'ignore').rstrip(' .') or '文档'
+            if PureWindowsPath(stem + '.' + suffix).is_reserved():
+                stem = '_' + stem
             name = stem + '.' + suffix
             ordinal = 1
             while name.casefold() in names:

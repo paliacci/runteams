@@ -133,8 +133,18 @@
  }
  function portableDelivery(doc,filename){
   if(doc.schema!=='runteams.rich-document/1'||!Array.isArray(doc.blocks))throw Error('Invalid document');
-  const clean=name=>String(name).replace(/[/\\:\u0000-\u001f\u007f]/g,'_').replace(/^\.+|\.+$/g,'').slice(0,160)||'document';
-  const title=clean(filename.replace(/\.json$/i,'')).replace(/\.md$/i,'')||'document';
+  function clean(name){
+   let component=String(name).replace(/[/\\:*?"<>|\u0000-\u001f\u007f]/g,'_').replace(/^[ .]+|[ .]+$/g,'');
+   if(component.length>160){
+    const dot=component.lastIndexOf('.');
+    const extension=dot>0&&component.length-dot<160?component.slice(dot):'';
+    component=component.slice(0,160-extension.length).replace(/[\uD800-\uDBFF]$/,'').replace(/[ .]+$/,'')+extension;
+   }
+   if(!component)return 'document';
+   const stem=component.split('.',1)[0].trimEnd();
+   return /^(?:con|prn|aux|nul|conin\$|conout\$|(?:com|lpt)[1-9¹²³])$/i.test(stem)?'_'+component:component;
+  }
+  const title=clean(filename.replace(/\.json$/i,'').replace(/\.md$/i,''));
   const files=new Map(),utf8=new TextEncoder();
   const ref=p=>`[${p.label||p.blockId}](runteams://document/${p.documentId}#${p.blockId})`;
   function inline(value){

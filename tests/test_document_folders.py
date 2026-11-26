@@ -73,3 +73,21 @@ class DocumentFolderTests(unittest.TestCase):
                 self.assertEqual(archive.namelist(), ['Notes.json', 'Notes (2).json'])
                 self.assertIn(b'First', archive.read('Notes.json'))
                 self.assertIn(b'Second', archive.read('Notes (2).json'))
+
+    def test_batch_export_windows_names_and_collisions(self):
+        scope = {'storage_kind': 'local', 'library_id': 'test', 'storage_namespace': 'test'}
+        with TemporaryDirectory() as directory, \
+                patch.object(device_data, 'root', return_value=Path(directory)), \
+                patch.object(device_data, 'identity', return_value=scope), \
+                patch.object(device_data, 'personal', return_value=True):
+            core = LocalDocuments()
+            titles = ['NUL', 'COM¹', 'Aux.txt', 'Notes?', 'notes*']
+            documents = [rich_documents.write(core, name=title, document_key=f'zip-{index}',
+                         document=rich_documents.from_markdown(f'Body {index}'))['id']
+                         for index, title in enumerate(titles)]
+            content, _, _ = export_documents(core, ','.join(map(str, documents)))
+            with ZipFile(BytesIO(content)) as archive:
+                self.assertEqual(archive.namelist(), ['_NUL.json', '_COM¹.json', '_Aux.txt.json',
+                                                      'Notes_.json', 'notes_ (2).json'])
+                for index, name in enumerate(archive.namelist()):
+                    self.assertIn(f'Body {index}'.encode(), archive.read(name))
