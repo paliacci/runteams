@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
@@ -15,6 +16,7 @@ internal sealed class LocalWindow : Form
 {
     private readonly WebView2 view = new WebView2();
     private readonly Process service = new Process();
+    private readonly HashSet<CoreWebView2DownloadOperation> downloads = new HashSet<CoreWebView2DownloadOperation>();
     private bool started, closing, checkingClose, loaded;
     private Uri origin;
     private int navigationVersion;
@@ -219,6 +221,8 @@ internal sealed class LocalWindow : Form
             if (IsDisposed || closing) return;
             await view.EnsureCoreWebView2Async(environment);
             var browser = view.CoreWebView2;
+            try { browser.DownloadStarting += TrackDownload; }
+            catch (NotImplementedException) { /* Older runtimes can still open the library. */ }
             browser.Settings.AreHostObjectsAllowed = false;
             // Receive DOM File handles from the top-level WebView only. The service
             // credential stays in this process and is never injected into the page.
@@ -392,6 +396,37 @@ internal sealed class LocalWindow : Form
         Close();
     }
 
+    private void TrackDownload(object sender, CoreWebView2DownloadStartingEventArgs e)
+    {
+        var operation = e.DownloadOperation;
+        if (operation.State == CoreWebView2DownloadState.InProgress && downloads.Add(operation))
+            operation.StateChanged += DownloadStateChanged;
+    }
+
+    private void DownloadStateChanged(object sender, object args)
+    {
+        var operation = (CoreWebView2DownloadOperation)sender;
+        if (operation.State == CoreWebView2DownloadState.InProgress) return;
+        operation.StateChanged -= DownloadStateChanged;
+        downloads.Remove(operation);
+    }
+
+    private async Task<bool> CanQuitWithDownloads()
+    {
+        // WebView2 may have written the last byte while it is still finalizing the file.
+        for (int attempt = 0; downloads.Count > 0 && attempt < 20; attempt++)
+            await Task.Delay(100);
+        if (downloads.Count == 0) return true;
+        string language = DesktopSettings.SavedLanguage;
+        if (String.IsNullOrEmpty(language) || language == "system")
+            language = System.Globalization.CultureInfo.CurrentUICulture.Name;
+        string message = language.StartsWith("zh", StringComparison.OrdinalIgnoreCase)
+            ? "仍有文件正在下载。要取消未完成的下载并退出吗？"
+            : "Files are still downloading. Cancel unfinished downloads and quit?";
+        return MessageBox.Show(this, message, Text, MessageBoxButtons.YesNo, MessageBoxIcon.Question,
+                               MessageBoxDefaultButton.Button2) == DialogResult.Yes;
+    }
+
     private async void OnClosing(object sender, FormClosingEventArgs e)
     {
         if (closing || !loaded) {
@@ -416,6 +451,7 @@ internal sealed class LocalWindow : Form
             bool discard = result == "\"dirty\"";
             if (discard && MessageBox.Show(this, "Discard unsaved changes and quit?", Text,
                 MessageBoxButtons.YesNo, MessageBoxIcon.Question, MessageBoxDefaultButton.Button2) != DialogResult.Yes) return;
+            if (!await CanQuitWithDownloads()) return;
             result = await browser.ExecuteScriptAsync("window.RunTeamsLocalDesktop?.prepareClose(" + (discard ? "true" : "false") + ")");
             if (result == "\"ready\"") { closing = true; Close(); }
             else MessageBox.Show(this, "Finish pending changes in the workspace before closing.", Text);
