@@ -1040,7 +1040,14 @@ function activateWorkspaceWindow(key){
   // quick A -> B -> A switch.
   // Closing a window has already captured and removed its viewport. Do not
   // capture it again under the empty selection and resurrect the closed tab.
-  if(S.activeWorkspaceKey)workspaceCaptureCurrent();
+  if(S.activeWorkspaceKey){
+    workspaceCaptureCurrent();
+    if(S.docReader&&_documentNavigationReplay==="discard"&&key!==S.activeWorkspaceKey){
+      // Reload this window from its saved revision if the user later returns.
+      _workspaceStateByKey.delete(S.activeWorkspaceKey);
+      teardownDocumentReader(true);
+    }
+  }
   // Verified window identities can navigate while startup content is pending.
   // Keep shared model reads alive; only the old viewport loses its commit right.
   if(S.workspaceStartup?.identityReady&&RunTeamsHost.session.ready(S)&&!S.accountSessionError&&RunTeamsHost.session.deviceScope(S)&&!RunTeamsHost.session.workspace(S)){S.workspaceStartup.navigationDetached=true;S.booting=false;}
@@ -4155,7 +4162,7 @@ async function retryOpenDocument(){
     document.querySelector('.doc-reader-back')?.focus({preventScroll:true});
   }
 }
-let _documentClickReplay=false,_documentNavigationPending=null;
+let _documentNavigationReplay="",_documentNavigationPending=null;
 async function flushDocument(options={}){
   const state=S.docReader;
   if(state?.richToken)return RunTeamsRichDocuments.flush(state);
@@ -4196,30 +4203,30 @@ function documentLeaveDialog(saving,onKeep,onLeave){
 }
 function documentNavigationNeedsSave(){
   const reader=S.docReader;
-  return !_documentClickReplay&&(reader?.tableDirty||reader?.richDirty&&["saving","error"].includes(reader.saveStatus));
+  return !_documentNavigationReplay&&(reader?.tableDirty||reader?.richDirty&&["saving","error"].includes(reader.saveStatus));
 }
 async function saveBeforeDocumentNavigation(navigate,available=()=>true){
   if(_documentNavigationPending===S.docReader)return;
   const state=S.docReader;_documentNavigationPending=state;
   let canceled=false,discarded=false,waitingDialog=null;
   const current=()=>S.docReader===state&&available();
-  const proceed=()=>{
+  const proceed=decision=>{
     if(!current())return;
-    _documentClickReplay=true;
-    try{navigate();}finally{_documentClickReplay=false;}
+    _documentNavigationReplay=decision;
+    try{navigate();}finally{_documentNavigationReplay="";}
   };
   const notice=state.saveStatus==="saving"?setTimeout(()=>{
     if(!current())return;
     waitingDialog=documentLeaveDialog(true,()=>{canceled=true;closeModal();},()=>{
-      discarded=true;closeModal();proceed();
+      discarded=true;closeModal();proceed("discard");
     });
   },300):null;
   try{
     const saved=await flushDocument({quiet:true});
     if(canceled||discarded||S.docReader!==state)return;
     if(waitingDialog&&document.getElementById("modalHost")===waitingDialog)closeModal();
-    if(saved)proceed();
-    else if(current())documentLeaveDialog(false,closeModal,()=>{closeModal();proceed();});
+    if(saved)proceed("saved");
+    else if(current())documentLeaveDialog(false,closeModal,()=>{closeModal();proceed("discard");});
   }finally{clearTimeout(notice);if(_documentNavigationPending===state)_documentNavigationPending=null;}
 }
 document.addEventListener("click",event=>{
