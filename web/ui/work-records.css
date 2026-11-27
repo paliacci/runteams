@@ -78,6 +78,7 @@
 .work-record-section-label,.work-record-execution-page .work-record-feedback>h4{margin:0 0 6px;color:var(--text-secondary);font-size:calc(12px * var(--interface-font-scale,1));line-height:1.5;font-weight:600}
 .work-record-execution-page .work-record-lead{color:var(--text-primary);font-size:calc(14px * var(--interface-font-scale,1));line-height:1.65}
 .work-record-lead>:last-child{margin-bottom:0}
+.work-record-failure-reason{white-space:pre-wrap;overflow-wrap:anywhere}
 .work-record-execution-page .work-record-route{margin:0;color:var(--text-secondary);font-size:calc(12px * var(--interface-font-scale,1));line-height:1.6}
 .work-record-execution-page .work-record-report{font-size:calc(15px * var(--interface-font-scale,1));line-height:1.65}
 .work-record-execution-page .work-record-feedback{font-size:calc(14px * var(--interface-font-scale,1))}

@@ -1670,7 +1670,7 @@ function workContent(selection,w,definition,names,interaction,workActions,status
  const systemHint=(key,fallback)=>`<p class="source-work-muted">${workLabel('systemNotice','系统提示')} · ${workLabel(key,fallback)}</p>`;
  const sourceLabel=configuredApproval?workLabel('configuredApproval','流程审批'):
   primary&&signingVerified&&!attention?workLabel('systemNotice','系统提示'):'';
- const summary=primary?RunTeamsWorkRecords.prose(primary):'';
+ const summary=primary?(w.state==='failed'?RunTeamsWorkRecords.failureReasonMarkup(primary):RunTeamsWorkRecords.prose(primary)):'';
  let currentBody=(sourceLabel?`<p class="source-work-muted">${sourceLabel}</p>`:'')+
   (labelChoicesWithSummary?`<div id="source_pipeline_question">${summary}</div>`:summary);
  const diagnostic=detail=>detail?`<p class="source-work-muted">${esc(detail)}</p>`:'';

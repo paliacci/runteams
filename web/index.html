@@ -3650,7 +3650,7 @@ function contextResultDetailMarkup(result,selection){
   if(pipelineAttempt){
     const [leadKey,leadTitle]=result.state==='failed'?['pipelineWork.failureReason','失败原因']:['workRecordDetail.reportSummary','工作摘要'];
     const label=['blocked','needs_human','needs_approval'].includes(result.state)?'':`<h4 class="work-record-section-label" data-app-i18n="${leadKey}">${leadTitle}</h4>`;
-    const conclusion=lead?`<div>${label}<div class="doc-reader-prose work-record-lead">${md(lead)}</div></div>`:'';
+    const conclusion=lead?`<div>${label}<div class="doc-reader-prose work-record-lead">${result.state==='failed'?RunTeamsWorkRecords.failureReasonMarkup(lead):md(lead)}</div></div>`:'';
     const route=destination?`<p class="work-record-route">${destination}</p>`:'';
     const multipleHandoffFields=handoff?.fields?.length>1;
     const section=(key,label,title,body)=>RunTeamsWorkRecords.attemptSection(selection,key,`<span data-app-i18n="workRecordDetail.${label}">${title}</span>`,body);

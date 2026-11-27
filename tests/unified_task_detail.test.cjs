@@ -67,6 +67,17 @@ test('failed execution rows preserve diagnostic identifiers and Windows filename
   assert.ok(row.includes(`title="${reason}">${reason}</span>`));
 });
 
+test('failed task diagnostics preserve literal text instead of passing paths through Markdown', () => {
+  const {context, ui} = fixture();
+  context.renderMarkdown = value => '[Markdown] ' + value;
+  context.esc = value => String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+  const reason = String.raw`Missing C:\输入 QA\_待复核_\工单 #2.json` + '\nExpected <input> & metadata';
+  const view = ui.employeeTaskDrawer(task('failed', [{id: 17, state: 'failed', failure_reason: reason}]));
+  const escaped = context.esc(reason);
+  assert.ok(view.body.includes('<p class="work-record-failure-reason">' + escaped + '</p>'));
+  assert.ok(!view.body.includes('[Markdown] ' + reason));
+});
+
 test('pipeline execution badges follow the recorded result regardless of column order', () => {
   const {ui} = fixture();
   const positions = [

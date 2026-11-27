@@ -52,6 +52,7 @@
   return `<span class="work-record-state ${esc(tone)}" data-work-state="${esc(state)}" data-app-i18n="${copy.key}"${state==='returned'?` data-app-i18n-vars="${esc(JSON.stringify(vars))}"`:''}>${esc(copy.label)}</span>`;
  }
  function prose(value){return `<div class="doc-reader-prose work-record-report">${renderMarkdown(String(value||''))}</div>`;}
+ function failureReasonMarkup(reason){return `<p class="work-record-failure-reason">${esc(reason)}</p>`;}
  function taskSection(selection,key,title,body,defaultOpen=true){
   const id=Number(selection.workflow.id),expanded=selection.workSections?.[key]??defaultOpen;
   return RunTeamsEmployeeDrawerHeader.section({id:`source-work-${id}-${key}`,stateKey:key,title,body,
@@ -202,7 +203,7 @@
    needsReply&&Number(work.snapshot_json.work_chat_id||work.snapshot_json.source?.chat_id)>0?
     '<button type="button" class="btn pri" onclick="RunTeamsWorkRecords.continueEmployeeTask()"><span data-app-i18n="workflowDetail.continueConversation">继续处理</span></button>':'';
   const queued=ongoing&&!activity&&!summary?'<p class="source-work-muted" data-app-i18n="workflowDetail.waiting">等待员工开始工作。</p>':'';
-  const lead=summary?prose(summary):'';
+  const lead=summary?(work.state==='failed'?failureReasonMarkup(summary):prose(summary)):'';
   let body=failure+`<div class="source-work-content settings-section-stack">${lead||activity||queued||actions?`<div class="source-work-context">${lead}${activity}${queued}${actions?detailDrawerActions(actions):''}</div>`:''}`;
   const {files}=taskDeliveries(work);
   const deliverables=files.length?taskSection(selection,'deliveries','<span data-app-i18n="pipelineWork.deliveryItems">交付物</span>',
@@ -816,7 +817,7 @@
  },true);
  window.setInterval?.(()=>refreshVisibleTask(),2000);
  window.addEventListener('focus',()=>refreshVisibleTask(true));
- window.RunTeamsWorkRecords=Object.freeze({taskSection,toggleTaskSection,taskDetailMarkup,employeeTaskDrawer,refreshEmployeeTask,continueEmployeeTask,openTaskDelivery,employeeTaskRecord,openEmployeeTask,readResults,listTime,timeMarkup,stateMarkup,prose,rowMarkup,deliveryRowMarkup,taskRowMarkup,taskResults,activityPreviews,taskDeliveries,attemptsMarkup,executionSummary,currentExecutionOutsideHistory,hasFailureReason,missingFailureReason,executionSectionMarkup,toggleExecutionSection,toggleEarlierExecutions,runtimeMarkup,openAttempt,retryAttempt,refreshOpenAttempt,attemptSection,toggleAttemptSection,returnFromAttempt,taskBackMarkup,returnToTasks,openCurrentTask,scopeForPanel,activeForPanel,workbenchReturn,openFromWorkbench,returnToWorkbench,toggle,refreshForPanel,capture,position,restore,loadReport,reportMarkup,reportActionMarkup,openReport,openOrigin,originTaskPending,returnFromOrigin,liveActivityMarkup});
+ window.RunTeamsWorkRecords=Object.freeze({taskSection,toggleTaskSection,taskDetailMarkup,employeeTaskDrawer,refreshEmployeeTask,continueEmployeeTask,openTaskDelivery,employeeTaskRecord,openEmployeeTask,readResults,listTime,timeMarkup,stateMarkup,prose,failureReasonMarkup,rowMarkup,deliveryRowMarkup,taskRowMarkup,taskResults,activityPreviews,taskDeliveries,attemptsMarkup,executionSummary,currentExecutionOutsideHistory,hasFailureReason,missingFailureReason,executionSectionMarkup,toggleExecutionSection,toggleEarlierExecutions,runtimeMarkup,openAttempt,retryAttempt,refreshOpenAttempt,attemptSection,toggleAttemptSection,returnFromAttempt,taskBackMarkup,returnToTasks,openCurrentTask,scopeForPanel,activeForPanel,workbenchReturn,openFromWorkbench,returnToWorkbench,toggle,refreshForPanel,capture,position,restore,loadReport,reportMarkup,reportActionMarkup,openReport,openOrigin,originTaskPending,returnFromOrigin,liveActivityMarkup});
  window.addEventListener('runteams:business-scope-will-change',()=>saved.clear());
  window.addEventListener('runteams:languagechange',()=>{
   for(const time of document.querySelectorAll('time[data-work-record-time]')){
