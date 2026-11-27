@@ -198,7 +198,7 @@ class PipelineSchedules(EmployeeSchedules):
                     if control.read(core,ref)['status']!='running':raise ContractError('智能体团队已暂停，不能开始新工作。')
                     self.fire(c,row,'manual:'+data['operation_id'])
                 elif action=='resolve':
-                    c.execute("UPDATE occurrences SET status='cancelled',reason='用户核对后结束本次记录，原工作未重做。' WHERE schedule_id=? AND status='interrupted'",(identifier,))
+                    self.resolve_interrupted(c,identifier)
                 else:
                     enabled=action=='resume'
                     following=next_run(row['schedule_kind'],row['interval_sec'],json.loads(row['schedule'])) if enabled else ''
@@ -207,6 +207,17 @@ class PipelineSchedules(EmployeeSchedules):
                 result={'id':identifier,'operation_id':data['operation_id']}
                 c.execute('INSERT INTO commands VALUES(?,?,?)',(data['operation_id'],request,canonical(result)))
                 return result
+
+    def resolve_interrupted(self,connection,identifier):
+        rows=connection.execute("SELECT id,status,workflow_id FROM occurrences WHERE schedule_id=? "
+                                "AND (status='interrupted' OR (status IN ('waiting','blocked','failed') "
+                                "AND workflow_id IS NOT NULL))",(identifier,)).fetchall()
+        interrupted=[row['id'] for row in rows if row['status']=='interrupted']
+        # A restored library can be reviewed before the scheduler reconciles its ledger.
+        interrupted.extend(row['id'] for row,status,_,_ in self.linked_workflow_outcomes(rows)
+                           if status=='interrupted')
+        connection.executemany("UPDATE occurrences SET status='cancelled',reason='用户核对后结束本次记录，原工作未重做。' "
+                               "WHERE id=?",((run_id,) for run_id in interrupted))
 
     def cancel_rows(self,c,identifier):
         for row in c.execute("SELECT * FROM occurrences WHERE schedule_id=? AND status IN ('queued','running','blocked')",(identifier,)).fetchall():

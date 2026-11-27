@@ -1130,7 +1130,7 @@ function topicApprovalChoices(workflow){
   new Set(candidates.map(candidate=>candidate.id)).size!==candidates.length)return [];
  return candidates.map(({id,title})=>({id,label:`${id} · ${title}`,recommended:id===brief.recommended_id}));
 }
-async function flow(action,decision=''){const s=current(),selection=S.sel,w=selection?.workflow;if(!s||selection.id!=='work'||!w)return;const f=flowState(s,w.id);if(f.busy||f.preparing||f.error?.key==='flowReadFailed')return;const previous=f.pending;
+async function flow(action,decision=''){const s=current(),selection=S.sel,w=selection?.workflow;if(!s||selection.id!=='work'||!w||w.execution_blocked_by_restore)return;const f=flowState(s,w.id);if(f.busy||f.preparing||f.error?.key==='flowReadFailed')return;const previous=f.pending;
  try{ if(!f.pending){
   let response=document.getElementById('source_pipeline_response')?.value||'';
   const topics=action==='decide'&&decision==='approved'?topicApprovalChoices(w):[];
@@ -1719,11 +1719,11 @@ function workContent(selection,w,definition,names,interaction,workActions,status
   if(activity)currentBody+=`<div class="doc-reader-prose work-record-report" data-pipeline-activity="${Number(currentExecution.id)}">${activity}</div>`;
  }
  let content=currentBody?`<div class="source-work-context">${currentBody}</div>`:'';
- if(selection.signingSetup)content+=signingConfigurationMarkup(selection)+actionBody;
+ if(selection.signingSetup)content+=(w.execution_blocked_by_restore?'':signingConfigurationMarkup(selection))+actionBody;
  const configurationNeeded=materialWait||!!frozen.pipeline_setup_required||
   (handoff.fields||[]).some(key=>selection.taskConfiguration?.fields?.some(field=>field.key===key));
  const inlineConfiguration=selection.humanRequest&&(materialWait||selection.humanRequest.options?.some(option=>option.input_mode)||feedbackConfigurationFields(selection).length);
- const configuration=inlineConfiguration?'':taskConfigurationMarkup(selection,position,configurationNeeded,configurationActions);
+ const configuration=inlineConfiguration||w.execution_blocked_by_restore?'':taskConfigurationMarkup(selection,position,configurationNeeded,configurationActions);
  if(configurationNeeded)content+=configuration;
  if(materialWait&&!selection.signingSetup)content+=actionBody;
  const historyRuns=currentExecution?runs.filter(run=>run!==currentExecution):runs;
@@ -1751,7 +1751,9 @@ function workDrawer(selection){const s=current(),w=selection.workflow;let body='
   const canCheck=stopped&&(w.retry_mode==='verify'||frozen.pipeline_unresolved||frozen.pipeline_recovery_pending);
   if(f.error)interaction+=host().operationError(typeof f.error==='string'||f.error.key==='controlFailed'?{key:'controlFailed'}:f.error,{inline:true});
   const operationLabel=f.busy||(f.retry?'retryControl':'checkControl');
-  if(f.pending){
+  if(w.execution_blocked_by_restore){
+   interaction=workLabel('restoredWork','这项任务已从备份恢复。你可以查看原执行记录，核对恢复前的操作结果。');
+  }else if(f.pending){
    const stageRetry=f.pending.action==='retry';
    const button=`<button type="button" ${stageRetry?'class="work-record-state source-work-retry" data-stage-recovery':'class="btn pri"'} onclick="${f.retry?'RunTeamsSourcePipelinePanels.retryFlow()':`RunTeamsSourcePipelinePanels.flow('${f.pending.action}')`}" ${f.busy?'disabled aria-busy="true"':''} data-app-i18n="pipelineBoard.${operationLabel}">${f.busy==='submitting'?'正在提交…':f.busy?'正在核对…':f.retry?'重试操作':'核对操作结果'}</button>`;
    if(stageRetry)statusAction=button;

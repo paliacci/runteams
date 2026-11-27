@@ -142,6 +142,34 @@ class SingleOccurrenceTests(unittest.TestCase):
         self.assertEqual((run['status'],run['workflow_id']), ('completed',42))
         self.assertNotIn('workflow_state',run)
 
+    def test_resolve_matches_history_before_restored_schedules_reconcile(self):
+        backend,ledger = self.linked_pipeline('needs_approval')
+        ledger.executemany('INSERT INTO workflow_runs VALUES(?,?)',
+                           [(43,'needs_human'), (44,'needs_human'), (45,'completed')])
+        def check(identifier):
+            if identifier in (42,43):
+                raise ContractError('Restored work')
+        backend.core().repository.storage.assert_executable = check
+        self.enterContext(patch('runteams_core.automation.source_pipeline_schedules.pipeline_references.checked_reference',
+                                return_value=REFERENCE))
+        with backend.connection(write=True) as c:
+            for index,(status,workflow) in enumerate([
+                    ('blocked',42), ('failed',43), ('waiting',44), ('failed',45), ('blocked',None), ('interrupted',None)]):
+                c.execute("INSERT INTO occurrences(schedule_id,scheduled_for,operation_id,status,snapshot,workflow_id) "
+                          "VALUES(1,?,?,?,'{}',?)",(str(index),str(index),status,workflow))
+        command = {'operation_id':'735f2a82-1eac-463d-9003-320f2286a724','action':'resolve',
+                   'reference':REFERENCE,'id':1,'expected_revision':0,'value':None}
+        before = {r['scheduled_for']:r['status'] for r in self.read(backend)['runs']}
+        self.assertEqual(before,{
+            '0':'interrupted','1':'interrupted','2':'blocked','3':'completed','4':'blocked','5':'interrupted'})
+        receipt = backend.command(command)
+        self.assertEqual(backend.command(command), receipt)
+        after = {r['scheduled_for']:r['status'] for r in self.read(backend)['runs']}
+        self.assertEqual(after,{key:'cancelled' if state=='interrupted' else state for key,state in before.items()})
+        with backend.connection() as c:
+            self.assertEqual([row[0] for row in c.execute('SELECT status FROM occurrences ORDER BY id')],
+                             ['cancelled','cancelled','waiting','failed','blocked','cancelled'])
+
     def tick(self, backend, stamp):
         Clock.value = stamp
         backend.materialize_due_automations()

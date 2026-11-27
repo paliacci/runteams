@@ -1397,6 +1397,7 @@ globalThis.RUNTEAMS_LOCALES = {
   "pipelineWork.noEmployeeQuestion": "员工没有留下具体问题。你可以根据上方执行结果补充信息。",
   "pipelineWork.supplementInformation": "补充信息",
   "pipelineWork.checkExecutionResult": "核对执行结果",
+  "pipelineWork.restoredWork": "这项任务已从备份恢复。你可以查看原执行记录，核对恢复前的操作结果。",
   "pipelineWork.recover": "核对并恢复原工作",
   "pipelineWork.checkResult": "核对结果",
   "pipelineWork.retryStage": "从当前岗位重试",

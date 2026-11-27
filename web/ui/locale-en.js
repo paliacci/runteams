@@ -1367,6 +1367,7 @@ globalThis.RUNTEAMS_LOCALES.en = {
   "pipelineWork.noEmployeeQuestion": "The employee did not leave a specific question. You can add information based on the result above.",
   "pipelineWork.supplementInformation": "Additional Information",
   "pipelineWork.checkExecutionResult": "Check Execution Result",
+  "pipelineWork.restoredWork": "This task was restored from a backup. Review its execution history to check what happened before the restore.",
   "pipelineWork.recover": "Check and Resume Work",
   "pipelineWork.checkResult": "Check result",
   "pipelineWork.retryStage": "Retry this stage",

@@ -128,6 +128,16 @@ function fixture() {
   return {context, owner, work, pipeline, requests};
 }
 
+test('restored task detail cannot submit a pending decision or response', async () => {
+  const {context, work, requests} = fixture();
+  work.execution_blocked_by_restore = true;
+  for (const [state, action] of [['needs_approval', 'decide'], ['needs_human', 'respond']]) {
+    work.state = state;
+    await context.flow(action, 'approved');
+  }
+  assert.deepEqual(requests, []);
+});
+
 test('a confirmed continue keeps the drawer and applies the receipt before background reads', async () => {
   const {context, owner, work, pipeline, requests} = fixture();
   const ready = {...work, state: 'ready', updated_at: 'submitted', snapshot_json: {pipeline_visit: 6}};

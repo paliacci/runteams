@@ -276,6 +276,8 @@ def work(core, ref, identifier):
         from runteams_core.employees.employee_context import current as employee_context
         employees = employee_context()
         result = employees.work_detail(core, identifier)
+        if core.repository.storage.restore_blocks_execution(connection, identifier):
+            result['execution_blocked_by_restore'] = True
         attempts = result.get('employee_runs', ())
         _project_execution_names(attempts, employees)
         if result['state'] == 'running':

@@ -291,11 +291,15 @@ class DeviceWorkStorage:
                 "SELECT id FROM workflow_runs WHERE state='running' "
                 "AND NOT EXISTS(SELECT 1 FROM device_work_restore_barriers b WHERE b.workflow_run_id=workflow_runs.id) ORDER BY id")]
 
+    @staticmethod
+    def restore_blocks_execution(connection, workflow_run_id):
+        return connection.execute("SELECT 1 FROM device_work_restore_barriers b JOIN workflow_runs w "
+                "ON w.id=b.workflow_run_id WHERE b.workflow_run_id=? AND w.state NOT IN ('completed','canceled')",
+                (int(workflow_run_id),)).fetchone() is not None
+
     def assert_executable(self, workflow_run_id):
         with self.connect(readonly=True) as connection:
-            if connection.execute("SELECT 1 FROM device_work_restore_barriers b JOIN workflow_runs w "
-                    "ON w.id=b.workflow_run_id WHERE b.workflow_run_id=? AND w.state NOT IN ('completed','canceled')",
-                    (int(workflow_run_id),)).fetchone():
+            if self.restore_blocks_execution(connection, workflow_run_id):
                 raise ContractError('这是从备份恢复的工作，请先核对原工作与外部操作结果再继续。')
 
     def canonical_data(self, value):
