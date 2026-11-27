@@ -103,6 +103,26 @@ function RichEditor({doc,record,embedded,theme,onReady}){
   return Object.defineProperties({},descriptors);
  },[]);
  const editor=useCreateBlockNote({schema,dictionary,initialContent:record.blocks,placeholders:{default:'',emptyDocument:''},pasteHandler:handleFragmentPaste},[]);
+ useEffect(()=>{
+  if(!editing)return;
+  let pending=false;
+  const pointerUp=event=>{pending=!!editor.domElement?.contains(event.target);};
+  const selectionChanged=event=>{if(event.target===document)pending=false;};
+  const beforeKey=event=>{
+   if(!pending||event.target!==editor.domElement||event.isComposing||editor.prosemirrorView.composing)return;
+   // WebView2 can deliver a shortcut before the pointer's queued selectionchange.
+   // Let the editor read the native selection before it chooses a block.
+   document.dispatchEvent(new Event('selectionchange'));
+  };
+  document.addEventListener('pointerup',pointerUp,true);
+  document.addEventListener('selectionchange',selectionChanged);
+  document.addEventListener('keydown',beforeKey,true);
+  return ()=>{
+   document.removeEventListener('pointerup',pointerUp,true);
+   document.removeEventListener('selectionchange',selectionChanged);
+   document.removeEventListener('keydown',beforeKey,true);
+  };
+ },[editor,editing]);
  const normalized=useRef(false);
  // Normalize once before mounting the view, equally for readers and editors.
  if(!normalized.current){normalized.current=true;const reserved=new Set();walkBlocks(editor.document,b=>reserved.add(b.id));for(const block of [...editor.document])if(block.type==='markdown'){try{const parsed=editor.tryParseMarkdownToBlocks(block.props.text);if(parsed.length){const identify=(items,path=[])=>items.forEach((item,index)=>{const position=[...path,index];if(!path.length&&!index)item.id=block.id;else{let id=block.id+':text:'+position.join('-');while(reserved.has(id))id+='-n';item.id=id;reserved.add(id);}if(item.children?.length)identify(item.children,position);});identify(parsed);editor.replaceBlocks([block.id],parsed);}}catch{/* Retain unsupported content verbatim. */}}}

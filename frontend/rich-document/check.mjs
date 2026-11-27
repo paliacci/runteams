@@ -33,6 +33,21 @@ try{
  await act(async()=>root.render(createElement(DocumentApp,{payload:{doc},onReady:value=>editor=value})));
  assert.ok(editor);assert.ok(document.body.textContent.includes('应用甲'));checks.push('Actual BlockNote initializes and generic data table renders the supplied snapshot.');
  assert.ok(!button('编辑'));assert.ok(!button('阅读'));assert.equal(sent.filter(item=>item.type==='save').length,0);assert.equal(document.querySelector('.bn-editor').getAttribute('contenteditable'),'true');
+ await act(async()=>{
+  editor.setTextCursorPosition('intro','start');
+  editor.focus();
+  const view=editor.prosemirrorView;
+  const text=view.dom.querySelector('[data-id="intro"] .bn-inline-content').firstChild;
+  const clicked=view.posAtDOM(text,3);
+  assert.notEqual(view.state.selection.head,clicked);
+  document.getSelection().collapse(text,3);
+  text.parentElement.dispatchEvent(new MouseEvent('pointerup',{bubbles:true}));
+  let headAtKeydown;
+  view.dom.addEventListener('keydown',()=>{headAtKeydown=view.state.selection.head;},{once:true,capture:true});
+  view.dom.dispatchEvent(new KeyboardEvent('keydown',{key:'Control',ctrlKey:true,bubbles:true}));
+  assert.equal(headAtKeydown,clicked);
+ });
+ checks.push('A key pressed immediately after a click uses the new text selection.');
  await act(async()=>editor.updateBlock('intro',{content:'核对完成，继续观察，不新增机会。'}));
  assert.ok(document.body.textContent.includes('核对完成'));await flush();
  assert.equal(document.querySelector('[aria-label="文档名称"]').disabled,false);
