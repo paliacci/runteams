@@ -3188,6 +3188,7 @@ globalThis.RUNTEAMS_LOCALES.en = {
   "trash.partial": "Some items couldn’t load",
   "trash.failed": "Couldn’t load Trash",
   "trash.retry": "Try Again",
+  "trash.retrySelection": "Some selected items couldn’t be refreshed. Choose Try Again to update Trash.",
   "trash.restore": "Restore",
   "trash.moreItem": "More actions for “{title}”",
   "trash.columnType": "Type",

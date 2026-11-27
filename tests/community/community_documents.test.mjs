@@ -84,6 +84,29 @@ test('restoring local documents never refreshes employee or pipeline work',async
  assert.deepEqual(restored,['document','document']);assert.equal(keys.size,0);
 });
 
+test('Trash keeps cached rows readable and restricts actions only for sources that failed to refresh',async()=>{
+ const source={items:[]},sources={binding:'local',device:source},S={trashSources:sources};
+ const document={id:9,kind:'document'},pipeline={id:9,kind:'pipeline',reference:{source_id:'team'}};
+ let fail='';
+ const read=(kind,item)=>{if(fail===kind)throw Error('offline');return {items:[item]};};
+ const context={S,trashSources:()=>sources,trashBinding:()=>'local',_trashRefreshSequence:0,_trashNextAt:0,
+  TRASH_SYNC_INTERVAL_MS:1000,deviceChatRemember(){},api:async()=>read('work',document),
+  RunTeamsSourcePipelines:{request:async()=>read('team',pipeline)}};
+ for(const name of ['trashItemsSignature','canRestoreTrashSelection','canDeleteTrashSelection','listSelectionActions','refreshTrash'])load(name,context);
+ const disabled=(items,action)=>context.listSelectionActions('trash',items.map(item=>({scope:'device',kind:item.kind,item}))).find(([key])=>key===action)[3];
+ await context.refreshTrash();
+ const confirmed=context.trashItemsSignature(S.trashItems);
+ for(fail of ['work','team','']){
+  await context.refreshTrash();
+  const doc=S.trashItems.find(item=>item.kind==='document'),team=S.trashItems.find(item=>item.kind==='pipeline');
+  assert.equal(disabled([doc],'restore'),fail==='work');
+  assert.equal(disabled([doc],'delete'),fail==='work');
+  assert.equal(disabled([team],'restore'),fail==='team');
+  assert.equal(disabled([doc,team],'restore'),!!fail);
+  assert.equal(context.trashItemsSignature(S.trashItems)===confirmed,!fail);
+ }
+});
+
 test('signed-in document restores also refresh only documents and trash',async()=>{
  const {calls,run}=restoreBatch(['document'],{localLibrary:null});
  await run();assert.deepEqual(calls,['trash','documents','render']);

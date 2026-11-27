@@ -2126,7 +2126,7 @@ function trashSources(){
   if(S.trashSources?.binding!==binding||!!S.trashSources.device!==!!local)S.trashSources={binding,...(local?{device:{items:[],loaded:false,error:'',pending:false}}:{})};
   return S.trashSources;
 }
-function trashItemsSignature(items){return (items||[]).map(item=>[item.storage_scope,item.kind||item.type,item.id,item.title,item.location,item.location_key,item.count,item.document_count,item.trashed_at,item.expires_at,item.can_delete].join(":")).join("|");}
+function trashItemsSignature(items){return (items||[]).map(item=>[item.storage_scope,item.kind||item.type,item.id,item.title,item.location,item.location_key,item.count,item.document_count,item.trashed_at,item.expires_at,item.can_delete,item.stale].join(":")).join("|");}
 async function refreshTrash(options={}){
   const sources=trashSources(),source=sources.device;
   ++_trashRefreshSequence;
@@ -2168,13 +2168,17 @@ async function refreshTrash(options={}){
     }else issues.push(device.reason?.message||result?.error||'本机工作垃圾箱暂时无法读取');
     if(pipelinesLoaded)source.pipelineItems=pipelineItems;
     else issues.push(pipelines.reason?.message||'本机智能体团队垃圾箱暂时无法读取');
-    source.items=[...(source.workItems||[]),...(source.pipelineItems||[])].map(item=>({...item,storage_scope:'device'}))
+    const scopedItems=(items,loaded)=>(items||[]).map(item=>({...item,storage_scope:'device',stale:!loaded}));
+    source.items=[...scopedItems(source.workItems,deviceLoaded),...scopedItems(source.pipelineItems,pipelinesLoaded)]
       .sort((a,b)=>String(b.trashed_at).localeCompare(String(a.trashed_at)));
     source.loaded=source.loaded||deviceLoaded||pipelinesLoaded;
     source.error=deviceLoaded||pipelinesLoaded?'':issues.join('；');
     source.incomplete=source.error?'':issues.join('；');
   }catch(error){
-    if(current())source.error=error.message||'垃圾箱暂时无法读取';
+    if(current()){
+      source.error=error.message||'垃圾箱暂时无法读取';
+      source.items=source.items.map(item=>({...item,stale:true}));
+    }
   }finally{
     if(current()){source.pending=false;publish();}
   }
@@ -2787,7 +2791,7 @@ function listPickMarkup(key='',name='',disabled=false){
   return `<div class="list-pick-cell" role="${key?'cell':'columnheader'}"><label onclick="event.stopPropagation()"><input type="checkbox" ${key?`data-list-pick="${esc(key)}"`:'data-list-all'} aria-label="${esc(label)}"${disabled?` disabled${listSelection.keys.has(key)?' checked':''}`:' onclick="toggleListSelection(event)"'}></label></div>`;
 }
 function listSelectionToolbar(){
-  return '<div class="list-selection-toolbar" hidden><div role="status" aria-live="polite"><span></span><small id="list-delete-restriction" hidden></small></div><div class="list-selection-actions"></div></div>';
+  return '<div class="list-selection-toolbar" hidden><div role="status" aria-live="polite"><span></span><small id="list-selection-restriction" hidden></small></div><div class="list-selection-actions"></div></div>';
 }
 function trashSelectionEntries(){
   return (S.trashItems||[]).map(item=>{
@@ -2810,10 +2814,13 @@ function canDeleteTrashSelection(entry){
     entry.item.can_delete!==false&&!entry.item.pipeline_reference;
 }
 function listSelectionActions(kind,entries){
-  if(kind==='trash')return [
-    ['restore','恢复','undo',!entries.every(canRestoreTrashSelection)],
-    ['delete','永久删除','trash',!entries.every(canDeleteTrashSelection)]
-  ];
+  if(kind==='trash'){
+    const stale=entries.some(entry=>entry.item.stale);
+    return [
+      ['restore','恢复','undo',stale||!entries.every(canRestoreTrashSelection)],
+      ['delete','永久删除','trash',stale||!entries.every(canDeleteTrashSelection)]
+    ];
+  }
   if(entries.length===1&&entries[0].kind==='folder')return [['rename','重命名','pencil',false]];
   const documents=entries.every(entry=>entry.kind==='document');
   return [['move','移动','folder',!documents],['export','导出','download',!documents],
@@ -2852,13 +2859,14 @@ function syncListSelection(){
   if(!active)return;
   const entries=selectedListEntries(kind);
   const restricted=kind==='trash'?entries.filter(entry=>!canDeleteTrashSelection(entry)).length:0;
+  const stale=kind==='trash'&&entries.some(entry=>entry.item.stale);
   const [count,restriction]=toolbar.firstElementChild.children;
   count.textContent=RunTeamsLocale.t('listSelection.count',{count:total},`已选择 ${total} 项`);
-  restriction.textContent=restricted?RunTeamsLocale.t('listSelection.deleteRestricted',{count:restricted}):'';
-  restriction.hidden=!restricted;
+  restriction.textContent=stale?RunTeamsLocale.t('trash.retrySelection'):restricted?RunTeamsLocale.t('listSelection.deleteRestricted',{count:restricted}):'';
+  restriction.hidden=!stale&&!restricted;
   const actions=[...listSelectionActions(kind,entries),['clear','取消选择','',false]];
   const markup=actions.map(([action,label,icon,disabled])=>{
-    const description=action==='delete'&&restricted?' aria-describedby="list-delete-restriction"':
+    const description=disabled&&(stale||action==='delete'&&restricted)?' aria-describedby="list-selection-restriction"':
       disabled?` title="${esc(RunTeamsLocale.t('listSelection.unavailable',{},'当前所选项目不支持此操作。'))}"`:'';
     return `<button type="button" class="btn${['delete','trash'].includes(action)?' list-selection-danger':''}" data-list-action="${action}" ${busy?'disabled':''}${disabled?' aria-disabled="true"':''}${description} onclick="applyListSelection(this.dataset.listAction)">${icon?ICON(icon):''}${esc(RunTeamsLocale.t('listSelection.'+action,{},label))}</button>`;
   }).join('');

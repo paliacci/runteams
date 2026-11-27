@@ -3188,6 +3188,7 @@ globalThis.RUNTEAMS_LOCALES = {
   "trash.partial": "部分项目暂时无法加载",
   "trash.failed": "垃圾箱暂时无法加载",
   "trash.retry": "重试",
+  "trash.retrySelection": "部分所选项目未能刷新。请先点“重试”更新垃圾箱。",
   "trash.restore": "恢复",
   "trash.moreItem": "“{title}”的更多操作",
   "trash.columnType": "类型",
