@@ -219,6 +219,7 @@
    if(reason==='用户已跳过这一次定时。')return copy('scheduledAutomation.skippedByUser',reason);
    if(reason==='触发时智能体团队已在垃圾箱，本次未创建工作。')return copy('scheduledAutomation.skippedInTrash','团队已在垃圾箱，本次未创建任务。');
    if(reason==='员工已在垃圾箱，本次未创建工作。')return copy('scheduledAutomation.employeeInTrash',reason);
+   if(reason==='该员工所属团队均在垃圾箱，本次未创建工作。')return copy('scheduledAutomation.employeeTeamsInTrash',reason);
   }
   return esc(reason);
  }

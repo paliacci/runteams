@@ -1790,6 +1790,7 @@ globalThis.RUNTEAMS_LOCALES = {
   "scheduledAutomation.skippedByUser": "用户已跳过这一次定时。",
   "scheduledAutomation.skippedInTrash": "团队已在垃圾箱，本次未创建任务。",
   "scheduledAutomation.employeeInTrash": "员工已在垃圾箱，本次未创建工作。",
+  "scheduledAutomation.employeeTeamsInTrash": "该员工所属团队均在垃圾箱，本次未创建工作。",
   "scheduledAutomation.openWork": "查看工作记录",
   "scheduledAutomation.linkedTaskCompleted": "关联任务现已完成。",
   "scheduledAutomation.delete": "删除自动化",

@@ -12,7 +12,7 @@ class EmployeeTrashMembershipReadTests(unittest.TestCase):
         hidden = [{'source_id':'project','pipeline_source':'hidden.json'}]
         visible = 'source:project:live.json'
         removed = 'source:project:hidden.json'
-        for group, other_active, expected in [(visible, False, False), (removed, True, False), (removed, False, True)]:
+        for group, other_active, expected in [(visible, False, None), (removed, True, None), (removed, False, 'pipeline')]:
             with self.subTest(group=group, other_active=other_active):
                 def membership(store, source_id, hidden_paths):
                     self.assertEqual(hidden_paths, {'hidden.json'})
@@ -23,7 +23,7 @@ class EmployeeTrashMembershipReadTests(unittest.TestCase):
                      patch.object(source_pipeline_trash, 'hidden_source_references', return_value=hidden), \
                      patch.object(directory, '_hidden_team_members', side_effect=membership), \
                      patch.object(directory, 'local_entries', return_value=[{'key': key, 'trashed': not other_active}]) as scan:
-                    self.assertIs(directory._hidden_source_employee(store, key), expected)
+                    self.assertEqual(directory._source_employee_trash_kind(store, key), expected)
                     self.assertEqual(scan.call_count, int(group == removed))
 
     def test_membership_snapshot_tracks_source_files_selected_teams_and_scope(self):

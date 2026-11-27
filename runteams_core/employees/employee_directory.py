@@ -161,7 +161,7 @@ def for_session(session, *, include_background=False):
     rows=[row for row in rows if row['source']['path']==selected]
     if len(rows)!=1:raise ValueError('员工源码入口不匹配。')
     entry = rows[0]
-    if _hidden_source_employee(store, entry['key']):
+    if _source_employee_trash_kind(store, entry['key']):
         entry['trashed'] = True
     return {**entry, 'page_id': page_id(entry['key'])}
 
@@ -205,19 +205,19 @@ def _hidden_team_member_keys(store, paths):
     return members
 
 
-def source_reference_is_hidden(reference):
+def source_reference_trash_kind(reference):
     if reference.get('schema') != employee_references.SOURCE_SCHEMA:
-        return False
+        return None
     scope = device_data.identity()
     ref = employee_references.checked_source_reference(reference, scope)
     store = current_store(scope['cache_scope'])
-    return _hidden_source_employee(store, source_links.source_key(ref['source_id'], ref['employee_source']))
+    return _source_employee_trash_kind(store, source_links.source_key(ref['source_id'], ref['employee_source']))
 
 
-def _hidden_source_employee(store, key):
+def _source_employee_trash_kind(store, key):
     from runteams_core.pipelines import source_pipeline_trash
     if key in source_employee_trash.hidden_keys():
-        return True
+        return 'employee'
     hidden = source_pipeline_trash.hidden_source_references()
     paths = {}
     for ref in hidden:
@@ -226,13 +226,15 @@ def _hidden_source_employee(store, key):
     try:
         if not paths or key not in _hidden_team_member_keys(store, paths):
             store.check_scope()
-            return False
+            return None
     except PermissionError:
         raise
     except (ValueError, OSError):
         pass
     # Another active team may still own this employee.
-    return any(row['key'] == key and row.get('trashed') for row in local_entries(errors={}))
+    if any(row['key'] == key and row.get('trashed') for row in local_entries(errors={})):
+        return 'pipeline'
+    return None
 
 
 _roster_snapshot = None
@@ -433,7 +435,7 @@ def open_entry(data, *, present_conversation=None):
         entry=next((row for row in source_entries(store,parts[1]) if row['key']==key),None)
     except FileNotFoundError:
         entry=None
-    if entry and _hidden_source_employee(store, key):
+    if entry and _source_employee_trash_kind(store, key):
         raise ValueError('这名员工已移到垃圾箱，请先恢复。')
     if entry is None:raise PermissionError('员工不存在或当前账号不可访问。')
     from runteams_core.authoring.creator_local_authoring import session_for

@@ -121,23 +121,25 @@ class SingleOccurrenceTests(unittest.TestCase):
     def test_employee_trash_is_checked_at_trigger_and_before_opening_a_work_chat(self):
         from runteams_core.automation import scheduled_employee_chat
         backend = self.schedule(EmployeeSchedules)
-        visibility = 'runteams_core.employees.employee_directory.source_reference_is_hidden'
-        with patch(visibility, return_value=True):
+        visibility = 'runteams_core.employees.employee_directory.source_reference_trash_kind'
+        with patch(visibility, return_value='pipeline'):
             Clock.value = FIRST
             backend.materialize_due_automations()
         Clock.value = SECOND
         backend.materialize_due_automations()
         job = backend.claim_next_automation_run()
-        with patch(visibility, return_value=True), patch('runteams_core.employees.employee_context.current'), \
+        with patch(visibility, return_value='employee'), patch('runteams_core.employees.employee_context.current'), \
                 patch('runteams_core.employees.source_employee_runtime.create_chat') as create_chat:
             scheduled_employee_chat.execute(None, backend, job, {'local_package': {'reference': REFERENCE}})
             create_chat.assert_not_called()
         Clock.value = THIRD
         backend.materialize_due_automations()
         with backend.connection() as connection:
-            rows = connection.execute('SELECT scheduled_for,status,chat_id FROM occurrences ORDER BY id')
+            rows = connection.execute('SELECT scheduled_for,status,chat_id,reason FROM occurrences ORDER BY id')
             self.assertEqual([tuple(row) for row in rows],
-                             [(FIRST, 'skipped', None), (SECOND, 'skipped', None), (THIRD, 'queued', None)])
+                             [(FIRST, 'skipped', None, '该员工所属团队均在垃圾箱，本次未创建工作。'),
+                              (SECOND, 'skipped', None, '员工已在垃圾箱，本次未创建工作。'),
+                              (THIRD, 'queued', None, '')])
 
     def test_legacy_trash_refusal_checks_admission_receipt_before_skipping(self):
         backend, _ = self.linked_pipeline('completed')

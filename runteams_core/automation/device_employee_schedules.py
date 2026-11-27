@@ -22,7 +22,10 @@ from runteams_core.foundation.contracts import ContractError
 from runteams_core.authoring.definition_contracts import validate_definition, select_work_unit, validate_work_parameters
 
 DIRECTORY = 'employee-schedules'
-EMPLOYEE_IN_TRASH = '员工已在垃圾箱，本次未创建工作。'
+TRASH_REASONS = {
+    'employee': '员工已在垃圾箱，本次未创建工作。',
+    'pipeline': '该员工所属团队均在垃圾箱，本次未创建工作。',
+}
 DATABASE = 'schedules.sqlite3'
 _lock = threading.RLock()
 
@@ -432,9 +435,10 @@ class EmployeeSchedules:
                 c.execute("UPDATE occurrences SET status='cancelled',reason='计划已暂停或更新，原触发未受理。' WHERE id=?",(row['id'],))
 
     def fire(self, c, row, scheduled):
-        from runteams_core.employees.employee_directory import source_reference_is_hidden
-        if source_reference_is_hidden(json.loads(row['reference'])):
-            raise ContractError(EMPLOYEE_IN_TRASH)
+        from runteams_core.employees.employee_directory import source_reference_trash_kind
+        kind = source_reference_trash_kind(json.loads(row['reference']))
+        if kind:
+            raise ContractError(TRASH_REASONS[kind])
         if c.execute("SELECT 1 FROM occurrences WHERE schedule_id=? AND status IN ('queued','running','waiting','blocked','interrupted')", (row['id'],)).fetchone():
             raise ContractError('这项自动化还有未完成或需要核对的运行。')
         c.execute("INSERT INTO occurrences(schedule_id,scheduled_for,operation_id,status,snapshot) VALUES(?,?,?,'queued',?)",
@@ -511,12 +515,13 @@ class EmployeeSchedules:
         return next((e['data_json'] for e in events if e['type'] == 'employee_schedule.admitted'), None)
 
     def skip_trashed_employee(self, connection, job, reference):
-        from runteams_core.employees.employee_directory import source_reference_is_hidden
-        if not source_reference_is_hidden(reference):
+        from runteams_core.employees.employee_directory import source_reference_trash_kind
+        kind = source_reference_trash_kind(reference)
+        if not kind:
             return False
         connection.execute("UPDATE occurrences SET status='skipped',reason=? WHERE id=? "
                            "AND status IN ('queued','running') AND chat_id IS NULL AND workflow_id IS NULL",
-                           (EMPLOYEE_IN_TRASH, job['id']))
+                           (TRASH_REASONS[kind], job['id']))
         return True
 
     def execute(self, job, cancel_event=None):
