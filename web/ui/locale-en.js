@@ -419,6 +419,7 @@ globalThis.RUNTEAMS_LOCALES.en = {
   "localBackup.backupExpired": "This automatic backup was removed by your retention setting. Choose another backup.",
   "localBackup.documentPending": "A document has unsaved changes. Save it before continuing.",
   "localBackup.backupUnknown": "The backup is unconfirmed. Check the previous operation.",
+  "localBackup.importEmpty": "This backup file is empty. Choose a complete backup ZIP file.",
   "localBackup.importTooLarge": "Choose a backup that’s 512 MB or smaller.",
   "localBackup.importNotZip": "Choose a ZIP backup.",
   "localBackup.importFailed": "Couldn’t read this backup. Choose a backup and try again.",

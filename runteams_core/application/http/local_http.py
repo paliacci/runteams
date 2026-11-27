@@ -230,7 +230,7 @@ class LocalHandler(BaseHTTPRequestHandler):
                 if parsed.query or self.headers.get_all('Transfer-Encoding') or len(lengths)!=1 or not lengths[0].isascii() or not lengths[0].isdigit() or len(operations)!=1:raise ValueError('备份上传请求无效。')
                 if self.headers.get_all('Content-Type',[])!=['application/zip']:return self._json(415,{'error':'请选择ZIP备份文件。'})
                 length=int(lengths[0])
-                if not 1<=length<=MAX_ARCHIVE:return self._json(413,{'error':'请选择不超过512MB的备份。'})
+                if length>MAX_ARCHIVE:return self._json(413,{'error':'请选择不超过512MB的备份。'})
                 operation_id(operations[0]);self.connection.settimeout(30)
                 with self.server.application.request(request_scope):
                     try:result=self.server.application.backups.upload(self.rfile,length,operations[0])

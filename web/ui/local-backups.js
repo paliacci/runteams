@@ -84,6 +84,7 @@
  }
  async function selected(input){
   const file=input.files?.[0];input.value='';if(!file||busy||pending)return;
+  if(file.size===0){report('importEmpty');paint();return;}
   if(file.size>512*1024*1024){report('importTooLarge');paint();return;}
   busy=true;busyKind='import';error='';notice='';paint();let preview;
   try{preview=await RunTeamsApplication.uploadBackup(file,crypto.randomUUID());}

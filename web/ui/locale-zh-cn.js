@@ -449,6 +449,7 @@ globalThis.RUNTEAMS_LOCALES = {
   "localBackup.backupExpired": "这份自动备份已按保留策略清理。请选择其他备份。",
   "localBackup.documentPending": "文档还有更改未保存。请先保存，再继续。",
   "localBackup.backupUnknown": "尚未确认备份是否完成。请核对原操作。",
+  "localBackup.importEmpty": "这份备份是空文件。请选择完整的备份 ZIP 文件。",
   "localBackup.importTooLarge": "请选择不超过 512 MB 的备份。",
   "localBackup.importNotZip": "请选择 ZIP 格式的备份。",
   "localBackup.importFailed": "无法读取这份备份。请重新选择。",

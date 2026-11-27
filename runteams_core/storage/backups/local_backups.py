@@ -117,7 +117,8 @@ class LocalBackups:
 
     def upload(self, stream, length, identifier):
         identifier=operation_id(identifier)
-        if not 1<=length<=disk.MAX_ARCHIVE:raise ValueError('请选择不超过512MB的备份。')
+        if length<=0:raise ValueError('这份备份是空文件。请选择完整的备份 ZIP 文件。')
+        if length>disk.MAX_ARCHIVE:raise ValueError('请选择不超过512MB的备份。')
         temporary=self.root/('.upload-'+uuid.uuid4().hex)
         try:
             sha=hashlib.sha256();remaining=length

@@ -73,6 +73,15 @@ test('an unknown result resumes the original receipt without creating a new back
 test('choosing a valid file only previews until the existing confirmation accepts',async()=>{
  let writes=0;const h=harness({api:async()=>{writes++;return {state:'completed'}}});await h.ui.selected({files:[{size:50}],value:'fixture'});assert.equal(writes,0);assert.equal(h.c.confirm[0],'从备份恢复？');assert.ok(h.c.confirm[1].includes('先保留一份备份'));await h.c.confirm[2]();assert.equal(writes,1);assert.deepEqual(h.locations,['/?settings=general']);
 });
+test('empty and oversized files explain why they cannot be imported before uploading',async()=>{
+ const h=harness();let uploads=0;
+ h.c.RunTeamsApplication.uploadBackup=async()=>{uploads++;return {import_id:op};};
+ for(const [size,error] of [[0,'importEmpty'],[512*1024*1024+1,'importTooLarge']]){
+  const input={files:[{size}],value:'backup.zip'};await h.ui.selected(input);
+  assert.equal(input.value,'');assert.ok(h.ui.markup().includes('localBackup.'+error));
+  assert.equal(h.ui.pending,false);assert.equal(h.c.confirm,undefined);assert.equal(uploads,0);
+ }
+});
 test('official settings do not expose the local backup controls',()=>{const h=harness();h.c.S.localLibrary=null;assert.equal(h.ui.markup(),'')});
 
 const summary=()=>({policy:{enabled:true,keep:7,revision:0},automatic_backups:[{backup_id:op,created_at:'2026-10-31T01:00:00Z'}]});
