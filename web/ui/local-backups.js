@@ -51,7 +51,13 @@
   try{
    remember({operation_id:crypto.randomUUID(),kind:'policy',expected_revision:policy.revision,patch});paint();
    const {kind,...data}=pending;confirmed(await api('/api/backups/policy','POST',data));
-  }catch(e){if([400,403,409].includes(e.status)){forget();policy=null;}requestError(e,e.status===409?'policyChanged':pending?'policyUnknown':'policyFailed');}
+  }catch(e){
+   if(e.backupNotStarted){forget();requestError(e,'policyFailed');}
+   else{
+    if([400,403,409].includes(e.status)){forget();policy=null;}
+    requestError(e,e.status===409?'policyChanged':pending?'policyUnknown':'policyFailed');
+   }
+  }
   finally{busy=false;paint();}
  }
  async function downloadAutomatic(){
@@ -62,6 +68,7 @@
  async function writeReceipt(id,write){
   try{return await write();}
   catch(writeError){
+   if(writeError.backupNotStarted){forget();throw writeError;}
    if(writeError.status===403)throw writeError;
    // The host can commit a final receipt even when its response is lost or reports an error.
    try{return await api('/api/backups/'+id+'/status');}

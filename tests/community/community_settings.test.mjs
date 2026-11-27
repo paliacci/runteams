@@ -79,6 +79,21 @@ test('backup waits for original work breadcrumb acknowledgement; rejected flush 
   await assert.rejects(module.request('/api/backups/restore','POST',{}),/save failed/);assert.deepEqual(events,['saved']);assert.deepEqual(state.backupPosts,['/api/backups']);
  }finally{delete globalThis.RunTeamsWorkState;}
 });
+test('confirming a backup file waits for queued work state and a failed save never uploads it',async()=>{
+ const {module,state}=await subject(),file=new Blob(['archive']),id=crypto.randomUUID(),hash='a'.repeat(64);
+ let release;
+ globalThis.RunTeamsWorkState={pending:true,flush:()=>new Promise(resolve=>{release=resolve;})};
+ try{
+  await module.uploadBackup(file,id,'preview');
+  const restoring=module.uploadBackup(file,id,'restore',hash);
+  while(!release)await new Promise(resolve=>setImmediate(resolve));
+  assert.deepEqual(state.backupPosts,['/api/backups/preview']);
+  release();await restoring;
+  globalThis.RunTeamsWorkState.flush=async()=>{throw Error('work record unsaved');};
+  await assert.rejects(module.uploadBackup(file,id,'restore',hash),e=>e.backupNotStarted&&e.message==='work record unsaved');
+  assert.deepEqual(state.backupPosts,['/api/backups/preview','/api/backups/restore']);
+ }finally{delete globalThis.RunTeamsWorkState;}
+});
 test('native close distinguishes an unresolved save from a confirmed rejected unsaved draft',async()=>{
  await subject();globalThis.RunTeamsWorkState={pending:true,pendingSave:true,saveRejected:false};
  try{

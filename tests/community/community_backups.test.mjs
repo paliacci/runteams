@@ -103,6 +103,16 @@ test('a refused restore keeps the reason, while an uncertain restore reloads to 
   else assert.deepEqual(h.locations,['/?settings=general']);
  }
 });
+test('a restore blocked by an unsaved work record stays in the current window without a receipt',async()=>{
+ const h=harness();
+ h.c.RunTeamsApplication.uploadBackup=async(file,id,action)=>{
+  if(action==='preview')return {sha256:'c'.repeat(64),created_at:'2026-10-31T00:00:00Z'};
+  throw Object.assign(Error('Work record unsaved'),{backupNotStarted:true});
+ };
+ await h.ui.selected({files:[{size:50}],value:'backup.zip'});await h.c.confirm[2]();
+ assert.equal(h.ui.pending,false);assert.equal(h.values.has('runteams_pending_backup'),false);
+ assert.deepEqual(h.calls,[]);assert.deepEqual(h.locations,[]);assert.match(h.ui.markup(),/Work record unsaved/);
+});
 test('official settings do not expose the local backup controls',()=>{const h=harness();h.c.S.localLibrary=null;assert.equal(h.ui.markup(),'')});
 
 const summary=()=>({policy:{enabled:true,keep:7,revision:0},automatic_backups:[{backup_id:op,created_at:'2026-10-31T01:00:00Z'}]});

@@ -141,13 +141,22 @@ async function connect(){
  if(!connected)connected=client.connect().then(value=>{window.RunTeamsLocalIdentity=Object.freeze({...value,kind:'library',name:'本机资料库'});return value;}).catch(error=>{connected=null;throw error;});
  return connected;
 }
+async function preparePost(path){
+ const backup=path.startsWith('/api/backups');
+ try{
+  if(path!=='/api/language-preference')await languageSync.catch(()=>syncLanguage());
+  if(backup&&globalThis.RunTeamsWorkState?.pending)await RunTeamsWorkState.flush();
+ }catch(cause){
+  if(!backup)throw cause;
+  throw Object.assign(new Error(cause.message,{cause}),{backupNotStarted:true,status:cause.status,code:cause.code});
+ }
+}
 export async function request(path,method='GET',body,options={}){
  await connect();
  if(closing)throw Error('窗口正在关闭。');
- if(method==='POST'&&path!=='/api/language-preference')await languageSync.catch(()=>syncLanguage());
  const writing=!globalThis.RunTeamsRequests.isRead(path,method||'GET');if(writing)pending++;
  try{
-  if(path.startsWith('/api/backups')&&method==='POST'&&globalThis.RunTeamsWorkState?.pending)await RunTeamsWorkState.flush();
+  if(method==='POST')await preparePost(path);
   return await client.request(path,method||'GET',body,options);
  }
  finally{if(writing)pending--;}
@@ -161,7 +170,10 @@ export async function stream(path,body,onEvent,options){
 }
 export async function uploadBackup(file,operationId,action,digest){
  await connect();if(closing)throw Error('窗口正在关闭。');pending++;
- try{return await client.uploadBackup(file,operationId,action,digest);}finally{pending--;}
+ try{
+  if(action==='restore')await preparePost('/api/backups/restore');
+  return await client.uploadBackup(file,operationId,action,digest);
+ }finally{pending--;}
 }
 export async function readSettings(){
  if(operation)await commitSettings();
