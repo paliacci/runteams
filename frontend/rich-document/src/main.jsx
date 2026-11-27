@@ -128,10 +128,29 @@ function RichEditor({doc,record,embedded,theme,onReady}){
  if(!normalized.current){normalized.current=true;const reserved=new Set();walkBlocks(editor.document,b=>reserved.add(b.id));for(const block of [...editor.document])if(block.type==='markdown'){try{const parsed=editor.tryParseMarkdownToBlocks(block.props.text);if(parsed.length){const identify=(items,path=[])=>items.forEach((item,index)=>{const position=[...path,index];if(!path.length&&!index)item.id=block.id;else{let id=block.id+':text:'+position.join('-');while(reserved.has(id))id+='-n';item.id=id;reserved.add(id);}if(item.children?.length)identify(item.children,position);});identify(parsed);editor.replaceBlocks([block.id],parsed);}}catch{/* Retain unsupported content verbatim. */}}}
  const [title,setTitle]=useState(doc.name),[state,setState]=useState('saved'),[error,setError]=useState(''),[insertOpen,setInsertOpen]=useState(false);
  const titleRef=useRef(doc.name),saver=useRef(null),sourcesRef=useRef(record.sources),active=useRef(true);
+ const composing=useRef(null);
  const [sources,setSources]=useState(record.sources),[tool,setTool]=useState(null),[featureError,setFeatureError]=useState(''),[exportError,setExportError]=useState('');
  const current=()=>({name:titleRef.current,document:{schema:SCHEMA,blocks:editor.document,sources:sourcesRef.current}});
  useEffect(()=>{
   saver.current=createAutosave({revision:doc.revision,initial:current(),write:value=>send('save',value),status:(value,message='')=>{setState(value);setError(message);},clean:dirty=>send('dirty',{dirty})});
+  // WebView2 exposes the IME candidate as editor content until it is accepted or cancelled.
+  // Keep the last committed snapshot available to an already scheduled save.
+  let afterComposition;
+  const compositionStart=event=>{
+   if(editing&&(event.target.matches?.('.title-input')||editor.domElement?.contains(event.target))){
+    if(afterComposition!==undefined){clearTimeout(afterComposition);afterComposition=undefined;changed();}
+    composing.current=event.target;
+   }
+  };
+  const compositionEnd=event=>{
+   if(composing.current!==event.target)return;
+   composing.current=null;
+   clearTimeout(afterComposition);
+   afterComposition=setTimeout(()=>{afterComposition=undefined;changed();},0);
+  };
+  document.addEventListener('compositionstart',compositionStart,true);
+  document.addEventListener('compositionend',compositionEnd,true);
+  document.addEventListener('focusout',compositionEnd,true);
   const listener=e=>{if(e.source!==parent||e.origin!==location.origin||e.data?.channel!=='runteams-rich-document/1'||e.data.token!==location.hash.slice(1))return;if(e.data.type==='save-request'){if(e.data.flush_id)saver.current.before(()=>send('flushed',{flush_id:e.data.flush_id,ok:true}));else saver.current.flush();}if(e.data.type==='saved')saver.current.acknowledge(e.data);if(e.data.type==='header-action'){if(e.data.action==='export')void exportDocument();if(e.data.action==='retry-save'&&editing)saver.current.retry();}};
   const keydown=e=>{if(editing&&(e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='s'){e.preventDefault();saver.current.flush();}};
   const openBlock=e=>saver.current.before(()=>send('open-block',{document_id:e.detail.documentId,block_id:e.detail.blockId}));
@@ -165,10 +184,13 @@ function RichEditor({doc,record,embedded,theme,onReady}){
   };
   window.addEventListener('runteams-open-block',openBlock);window.addEventListener('message',listener);window.addEventListener('keydown',keydown);send('dirty',{dirty:false});
   window.addEventListener('dragover',dragover,true);window.addEventListener('drop',drop,true);
-  return()=>{active.current=false;saver.current.dispose();window.removeEventListener('runteams-open-block',openBlock);window.removeEventListener('message',listener);window.removeEventListener('keydown',keydown);window.removeEventListener('dragover',dragover,true);window.removeEventListener('drop',drop,true);};
+  return()=>{active.current=false;saver.current.dispose();clearTimeout(afterComposition);
+   document.removeEventListener('compositionstart',compositionStart,true);document.removeEventListener('compositionend',compositionEnd,true);
+   document.removeEventListener('focusout',compositionEnd,true);
+   window.removeEventListener('runteams-open-block',openBlock);window.removeEventListener('message',listener);window.removeEventListener('keydown',keydown);window.removeEventListener('dragover',dragover,true);window.removeEventListener('drop',drop,true);};
  },[]);
  useEffect(()=>{onReady?.(editor);},[editor,onReady]);
- const changed=()=>{if(editing)saver.current?.update(current());};
+ const changed=()=>{if(editing&&!composing.current?.isConnected)saver.current?.update(current());};
  registerEditor(editor,{documentId:doc.document_root_id||doc.id,documentURL:doc.document_url,resourcesAvailable:doc.resources_available!==false,editing,isActive:()=>active.current,getSources:()=>sourcesRef.current,setSources:value=>{sourcesRef.current=value;setSources(value);},changed,report:setFeatureError,navigate:(documentId,blockId)=>saver.current.before(()=>send('open-block',{document_id:documentId,block_id:blockId})),openTool:(kind,id,options={})=>setTool({kind,id,selection:editor.prosemirrorState.selection.toJSON(),...options})});
  useEffect(()=>{if(!doc.initial_block)return;const frame=requestAnimationFrame(()=>{if(!locateBlock(editor,doc.initial_block))setFeatureError('linked-block-missing');});return()=>cancelAnimationFrame(frame);},[]);
  const exportDocument=async()=>{
