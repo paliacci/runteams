@@ -100,6 +100,20 @@ class PipelineFeedbackTests(TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(saved, receipt)
 
+    def test_stale_approval_on_a_closed_task_reports_a_conflict_even_in_the_same_visit(self):
+        from runteams_core.pipelines.source_pipeline_operations import dispatch
+
+        for state in ('completed', 'canceled'):
+            with self.subTest(state=state):
+                with self.repo.connect() as connection:
+                    connection.execute('UPDATE workflow_runs SET state=? WHERE id=?', (state, self.identifier))
+                stale = self.request('decide', decision='rejected', note='')
+                response, status = dispatch(self.core, 'flow', stale)
+                self.assertEqual((status, response['code']), (409, 'workflow_visit_changed'))
+                self.assertEqual(self.read()['state'], state)
+                receipt, status = dispatch(self.core, 'flow-operation', stale)
+                self.assertEqual((status, receipt['status']), (200, 'unknown'))
+
     def test_custom_reply_keeps_the_existing_contract(self):
         with self.assertRaises(ContractError):
             flow.command(self.core, self.request('respond', response='   '))

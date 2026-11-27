@@ -1281,7 +1281,10 @@ def command(core,data,active_ids=(),*,read_only=False,guard=None,materials=None,
             return {'operation_id':key,'status':'unknown'}
         else:
             core.repository.storage.assert_executable(identifier)
-            if frozen['pipeline_visit']!=request['expected_visit']:raise WorkflowVisitChanged('工作已流转，请查看当前进度。')
+            # A final approval can close the task without advancing the visit.
+            closed_approval = request['action'] == 'decide' and row['state'] in ('completed', 'canceled')
+            if closed_approval or frozen['pipeline_visit'] != request['expected_visit']:
+                raise WorkflowVisitChanged('工作已流转，请查看当前进度。')
             if identifier in active_ids:raise ContractError('原岗位仍在执行，请等待收尾，不会并发恢复。')
             if guard is not None:guard(row,frozen)
             saved=control.read(core,request['reference'],connection)

@@ -36,10 +36,11 @@
  function getItem(value){const s=state();return s.ready?s.values.get(key(value))??null:null;}
  function change(value,raw){
   const s=state();if(!s.ready)throw Error('原操作尚未载入，请重新打开。');
-  const k=key(value),claimCard=raw!==null&&k.startsWith('pipeline-card:')&&!s.values.has(k);
+  const k=key(value);
+  const claimEmpty=raw!==null&&!s.values.has(k)&&(k.startsWith('pipeline-card:')||k.startsWith('pipeline-flow:'));
   if(raw!==null){JSON.parse(raw);s.values.set(k,raw);}else s.values.delete(k);
   s.mutation++;
-  s.queue.push({key:k,value:raw,operation_id:crypto.randomUUID(),claimCard});
+  s.queue.push({key:k,value:raw,operation_id:crypto.randomUUID(),claimEmpty});
   queueMicrotask(()=>{if(current(s))void flush().catch(()=>{});});
  }
  async function write(s,row){
@@ -53,9 +54,9 @@
  async function saveRow(s,row){
   try{return await write(s,row);}
   catch(error){
-   if(!current(s)||!row.claimCard||error.code!=='work_ui_state_conflict')throw error;
+   if(!current(s)||!row.claimEmpty||error.code!=='work_ui_state_conflict')throw error;
    const latest=(await readItems(s))[row.key];
-   // Another window may have claimed and cleared the card while this editor was open.
+   // Another window may have finished a task action while this editor was open.
    // Retry only an empty-to-empty conflict. A live command retains its original receipt.
    if(!current(s)||latest?.value!==null||!Number.isSafeInteger(latest.revision)||latest.revision<=row.expected_revision)throw error;
    row.expected_revision=latest.revision;row.operation_id=crypto.randomUUID();
