@@ -1217,6 +1217,9 @@
   c.loading=true;c.reading=read;c.choicesFailed=false;creationDialog(true);
   const active=()=>c.reading===read&&creationVisible(c)&&c.ticket();
   try{
+   // Clearing a refused creation updates the read generation. Load the new roles after that write.
+   if(c.error==='choicesChanged'&&RunTeamsWorkState.pendingSave)await RunTeamsWorkState.flush();
+   if(!active())return;
    const choices=request('creation-choices',{}, {readPriority:'foreground'}).then(reply=>({reply}),error=>({error}));
    if(!RunTeamsWorkState.ready)await RunTeamsWorkState.connect();
    if(!active())return;

@@ -24,7 +24,10 @@ async function pendingCreation(createReply,lateChoices,refreshedChoices){
    if(action==='ui-state-read')return {schema:'runteams.work-ui-state-list/1',items:Object.fromEntries(records)};
    if(action==='ui-state-save'){const revision=(records.get(body.key)?.revision||0)+1;assert.equal(body.expected_revision,revision-1);records.set(body.key,{revision,value:body.value});return {operation_id:body.operation_id,revision};}
    if(action==='creation-choices'){
-    if(finishChoices&&refreshedChoices)return {items:refreshedChoices,errors:[]};
+    if(finishChoices&&refreshedChoices){
+     assert.equal(records.get('pipeline-create').value,null,'refresh must follow the confirmed receipt removal');
+     return {items:refreshedChoices,errors:[]};
+    }
     if(lateChoices)await new Promise(resolve=>{finishChoices=resolve;});
     return {items:lateChoices||[],errors:[]};
    }
