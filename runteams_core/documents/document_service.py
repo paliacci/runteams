@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 import re
 
-from runteams_core.foundation.contracts import ContractError
+from runteams_core.foundation.contracts import ContractError, digest
 from runteams_core.foundation.regular_files import storage_path
 from runteams_core.storage.repository_service import RepositoryService
 from runteams_core.storage.repository import utc_now
@@ -15,6 +15,15 @@ from runteams_core.documents.document_views import normalize_data_view as _norma
 
 _PLACEHOLDER_POSITION = re.compile(r"^第\s*\d+\s*岗$")
 AGENT_DOCUMENT_KEY = re.compile(r"^[a-z0-9][a-z0-9._-]{0,119}$")
+
+
+class DocumentRevisionChanged(ContractError):
+    """The document changed after the restore confirmation was opened."""
+
+
+def revision_token(row, meta):
+    return digest([row['id'], row['name'], row['ref'], meta])
+
 
 def _document_author(name=None, *, kind="employee"):
     if name:
@@ -85,7 +94,7 @@ class Documents(RepositoryService):
             "SELECT * FROM artifacts{} ORDER BY id".format(clause)).fetchall()
 
     def _revision_rows(self, connection, root, *, metadata_only=False):
-        columns = "id, meta_json, created_at" if metadata_only else "*"
+        columns = "id, name, ref, meta_json, created_at" if metadata_only else "*"
         return connection.execute(
             f"SELECT {columns} FROM artifacts WHERE trashed_at IS NULL AND "
             "CAST(COALESCE(NULLIF(NULLIF(json_extract(CASE WHEN json_valid(meta_json) "
@@ -443,6 +452,7 @@ class Documents(RepositoryService):
                 "size": int(meta.get("size") or 0),
                 "created_at": row["created_at"],
                 "is_current": index == len(chain) - 1,
+                **({'current_token': revision_token(row, meta)} if index == len(chain) - 1 else {}),
             })
         return items
 
@@ -503,7 +513,7 @@ class Documents(RepositoryService):
             self._delete_artifact_files([str(previous)])
         return {"id": int(latest["id"]), "created_revision": False}
 
-    def revert_document(self, artifact_id, *, expected_current_revision=None):
+    def revert_document(self, artifact_id, *, expected_current_revision=None, expected_current_token=None):
         """Read the chosen version from storage and append its content to the same chain."""
         with self.repository.definition_lock(), self.repository.connect() as connection:
             chain = self._document_chain(connection, artifact_id)
@@ -512,6 +522,8 @@ class Documents(RepositoryService):
                 raise ContractError("文档不存在")
             latest = chain[-1]
             current = self._decode_meta(latest['meta_json'])
+            if expected_current_token is not None and expected_current_token != revision_token(latest, current):
+                raise DocumentRevisionChanged('文档当前版本已变化，请核对后再恢复。')
             revision = int(current.get('revision') or len(chain))
             if expected_current_revision is not None and expected_current_revision != revision:
                 raise ContractError('文档已被更新，请重新读取版本后再恢复。')

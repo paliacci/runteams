@@ -1506,6 +1506,7 @@ globalThis.RUNTEAMS_LOCALES = {
   "documentReader.restoreNew": "恢复为新版本",
   "documentReader.restoring": "正在恢复…",
   "documentReader.restoreFailed": "无法恢复此版本。请重试。",
+  "documentReader.restoreChanged": "当前版本已变化，请核对后再恢复。",
   "documentReader.restored": "已恢复为当前版本。",
   "documentReader.reportFrame": "工作汇报",
   "documentReader.contentFrame": "文档内容",

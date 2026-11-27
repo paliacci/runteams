@@ -4675,22 +4675,34 @@ function confirmRestoreDocumentRevision(){
     body:`<p class="doc-restore-copy" data-app-i18n="documentReader.restoreBody">此版本将成为新的当前版本。原有版本仍保留在历史记录中。</p>`,
     footer:`<div class="grow"></div><button class="btn" onclick="closeModal()" data-app-i18n="employeeSettings.cancel">取消</button><button class="btn pri" onclick="restoreDocumentRevision(this)" data-app-i18n="documentReader.restoreNew">恢复为新版本</button>`});
   const subtitle=dialog.querySelector(".doc-restore-modal .mh .s");
+  const confirmButton=dialog.querySelector('.doc-restore-modal .btn.pri');
+  confirmButton.dataset.documentId=String(state.doc.id);
+  if(current.current_token)confirmButton.dataset.currentToken=current.current_token;
   subtitle.innerHTML=`<span data-document-date="${esc(date)}">${esc(docsTime(date))}</span> ${documentVersionAuthor(item?.author==="human",state.doc)}`;
   RunTeamsLocale.apply(dialog);
 }
 async function restoreDocumentRevision(button){
   const state=S.docReader,current=documentReaderRevisions().find(item=>item.is_current);
-  if(!state||!current)return;
-  if(button){button.disabled=true;button.setAttribute("aria-busy","true");button.dataset.appI18n="documentReader.restoring";RunTeamsLocale.apply(button);}
+  if(!state||!current||!button||button.dataset.documentId!==String(state.doc.id))return;
+  button.disabled=true;button.setAttribute("aria-busy","true");button.dataset.appI18n="documentReader.restoring";RunTeamsLocale.apply(button);
   // 内容由服务端从那一版直接读：客户端此刻手里的正文不一定加载完，拿它去写会写空
   let result;
   try{
-    result=await api(`/api/core/artifacts/${Number(state.doc.id)}/revert`,"POST",{});
+    const token=button.dataset.currentToken;
+    result=await api(`/api/core/artifacts/${Number(state.doc.id)}/revert`,"POST",token?{expected_current_token:token}:{});
     if(result.error)throw Error(result.error);
-  }catch{
-    if(button){button.disabled=false;button.removeAttribute("aria-busy");button.dataset.appI18n="documentReader.restoreNew";RunTeamsLocale.apply(button);}
+  }catch(error){
+    if(S.docReader!==state||!button.isConnected)return;
+    if(error.status===409&&button.dataset.currentToken){
+      closeModal();
+      await loadDocumentRevisions(state.doc);
+      if(S.docReader===state)toast("当前版本已变化，请核对后再恢复。","info","documentReader.restoreChanged");
+      return;
+    }
+    button.disabled=false;button.removeAttribute("aria-busy");button.dataset.appI18n="documentReader.restoreNew";RunTeamsLocale.apply(button);
     toast("无法恢复此版本。请重试。","err","documentReader.restoreFailed");return;
   }
+  if(S.docReader!==state||!button.isConnected)return;
   closeModal();
   await refreshDocumentReaderSource(state);
   const local=state.doc.storage_scope==='device';

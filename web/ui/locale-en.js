@@ -1476,6 +1476,7 @@ globalThis.RUNTEAMS_LOCALES.en = {
   "documentReader.restoreNew": "Restore as New Version",
   "documentReader.restoring": "Restoring…",
   "documentReader.restoreFailed": "Couldn’t restore this version. Try again.",
+  "documentReader.restoreChanged": "The current version has changed. Review it before restoring.",
   "documentReader.restored": "Restored as the current version.",
   "documentReader.reportFrame": "Work Report",
   "documentReader.contentFrame": "Document Content",

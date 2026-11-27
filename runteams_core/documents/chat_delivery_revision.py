@@ -4,6 +4,7 @@ import sqlite3
 
 from runteams_core.configuration import chat_setup
 from runteams_core.foundation.contracts import ContractError, digest
+from runteams_core.documents.document_service import revision_token
 from runteams_core.foundation.identity.work_identity import principal
 
 TOOL = 'runteams_restore_delivery_revision'
@@ -130,7 +131,7 @@ def _document(core, connection, turn, chain, *, with_revisions=False):
     editable = _is_editable(core, latest, current) and not is_formal
     return {'document_id': root, 'name': latest['name'], 'current_revision': revisions[-1]['revision'],
             'current_artifact_id': int(latest['id']),
-            'current_revision_token': digest([latest['id'], latest['name'], latest['ref'], current]),
+            'current_revision_token': revision_token(latest, current),
             'internal_link': f'runteams://document/{root}',
             'revision_count': len(revisions), 'can_restore': editable and len(revisions) > 1,
             'reason': 'formal_report' if is_formal else 'read_only' if not editable else

@@ -121,7 +121,14 @@ def dispatch(core, method, path, data):
             current=core.document_detail(result['id'],include_content=False)
             result.update(path=current['path'],revisions=core.document_revisions(result['id']))
     elif method=='POST' and action=='revert':
-        new_id=core.revert_document(identifier)
+        from runteams_core.documents.document_service import DocumentRevisionChanged
+        token=data.get('expected_current_token')
+        if 'expected_current_token' in data and (not isinstance(token,str) or not re.fullmatch(r'[a-f0-9]{64}',token)):
+            raise ContractError('文档版本标识无效。')
+        try:
+            new_id=core.revert_document(identifier,expected_current_token=token)
+        except DocumentRevisionChanged as error:
+            return DocumentResponse({'error':str(error)},409)
         result={'id':new_id,'created_revision':True,'revisions':core.document_revisions(new_id)}
     elif method=='POST' and action in ('trash','restore','delete'):
         {'trash':core.trash_document,'restore':core.restore_document,'delete':core.delete_trashed_document}[action](identifier)

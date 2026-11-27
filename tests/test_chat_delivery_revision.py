@@ -6,6 +6,7 @@ from unittest import TestCase
 from unittest.mock import patch
 
 from runteams_core.application.local_work_core import LocalWorkCore
+from runteams_core.application.http import local_document_http
 from runteams_core.configuration.chat_setup import SetupTurn
 from runteams_core.documents import chat_delivery_revision as tool, document_ownership
 from runteams_core.foundation.contracts import ContractError
@@ -38,6 +39,28 @@ class DeliveryRevisionTest(TestCase):
 
     def inspect(self, turn, identifier):
         return tool._execute(self.core, turn, {'operation': 'inspect', 'document_id': identifier}, '')['document']
+
+    def test_reader_restore_rechecks_the_confirmed_tip_including_in_place_edits(self):
+        first, second = self.make({'employee_reference': self.employee})
+        path = f"/api/device/work/artifacts/{first['id']}/revert"
+        def history():
+            return self.core.document_revisions(first['id'])
+        def restore(token):
+            return local_document_http.dispatch(self.core, 'POST', path, {'expected_current_token': token})
+
+        token = history()[-1]['current_token']
+        with self.core.repository.connect() as connection:
+            connection.execute("UPDATE artifacts SET meta_json=json_set(meta_json,'$.note','reviewed') WHERE id=?",
+                               (second['id'],))
+        self.assertEqual(restore(token).status, 409)
+        current = history()
+        self.assertEqual(len(current), 2)
+        self.assertEqual(current[-1]['id'], second['id'])
+        self.assertNotEqual(current[-1]['current_token'], token)
+        confirmed = current[-1]['current_token']
+        self.assertEqual(restore(confirmed).status, 200)
+        self.assertEqual(restore(confirmed).status, 409)
+        self.assertEqual(len(history()), 3)
 
     def arguments(self, turn, identifier, revision=1):
         current = self.inspect(turn, identifier)
