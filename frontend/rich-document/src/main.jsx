@@ -60,7 +60,11 @@ function AutoText({value,...props}){
  const ref=useRef(null);
  useEffect(()=>{const node=ref.current;if(!node)return;const fit=()=>{node.style.height='auto';node.style.height=node.scrollHeight+'px';};fit();let width=node.clientWidth;const observer=new ResizeObserver(()=>{if(node.clientWidth!==width){width=node.clientWidth;fit();}});observer.observe(node);return()=>observer.disconnect();},[]);
  useEffect(()=>{const node=ref.current;if(node){node.style.height='auto';node.style.height=node.scrollHeight+'px';}},[value]);
- return <textarea {...props} rows={1} ref={ref} value={value}/>;
+ function focusForMouse(event){
+  // Give WebView2's IME the field before the first click positions the caret.
+  if(event.pointerType==='mouse'&&event.button===0)event.currentTarget.focus({preventScroll:true});
+ }
+ return <textarea {...props} rows={1} ref={ref} value={value} onPointerDown={focusForMouse}/>;
 }
 function Metric({block,editor,editable,source}){
  const copy=useCopy();

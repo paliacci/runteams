@@ -33,6 +33,20 @@ try{
  await act(async()=>root.render(createElement(DocumentApp,{payload:{doc},onReady:value=>editor=value})));
  assert.ok(editor);assert.ok(document.body.textContent.includes('应用甲'));checks.push('Actual BlockNote initializes and generic data table renders the supplied snapshot.');
  assert.ok(!button('编辑'));assert.ok(!button('阅读'));assert.equal(sent.filter(item=>item.type==='save').length,0);assert.equal(document.querySelector('.bn-editor').getAttribute('contenteditable'),'true');
+ const nameField=document.querySelector('.title-input');
+ const press=new window.PointerEvent('pointerdown',{bubbles:true,cancelable:true,pointerType:'mouse',button:0});
+ await act(async()=>nameField.dispatchEvent(press));
+ assert.equal(document.activeElement,nameField);assert.equal(press.defaultPrevented,false);
+ const setName=async value=>act(async()=>{
+  Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype,'value').set.call(nameField,value);
+  nameField.dispatchEvent(new window.Event('input',{bubbles:true}));
+ });
+ await act(async()=>nameField.dispatchEvent(new window.CompositionEvent('compositionstart',{bubbles:true})));
+ await setName("yan'shou");await flush();assert.equal(sent.filter(item=>item.type==='save').length,0);
+ await setName(doc.name);
+ await act(async()=>{nameField.dispatchEvent(new window.CompositionEvent('compositionend',{bubbles:true}));await new Promise(resolve=>setTimeout(resolve,1));});
+ await flush();assert.equal(sent.filter(item=>item.type==='save').length,0);
+ checks.push('A mouse press focuses the document title without cancelling caret placement. An open or cancelled IME candidate creates no save.');
  await act(async()=>{
   editor.setTextCursorPosition('intro','start');
   editor.focus();
