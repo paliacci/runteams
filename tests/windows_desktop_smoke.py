@@ -141,7 +141,7 @@ def exercise(executable, root):
                     return r.ok && (await r.json()).library_id === library.library_id;
                 })()""")
                 check_theme_contrast(origin, command, evaluate)
-                wait_for(lambda: evaluate("window.RunTeamsLocalDesktop.checkClose(false) === 'ready'"))
+                wait_for(lambda: evaluate("window.RunTeamsLocalDesktop?.checkClose(false) === 'ready'"))
                 close_during_navigation(app, origin, command, evaluate, paused)
             if app.wait(timeout=20) != 0:
                 raise RuntimeError('Desktop host exited with an error')
