@@ -2512,7 +2512,8 @@ function activeDocsMove(){
 }
 function docsStartMove(entries,scope){
   const source=S.docsFolder||'';
-  docsMove={scope,documents:entries.map(({item})=>Number(item.id)),source,folder:source,query:S.docsQuery||'',sort:S.docsSort,descending:S.docsSortDesc,busy:false,error:'',destination:null,
+  const documents=entries.map(({item})=>({id:Number(item.id),folder:item.folder_id||''}));
+  docsMove={scope,documents,source,folder:source,query:S.docsQuery||'',sort:S.docsSort,descending:S.docsSortDesc,busy:false,error:'',destination:null,
     scrollTop:document.querySelector('.docs-page .list-page-scroll')?.scrollTop||0};
   render();
   document.querySelector('.docs-move-toolbar button')?.focus({preventScroll:true});
@@ -2582,8 +2583,11 @@ function docsCancelMove(){
   const move=activeDocsMove();
   if(move&&!move.busy)docsFinishMove(move,false);
 }
+function docsMoveTargets(move){
+  return move.documents.filter(doc=>doc.folder!==move.folder).map(doc=>doc.id);
+}
 function docsCanConfirmMove(move){
-  return !move.busy&&!move.destination?.missing&&move.folder!==move.source&&(!move.folder||docsFolders().some(folder=>folder.id===move.folder));
+  return !move.busy&&!move.destination?.missing&&docsMoveTargets(move).length>0&&(!move.folder||docsFolders().some(folder=>folder.id===move.folder));
 }
 async function docsConfirmMove(){
   const move=activeDocsMove();
@@ -2591,7 +2595,7 @@ async function docsConfirmMove(){
   move.busy=true;move.error='';
   render();
   try{
-    await docsFolderMutation({action:'move_documents',documents:move.documents,folder:move.folder});
+    await docsFolderMutation({action:'move_documents',documents:docsMoveTargets(move),folder:move.folder});
     if(activeDocsMove()===move){
       docsFinishMove(move,true);
       toast('文档已移动','ok','documentList.moveSuccess');

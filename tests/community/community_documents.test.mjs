@@ -15,6 +15,21 @@ test('restoring a pipeline task from Trash uses its original team and stage visi
 function code(name){const start=new RegExp('^(?:async )?function '+name+'\\(','m').exec(source);assert.ok(start);const tail=source.slice(start.index),next=/^(?:(?:async )?function |(?:let|const|class) )/m.exec(tail.slice(start[0].length));return next?tail.slice(0,start[0].length+next.index):tail;}
 function load(name,context){vm.createContext(context);vm.runInContext(code(name),context);return context[name];}
 
+test('moving root search results uses each selected document’s folder',async()=>{
+ const writes=[],context={S:{docsFolder:'',docsQuery:'notes',surface:'docs'},docsMove:null,documentsReadKey:()=>'search',
+  render(){},toast(){},docsFinishMove(){},document:{querySelector:()=>null},docsFolders:()=>[{id:'subfolder'}],
+  docsFolderMutation:async data=>writes.push(JSON.parse(JSON.stringify(data)))};
+ for(const name of ['activeDocsMove','docsStartMove','docsMoveTargets','docsCanConfirmMove','docsConfirmMove'])load(name,context);
+ const select=items=>context.docsStartMove(items.map(item=>({item})),'search');
+ const root={id:1,folder_id:null},nested={id:2,folder_id:'subfolder'};
+ select([root,nested]);assert.equal(context.docsCanConfirmMove(context.docsMove),true);
+ await context.docsConfirmMove();assert.deepEqual(writes,[{action:'move_documents',documents:[2],folder:''}]);
+ select([root]);assert.equal(context.docsCanConfirmMove(context.docsMove),false);
+ select([nested]);context.docsMove.folder='subfolder';assert.equal(context.docsCanConfirmMove(context.docsMove),false);
+ select([root,nested]);context.docsMove.folder='subfolder';await context.docsConfirmMove();
+ assert.deepEqual(writes[1],{action:'move_documents',documents:[1],folder:'subfolder'});
+});
+
 test('reader back preserves a rejected draft until the user confirms leaving its reader',async()=>{
  const reader={doc:{id:7},text:'draft'},S={docReader:reader};
  let keep,leave,opened=0,saves=0,closed=0;
