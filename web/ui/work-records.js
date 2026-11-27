@@ -420,7 +420,7 @@
    return rowMarkup({key:'attempt-'+run.id,title,
     summary,
     executionRole:executionPosition(run)||run.employee_name||'',...executionState(work,run),updated_at:run.updated_at,created_at:run.created_at,previousTime:previous?.updated_at||previous?.created_at||null},
-    'RunTeamsWorkRecords.openAttempt(Number(this.dataset.attemptId))',`data-attempt-id="${Number(run.id)}"`);
+    'RunTeamsWorkRecords.openAttempt(Number(this.dataset.attemptId))',`data-attempt-id="${Number(run.id)}" data-attempt-focus="record-${Number(run.id)}"`);
   }).join('');
   return rows?`<div class="result-delivery-list work-record-list work-execution-list" role="list" aria-label="${esc(label)}">${rows}</div>`:`<p class="work-record-empty">${esc(text('noExecutions','尚无执行记录。'))}</p>`;
  }
@@ -564,6 +564,10 @@
   if(!selection?.attemptContext||selection.status!=='ready')return;
   if(['running','needs_human','blocked'].includes(selectedResult(selection)?.state))return readAttempt(selection,{silent:true});
  }
+ function focusAttemptControl(key){
+  if(!key||document.activeElement!==document.body)return;
+  document.querySelector('#rgDrawer button[data-attempt-focus="'+CSS.escape(key)+'"]')?.focus({preventScroll:true});
+ }
  function openAttempt(runId){
   const previous=S.sel,work=previous?.type==='source-pipeline'&&previous.id==='work'||previous?.employeeTask?previous.workflow:null;
   const independent=!!previous?.employeeTask;
@@ -572,9 +576,12 @@
   const runs=work?.employee_runs||record?.attempts||record?.contributions||[];
   if(!Number.isSafeInteger(runId)||!runs.some(run=>Number(run.id)===runId)||!(independent?independentTaskCurrent(previous):pipelineCurrent(reference)))return;
   const selection={type:'core-results',id:'execution-detail',scope:{...(reference?{source_pipeline_reference:reference}:{}),workflow_id:Number(work?.id||record.workflow_id)},status:'loading',data:null,
-   returnTo:previous,attemptContext:{runId,workflowId:Number(work?.id||record.workflow_id),account:workspaceAccountCacheToken(),url:location.pathname+location.search+location.hash,
+   returnTo:previous,attemptContext:{runId,returnFocus:document.activeElement?.dataset?.attemptFocus,workflowId:Number(work?.id||record.workflow_id),account:workspaceAccountCacheToken(),url:location.pathname+location.search+location.hash,
     ...(independent?{independent:true,taskScope:independentTaskScope()}:{} )}};
-  selectDetailWorkspace(selection);return readAttempt(selection);
+  selectDetailWorkspace(selection);
+  const read=readAttempt(selection);
+  if(selection.attemptContext.returnFocus)focusAttemptControl('back-'+runId);
+  return read;
  }
  function retryAttempt(){if(S.sel?.attemptContext)return readAttempt(S.sel);}
  function attemptSection(selection,key,title,body){
@@ -596,6 +603,7 @@
   const selection=S.sel;if(!selection?.attemptContext||!attemptCurrent(selection))return;
   const parent=selection.returnTo,s=RunTeamsSourcePipelines.taskWorkspace();
   selectDetailWorkspace(parent);setAppUrl(selection.attemptContext.url,true);render();restore(parent);
+  focusAttemptControl(selection.attemptContext.returnFocus);
   if(parent.type==='source-pipeline'&&parent.id==='work')void RunTeamsSourcePipelines.refreshOpenWork(s,parent,{force:true});
   else if(parent.employeeTask)void refreshEmployeeTask(parent);
  }
@@ -817,7 +825,7 @@
  },true);
  window.setInterval?.(()=>refreshVisibleTask(),2000);
  window.addEventListener('focus',()=>refreshVisibleTask(true));
- window.RunTeamsWorkRecords=Object.freeze({taskSection,toggleTaskSection,taskDetailMarkup,employeeTaskDrawer,refreshEmployeeTask,continueEmployeeTask,openTaskDelivery,employeeTaskRecord,openEmployeeTask,readResults,listTime,timeMarkup,stateMarkup,prose,failureReasonMarkup,rowMarkup,deliveryRowMarkup,taskRowMarkup,taskResults,activityPreviews,taskDeliveries,attemptsMarkup,executionSummary,currentExecutionOutsideHistory,hasFailureReason,missingFailureReason,executionSectionMarkup,toggleExecutionSection,toggleEarlierExecutions,runtimeMarkup,openAttempt,retryAttempt,refreshOpenAttempt,attemptSection,toggleAttemptSection,returnFromAttempt,taskBackMarkup,returnToTasks,openCurrentTask,scopeForPanel,activeForPanel,workbenchReturn,openFromWorkbench,returnToWorkbench,toggle,refreshForPanel,capture,position,restore,loadReport,reportMarkup,reportActionMarkup,openReport,openOrigin,originTaskPending,returnFromOrigin,liveActivityMarkup});
+ window.RunTeamsWorkRecords=Object.freeze({taskSection,toggleTaskSection,taskDetailMarkup,employeeTaskDrawer,refreshEmployeeTask,continueEmployeeTask,openTaskDelivery,employeeTaskRecord,openEmployeeTask,readResults,listTime,timeMarkup,stateMarkup,prose,failureReasonMarkup,rowMarkup,deliveryRowMarkup,taskRowMarkup,taskResults,activityPreviews,taskDeliveries,attemptsMarkup,executionSummary,currentExecutionOutsideHistory,hasFailureReason,missingFailureReason,executionSectionMarkup,toggleExecutionSection,toggleEarlierExecutions,runtimeMarkup,focusAttemptControl,openAttempt,retryAttempt,refreshOpenAttempt,attemptSection,toggleAttemptSection,returnFromAttempt,taskBackMarkup,returnToTasks,openCurrentTask,scopeForPanel,activeForPanel,workbenchReturn,openFromWorkbench,returnToWorkbench,toggle,refreshForPanel,capture,position,restore,loadReport,reportMarkup,reportActionMarkup,openReport,openOrigin,originTaskPending,returnFromOrigin,liveActivityMarkup});
  window.addEventListener('runteams:business-scope-will-change',()=>saved.clear());
  window.addEventListener('runteams:languagechange',()=>{
   for(const time of document.querySelectorAll('time[data-work-record-time]')){

@@ -1521,7 +1521,7 @@ function taskConfigurationMarkup(selection,position,needed,actions=''){
  return RunTeamsWorkRecords.taskSection(selection,'configuration',title,form,!!(needed||state.pending||state.draft||status));
 }
 function attemptLink(runId,key,label){
- return `<button type="button" class="settings-section-action" onclick="RunTeamsWorkRecords.openAttempt(${Number(runId)})">${workLabel(key,label)}</button>`;
+ return `<button type="button" class="settings-section-action" data-attempt-focus="${key}-${Number(runId)}" onclick="RunTeamsWorkRecords.openAttempt(${Number(runId)})">${workLabel(key,label)}</button>`;
 }
 function workStatusEvent(w){
  const events=w.events||[];
@@ -1559,7 +1559,7 @@ function workProgress(w,definition,statusEvent,currentExecution,action=''){
   unassigned?`<span class="work-record-state warn">${frozen.send_admitted?
    workLabel('resultNeedsReview','结果待核对'):workLabel('reasonUnavailable','原因待核对')}</span>`:RunTeamsWorkRecords.stateMarkup(w.state);
  const controls=action?`<span class="source-work-status-controls">${state}${action}</span>`:state;
- const role=currentExecution?`<button type="button" class="source-work-role source-work-current-execution" aria-label="查看当前执行" data-app-i18n-aria-label="pipelineWork.viewCurrentExecution" onclick="RunTeamsWorkRecords.openAttempt(${Number(currentExecution.id)})">${position}${ICON('chev')}</button>`:
+ const role=currentExecution?`<button type="button" class="source-work-role source-work-current-execution" data-attempt-focus="current-${Number(currentExecution.id)}" aria-label="查看当前执行" data-app-i18n-aria-label="pipelineWork.viewCurrentExecution" onclick="RunTeamsWorkRecords.openAttempt(${Number(currentExecution.id)})">${position}${ICON('chev')}</button>`:
   position?`<span class="source-work-role">${position}</span>`:'';
  return `<div class="work-record-meta source-work-progress">${controls}${role}${RunTeamsWorkRecords.timeMarkup(time)}</div>`;
 }

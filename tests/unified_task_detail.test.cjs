@@ -28,6 +28,36 @@ function task(state, runs = []) {
     snapshot_json: {schema: 'runteams.employee-chat-work/v1', work_chat_id: 7}, employee_runs: runs, artifacts: []}};
 }
 
+test('opening an execution by keyboard and returning while it loads restores the original control', async () => {
+  const {context, ui} = fixture();
+  const reference = {source_id: 'pipeline'};
+  const parent = {type: 'source-pipeline', id: 'work', workflow: {id: 42,
+    snapshot_json: {pipeline_work: {reference}}, employee_runs: [{id: 7}]}};
+  let finishRead;
+  const doc = context.document;
+  const button = key => ({dataset: {attemptFocus: key}, focus() { doc.activeElement = this; }});
+  const entry = button('record-7'), back = button('back-7');
+  doc.body = {}; doc.activeElement = entry;
+  doc.querySelector = selector => selector.includes('"back-7"') ? back : entry;
+  Object.assign(context, {
+    S: {sel: parent}, CSS: {escape: String}, location: {pathname: '/pipelines/test', search: '', hash: ''},
+    selectDetailWorkspace(selection) { context.S.sel = selection; }, setAppUrl() {},
+    render() { doc.activeElement = doc.body; },
+    RunTeamsSourcePipelines: {taskWorkspace: () => ({reference}), referenceKey: ref => ref.source_id,
+      request: () => new Promise(resolve => { finishRead = resolve; }), refreshOpenWork() {}},
+  });
+  const pending = ui.openAttempt(7);
+  assert.equal(doc.activeElement, back);
+  ui.returnFromAttempt();
+  assert.equal(context.S.sel, parent);
+  assert.equal(doc.activeElement, entry);
+  const elsewhere = {}; doc.activeElement = elsewhere;
+  finishRead({workflow: parent.workflow});
+  await pending;
+  ui.focusAttemptControl('record-7');
+  assert.equal(doc.activeElement, elsewhere);
+});
+
 test('independent and pipeline tasks use the same task shell while loading', () => {
   const {context, ui} = fixture();
   const independent = ui.employeeTaskDrawer({type: 'core-workflow', id: 42, loading: true, recordTitle: 'Original task'});
