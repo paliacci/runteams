@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import stat
 import tempfile
+import time
 
 from runteams_core.foundation.regular_files import is_link, storage_path
 
@@ -16,6 +17,7 @@ _RECEIPT = '.runteams-view-v1'
 _DELETE = 0x10000
 _READ_ATTRIBUTES = 0x80
 _WRITE_ATTRIBUTES = 0x100
+_HANDOFF_SECONDS = 60
 
 
 @contextmanager
@@ -101,11 +103,22 @@ def _reclaim(folder):
                 with os.fdopen(os.dup(receipt), 'rb') as records:
                     if json.loads(records.readline()) != _identity(directory):
                         return
+                    files = {}
+                    not_before = 0
                     for line in records:
-                        _reclaim_file(folder, json.loads(line))
+                        record = json.loads(line)
+                        if isinstance(record, dict):
+                            not_before = max(not_before, record['retain_until'])
+                        else:
+                            name, identity = record
+                            files[name] = identity
+                    if time.time() < not_before:
+                        return
+                    for record in files.items():
+                        _reclaim_file(folder, record)
                 _delete(receipt)
             _delete(directory_fd)  # Windows leaves a nonempty directory intact.
-    except (OSError, ValueError, TypeError):
+    except (OSError, ValueError, TypeError, KeyError):
         # Sharing violations are normal while a service or an external reader is active.
         return
 
@@ -139,12 +152,16 @@ class ViewerDirectory:
         self._receipt.flush()
         os.fsync(self._receipt.fileno())
 
-    def record(self, path):
+    def record(self, path, *, handing_off=False):
         path = Path(path)
         identity = _file_identity(path.stat())
         if self._files.get(path.name) != identity:
             self._append([path.name, identity])
             self._files[path.name] = identity
+        if handing_off:
+            # Shell dispatch can return before the reader opens its file. An owner
+            # exiting in that interval must leave a durable launch grace period.
+            self._append({'retain_until': time.time() + _HANDOFF_SECONDS})
 
     def cleanup(self):
         self._receipt.close()

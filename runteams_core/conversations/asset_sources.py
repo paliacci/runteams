@@ -424,7 +424,7 @@ def open_original(bank, source, bundled):
     os.chmod(path, 0o400)
     if os.name == 'nt':
         with _viewer_lock:
-            viewer.record(path)
+            viewer.record(path, handing_off=True)
     # Third-party readers receive an ordinary shell path.
     file_manager.open_path(str(shell_directory / viewer_name))
     return {'kind':'opened'}

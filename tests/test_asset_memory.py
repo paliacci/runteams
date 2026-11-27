@@ -526,6 +526,12 @@ class AssetMemoryTests(TestCase):
             self.assertEqual(opened.call_args_list[0], opened.call_args_list[1])
             self.assertEqual(path.name, name)
             self.assertEqual(storage_path(path).read_bytes(), content)
+        if os.name == 'nt':
+            from runteams_core.conversations import windows_knowledge_viewers as viewers
+            self.assertTrue(path.is_file())  # The recording shell stub has not yet opened it.
+            import time
+            with patch.object(viewers.time, 'time', return_value=time.time() + 120):
+                viewers._reclaim(Path(viewer.name))
         self.assertFalse(Path(viewer.name).exists())
 
     def test_windows_viewer_waits_for_both_owner_and_reader(self):
@@ -550,6 +556,28 @@ class AssetMemoryTests(TestCase):
                 self.assertTrue(copy.is_file())
             viewers.reclaim_abandoned()
             self.assertFalse(directory.exists())
+
+    def test_windows_repeated_dispatch_extends_reader_launch_grace(self):
+        if os.name != 'nt':
+            self.skipTest('Windows file sharing')
+        from runteams_core.conversations import windows_knowledge_viewers as viewers
+
+        with TemporaryDirectory() as root, patch('tempfile.gettempdir', return_value=root), \
+                patch.object(viewers.time, 'time', return_value=1000) as clock:
+            owner = viewers.ViewerDirectory()
+            self.addCleanup(owner.cleanup)
+            path = Path(owner.name) / '尚未读取.pdf'
+            path.write_bytes(b'pending handoff')
+            owner.record(path, handing_off=True)
+            clock.return_value += viewers._HANDOFF_SECONDS - 1
+            owner.record(path, handing_off=True)
+            owner.cleanup()
+            clock.return_value += 2
+            viewers.reclaim_abandoned()
+            self.assertEqual(path.read_bytes(), b'pending handoff')
+            clock.return_value += viewers._HANDOFF_SECONDS
+            viewers.reclaim_abandoned()
+            self.assertFalse(path.parent.exists())
 
     def test_windows_viewer_recovery_preserves_unregistered_and_changed_files(self):
         if os.name != 'nt':
