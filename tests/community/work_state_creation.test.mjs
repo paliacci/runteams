@@ -5,9 +5,10 @@ import vm from 'node:vm';
 import crypto from 'node:crypto';
 const source=p=>fs.readFileSync(new URL('../../'+p,import.meta.url),'utf8');
 
-async function pendingCreation(createReply){
+async function pendingCreation(createReply,lateChoices){
  const records=new Map(),calls=[],modalHost={firstChild:null},library={library_id:'actual-library',generation:'first'};let closed=0,navigated=0;
- const fields={querySelector:()=>null}, submit={setAttribute(name,value){this[name]=value;}}, error={removeAttribute(name){delete this[name];},setAttribute(name,value){this[name]=value;}};
+ const select={value:''};let finishChoices;
+ const fields={querySelector:key=>key==='select'&&fields.innerHTML?.includes('<select')?select:null}, submit={setAttribute(name,value){this[name]=value;}}, error={removeAttribute(name){delete this[name];},setAttribute(name,value){this[name]=value;}};
  const controls={'[data-pipeline-create-fields]':fields,'[data-pipeline-create-submit]':submit,'[data-pipeline-create-error]':error};
  const ref={schema:'runteams.local-pipeline-reference/1',storage_kind:'local',library_id:library.library_id,source_id:'a'.repeat(64),pipeline_source:'pipelines/main.json'};
  const c={S:{localLibrary:library,account:{signed_in:false}},_workspaceBusinessGeneration:1,_routeSequence:1,_workspaceSwitchSequence:1,
@@ -22,7 +23,10 @@ async function pendingCreation(createReply){
    const action=path.split('/').pop();calls.push({action,body:structuredClone(body)});
    if(action==='ui-state-read')return {schema:'runteams.work-ui-state-list/1',items:Object.fromEntries(records)};
    if(action==='ui-state-save'){const revision=(records.get(body.key)?.revision||0)+1;assert.equal(body.expected_revision,revision-1);records.set(body.key,{revision,value:body.value});return {operation_id:body.operation_id,revision};}
-   if(action==='creation-choices')return {items:[],errors:[]};
+   if(action==='creation-choices'){
+    if(lateChoices)await new Promise(resolve=>{finishChoices=resolve;});
+    return {items:lateChoices||[],errors:[]};
+   }
    if(action==='create')return createReply?createReply():{reference:ref};
    if(action==='catalog')return {items:[{reference:ref,page_id:'1a234567',name:original.name}],errors:[]};
    throw Error('Unexpected '+action);
@@ -32,10 +36,12 @@ async function pendingCreation(createReply){
  const store=c.RunTeamsWorkState;await store.connect();
  const original={operation_id:crypto.randomUUID(),name:'Original name',employee_reference:{source_id:'old-source'},source_revision:'saved',skill_key:'review'};
  store.setItem('runteams.pipeline-create:'+c.workspaceDeviceStorageScope(),JSON.stringify(original));await store.flush();
- const ui=c.RunTeamsSourcePipelines;await ui.newPipeline();
+ const ui=c.RunTeamsSourcePipelines,opening=ui.newPipeline();
+ if(!lateChoices)await opening;
  assert.equal(submit.textContent,'核对创建结果');assert.equal(submit.disabled,false);assert.equal(calls.filter(c=>c.action==='create').length,0);
  await ui.create();await store.flush();
- return {closed,navigated,modalHost,calls,original,records,error,submit};
+ if(lateChoices){finishChoices();await opening;}
+ return {closed,navigated,modalHost,calls,original,records,error,submit,fields,select};
 }
 
 test('original creation can be recovered and dialog closes even if current employee choices disappear',async()=>{
@@ -61,5 +67,15 @@ test('validation releases a rejected creation while uncertain replies keep the o
     assert.deepEqual(JSON.parse(saved),original);assert.equal(submit.textContent,'核对创建结果');
    }
   }
+ }
+});
+
+test('late employee choices recover the rejected draft and select only its original skill and revision',async()=>{
+ const originalRole={reference:{source_id:'old-source'},revision:'saved',skill_key:'review'};
+ const otherRole={...originalRole,revision:'newer'};
+ const reject=()=>{throw Object.assign(Error('invalid request'),{status:400});};
+ for(const [choices,expected] of [[[otherRole,originalRole],'1'],[[otherRole],'']]){
+  const {fields,select}=await pendingCreation(reject,choices);
+  assert.match(fields.innerHTML,/value="Original name"/);assert.equal(select.value,expected);
  }
 });

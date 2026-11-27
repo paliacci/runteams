@@ -1218,15 +1218,15 @@
    const choices=request('creation-choices',{}, {readPriority:'foreground'}).then(reply=>({reply}),error=>({error}));
    if(!RunTeamsWorkState.ready)await RunTeamsWorkState.connect();
    if(!active())return;
-   c.pending=JSON.parse(RunTeamsWorkState.getItem(creationKey())||'null');
+   const original=JSON.parse(RunTeamsWorkState.getItem(creationKey())||'null');
+   c.pending=original;
    if(c.pending){c.name=c.pending.name;c.loading=false;creationDialog(true);}
    const {reply,error}=await choices;
    if(!active())return;
    if(error)throw error;
    if(!Array.isArray(reply.items))throw Error('pipeline creation choices missing');
    c.choices=reply.items;c.choiceErrors=Array.isArray(reply.errors)?reply.errors:[];
-   if(c.pending?.employee_reference){
-    const original=c.pending;
+   if(original?.employee_reference){
     const fields=Object.keys(original.employee_reference);
     const index=c.choices.findIndex(row=>row.skill_key===original.skill_key&&row.revision===original.source_revision&&
      fields.length===Object.keys(row.reference).length&&fields.every(key=>row.reference[key]===original.employee_reference[key]));
