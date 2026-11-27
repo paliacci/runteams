@@ -12,6 +12,7 @@ from pathlib import Path
 import sqlite3
 import uuid
 
+from runteams_core.foundation.regular_files import sqlite_file_uri
 from runteams_core.storage.local_library import private_directory
 
 KINDS = frozenset({'employee', 'pipeline', 'skill', 'project'})
@@ -82,7 +83,7 @@ class LocalAssets:
             pass
         else:
             os.close(fd)
-        c = sqlite3.connect(self.path, timeout=30)
+        c = sqlite3.connect(sqlite_file_uri(self.path), uri=True, timeout=30)
         c.row_factory = sqlite3.Row
         try:
             c.execute('PRAGMA foreign_keys=ON')

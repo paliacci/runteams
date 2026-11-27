@@ -183,7 +183,7 @@ class DeviceWorkStorage:
         self.check_scope()
         with self.definition_lock():
             _directory(Path(self.path).parent)
-            connection = sqlite3.connect(self.path, timeout=30)
+            connection = sqlite3.connect(sqlite_file_uri(self.path), uri=True, timeout=30)
             try:
                 version = connection.execute('PRAGMA user_version').fetchone()[0]
                 if version == VERSION:
@@ -245,7 +245,7 @@ class DeviceWorkStorage:
                                          timeout=30, factory=_Connection)
         else:
             self.initialize()
-            connection = sqlite3.connect(self.path, timeout=30, factory=_Connection)
+            connection = sqlite3.connect(sqlite_file_uri(self.path), uri=True, timeout=30, factory=_Connection)
         connection.storage = self
         connection.row_factory = sqlite3.Row
         changed = False
@@ -377,7 +377,7 @@ def snapshot(source, destination, scope, check):
             # copy through a separate reader (backup on the writer would wait
             # for its own transaction). File verification remains inside it.
             with (closing(sqlite3.connect(sqlite_file_uri(path)+'?mode=ro', uri=True)) as original,
-                  closing(sqlite3.connect(target / DATABASE)) as copied):
+                  closing(sqlite3.connect(sqlite_file_uri(target / DATABASE), uri=True)) as copied):
                 original.backup(copied)
                 copied.execute('PRAGMA journal_mode=DELETE')
         # Work files are mutable while an Agent writes. Compare source and
@@ -515,7 +515,7 @@ def quarantine_restored(directory):
     if not path.exists():
         return 0
     from runteams_core.storage.repository import utc_now
-    with closing(sqlite3.connect(path)) as connection, connection:
+    with closing(sqlite3.connect(sqlite_file_uri(path), uri=True)) as connection, connection:
         connection.execute('INSERT OR IGNORE INTO device_work_restore_barriers(workflow_run_id,restored_at) '
             'SELECT id,? FROM workflow_runs', (utc_now(),))
         return connection.execute('SELECT COUNT(*) FROM device_work_restore_barriers').fetchone()[0]

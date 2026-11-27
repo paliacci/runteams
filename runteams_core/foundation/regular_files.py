@@ -19,7 +19,11 @@ def storage_path(path):
 
 
 def sqlite_file_uri(path):
-    """Encode a local SQLite filename with an empty URI authority."""
+    """Name a library database consistently for SQLite readers and writers.
+
+    On Windows, mixing plain and extended names for one file splits SQLite's
+    in-process WAL locking state. Keep the URI authority empty for local paths.
+    """
     absolute = storage_path(path).resolve()
     uri = absolute.as_uri()
     if os.name == 'nt' and absolute.drive.startswith('\\\\'):

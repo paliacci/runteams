@@ -98,6 +98,13 @@ class SingleOccurrenceTests(unittest.TestCase):
             with self.assertRaises(ContractError):
                 backend.fire(connection, schedule, SECOND)
         self.assertEqual(self.read(backend)['runs'][0]['status'], 'waiting')
+        ledger.execute("UPDATE workflow_runs SET state='interrupted' WHERE id=42")
+        self.assertEqual(self.read(backend)['runs'][0]['status'], 'blocked')
+        with backend.connection(write=True) as connection:
+            connection.execute("UPDATE occurrences SET status='waiting'")
+        self.assertEqual(self.read(backend)['runs'][0]['status'], 'blocked')
+        with backend.connection(write=True) as connection:
+            connection.execute("UPDATE occurrences SET status='failed'")
         ledger.execute("UPDATE workflow_runs SET state='completed' WHERE id=42")
         run, = self.read(backend)['runs']
         self.assertEqual((run['status'],run['workflow_id'],run['scheduled_for']), ('completed',42,FIRST))

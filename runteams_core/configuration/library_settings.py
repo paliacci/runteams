@@ -7,6 +7,7 @@ from pathlib import Path
 import sqlite3
 import uuid
 
+from runteams_core.foundation.regular_files import sqlite_file_uri
 from runteams_core.configuration.interaction_settings import validate
 from runteams_core.assets.library_assets import AssetConflict
 from runteams_core.storage.local_library import private_directory
@@ -30,7 +31,7 @@ class LibrarySettings:
         try: descriptor=os.open(self.path,os.O_CREAT|os.O_EXCL|os.O_WRONLY,0o600)
         except FileExistsError: pass
         else: os.close(descriptor)
-        connection=sqlite3.connect(self.path,timeout=30)
+        connection=sqlite3.connect(sqlite_file_uri(self.path),uri=True,timeout=30)
         try:
             connection.execute('BEGIN IMMEDIATE')
             version=connection.execute('PRAGMA user_version').fetchone()[0]

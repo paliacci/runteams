@@ -65,7 +65,7 @@ def verify_files(directory, expected, *, required='personal.sqlite3'):
 def snapshot_database(source, destination):
     if source.is_symlink() or not source.is_file():raise ValueError('本机数据库路径无效。')
     with (closing(sqlite3.connect(sqlite_file_uri(source)+'?mode=ro',uri=True)) as original,
-          closing(sqlite3.connect(destination)) as target):
+          closing(sqlite3.connect(sqlite_file_uri(destination),uri=True)) as target):
         original.backup(target);target.execute('PRAGMA journal_mode=DELETE')
     destination.chmod(0o600)
 

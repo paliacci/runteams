@@ -91,7 +91,7 @@ class ConnectedEmployeeRuntime:
                 path.touch(mode=0o600, exist_ok=False)
             except FileExistsError:
                 _private(path)
-        return sqlite3.connect(path, timeout=8)
+        return sqlite3.connect(sqlite_file_uri(path), uri=True, timeout=8)
 
     def _secret(self, name):
         self._check()

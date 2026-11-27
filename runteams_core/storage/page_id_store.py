@@ -50,7 +50,7 @@ def resolve(directory, identities):
         raise ValueError('资料库页面索引路径无效。')
     if not path.exists():
         path.touch(mode=0o600, exist_ok=True)
-    with closing(sqlite3.connect(path, timeout=30)) as database, database:
+    with closing(sqlite3.connect(sqlite_file_uri(path), uri=True, timeout=30)) as database, database:
         database.execute(SCHEMA)
         def read():
             return dict(database.execute(

@@ -103,7 +103,7 @@ class EmployeeSchedules:
                 yield None
                 return
             self.path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-            c = sqlite3.connect(self.path, timeout=10)
+            c = sqlite3.connect(sqlite_file_uri(self.path), uri=True, timeout=10)
             c.row_factory = sqlite3.Row
             try:
                 if not c.execute("SELECT 1 FROM sqlite_master WHERE name='binding'").fetchone():
@@ -666,7 +666,7 @@ def snapshot(source, destination, scope, check, *, schedule_directory=DIRECTORY,
     target = Path(destination) / schedule_directory / DATABASE
     target.parent.mkdir(mode=0o700)
     with (closing(sqlite3.connect(sqlite_file_uri(path) + '?mode=ro', uri=True)) as original,
-          closing(sqlite3.connect(target)) as copy):
+          closing(sqlite3.connect(sqlite_file_uri(target), uri=True)) as copy):
         original.backup(copy)
     target.chmod(0o600)
     check()
@@ -677,6 +677,6 @@ def quarantine_restored(directory, *, schedule_directory=DIRECTORY):
     path = Path(directory) / schedule_directory / DATABASE
     if not path.exists():
         return
-    with closing(sqlite3.connect(path)) as c, c:
+    with closing(sqlite3.connect(sqlite_file_uri(path), uri=True)) as c, c:
         c.execute("UPDATE schedules SET enabled=0,next_run_at='',revision=revision+1")
         c.execute("UPDATE occurrences SET status='interrupted',reason='从备份恢复，请核对原工作，不会自动重做。' WHERE status IN ('queued','running','waiting')")

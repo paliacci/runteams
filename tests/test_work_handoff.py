@@ -8,6 +8,18 @@ from runteams_core.work.work_reports import _operate, _output_bytes
 
 
 class WorkHandoffTests(unittest.TestCase):
+    def test_work_readers_and_writers_use_the_same_sqlite_filename(self):
+        from runteams_core.storage import device_data
+        from runteams_core.work.device_work import DeviceWorkStorage
+        scope = {'storage_kind':'local','library_id':'test','storage_namespace':'test'}
+        with TemporaryDirectory(prefix='work #% ') as folder, patch.object(device_data,'root',return_value=Path(folder)), \
+                patch.object(device_data,'identity',return_value=scope), patch.object(device_data,'personal',return_value=True):
+            storage = DeviceWorkStorage()
+            with storage.connect() as writer:
+                filename = writer.execute('PRAGMA database_list').fetchone()[2]
+            with storage.connect(readonly=True) as reader:
+                self.assertEqual(reader.execute('PRAGMA database_list').fetchone()[2], filename)
+
     def test_author_workspace_routes_only_bound_delivery_to_current_work(self):
         from runteams_core.documents.native_document_tools import dispatch
         from runteams_core.agents.tools.agent_tool_registry import AgentToolError

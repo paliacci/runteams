@@ -17,6 +17,7 @@ import uuid
 import threading
 from functools import lru_cache
 
+from runteams_core.foundation.regular_files import sqlite_file_uri
 from runteams_core.storage import local_database
 from runteams_core.conversations.workspace_context import selected
 
@@ -160,7 +161,7 @@ def connect(*, readonly=False):
             active['failed'] = True
             raise
         return
-    c = sqlite3.connect(path, timeout=30)
+    c = sqlite3.connect(sqlite_file_uri(path), uri=True, timeout=30)
     if stat.S_IMODE(path.stat().st_mode) != 0o600:
         path.chmod(0o600)
     c.row_factory = sqlite3.Row

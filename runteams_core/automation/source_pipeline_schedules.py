@@ -54,32 +54,35 @@ class PipelineSchedules(EmployeeSchedules):
             core.repository.storage.assert_executable(identifier)
         except ContractError as error:
             return 'interrupted',str(error)
+        # An admitted task awaiting a review must be opened in its own card.
+        # The schedule's interrupted state also permits abandoning an occurrence.
+        if state=='interrupted':
+            return 'blocked',''
         return 'waiting',''
 
-    def retried_runs(self, rows):
-        # A stage retry reuses its workflow ID. A failed admission without a
-        # workflow, or a failure whose work was removed, stays in history.
-        failed = [row for row in rows if row['status']=='failed' and row['workflow_id']]
-        if not failed:
+    def changed_workflow_outcomes(self, rows):
+        # Only linked, recoverable records follow their original workflow.
+        linked = [row for row in rows if row['status'] in ('failed','waiting','blocked') and row['workflow_id']]
+        if not linked:
             return
         core = self.core()
-        for start in range(0,len(failed),500):
-            batch = failed[start:start+500]
+        for start in range(0,len(linked),500):
+            batch = linked[start:start+500]
             identifiers = [row['workflow_id'] for row in batch]
             placeholders = ','.join('?' for _ in identifiers)
             with core.repository.read_snapshot() as connection:
                 states = dict(connection.execute(
-                    f'SELECT id,state FROM workflow_runs WHERE id IN ({placeholders}) AND state!=?',
-                    (*identifiers,'failed')))
+                    f'SELECT id,state FROM workflow_runs WHERE id IN ({placeholders})',identifiers))
             for row in batch:
                 identifier = row['workflow_id']
-                if identifier in states:
+                if identifier in states and states[identifier]!=row['status']:
                     status,reason = self.workflow_outcome(core,identifier,states[identifier])
-                    yield row,status,reason
+                    if status!=row['status']:
+                        yield row,status,reason
 
     def record(self, connection, row):
         value = super().record(connection,row)
-        for run,status,reason in self.retried_runs(value['runs']):
+        for run,status,reason in self.changed_workflow_outcomes(value['runs']):
             run.update(status=status,reason=reason)
         return value
 
@@ -210,7 +213,7 @@ class PipelineSchedules(EmployeeSchedules):
     def fire(self,c,row,scheduled):
         open_run=c.execute("SELECT 1 FROM occurrences WHERE schedule_id=? AND status IN ('queued','running','waiting','blocked','interrupted')",(row['id'],)).fetchone()
         failures=c.execute("SELECT status,workflow_id FROM occurrences WHERE schedule_id=? AND status='failed' AND workflow_id IS NOT NULL",(row['id'],))
-        if open_run or any(status in ('waiting','blocked','interrupted') for _,status,_ in self.retried_runs(failures)):
+        if open_run or any(status in ('waiting','blocked','interrupted') for _,status,_ in self.changed_workflow_outcomes(failures)):
             raise ContractError('这项自动化还有未完成或需要核对的运行。')
         op=str(uuid.uuid5(uuid.NAMESPACE_URL,canonical([self.binding(),row['id'],scheduled])))
         payload=json.loads(row['payload']);position=payload.pop('start_column_key')
@@ -300,7 +303,7 @@ class PipelineSchedules(EmployeeSchedules):
                 rows=[dict(r) for r in c.execute("SELECT * FROM occurrences WHERE status IN ('running','waiting','blocked','interrupted')"+selection,ids)]
                 failures=c.execute("SELECT id,status,workflow_id,reason,chat_id FROM occurrences WHERE status='failed' AND workflow_id IS NOT NULL"+selection,ids).fetchall()
             tracking=False
-            for row,status,reason in self.retried_runs(failures):
+            for row,status,reason in self.changed_workflow_outcomes(failures):
                 self.record_outcome(row,status,row['workflow_id'],reason)
                 tracking |= status in ('waiting','blocked','interrupted')
             if not rows:return tracking
