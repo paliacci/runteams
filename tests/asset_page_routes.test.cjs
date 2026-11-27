@@ -115,4 +115,14 @@ test('a document revision keeps its version when converted between public and in
   assert.equal(routes.isDeviceRoute(path), true);
   assert.throws(() => routes.resolve(path.replace('revision=80', 'revision=0')));
   assert.throws(() => routes.resolve(path.replace('revision=80', 'revision=80&revision=81')));
+
+  // A saved tab or bookmark can contain a revision's old public URL.
+  const alias = 'local-' + 'a'.repeat(32);
+  routes.installDevice([{resource: 'documents', id: '80', public_id: alias, document_root_id: '79'}]);
+  assert.equal(routes.toPublic('/docs?document=80'), '/documents/' + publicId);
+  assert.equal(routes.resolve('/documents/' + alias).documentId, 79);
+  assert.equal(routes.toPublic('/docs?document=80&revision=80#section'), path);
+  assert.equal(routes.resolve(path.replace(publicId, alias)).revisionId, 80);
+  routes.installDevice([{resource: 'documents', id: '80', public_id: alias}], 'other-library');
+  assert.equal(routes.resolve('/documents/' + alias).documentId, 80);
 });

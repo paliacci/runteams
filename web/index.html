@@ -658,7 +658,7 @@ function workspaceKeyFromRoute(route){
   if(["trash","design-system"].includes(kind))return kind;
   return null;
 }
-function documentWindowKey(id,revisionId){return `document:${id}${revisionId?`-${revisionId}`:""}`;}
+function documentWindowKey(id,revisionId){return `document:${RunTeamsRoutes.documentRootId(id)}${revisionId?`-${revisionId}`:""}`;}
 function workspaceCurrentKey(){
  if(S.surface==='source-pipeline')return RunTeamsSourcePipelines.key(S.sourcePipelineWorkspace?.reference)||workspaceKeyFromRoute();
  if(activeRailMode()==='assistant'&&S.conversationPanel)return S.conversationPanel.id!=null?`chat:${S.conversationPanel.id}`:conversationNewWindowKey(S.conversationPanel.context?.purpose);
@@ -720,7 +720,14 @@ function workspaceWindowTitle(key,existing){
 }
 function synchronizeWorkspaceWindowIdentities(){
  if(!Array.isArray(S.workspaceWindows))return false;
- const rows=RunTeamsEmployeeWindows.coalesce(S.workspaceWindows,S.activeWorkspaceKey,row=>workspaceEmployeeWindowIdentity(row.key));
+ // Older Local tabs used the artifact ID of whichever revision opened the editor.
+ const canonical=S.workspaceWindows.map(row=>{
+  const match=/^document:(\d+)(?:-(\d+))?$/.exec(row.key);
+  if(!match)return row;
+  const key=documentWindowKey(match[1],match[2]);
+  return key===row.key?row:{...row,key};
+ });
+ const rows=RunTeamsEmployeeWindows.coalesce(canonical,S.activeWorkspaceKey,row=>workspaceEmployeeWindowIdentity(row.key));
  if(JSON.stringify(rows)===JSON.stringify(S.workspaceWindows))return false;
  S.workspaceWindows=rows;saveWorkspaceWindows();return true;
 }
@@ -3091,7 +3098,7 @@ function documentReaderUsesDevice(id,doc){
   return deviceWorkPath(path)!==path;
 }
 async function openDocumentReaderById(id,options={}){
-  const numericId=Number(id);
+  const numericId=RunTeamsRoutes.documentRootId(id);
   if(!Number.isInteger(numericId)||numericId<=0)return false;
   const revisionId=options.revisionId||0;
   const taskReturn=options.returnToPipelineTask&&S.sel?.type==="source-pipeline"&&S.sel.id==="work"?

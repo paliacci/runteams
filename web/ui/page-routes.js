@@ -44,6 +44,10 @@ function row(resource,id,side){
  if(!found)throw loaded?failure():missing();
  return found;
 }
+function documentRootId(id){
+ const root=deviceIds.get(key('documents',id))?.document_root_id;
+ return root&&deviceIds.has(key('documents',root))?Number(root):Number(id);
+}
 function fill(pattern,params){return pattern.replace(/\{(\w+)\}/g,(_,name)=>{if(!params[name])throw failure();return params[name];});}
 function queryRefs(target,side){
  for(const [name,resource] of Object.entries(contract.query_refs)){
@@ -85,7 +89,7 @@ function toInternal(value){
   if(!params[name])continue;
   const item=row(resource,params[name],'public');
   if(resource==='chats'&&found.route.kind==='chat'&&item.owner_path!==undefined&&chatOwner(params)!==item.owner_path)throw failure();
-  params[name]=item.id;
+  params[name]=resource==='documents'?documentRootId(item.id):item.id;
  }
  target.pathname=fill(found.route.internal,params);queryRefs(target,'public');
  if(found.route.kind==='docs-detail'){
@@ -107,7 +111,7 @@ function toPublic(value){
  const params={...found.params};
  for(const [name,resource] of Object.entries(found.route.refs||{})){
   if(!params[name])continue;
-  const item=row(resource,params[name],'internal');
+  const item=row(resource,resource==='documents'?documentRootId(params[name]):params[name],'internal');
   if(resource==='chats'&&chatOwner(params)&&chatOwner(params)!==item.owner_path)throw failure();
   params[name]=item.public_id;
  }
@@ -194,7 +198,7 @@ function isDeviceRoute(value){
 }
 function clear(){byId.clear();byPublic.clear();deviceIds.clear();devicePublic.clear();scope='';deviceScope='';loaded=false;}
 global.addEventListener?.('runteams:business-scope-changed',clear);
-global.RunTeamsRoutes={toInternal,toPublic,preview,resolve,install,installDevice,isDeviceRoute,documentRevision,clear,mount,unmount,base,get ready(){return loaded;},get scope(){return scope;}};
+global.RunTeamsRoutes={toInternal,toPublic,preview,resolve,install,installDevice,isDeviceRoute,documentRevision,documentRootId,clear,mount,unmount,base,get ready(){return loaded;},get scope(){return scope;}};
 if(base)for(const event of ['click','auxclick','contextmenu'])global.document?.addEventListener?.(event,e=>{
  const anchor=e.target.closest?.('a[href]');if(!anchor)return;
  try{const target=url(anchor.href);if(target.origin===global.location.origin&&match(target.pathname,'public'))anchor.href=mount(target.href);}catch(error){}

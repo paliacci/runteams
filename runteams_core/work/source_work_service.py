@@ -50,8 +50,14 @@ class SourceWorkService:
                     self.repository.storage.public_id(table, identifier))
                 item = {'resource': public, 'id': str(identifier), 'public_id': public_id}
                 items.append(item)
-                if table == 'artifacts' and self.is_document_artifact(self._decode_meta(row['meta_json']), row['name']):
-                    documents.append({**item, 'resource': 'documents'})
+                if table == 'artifacts':
+                    meta = self._decode_meta(row['meta_json'])
+                    if self.is_document_artifact(meta, row['name']):
+                        document = {**item, 'resource': 'documents'}
+                        root = str(meta.get('revision_of') or '')
+                        if root.isascii() and root.isdecimal() and root != str(identifier):
+                            document['document_root_id'] = root
+                        documents.append(document)
         return items + documents
 
 
