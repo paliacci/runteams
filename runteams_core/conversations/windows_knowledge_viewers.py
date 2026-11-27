@@ -13,7 +13,8 @@ import time
 from runteams_core.foundation.regular_files import is_link, storage_path
 
 _PREFIX = 'runteams-knowledge-'
-_RECEIPT = '.runteams-view-v1'
+_RECEIPT = '.runteams-view-v2'
+_PREVIOUS_RECEIPT = '.runteams-view-v1'
 _DELETE = 0x10000
 _READ_ATTRIBUTES = 0x80
 _WRITE_ATTRIBUTES = 0x100
@@ -80,7 +81,7 @@ def _delete(fd, attributes=0):
 
 def _reclaim_file(folder, record):
     name, identity = record
-    if not isinstance(name, str) or Path(name).name != name or name in ('', '.', '..', _RECEIPT) or ':' in name:
+    if not isinstance(name, str) or Path(name).name != name or name in ('', '.', '..', _RECEIPT, _PREVIOUS_RECEIPT) or ':' in name:
         raise ValueError('Invalid viewer receipt')
     try:
         with _handle(folder / name, _READ_ATTRIBUTES | _WRITE_ATTRIBUTES | _DELETE) as (fd, info):
@@ -92,19 +93,24 @@ def _reclaim_file(folder, record):
 
 def _reclaim(folder):
     try:
-        if is_link(folder.lstat()) or not (folder / _RECEIPT).is_file():
+        if is_link(folder.lstat()):
             return
+        marker = folder / _RECEIPT
+        if not marker.is_file():
+            marker = folder / _PREVIOUS_RECEIPT
+            if not marker.is_file():
+                return
         # Denying delete sharing pins the directory while resolving its immediate children.
         with _handle(folder, _READ_ATTRIBUTES | _DELETE, 3, directory=True) as (directory_fd, directory):
             # The owner holds an incompatible handle until exit. Only one reaper can claim it.
-            with _handle(folder / _RECEIPT, 0x80000000 | _DELETE) as (receipt, receipt_info):
+            with _handle(marker, 0x80000000 | _DELETE) as (receipt, receipt_info):
                 if not directory.st_ino or receipt_info.st_nlink != 1:
                     return
                 with os.fdopen(os.dup(receipt), 'rb') as records:
                     if json.loads(records.readline()) != _identity(directory):
                         return
                     files = {}
-                    not_before = 0
+                    not_before = receipt_info.st_mtime + _HANDOFF_SECONDS if marker.name == _PREVIOUS_RECEIPT else 0
                     for line in records:
                         record = json.loads(line)
                         if isinstance(record, dict):
