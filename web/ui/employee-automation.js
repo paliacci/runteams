@@ -141,8 +141,7 @@
    attrs:`role="dialog" aria-modal="true" aria-label="${title}" data-app-i18n-aria-label="${titleKey}"`,
    closeAction:`RunTeamsEmployeeAutomation.closeTemplate(${index})`,
    body:`<div class="employee-schedule-content employee-automation-template-review">
-    <h4>${esc(item.name)}</h4><p class="help">${esc(automationListSchedule(item))}
-     ${item.schedule_kind==='interval'?'':` · ${esc(item.schedule.timezone)}`}</p>
+    <h4>${esc(item.name)}</h4><p class="help">${esc(automationListSchedule(item))}</p>
     <p class="employee-automation-template-objective">${esc(item.objective)}</p>
     <p class="help">${canImport?copy('scheduledAutomation.templatePaused','添加后保持暂停。核对设置后可启用。'):copy('scheduledAutomation.templateReadOnly','此资产的模板仅供查看。')}</p>
     <div data-automation-template-inputs>${hasInputs?RunTeamsSkeletons.region('parameters',undefined,'scheduledAutomation.loadingInputs'):''}</div>
@@ -227,12 +226,12 @@
  function row(item,s){
   const id=Number(item.id),paused=!item.enabled,latest=item.runs?.[0],disabled=s.loading||s.busy||s.error||s.unavailable||!!pending(s);
   const enabled=paused?copy('automationList.paused','已暂停'):copy('automationList.enabled','已启用');
-  const statusId='employee-schedule-status-'+id,description=`aria-describedby="${statusId}"`;
+  const statusId='employee-schedule-status-'+id,timeId='employee-schedule-time-'+id,description=`aria-describedby="${statusId}"`;
   const actionKey=paused?'scheduledAutomation.enableFor':'scheduledAutomation.pauseFor';
   return `<div class="employee-automation-row rt-list-row" data-schedule-id="${id}" onclick="RunTeamsEmployeeAutomation.records(${id})">
    <span hidden id="${statusId}">${enabled}${latest?` · ${copy('scheduledAutomation.latestRun','最近运行')} ${copy(...runState(latest))}`:''}</span>
    <button type="button" class="employee-automation-icon-action employee-automation-toggle" data-schedule-control="toggle" title="${paused?'启用自动化':'暂停自动化'}" data-app-i18n-title="${paused?'automationList.enable':'automationList.pause'}" aria-label="${esc((paused?'启用':'暂停')+item.name)}" data-app-i18n-aria-label="${actionKey}" ${vars(item.name)} ${description} onclick="event.stopPropagation();RunTeamsEmployeeAutomation.action(${id},'${paused?'resume':'pause'}')" ${disabled?'disabled':''}>${ICON(paused?'play':'pause')}</button>
-   <button type="button" class="employee-automation-open" data-schedule-control="history" aria-label="${esc(item.name)}的运行记录" data-app-i18n-aria-label="scheduledAutomation.historyFor" ${vars(item.name)} ${description}><span class="employee-automation-copy"><b title="${esc(item.name)}">${esc(item.name)}</b><small data-employee-schedule-time>${esc(automationListSchedule(item))}</small></span></button>
+   <button type="button" class="employee-automation-open" data-schedule-control="history" aria-label="${esc(item.name)}的运行记录" data-app-i18n-aria-label="scheduledAutomation.historyFor" ${vars(item.name)} aria-describedby="${statusId} ${timeId}"><span class="employee-automation-copy"><b title="${esc(item.name)}">${esc(item.name)}</b><small id="${timeId}" data-employee-schedule-time>${esc(automationListSchedule(item))}</small></span></button>
    <button type="button" class="employee-automation-icon-action" data-schedule-control="menu" aria-label="${esc(item.name)}的更多操作" data-app-i18n-aria-label="automationList.moreFor" ${vars(item.name)} aria-haspopup="menu" onclick="event.stopPropagation();RunTeamsEmployeeAutomation.menu(event,${id})" ${disabled?'disabled':''}>${ICON('more')}</button>
   </div>`;
  }

@@ -4751,12 +4751,16 @@ function documentReaderStaleMarkup(){
   if(!current||Number(current.id)===Number(doc.id))return "";   // 版本链还没取回来，先不显示半截信息
   return `<div class="doc-reader-stale">${ICON("info")}<span data-app-i18n="documentReader.older" data-document-viewing-date="${esc(doc.created_at||"")}" data-document-current-date="${esc(current.created_at||"")}" data-app-i18n-vars="${esc(JSON.stringify({viewing:docsTime(doc.created_at),current:docsTime(current.created_at)}))}">你在看的是 ${esc(docsTime(doc.created_at))} 的旧版本，最新的是 ${esc(docsTime(current.created_at))}。</span><button type="button" onclick="openDocumentRevision(${Number(current.id)})" data-app-i18n="documentReader.current">查看当前版本</button><button type="button" onclick="confirmRestoreDocumentRevision()" data-app-i18n="employeeHistory.restore">恢复此版本</button></div>`;
 }
+function automationClockLabel(schedule){
+  const time=schedule.time||'09:00';
+  return schedule.timezone?`${time} · ${schedule.timezone}`:time;
+}
 function automationScheduleLabel(item){
   const kind=item&&item.schedule_kind||"interval",schedule=item&&item.schedule||{};
-  if(kind==="daily")return `每天 ${schedule.time||"09:00"}`;
+  if(kind==="daily")return `每天 ${automationClockLabel(schedule)}`;
   if(kind==="weekly"){
     const labels=["周一","周二","周三","周四","周五","周六","周日"];
-    return `${(schedule.weekdays||[]).map(day=>labels[Number(day)]).filter(Boolean).join("、")||"每周"} ${schedule.time||"09:00"}`;
+    return `${(schedule.weekdays||[]).map(day=>labels[Number(day)]).filter(Boolean).join("、")||"每周"} ${automationClockLabel(schedule)}`;
   }
   const value=Math.max(60,Number(item&&item.interval_sec)||3600);
   if(value%604800===0)return value===604800?"每周":`每 ${value/604800} 周`;
@@ -4764,19 +4768,22 @@ function automationScheduleLabel(item){
   if(value%3600===0)return value===3600?"每小时":`每 ${value/3600} 小时`;
   return value===600?"每 10 分钟":`每 ${Math.round(value/60)} 分钟`;
 }
-function automationTime(value){if(!value)return "—";const date=new Date(String(value).replace(" ","T"));if(Number.isNaN(date.getTime()))return value;return date.toLocaleString("zh-CN",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit",hour12:false});}
 function automationRunTime(value){
-  const locale=window.RunTeamsLocale;
-  if(!value||locale?.language!=='en')return automationTime(value);
+  if(!value)return '—';
   const date=new Date(String(value).replace(' ','T'));
-  return Number.isNaN(date.getTime())?automationTime(value):locale.formatDate(date,{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
+  if(Number.isNaN(date.getTime()))return value;
+  const english=window.RunTeamsLocale?.language==='en';
+  return date.toLocaleString(english?'en':'zh-CN',{
+    year:'numeric',month:english?'short':'numeric',day:'numeric',hour:english?'numeric':'2-digit',minute:'2-digit',
+    timeZoneName:'shortOffset',...(english?{}:{hourCycle:'h23'})
+  });
 }
 function automationRunTimeMarkup(value){
   return `<time data-automation-run-time="${esc(value||'')}">${esc(automationRunTime(value))}</time>`;
 }
 function automationListSchedule(item){
   if(window.RunTeamsLocale?.language!=='en')return automationScheduleLabel(item);
-  const kind=item.schedule_kind||'interval',schedule=item.schedule||{},time=schedule.time||'09:00';
+  const kind=item.schedule_kind||'interval',schedule=item.schedule||{},time=automationClockLabel(schedule);
   if(kind==='daily')return `Every day at ${time}`;
   if(kind==='weekly'){
     const days=['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];

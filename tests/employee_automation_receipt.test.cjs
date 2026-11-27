@@ -4,6 +4,25 @@ const fs=require('node:fs');
 const vm=require('node:vm');
 
 const script=fs.readFileSync('web/ui/employee-automation.js','utf8');
+test('calendar schedules retain their zone and repeated local hours identify distinct runs',()=>{
+ const source=fs.readFileSync('web/index.html','utf8'),start=source.indexOf('function automationClockLabel(');
+ class NewYorkDate extends Date{
+  toLocaleString(locale,options){return super.toLocaleString(locale,{...options,timeZone:'America/New_York'});}
+ }
+ const locale={language:'en'},ctx={window:{RunTeamsLocale:locale},Date:NewYorkDate};
+ vm.runInNewContext(source.slice(start,source.indexOf('window.addEventListener',start)),ctx);
+ for(const language of ['en','zh-CN']){
+  locale.language=language;
+  const early=ctx.automationRunTime('2027-11-07T05:30:00Z'),late=ctx.automationRunTime('2027-11-07T06:30:00Z');
+  for(const time of [early,late]){assert.match(time,/2027/);assert.match(time,/1:30/);}
+  assert.match(early,/GMT-4/);assert.match(late,/GMT-5/);
+  const schedule={time:'09:15',weekdays:[1],timezone:'Asia/Kathmandu'};
+  for(const kind of ['daily','weekly'])assert.match(ctx.automationListSchedule({schedule_kind:kind,schedule}),/09:15 · Asia\/Kathmandu/);
+  assert.doesNotMatch(ctx.automationListSchedule({schedule_kind:'interval',interval_sec:3600,schedule}),/Kathmandu/);
+ }
+ assert.equal(ctx.automationRunTime(null),'—');assert.equal(ctx.automationRunTime('unknown'),'unknown');
+});
+
 const reference={schema:'runteams.local-employee-reference/1',source_id:'draft',employee_source:'employees/a.json',account_id:'a',deployment_id:'d',storage_namespace:'n'};
 
 function openPanel(changes={}){
