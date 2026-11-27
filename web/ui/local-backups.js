@@ -59,12 +59,12 @@
   await check();if(error)return;if(automatic.some(v=>v.backup_id===id))download(id);
   else{report('backupExpired');paint();}
  }
- async function createReceipt(id){
-  try{return await api('/api/backups','POST',{operation_id:id});}
+ async function writeReceipt(path,data){
+  try{return await api(path,'POST',data);}
   catch(writeError){
    if(writeError.status===403)throw writeError;
    // The host can commit a final receipt even when its response is lost or reports an error.
-   try{return await api('/api/backups/'+id+'/status');}
+   try{return await api('/api/backups/'+data.operation_id+'/status');}
    catch(readError){
     if(readError.status===403)throw readError;
     if(readError.status===404&&[400,409].includes(writeError.status))forget();
@@ -77,7 +77,7 @@
   try{
    if(!await flushDocument()){report('documentPending');return;}
    remember({operation_id:crypto.randomUUID(),kind:'backup'});paint();
-   const value=await createReceipt(pending.operation_id);
+   const value=await writeReceipt('/api/backups',{operation_id:pending.operation_id});
    if(confirmed(value))download(value.backup_id);
   }catch(e){requestError(e,pending?'backupUnknown':'backupFailed');}
   finally{busy=false;paint();}
@@ -103,7 +103,7 @@
   try{
    if(!await flushDocument()){report('documentPending');return;}
    remember({operation_id:crypto.randomUUID(),kind:'restore'});paint();
-   await api('/api/backups/restore','POST',{operation_id:pending.operation_id,import_id:importId});
+   await writeReceipt('/api/backups/restore',{operation_id:pending.operation_id,import_id:importId});
    // A full reload starts a new verified library generation. Other open
    // windows cannot write with the old generation, even for the same UUID.
    location.replace('/?settings=general');

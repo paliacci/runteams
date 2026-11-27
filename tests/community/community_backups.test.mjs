@@ -82,6 +82,19 @@ test('empty and oversized files explain why they cannot be imported before uploa
   assert.equal(h.ui.pending,false);assert.equal(h.c.confirm,undefined);assert.equal(uploads,0);
  }
 });
+test('a refused restore keeps the reason, while an uncertain restore reloads to check its receipt',async()=>{
+ for(const refused of [true,false]){
+  const h=harness({api:async(path,method)=>{
+   if(method==='POST')throw Object.assign(Error('Finish the file selection first'),{status:refused?409:0});
+   throw Object.assign(Error('Receipt unavailable'),{status:refused?404:403});
+  }});
+  await h.ui.selected({files:[{size:50}],value:'backup.zip'});await h.c.confirm[2]();
+  assert.deepEqual(h.calls.map(a=>a[0]),['/api/backups/restore','/api/backups/'+op+'/status']);
+  assert.equal(h.ui.pending,!refused);assert.equal(h.values.has('runteams_pending_backup'),!refused);
+  if(refused){assert.deepEqual(h.locations,[]);assert.match(h.ui.markup(),/Finish the file selection first/);}
+  else assert.deepEqual(h.locations,['/?settings=general']);
+ }
+});
 test('official settings do not expose the local backup controls',()=>{const h=harness();h.c.S.localLibrary=null;assert.equal(h.ui.markup(),'')});
 
 const summary=()=>({policy:{enabled:true,keep:7,revision:0},automatic_backups:[{backup_id:op,created_at:'2026-10-31T01:00:00Z'}]});
