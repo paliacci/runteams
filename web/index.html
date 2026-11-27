@@ -1080,7 +1080,7 @@ function closeWorkspaceWindow(key){
   if(active&&documentNavigationNeedsSave())return saveBeforeDocumentNavigation(()=>closeWorkspaceWindow(key));
   if(active)workspaceCaptureCurrent();
   globalThis.RunTeamsCreatorWork?.closeWindow(key);_workspaceStateByKey.delete(key);_workspaceOverlayByKey.delete(key);S.workspaceWindows=remaining;saveWorkspaceWindows();
-  if(active){const next=remaining[0];S.activeWorkspaceKey="";activateWorkspaceWindow(next.key);}else render();
+  if(active){activateAfterWorkspaceClose(remaining[0].key);}else render();
   if(restoreFocus)focusActiveWorkspaceTab();
 }
 function closeWorkspaceWindowSet(keepKeys,preferredKey=""){
@@ -1097,8 +1097,15 @@ function closeWorkspaceWindowSet(keepKeys,preferredKey=""){
   workspaceCaptureCurrent();
   removed.forEach(item=>{globalThis.RunTeamsCreatorWork?.closeWindow(String(item.key));_workspaceStateByKey.delete(String(item.key));_workspaceOverlayByKey.delete(String(item.key));});
   S.workspaceWindows=remaining;saveWorkspaceWindows();
-  if(activeRemoved){const preferred=String(preferredKey||""),next=remaining.find(item=>String(item.key)===preferred)||remaining[0];S.activeWorkspaceKey="";activateWorkspaceWindow(next.key);}else render();
+  if(activeRemoved){const preferred=String(preferredKey||""),next=remaining.find(item=>String(item.key)===preferred)||remaining[0];activateAfterWorkspaceClose(next.key);}else render();
   if(restoreFocus)focusActiveWorkspaceTab();
+}
+function activateAfterWorkspaceClose(key){
+  // A cold destination loads through the router and would try to save the closed reader again.
+  // The close guard has already flushed it or received permission to discard it.
+  teardownDocumentReader(true);
+  S.activeWorkspaceKey="";
+  activateWorkspaceWindow(key);
 }
 function closeOtherWorkspaceWindows(key){
   key=String(key||"");if(!(S.workspaceWindows||[]).some(item=>item.key===key))return;
@@ -4188,7 +4195,8 @@ function documentLeaveDialog(saving,onKeep,onLeave){
   return dialog;
 }
 function documentNavigationNeedsSave(){
-  return !_documentClickReplay&&S.docReader?.richDirty&&["saving","error"].includes(S.docReader.saveStatus);
+  const reader=S.docReader;
+  return !_documentClickReplay&&(reader?.tableDirty||reader?.richDirty&&["saving","error"].includes(reader.saveStatus));
 }
 async function saveBeforeDocumentNavigation(navigate,available=()=>true){
   if(_documentNavigationPending===S.docReader)return;
