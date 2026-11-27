@@ -15,7 +15,9 @@ class PipelineDiscoveryTests(unittest.TestCase):
         folder = Path(tempfile.mkdtemp())
         self.addCleanup(shutil.rmtree, storage_path(folder))
         host = object.__new__(pipelines.PipelineMCPWork)
-        host.root = folder / ('中文资料库' * 24) / ('团队资料' * 24)
+        # Cross MAX_PATH while keeping each component within 255 UTF-8 bytes.
+        directories = [('中文资料库' * 13), ('团队资料' * 17)] * 2
+        host.root = folder.joinpath(*directories)
         host.check = Mock()
         host.core_factory = Mock()
         reference = {'source_id': 'a' * 64, 'pipeline_source': 'pipelines/main.json'}
