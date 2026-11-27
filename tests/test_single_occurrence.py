@@ -118,6 +118,27 @@ class SingleOccurrenceTests(unittest.TestCase):
             self.assertEqual([tuple(row) for row in rows],
                              [(FIRST, 'skipped', None), (SECOND, 'skipped', None), (THIRD, 'queued', None)])
 
+    def test_employee_trash_is_checked_at_trigger_and_before_opening_a_work_chat(self):
+        from runteams_core.automation import scheduled_employee_chat
+        backend = self.schedule(EmployeeSchedules)
+        visibility = 'runteams_core.employees.employee_directory.source_reference_is_hidden'
+        with patch(visibility, return_value=True):
+            Clock.value = FIRST
+            backend.materialize_due_automations()
+        Clock.value = SECOND
+        backend.materialize_due_automations()
+        job = backend.claim_next_automation_run()
+        with patch(visibility, return_value=True), patch('runteams_core.employees.employee_context.current'), \
+                patch('runteams_core.employees.source_employee_runtime.create_chat') as create_chat:
+            scheduled_employee_chat.execute(None, backend, job, {'local_package': {'reference': REFERENCE}})
+            create_chat.assert_not_called()
+        Clock.value = THIRD
+        backend.materialize_due_automations()
+        with backend.connection() as connection:
+            rows = connection.execute('SELECT scheduled_for,status,chat_id FROM occurrences ORDER BY id')
+            self.assertEqual([tuple(row) for row in rows],
+                             [(FIRST, 'skipped', None), (SECOND, 'skipped', None), (THIRD, 'queued', None)])
+
     def test_legacy_trash_refusal_checks_admission_receipt_before_skipping(self):
         backend, _ = self.linked_pipeline('completed')
         with backend.connection(write=True) as connection:

@@ -13,7 +13,7 @@ from pathlib import Path
 import sqlite3
 
 from runteams_core.storage import device_data
-from runteams_core.employees import source_employee_trash
+from runteams_core.employees import employee_references, source_employee_trash
 from runteams_core.assets import source_links
 from runteams_core.conversations.page_paths import asset_key, short_ids, page_id
 from runteams_core.authoring.creator_contracts import canonical, strict_json
@@ -203,6 +203,15 @@ def _hidden_team_member_keys(store, paths):
         # A concurrent edit can change ownership. Reconcile through the roster.
         raise ValueError('员工所属团队已变化。')
     return members
+
+
+def source_reference_is_hidden(reference):
+    if reference.get('schema') != employee_references.SOURCE_SCHEMA:
+        return False
+    scope = device_data.identity()
+    ref = employee_references.checked_source_reference(reference, scope)
+    store = current_store(scope['cache_scope'])
+    return _hidden_source_employee(store, source_links.source_key(ref['source_id'], ref['employee_source']))
 
 
 def _hidden_source_employee(store, key):

@@ -115,6 +115,8 @@ test('employee and team history translate a user-skipped occurrence and retain o
  const render=historyDialog();
  const trashed=await render(true,{status:'skipped',reason:'触发时智能体团队已在垃圾箱，本次未创建工作。'});
  assert.ok(trashed.includes('scheduledAutomation.skippedInTrash'));
+ const employee=await render(false,{status:'skipped',reason:'员工已在垃圾箱，本次未创建工作。'});
+ assert.ok(employee.includes('scheduledAutomation.employeeInTrash'));
  for(const pipeline of [false,true]){
   const manual=await render(pipeline,{status:'skipped',reason:'用户已跳过这一次定时。'});
   assert.ok(manual.includes('scheduledAutomation.skippedByUser'));

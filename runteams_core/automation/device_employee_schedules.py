@@ -22,6 +22,7 @@ from runteams_core.foundation.contracts import ContractError
 from runteams_core.authoring.definition_contracts import validate_definition, select_work_unit, validate_work_parameters
 
 DIRECTORY = 'employee-schedules'
+EMPLOYEE_IN_TRASH = '员工已在垃圾箱，本次未创建工作。'
 DATABASE = 'schedules.sqlite3'
 _lock = threading.RLock()
 
@@ -431,6 +432,9 @@ class EmployeeSchedules:
                 c.execute("UPDATE occurrences SET status='cancelled',reason='计划已暂停或更新，原触发未受理。' WHERE id=?",(row['id'],))
 
     def fire(self, c, row, scheduled):
+        from runteams_core.employees.employee_directory import source_reference_is_hidden
+        if source_reference_is_hidden(json.loads(row['reference'])):
+            raise ContractError(EMPLOYEE_IN_TRASH)
         if c.execute("SELECT 1 FROM occurrences WHERE schedule_id=? AND status IN ('queued','running','waiting','blocked','interrupted')", (row['id'],)).fetchone():
             raise ContractError('这项自动化还有未完成或需要核对的运行。')
         c.execute("INSERT INTO occurrences(schedule_id,scheduled_for,operation_id,status,snapshot) VALUES(?,?,?,'queued',?)",
@@ -506,6 +510,15 @@ class EmployeeSchedules:
         events = core.repository.events('employee-schedule:' + operation)
         return next((e['data_json'] for e in events if e['type'] == 'employee_schedule.admitted'), None)
 
+    def skip_trashed_employee(self, connection, job, reference):
+        from runteams_core.employees.employee_directory import source_reference_is_hidden
+        if not source_reference_is_hidden(reference):
+            return False
+        connection.execute("UPDATE occurrences SET status='skipped',reason=? WHERE id=? "
+                           "AND status IN ('queued','running') AND chat_id IS NULL AND workflow_id IS NULL",
+                           (EMPLOYEE_IN_TRASH, job['id']))
+        return True
+
     def execute(self, job, cancel_event=None):
         device_data.check(self.scope)
         if not self.dispatch_allowed(job['schedule_id']):
@@ -513,11 +526,14 @@ class EmployeeSchedules:
             return
         if cancel_event is not None and cancel_event.is_set():
             raise Cancelled('本次运行已取消。')
-        with self.connection() as c:
+        snap = json.loads(job['snapshot'])
+        reference = json.loads(snap['reference'])
+        with self.connection(write=True) as c:
             row=c.execute('SELECT status FROM occurrences WHERE id=?',(job['id'],)).fetchone()
             if row is None or row['status'] not in ('queued','running'):return
-        snap = json.loads(job['snapshot'])
-        asset = employee(snap['employee_id'], json.loads(snap['reference']))
+            if self.skip_trashed_employee(c, job, reference):
+                return
+        asset = employee(snap['employee_id'], reference)
         if 'runtime_source' in asset:
             from runteams_core.employees.source_employee_runtime import prepare, employee as source_employee
             package = prepare(json.loads(snap['reference']), job['operation_id'], cancel=cancel_event)

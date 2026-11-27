@@ -90,6 +90,8 @@ def execute(host, backend, job, asset, cancel_event=None):
         if prior is None or prior['chat_id'] or prior['status'] not in ('queued','running'):
             return
         if asset.get('local_package'):
+            if backend.skip_trashed_employee(c, job, asset['local_package']['reference']):
+                return
             from runteams_core.employees.source_employee_runtime import create_chat
             chat_id = create_chat(asset['local_package'],title=snapshot['name'],preferred_skill=payload['skill_key'])
         else:

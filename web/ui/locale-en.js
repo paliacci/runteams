@@ -1759,6 +1759,7 @@ globalThis.RUNTEAMS_LOCALES.en = {
   "scheduledAutomation.manual": "Manual Run",
   "scheduledAutomation.skippedByUser": "You skipped this scheduled run.",
   "scheduledAutomation.skippedInTrash": "No task was created because the team was in the trash.",
+  "scheduledAutomation.employeeInTrash": "No work was started because the employee was in the trash.",
   "scheduledAutomation.openWork": "Open Work Record",
   "scheduledAutomation.linkedTaskCompleted": "The linked task is now complete.",
   "scheduledAutomation.delete": "Delete Automation",
