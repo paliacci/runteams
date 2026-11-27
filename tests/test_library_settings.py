@@ -1,5 +1,8 @@
 """Real local settings transactions, receipts and the canonical UI boundary."""
 from concurrent.futures import ThreadPoolExecutor
+import hashlib
+from http.client import HTTPConnection
+import json
 from pathlib import Path
 import tempfile
 import threading
@@ -25,6 +28,48 @@ class LibrarySettingsTests(unittest.TestCase):
 
     def test_manual_backup_waits_for_catalog_read(self):
         self.check_backup_during_discovery('GET', '/api/model-catalog')
+
+    def test_preview_releases_the_archive_and_restore_requires_the_previewed_bytes(self):
+        from runteams_core.application.http.local_http import LocalServer
+        with patch.object(local_database, 'DB_PATH', str(self.app.data_directory/'runteams.db')):
+            backup = self.app.dispatch('POST', '/api/backups', {'operation_id': str(uuid.uuid4())})
+            archive = self.app.backups.download(backup['backup_id']).read_bytes()
+            store = self.app.backups.root
+            initial = set(store.rglob('*'))
+            generation = self.app.backups.generation
+            server = LocalServer(self.app, 0)
+            thread = threading.Thread(target=server.serve_forever)
+            thread.start()
+
+            def upload(action, body, **headers):
+                conn = HTTPConnection('127.0.0.1', server.server_port, timeout=10)
+                try:
+                    conn.request('POST', '/api/backups/'+action, body, {
+                        'Authorization': 'Bearer '+server.session_token, 'Content-Type': 'application/zip',
+                        'X-RunTeams-Operation': str(uuid.uuid4()), **headers})
+                    response = conn.getresponse()
+                    return response.status, json.loads(response.read())
+                finally:
+                    conn.close()
+
+            try:
+                status, preview = upload('preview', archive)
+                self.assertEqual(status, 200)
+                self.assertEqual(preview['sha256'], hashlib.sha256(archive).hexdigest())
+                digest = {'X-RunTeams-Backup-SHA256': preview['sha256']}
+                status, _ = upload('restore', archive+b'changed', **digest)
+                self.assertEqual(status, 400)
+                self.assertEqual(self.app.backups.generation, generation)
+                self.assertEqual(set(store.rglob('*')), initial)
+                status, receipt = upload('restore', archive, **digest)
+                self.assertEqual(status, 200)
+                self.assertEqual(receipt['state'], 'completed')
+                self.assertNotEqual(self.app.backups.generation, generation)
+                self.assertFalse(list((store/'imports').iterdir()))
+            finally:
+                server.shutdown()
+                thread.join()
+                server.server_close()
 
     def test_manual_backup_waits_for_a_channel_probe(self):
         self.check_backup_during_discovery('POST', '/api/channel/2/probe')

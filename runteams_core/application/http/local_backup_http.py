@@ -10,6 +10,49 @@ class BackupDownload:
     name:str
 
 
+def receive(handler, target, scope):
+    from runteams_core.application.local_runtime import LocalInputError
+    from runteams_core.assets.library_assets import AssetConflict
+    from runteams_core.storage.backups.backup_files import MAX_ARCHIVE
+    from runteams_core.storage.backups.local_backups import operation_id
+
+    headers = handler.headers
+    lengths = headers.get_all('Content-Length', [])
+    operations = headers.get_all('X-RunTeams-Operation', [])
+    if (target.query or headers.get_all('Transfer-Encoding') or len(operations) != 1 or
+            len(lengths) != 1 or not lengths[0].isascii() or not lengths[0].isdigit()):
+        raise ValueError('备份上传请求无效。')
+    if headers.get_all('Content-Type') != ['application/zip']:
+        return handler._json(415, {'error': '请选择ZIP备份文件。'})
+    length = int(lengths[0])
+    if length > MAX_ARCHIVE:
+        return handler._json(413, {'error': '请选择不超过512MB的备份。'})
+    identifier = operation_id(operations[0])
+    handler.connection.settimeout(30)
+    app = handler.server.application
+    try:
+        if target.path == '/api/backups/import':
+            with app.request(scope):
+                result = app.backups.upload(handler.rfile, length, identifier)
+        elif target.path == '/api/backups/preview':
+            with app.request(scope), app.backups.receive_archive(handler.rfile, length) as (source, digest):
+                manifest = app.backups.inspect_archive(source)
+                result = {'created_at': manifest['created_at'], 'sha256': digest}
+        else:
+            expected = headers.get_all('X-RunTeams-Backup-SHA256', [])
+            if len(expected) != 1 or not re.fullmatch('[0-9a-f]{64}', expected[0]):
+                raise ValueError('备份校验信息无效。')
+            with app.exclusive(scope, wait_for_discovery=True), app.backups.receive_archive(handler.rfile, length) as uploaded:
+                if uploaded[1] != expected[0]:
+                    raise ValueError('备份文件已更改，请重新选择。')
+                result = app.backups.restore(app, identifier, uploaded=uploaded)
+    except AssetConflict:
+        raise
+    except ValueError as error:
+        raise LocalInputError(str(error)) from error
+    return handler._json(200, result)
+
+
 def dispatch(app,method,path,data,scope):
     if not isinstance(data,dict):raise ValueError('请求字段无效。')
     from runteams_core.application.local_application import _fields

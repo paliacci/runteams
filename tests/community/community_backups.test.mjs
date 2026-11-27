@@ -6,7 +6,7 @@ import {createLocalClient} from './community_transport_fixture.mjs';
 const op='11111111-1111-4111-8111-111111111111';
 function harness({pending,api=async()=>({}),flush=true}={}){
  const values=new Map(pending?[['runteams_pending_backup',JSON.stringify(pending)]]:[]),tasks=[],downloads=[],locations=[],calls=[],selects={};
- const c={S:{localLibrary:{}},crypto:{randomUUID:()=>op},sessionStorage:{getItem:k=>values.get(k)||null,setItem:(k,v)=>values.set(k,v),removeItem:k=>values.delete(k)},queueMicrotask:f=>tasks.push(f),api:(...args)=>{calls.push(args);return api(...args);},flushDocument:async()=>flush,esc:String,accountSettingsPaint:()=>{},accountSettingsGroup:(name,body)=>`<group>${name}${body}</group>`,accountSettingsRow:(name,action,help='')=>`<row>${name}${action}${help}</row>`,location:{replace:p=>locations.push(p)},document:{body:{appendChild:()=>{}},createElement:()=>({click(){downloads.push(this.href)},remove(){}})},confirmModal:(...args)=>{c.confirm=args},RunTeamsApplication:{uploadBackup:async()=>({import_id:op,created_at:'2026-10-31T00:00:00Z'})}};
+ const c={S:{localLibrary:{}},crypto:{randomUUID:()=>op},sessionStorage:{getItem:k=>values.get(k)||null,setItem:(k,v)=>values.set(k,v),removeItem:k=>values.delete(k)},queueMicrotask:f=>tasks.push(f),api:(...args)=>{calls.push(args);return api(...args);},flushDocument:async()=>flush,esc:String,accountSettingsPaint:()=>{},accountSettingsGroup:(name,body)=>`<group>${name}${body}</group>`,accountSettingsRow:(name,action,help='')=>`<row>${name}${action}${help}</row>`,location:{replace:p=>locations.push(p)},document:{body:{appendChild:()=>{}},createElement:()=>({click(){downloads.push(this.href)},remove(){}})},confirmModal:(...args)=>{c.confirm=args},RunTeamsApplication:{}};
  c.csel=(name,items,value,pick,options)=>{
   selects[name]={items,value,pick,options};
   return `<select>${items.find(item=>item.value===value)?.label||''}</select>`;
@@ -71,7 +71,14 @@ test('an unknown result resumes the original receipt without creating a new back
  const calls=[];const h=harness({pending:{operation_id:op,kind:'backup'},api:async(p,m)=>{calls.push([p,m]);return {state:'completed',kind:'backup',backup_id:op}}});h.ui.markup();assert.equal(h.ui.pending,true);await h.tasks[0]();await new Promise(r=>setImmediate(r));assert.deepEqual(calls,[[`/api/backups/${op}/status`,undefined]]);assert.equal(h.ui.pending,false);
 });
 test('choosing a valid file only previews until the existing confirmation accepts',async()=>{
- let writes=0;const h=harness({api:async()=>{writes++;return {state:'completed'}}});await h.ui.selected({files:[{size:50}],value:'fixture'});assert.equal(writes,0);assert.equal(h.c.confirm[0],'从备份恢复？');assert.ok(h.c.confirm[1].includes('先保留一份备份'));await h.c.confirm[2]();assert.equal(writes,1);assert.deepEqual(h.locations,['/?settings=general']);
+ const h=harness(),uploads=[],file={size:50},sha256='a'.repeat(64);
+ h.c.RunTeamsApplication.uploadBackup=async(...args)=>{
+  uploads.push(args);return {sha256,created_at:'2026-10-31T00:00:00Z'};
+ };
+ await h.ui.selected({files:[file],value:'fixture'});
+ assert.deepEqual(uploads,[[file,op,'preview']]);assert.equal(h.c.confirm[0],'从备份恢复？');
+ assert.ok(h.c.confirm[1].includes('先保留一份备份'));await h.c.confirm[2]();
+ assert.deepEqual(uploads[1],[file,op,'restore',sha256]);assert.deepEqual(h.locations,['/?settings=general']);
 });
 test('empty and oversized files explain why they cannot be imported before uploading',async()=>{
  const h=harness();let uploads=0;
@@ -84,12 +91,13 @@ test('empty and oversized files explain why they cannot be imported before uploa
 });
 test('a refused restore keeps the reason, while an uncertain restore reloads to check its receipt',async()=>{
  for(const refused of [true,false]){
-  const h=harness({api:async(path,method)=>{
-   if(method==='POST')throw Object.assign(Error('Finish the file selection first'),{status:refused?409:0});
-   throw Object.assign(Error('Receipt unavailable'),{status:refused?404:403});
-  }});
+  const h=harness({api:async()=>{throw Object.assign(Error('Receipt unavailable'),{status:refused?404:403});}});
+  h.c.RunTeamsApplication.uploadBackup=async(file,id,action)=>{
+   if(action==='preview')return {sha256:'b'.repeat(64),created_at:'2026-10-31T00:00:00Z'};
+   throw Object.assign(Error('Finish the file selection first'),{status:refused?409:0});
+  };
   await h.ui.selected({files:[{size:50}],value:'backup.zip'});await h.c.confirm[2]();
-  assert.deepEqual(h.calls.map(a=>a[0]),['/api/backups/restore','/api/backups/'+op+'/status']);
+  assert.deepEqual(h.calls.map(a=>a[0]),['/api/backups/'+op+'/status']);
   assert.equal(h.ui.pending,!refused);assert.equal(h.values.has('runteams_pending_backup'),!refused);
   if(refused){assert.deepEqual(h.locations,[]);assert.match(h.ui.markup(),/Finish the file selection first/);}
   else assert.deepEqual(h.locations,['/?settings=general']);

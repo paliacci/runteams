@@ -223,20 +223,11 @@ class LocalHandler(BaseHTTPRequestHandler):
                     if parsed.query:
                         raise ValueError('导入参数无效。')
                     return self._json(200, knowledge_packages.receive_http(self, store, inspect_source))
-            if self.command == 'POST' and parsed.path == '/api/backups/import':
-                from runteams_core.storage.backups.backup_files import MAX_ARCHIVE
-                from runteams_core.storage.backups.local_backups import operation_id
-                lengths=self.headers.get_all('Content-Length',[]);operations=self.headers.get_all('X-RunTeams-Operation',[])
-                if parsed.query or self.headers.get_all('Transfer-Encoding') or len(lengths)!=1 or not lengths[0].isascii() or not lengths[0].isdigit() or len(operations)!=1:raise ValueError('备份上传请求无效。')
-                if self.headers.get_all('Content-Type',[])!=['application/zip']:return self._json(415,{'error':'请选择ZIP备份文件。'})
-                length=int(lengths[0])
-                if length>MAX_ARCHIVE:return self._json(413,{'error':'请选择不超过512MB的备份。'})
-                operation_id(operations[0]);self.connection.settimeout(30)
-                with self.server.application.request(request_scope):
-                    try:result=self.server.application.backups.upload(self.rfile,length,operations[0])
-                    except AssetConflict:raise
-                    except ValueError as error:raise LocalInputError(str(error)) from error
-                    return self._json(200,result)
+            backup_type=self.headers.get_all('Content-Type',[])
+            if self.command == 'POST' and (parsed.path in ('/api/backups/import','/api/backups/preview') or
+                                          parsed.path=='/api/backups/restore' and backup_type==['application/zip']):
+                from runteams_core.application.http import local_backup_http
+                return local_backup_http.receive(self,parsed,request_scope)
             if self.command == 'GET':
                 query = parse_qs(parsed.query, keep_blank_values=True, strict_parsing=True,
                                  max_num_fields=8)

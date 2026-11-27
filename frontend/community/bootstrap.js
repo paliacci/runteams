@@ -159,9 +159,9 @@ export async function stream(path,body,onEvent,options){
  try{return await client.stream(path,body,onEvent,options);}
  finally{pending--;}
 }
-export async function uploadBackup(file,operationId){
+export async function uploadBackup(file,operationId,action,digest){
  await connect();if(closing)throw Error('窗口正在关闭。');pending++;
- try{return await client.uploadBackup(file,operationId);}finally{pending--;}
+ try{return await client.uploadBackup(file,operationId,action,digest);}finally{pending--;}
 }
 export async function readSettings(){
  if(operation)await commitSettings();

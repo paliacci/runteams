@@ -115,8 +115,8 @@ class LocalBackups:
         finally:
             if directory.exists():shutil.rmtree(storage_path(directory))
 
-    def upload(self, stream, length, identifier):
-        identifier=operation_id(identifier)
+    @contextmanager
+    def receive_archive(self, stream, length):
         if length<=0:raise ValueError('这份备份是空文件。请选择完整的备份 ZIP 文件。')
         if length>disk.MAX_ARCHIVE:raise ValueError('请选择不超过512MB的备份。')
         temporary=self.root/('.upload-'+uuid.uuid4().hex)
@@ -129,17 +129,22 @@ class LocalBackups:
                     if not block:raise ValueError('备份上传未完成。')
                     output.write(block);sha.update(block);remaining-=len(block)
                 output.flush();os.fsync(output.fileno())
+            yield temporary,sha.hexdigest()
+        finally:temporary.unlink(missing_ok=True)
+
+    def upload(self, stream, length, identifier):
+        identifier=operation_id(identifier)
+        with self.receive_archive(stream,length) as (temporary,digest):
             meta=self.path('imports',identifier,'.json')
             if meta.exists():
                 value=backup.load(meta)
-                if value['sha256']!=sha.hexdigest():raise AssetConflict('同一上传操作不能选择另一份文件。')
+                if value['sha256']!=digest:raise AssetConflict('同一上传操作不能选择另一份文件。')
                 return value['preview']
             manifest=self.inspect_archive(temporary)
             durable_files.move(temporary,self.path('imports',identifier,'.zip'), replace=True)
             preview={'import_id':identifier,'library_id':manifest['library_id'],'created_at':manifest['created_at'],'files':len(manifest['files'])}
-            disk.write_json(meta,{'sha256':sha.hexdigest(),'preview':preview})
+            disk.write_json(meta,{'sha256':digest,'preview':preview})
             return preview
-        finally:temporary.unlink(missing_ok=True)
 
     def download(self, identifier):
         value=self.receipt(identifier)
@@ -167,7 +172,8 @@ class LocalBackups:
             self.record(identifier,{**pending['receipt'],'state':'completed'})
             try:shutil.rmtree(storage_path(previous))
             except OSError:return
-            self.path('imports',pending['import_id'],'.zip').unlink(missing_ok=True)
+            if pending['import_id'] is not None:
+                self.path('imports',pending['import_id'],'.zip').unlink(missing_ok=True)
         else:
             # A completed journal can be left behind only after cleanup.
             receipt=self.receipt(identifier)
@@ -188,7 +194,8 @@ class LocalBackups:
         try:
             if path.exists():
                 value=backup.load(path)
-                operation_id(value['operation_id']);operation_id(value['import_id']);operation_id(value['generation'])
+                operation_id(value['operation_id']);operation_id(value['generation'])
+                if value['import_id'] is not None:operation_id(value['import_id'])
                 if value['stage']!='.restore-stage-'+value['operation_id'] or value['previous']!='.restore-previous-'+value['operation_id']:raise ValueError('恢复目录记录无效。')
                 self._finish(value)
             for value in pending:
@@ -221,8 +228,12 @@ class LocalBackups:
         finally:
             if lease:lease.rollback();lease.close()
 
-    def restore(self, app, identifier, import_id):
-        identifier=operation_id(identifier);import_id=operation_id(import_id);digest='restore:'+import_id
+    def restore(self, app, identifier, import_id=None, *, uploaded=None):
+        identifier=operation_id(identifier)
+        if uploaded is None:
+            source=self.path('imports',import_id,'.zip');digest='restore:'+import_id
+        else:
+            source,sha256=uploaded;digest='restore-file:'+sha256
         old=self.prior(identifier,'restore',digest)
         if old:
             if old['state'] in ('completed','failed'):return self.status(identifier)
@@ -235,7 +246,7 @@ class LocalBackups:
         try:
             if any(p.name not in {'.local-library.json','libraries'} for p in app.base.iterdir()):
                 raise ValueError('此目录含有其他版本的资料，请为免费版使用独立资料目录后再恢复。')
-            source=self.path('imports',import_id,'.zip');manifest=self.inspect_archive(source)
+            manifest=self.inspect_archive(source)
             safety=str(uuid.uuid5(uuid.UUID(identifier),'before-restore'))
             self.create(app,safety)
         except BaseException as error:

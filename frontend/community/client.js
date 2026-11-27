@@ -84,8 +84,11 @@ export class LocalClient {
       throw error;
     }
   }
-  async uploadBackup(file, operationId) {
-    const response=await this.fetcher('/api/backups/import',{method:'POST',headers:{'Content-Type':'application/zip','X-RunTeams-Library':this.libraryId,'X-RunTeams-Library-Generation':this.generation,'X-RunTeams-Operation':operationId},body:file,credentials:'same-origin',cache:'no-store',redirect:'error'});
+  async uploadBackup(file, operationId, action='import', digest) {
+    if(!['import','preview','restore'].includes(action))throw new LocalAPIError('invalid_backup_action');
+    const headers={'Content-Type':'application/zip','X-RunTeams-Library':this.libraryId,'X-RunTeams-Library-Generation':this.generation,'X-RunTeams-Operation':operationId};
+    if(action==='restore')headers['X-RunTeams-Backup-SHA256']=digest;
+    const response=await this.fetcher('/api/backups/'+action,{method:'POST',headers,body:file,credentials:'same-origin',cache:'no-store',redirect:'error'});
     let value;try{value=await response.json();}catch{throw new LocalAPIError('上传结果尚未确认，请重试。');}
     if(!response.ok)throw new LocalAPIError(value.error||'备份文件未能读取。',response.status);
     return value;

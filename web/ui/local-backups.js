@@ -59,12 +59,12 @@
   await check();if(error)return;if(automatic.some(v=>v.backup_id===id))download(id);
   else{report('backupExpired');paint();}
  }
- async function writeReceipt(path,data){
-  try{return await api(path,'POST',data);}
+ async function writeReceipt(id,write){
+  try{return await write();}
   catch(writeError){
    if(writeError.status===403)throw writeError;
    // The host can commit a final receipt even when its response is lost or reports an error.
-   try{return await api('/api/backups/'+data.operation_id+'/status');}
+   try{return await api('/api/backups/'+id+'/status');}
    catch(readError){
     if(readError.status===403)throw readError;
     if(readError.status===404&&[400,409].includes(writeError.status))forget();
@@ -77,7 +77,8 @@
   try{
    if(!await flushDocument()){report('documentPending');return;}
    remember({operation_id:crypto.randomUUID(),kind:'backup'});paint();
-   const value=await writeReceipt('/api/backups',{operation_id:pending.operation_id});
+   const id=pending.operation_id;
+   const value=await writeReceipt(id,()=>api('/api/backups','POST',{operation_id:id}));
    if(confirmed(value))download(value.backup_id);
   }catch(e){requestError(e,pending?'backupUnknown':'backupFailed');}
   finally{busy=false;paint();}
@@ -87,23 +88,27 @@
   if(file.size===0){report('importEmpty');paint();return;}
   if(file.size>512*1024*1024){report('importTooLarge');paint();return;}
   busy=true;busyKind='import';error='';notice='';paint();let preview;
-  try{preview=await RunTeamsApplication.uploadBackup(file,crypto.randomUUID());}
-  catch(e){requestError(e,e.status===413?'importTooLarge':e.status===415?'importNotZip':'importFailed');}
+  try{
+   preview=await RunTeamsApplication.uploadBackup(file,crypto.randomUUID(),'preview');
+   if(!/^[0-9a-f]{64}$/.test(preview?.sha256))throw Error('backup_preview_invalid');
+  }
+  catch(e){preview=null;requestError(e,e.status===413?'importTooLarge':e.status===415?'importNotZip':'importFailed');}
   finally{busy=false;paint();}
   if(!preview)return;
   const dates={dateZh:date(preview.created_at,'zh-CN'),dateEn:date(preview.created_at,'en')};
-  confirmModal(text('restoreTitle'),text('restoreMessage',dates),()=>restore(preview.import_id),true,{
+  confirmModal(text('restoreTitle'),text('restoreMessage',dates),()=>restore(file,preview.sha256),true,{
    titleKey:'localBackup.restoreTitle',messageKey:'localBackup.restoreMessage',messageVars:dates,
    action:text('restore'),actionKey:'localBackup.restore',cancel:text('cancel'),cancelKey:'localBackup.cancel',
    close:text('close'),closeKey:'localBackup.close',focusCancel:true,returnFocus:()=>document.getElementById('localBackupRestore')
   });
  }
- async function restore(importId){
-  if(busy||pending||!valid(importId))return;busy=true;busyKind='restore';error='';notice='';
+ async function restore(file,digest){
+  if(busy||pending)return;busy=true;busyKind='restore';error='';notice='';
   try{
    if(!await flushDocument()){report('documentPending');return;}
    remember({operation_id:crypto.randomUUID(),kind:'restore'});paint();
-   await writeReceipt('/api/backups/restore',{operation_id:pending.operation_id,import_id:importId});
+   const id=pending.operation_id;
+   await writeReceipt(id,()=>RunTeamsApplication.uploadBackup(file,id,'restore',digest));
    // A full reload starts a new verified library generation. Other open
    // windows cannot write with the old generation, even for the same UUID.
    location.replace('/?settings=general');
