@@ -80,6 +80,27 @@ test('choosing a valid file only previews until the existing confirmation accept
  assert.ok(h.c.confirm[1].includes('先保留一份备份'));await h.c.confirm[2]();
  assert.deepEqual(uploads[1],[file,op,'restore',sha256]);assert.deepEqual(h.locations,['/?settings=general']);
 });
+test('a file selection and a restore confirmation survive an overlapping summary read',async()=>{
+ for(const readFails of [false,true]){
+  let finishRead;
+  const h=harness({api:()=>new Promise((resolve,reject)=>{
+   finishRead=()=>readFails?reject(Error('Read interrupted')):resolve({});
+  })});
+  const uploads=[],file={size:50},sha256='d'.repeat(64);
+  h.c.RunTeamsApplication.uploadBackup=async(...args)=>{
+   uploads.push(args);return {sha256,created_at:'2026-10-31T00:00:00Z'};
+  };
+  const reading=h.ui.check();
+  const selection=h.ui.selected({files:[file],value:'backup.zip'});
+  finishRead();await Promise.all([reading,selection]);
+  assert.deepEqual(uploads,[[file,op,'preview']]);
+  const refreshing=h.ui.check();
+  const first=h.c.confirm[2](),second=h.c.confirm[2]();
+  finishRead();await Promise.all([refreshing,first,second]);
+  assert.deepEqual(uploads,[[file,op,'preview'],[file,op,'restore',sha256]]);
+  assert.deepEqual(h.locations,['/?settings=general']);
+ }
+});
 test('empty and oversized files explain why they cannot be imported before uploading',async()=>{
  const h=harness();let uploads=0;
  h.c.RunTeamsApplication.uploadBackup=async()=>{uploads++;return {import_id:op};};

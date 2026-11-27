@@ -2,6 +2,7 @@
 (function(global){
  'use strict';
  const key='runteams_pending_backup';let loaded=false,busy=false,busyKind='',pending=null,notice='',error='',latest=null,safety=null,policy=null,automatic=[],automaticError='',selectedBackup='',automaticWaiting=false;
+ let summaryRead=null;
  const text=(name,vars={})=>global.RunTeamsLocale.t('localBackup.'+name,vars);
  const label=(name,vars={})=>`<span data-app-i18n="localBackup.${name}"${Object.keys(vars).length?` data-app-i18n-vars="${esc(JSON.stringify(vars))}"`:''}>${esc(text(name,vars))}</span>`;
  const aria=name=>`data-app-i18n-aria-label="localBackup.${name}" aria-label="${esc(text(name))}"`;
@@ -36,6 +37,14 @@
  async function check(){
   if(busy)return;busy=true;busyKind=pending?.kind||'';error='';paint();
   try{
+   const reading=readStatus();
+   // The file picker and confirmation can return while the settings timer is reading.
+   if(!pending)summaryRead=reading;
+   await reading;
+  }finally{summaryRead=null;busy=false;paint();}
+ }
+ async function readStatus(){
+  try{
    const policyCheck=pending?.kind==='policy';
    if(pending)confirmed(await api('/api/backups/'+(policyCheck?'policy/':'')+pending.operation_id+'/status'));
    if(!pending&&(!busyKind||policyCheck)){
@@ -44,7 +53,6 @@
     if(!automatic.some(v=>v.backup_id===selectedBackup))selectedBackup=automatic[0]?.backup_id||'';
    }
   }catch(e){if(e.status===409&&!pending)automaticWaiting=true;else if(e.status===404&&pending){forget();report('operationAbsent');}else requestError(e,pending?'operationUnknown':'readFailed');}
-  finally{busy=false;paint();}
  }
  async function savePolicy(patch){
   if(busy||pending||!policy)return;busy=true;busyKind='policy';error='';notice='';
@@ -91,7 +99,9 @@
   finally{busy=false;paint();}
  }
  async function selected(input){
-  const file=input.files?.[0];input.value='';if(!file||busy||pending)return;
+  const file=input.files?.[0];input.value='';if(!file)return;
+  if(summaryRead)await summaryRead;
+  if(busy||pending)return;
   if(file.size===0){report('importEmpty');paint();return;}
   if(file.size>512*1024*1024){report('importTooLarge');paint();return;}
   busy=true;busyKind='import';error='';notice='';paint();let preview;
@@ -110,6 +120,7 @@
   });
  }
  async function restore(file,digest){
+  if(summaryRead)await summaryRead;
   if(busy||pending)return;busy=true;busyKind='restore';error='';notice='';
   try{
    if(!await flushDocument()){report('documentPending');return;}
