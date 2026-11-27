@@ -15,17 +15,31 @@
     return `<div class="rail-mode-switch" role="tablist" aria-label="侧栏内容" data-app-i18n-aria-label="shell.sidebarContent" onkeydown="RunTeamsShell.moveMode(event)">${[['team','工作区','flow'], ['bots','员工','users']].map(([key,label,glyph]) => `<button type="button" role="tab" data-rail-tab="${key}" aria-selected="${mode === key}" tabindex="${mode === key ? 0 : -1}" class="${mode === key ? 'on' : ''}" onclick="${select}('${key}')">${icon(glyph)}<span data-app-i18n="shell.mode.${key}">${label}</span></button>`).join('')}</div>`;
   }
 
-  function moveMode(event) {
-    if (!['ArrowLeft','ArrowRight','Home','End'].includes(event.key)) return;
-    const buttons = [...event.currentTarget.querySelectorAll('[role="tab"]')];
+  function nextTab(event) {
+    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey ||
+        !['ArrowLeft','ArrowRight','Home','End'].includes(event.key)) return;
+    const buttons = [...event.currentTarget.querySelectorAll('[role="tab"]:not(:disabled)')];
     const index = buttons.indexOf(event.target);
     if (index < 0) return;
     event.preventDefault();
     const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 :
       (index + (event.key === 'ArrowRight' ? 1 : -1) + buttons.length) % buttons.length;
-    const key = buttons[next].dataset.railTab;
-    buttons[next].click();
+    return buttons[next];
+  }
+
+  function moveMode(event) {
+    const next = nextTab(event);
+    if (!next) return;
+    const key = next.dataset.railTab;
+    next.click();
     requestAnimationFrame(() => document.querySelector(`.rail-mode-switch [data-rail-tab="${key}"]`)?.focus());
+  }
+
+  function moveWindowTab(event) {
+    const next = nextTab(event);
+    if (!next) return;
+    next.focus();
+    next.click();
   }
 
   // Only tab-local display counters are retained. Routes and business records
@@ -189,7 +203,7 @@
     if (global.requestAnimationFrame) global.requestAnimationFrame(() => {
       if (global.document?.querySelector('#rgWorkspaceTabs .workspace-tabs-scroll') !== tabsScroller) syncWindowTabs();
     });
-    return `<div class="workspace-tabs" role="tablist" aria-label="工作区标签页" data-app-i18n-aria-label="shell.workspaceTabs"><div class="workspace-tabs-scroll" onwheel="RunTeamsShell.scrollWindowTabs(event)"><div class="workspace-tabs-list">${rows.map((row, index) => {
+    return `<div class="workspace-tabs" role="tablist" aria-label="工作区标签页" data-app-i18n-aria-label="shell.workspaceTabs"><div class="workspace-tabs-scroll" onwheel="RunTeamsShell.scrollWindowTabs(event)"><div class="workspace-tabs-list" onkeydown="RunTeamsShell.moveWindowTab(event)">${rows.map((row, index) => {
       const active = row.key === activeKey, key = escape(row.key), displayKey = escape(row.displayKey||row.key), title = escape(row.title);
       const titleKey = row.titleKey || (Object.hasOwn(fixedTabTitles, row.key) ? fixedTabTitles[row.key] : ""), labelId = `workspace-tab-label-${index}`;
       const rowEvents = pending ? '' : 'onpointerdown="workspaceTabPointerDown(event,this.dataset.workspaceKey)" oncontextmenu="workspaceTabContextMenu(event,this.dataset.workspaceKey)"';
@@ -215,8 +229,17 @@
     // selection or metadata update keeps the scroller, buttons and images alive.
     if (!current || !incoming || current.length !== incoming.length ||
         current.some((tab, i) => (tab.dataset.workspaceDisplayKey||tab.dataset.workspaceKey) !== (incoming[i].dataset.workspaceDisplayKey||incoming[i].dataset.workspaceKey))) {
+      const focused = host.ownerDocument.activeElement;
+      const restoreFocus = host.contains(focused);
+      const focusedKey = focused?.closest('.workspace-tab')?.dataset.workspaceKey;
       host.innerHTML = markup;
       syncWindowTabs();
+      if (restoreFocus) {
+        const tab = [...host.querySelectorAll('.workspace-tab')].find(item => item.dataset.workspaceKey === focusedKey);
+        const control = focused.matches('.workspace-new') ? host.querySelector('.workspace-new') :
+          tab?.querySelector(focused.matches('.workspace-tab-close') ? '.workspace-tab-close' : '.workspace-tab-main');
+        (control || host.querySelector('.workspace-tab-main[aria-selected="true"]'))?.focus({preventScroll:true});
+      }
       return;
     }
     const attributes = (target, source) => {
@@ -299,7 +322,7 @@
   }
 
   function accountEntry({icon,...options}){if(typeof global.RunTeamsHost.shell.entry==='function')return global.RunTeamsHost.shell.entry({icon,...options});return `<div class="railfoot-wrap rail-settings-entry">${navigationItem({label:'设置',labelKey:'shell.settingsTitle',icon:icon('settings'),action:"openSettingsPage('general',{returnFocus:this})",className:'rail-settings-button'})}</div>`;}
-  global.RunTeamsShell = Object.freeze({navigationItem, historyActions, commandShortcut, settingsToolbar, modeTabs, moveMode, topActions, collapsedActions, syncHistoryControls, recordNavigation, goHistory, trashEntry, footer, accountEntry, windowTabs, patchWindowTabs, syncWindowTabs, scrollWindowTabs, workspaceHeading, headerAction, pageHeader, frame, patchSections});
+  global.RunTeamsShell = Object.freeze({navigationItem, historyActions, commandShortcut, settingsToolbar, modeTabs, moveMode, moveWindowTab, topActions, collapsedActions, syncHistoryControls, recordNavigation, goHistory, trashEntry, footer, accountEntry, windowTabs, patchWindowTabs, syncWindowTabs, scrollWindowTabs, workspaceHeading, headerAction, pageHeader, frame, patchSections});
   if (global.history && global.location) {
     navigationState();
     global.addEventListener('popstate', () => {

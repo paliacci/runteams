@@ -1077,6 +1077,7 @@ function closeWorkspaceWindow(key){
   const remaining=S.workspaceWindows.filter(item=>item.key!==key);if(!remaining.length)return;
 
   const active=key===S.activeWorkspaceKey,restoreFocus=active||document.activeElement?.closest('#rgWorkspaceTabs');
+  if(active&&documentNavigationNeedsSave())return saveBeforeDocumentNavigation(()=>closeWorkspaceWindow(key));
   if(active)workspaceCaptureCurrent();
   globalThis.RunTeamsCreatorWork?.closeWindow(key);_workspaceStateByKey.delete(key);_workspaceOverlayByKey.delete(key);S.workspaceWindows=remaining;saveWorkspaceWindows();
   if(active){const next=remaining[0];S.activeWorkspaceKey="";activateWorkspaceWindow(next.key);}else render();
@@ -1085,11 +1086,15 @@ function closeWorkspaceWindow(key){
 function closeWorkspaceWindowSet(keepKeys,preferredKey=""){
   const keep=new Set([...keepKeys].map(value=>String(value)));
 
-  workspaceCaptureCurrent();
   const rows=S.workspaceWindows||[],remaining=rows.filter(item=>keep.has(String(item.key)));
   if(!remaining.length)return;
   const activeRemoved=!keep.has(String(S.activeWorkspaceKey)),restoreFocus=activeRemoved||document.activeElement?.closest('#rgWorkspaceTabs');
   const removed=rows.filter(item=>!keep.has(String(item.key)));
+  if(activeRemoved&&documentNavigationNeedsSave()){
+    const closing=new Set(removed.map(item=>item.key));
+    return saveBeforeDocumentNavigation(()=>closeWorkspaceWindowSet(S.workspaceWindows.filter(item=>!closing.has(item.key)).map(item=>item.key),preferredKey));
+  }
+  workspaceCaptureCurrent();
   removed.forEach(item=>{globalThis.RunTeamsCreatorWork?.closeWindow(String(item.key));_workspaceStateByKey.delete(String(item.key));_workspaceOverlayByKey.delete(String(item.key));});
   S.workspaceWindows=remaining;saveWorkspaceWindows();
   if(activeRemoved){const preferred=String(preferredKey||""),next=remaining.find(item=>String(item.key)===preferred)||remaining[0];S.activeWorkspaceKey="";activateWorkspaceWindow(next.key);}else render();
@@ -4182,37 +4187,39 @@ function documentLeaveDialog(saving,onKeep,onLeave){
   keep.focus({preventScroll:true});
   return dialog;
 }
-function confirmDocumentLeave(target,state){
-  if(S.docReader!==state||!target.isConnected)return;
-  documentLeaveDialog(false,closeModal,()=>{
-    closeModal();_documentClickReplay=true;
-    try{if(target.isConnected)target.click();}finally{_documentClickReplay=false;}
-  });
+function documentNavigationNeedsSave(){
+  return !_documentClickReplay&&S.docReader?.richDirty&&["saving","error"].includes(S.docReader.saveStatus);
 }
-document.addEventListener("click",async event=>{
-  if(_documentClickReplay||!S.docReader?.richDirty||!["saving","error"].includes(S.docReader.saveStatus))return;
-  const target=event.target.closest?.("button,a,[role=tab]");if(!target)return;
-  // Only workspace navigation can replace this editor. Back owns its own
-  // save confirmation; local document controls remain responsive.
-  if(!target.closest?.("#rgRail,#rgWorkspaceTabs"))return;
-  event.preventDefault();event.stopImmediatePropagation();
+async function saveBeforeDocumentNavigation(navigate,available=()=>true){
   if(_documentNavigationPending===S.docReader)return;
   const state=S.docReader;_documentNavigationPending=state;
   let canceled=false,discarded=false,waitingDialog=null;
+  const current=()=>S.docReader===state&&available();
+  const proceed=()=>{
+    if(!current())return;
+    _documentClickReplay=true;
+    try{navigate();}finally{_documentClickReplay=false;}
+  };
   const notice=state.saveStatus==="saving"?setTimeout(()=>{
-    if(S.docReader!==state||!target.isConnected)return;
+    if(!current())return;
     waitingDialog=documentLeaveDialog(true,()=>{canceled=true;closeModal();},()=>{
-      discarded=true;closeModal();_documentClickReplay=true;
-      try{if(target.isConnected)target.click();}finally{_documentClickReplay=false;}
+      discarded=true;closeModal();proceed();
     });
   },300):null;
   try{
     const saved=await flushDocument({quiet:true});
     if(canceled||discarded||S.docReader!==state)return;
     if(waitingDialog&&document.getElementById("modalHost")===waitingDialog)closeModal();
-    if(saved){_documentClickReplay=true;try{if(target.isConnected)target.click();}finally{_documentClickReplay=false;}}
-    else confirmDocumentLeave(target,state);
+    if(saved)proceed();
+    else if(current())documentLeaveDialog(false,closeModal,()=>{closeModal();proceed();});
   }finally{clearTimeout(notice);if(_documentNavigationPending===state)_documentNavigationPending=null;}
+}
+document.addEventListener("click",event=>{
+  if(!documentNavigationNeedsSave())return;
+  const target=event.target.closest?.("button,a,[role=tab]");
+  if(!target?.closest("#rgRail,#rgWorkspaceTabs"))return;
+  event.preventDefault();event.stopImmediatePropagation();
+  void saveBeforeDocumentNavigation(()=>target.click(),()=>target.isConnected);
 },true);
 window.addEventListener("beforeunload",event=>{if(S.docReader?.richDirty||S.docReader?.richSaving){event.preventDefault();event.returnValue="";}});
 function downloadCurrentTaskInput(){const doc=S.docReader?.doc;if(doc?.task_input)downloadCoreTaskInput(Number(doc.workflow_id)||0,doc.task_input_item||{});}

@@ -14,6 +14,24 @@ function context(platform){
 (async()=>{
  const local=context('Win32');
  assert.deepEqual({...local.RunTeamsShell.commandShortcut('N')},{label:'Ctrl+N',aria:'Control+N'});
+ const tabActions=[];
+ const tabButtons=['documents','plan','task'].map(key=>({
+  focus(){tabActions.push(['focus',key]);},
+  click(){tabActions.push(['click',key]);}
+ }));
+ const tabList={querySelectorAll:()=>tabButtons};
+ function pressTabKey(key,target,modifiers={}){
+  local.RunTeamsShell.moveWindowTab({key,target,currentTarget:tabList,
+   preventDefault(){tabActions.push('handled');},...modifiers});
+ }
+ for(const [key,origin,destination] of [['ArrowRight',2,0],['ArrowLeft',0,2],['Home',1,0],['End',1,2]]){
+  pressTabKey(key,tabButtons[origin]);
+  const expected=['documents','plan','task'][destination];
+  assert.deepEqual(tabActions.splice(0),['handled',['focus',expected],['click',expected]]);
+ }
+ pressTabKey('ArrowLeft',tabButtons[1],{altKey:true});
+ pressTabKey('Home',{}); // A descendant close button has its own keyboard behavior.
+ assert.deepEqual(tabActions,[]);
  assert.deepEqual({...context('MacIntel').RunTeamsShell.commandShortcut('N')},{label:'⌘N',aria:'Meta+N'});
  assert.equal(local.accountExtensionCommand('codex','mcp add --help'),"& 'codex' mcp add --help");
  assert.equal(local.accountExtensionCommand("/opt/O'Brien/claude",'plugin install',"a'b"),"'/opt/O'\"'\"'Brien/claude' plugin install -- 'a'\"'\"'b'");
