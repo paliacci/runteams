@@ -42,10 +42,13 @@ def receive(handler, target, scope):
             expected = headers.get_all('X-RunTeams-Backup-SHA256', [])
             if len(expected) != 1 or not re.fullmatch('[0-9a-f]{64}', expected[0]):
                 raise ValueError('备份校验信息无效。')
-            with app.exclusive(scope, wait_for_discovery=True), app.backups.receive_archive(handler.rfile, length) as uploaded:
+            # Finish the upload before replying, so Windows clients receive a busy response
+            # even when the ZIP is larger than the socket buffer.
+            with app.backups.receive_archive(handler.rfile, length) as uploaded:
                 if uploaded[1] != expected[0]:
                     raise ValueError('备份文件已更改，请重新选择。')
-                result = app.backups.restore(app, identifier, uploaded=uploaded)
+                with app.exclusive(scope, wait_for_discovery=True):
+                    result = app.backups.restore(app, identifier, uploaded=uploaded)
     except AssetConflict:
         raise
     except ValueError as error:

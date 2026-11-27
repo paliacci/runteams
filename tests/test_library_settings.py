@@ -57,6 +57,14 @@ class LibrarySettingsTests(unittest.TestCase):
                 self.assertEqual(status, 200)
                 self.assertEqual(preview['sha256'], hashlib.sha256(archive).hexdigest())
                 digest = {'X-RunTeams-Backup-SHA256': preview['sha256']}
+                # A desktop browser may still be sending the ZIP when the host detects busy work.
+                large_body = archive + bytes(8 * 1024 * 1024)
+                with self.app.request():
+                    status, _ = upload('restore', large_body, **{
+                        'X-RunTeams-Backup-SHA256': hashlib.sha256(large_body).hexdigest()})
+                self.assertEqual(status, 409)
+                self.assertEqual(self.app.backups.generation, generation)
+                self.assertEqual(set(store.rglob('*')), initial)
                 status, _ = upload('restore', archive+b'changed', **digest)
                 self.assertEqual(status, 400)
                 self.assertEqual(self.app.backups.generation, generation)
