@@ -73,6 +73,22 @@ def check_theme_contrast(origin, command, evaluate):
         })()"""), f'Active theme does not use the {palette} forced-color selection'
 
 
+def close_during_navigation(app, origin, command, evaluate, paused):
+    command('Network.enable', {})
+    command('Network.setCacheDisabled', {'cacheDisabled': True})
+    command('Fetch.enable', {'patterns': [{'urlPattern': '*/community/bootstrap.js*'}]})
+    command('Page.navigate', {'url': origin + '/documents'})
+    wait_for(lambda: evaluate("location.pathname === '/documents' && !window.RunTeamsLocalDesktop") and paused)
+    # Count reads while the replacement document's real close guard is loading.
+    evaluate("""Object.defineProperty(window, 'RunTeamsLocalDesktop', {
+        configurable: true, get() { window.closeGuardReads++; return undefined; }
+    }); window.closeGuardReads = 0""")
+    close_window(app)
+    wait_for(lambda: evaluate('window.closeGuardReads >= 2'))
+    evaluate('delete window.RunTeamsLocalDesktop')
+    command('Fetch.continueRequest', {'requestId': paused[0]['requestId']})
+
+
 def exercise(executable, root):
     with socket.socket() as reservation:
         reservation.bind(('127.0.0.1', 0))
@@ -91,10 +107,14 @@ def exercise(executable, root):
             target = wait_for(page)
             origin = 'http://' + urlsplit(target['url']).netloc
             with closing(websocket.create_connection(target['webSocketDebuggerUrl'], timeout=8, suppress_origin=True)) as ws:
+                paused = []
+
                 def command(method, params):
                     ws.send(json.dumps({'id': 1, 'method': method, 'params': params}))
                     while True:
                         reply = json.loads(ws.recv())
+                        if reply.get('method') == 'Fetch.requestPaused':
+                            paused.append(reply['params'])
                         if reply.get('id') == 1:
                             if 'error' in reply:
                                 raise AssertionError(reply['error'])
@@ -122,7 +142,7 @@ def exercise(executable, root):
                 })()""")
                 check_theme_contrast(origin, command, evaluate)
                 wait_for(lambda: evaluate("window.RunTeamsLocalDesktop.checkClose(false) === 'ready'"))
-            close_window(app)
+                close_during_navigation(app, origin, command, evaluate, paused)
             if app.wait(timeout=20) != 0:
                 raise RuntimeError('Desktop host exited with an error')
 

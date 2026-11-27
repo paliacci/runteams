@@ -417,14 +417,34 @@ internal sealed class LocalWindow : Form
         for (int attempt = 0; downloads.Count > 0 && attempt < 20; attempt++)
             await Task.Delay(100);
         if (downloads.Count == 0) return true;
+        string message = CloseText("Files are still downloading. Cancel unfinished downloads and quit?",
+                                   "仍有文件正在下载。要取消未完成的下载并退出吗？");
+        return MessageBox.Show(this, message, Text, MessageBoxButtons.YesNo, MessageBoxIcon.Question,
+                               MessageBoxDefaultButton.Button2) == DialogResult.Yes;
+    }
+
+    private static string CloseText(string english, string chinese)
+    {
         string language = DesktopSettings.SavedLanguage;
         if (String.IsNullOrEmpty(language) || language == "system")
             language = System.Globalization.CultureInfo.CurrentUICulture.Name;
-        string message = language.StartsWith("zh", StringComparison.OrdinalIgnoreCase)
-            ? "仍有文件正在下载。要取消未完成的下载并退出吗？"
-            : "Files are still downloading. Cancel unfinished downloads and quit?";
-        return MessageBox.Show(this, message, Text, MessageBoxButtons.YesNo, MessageBoxIcon.Question,
-                               MessageBoxDefaultButton.Button2) == DialogResult.Yes;
+        return language.StartsWith("zh", StringComparison.OrdinalIgnoreCase) ? chinese : english;
+    }
+
+    private async Task<string> WorkspaceCloseState(bool prepare, int discardVersion = -1)
+    {
+        // A new document can be visible before its workspace close guard is installed.
+        var elapsed = Stopwatch.StartNew();
+        do {
+            int version = navigationVersion;
+            string script = prepare
+                ? "window.RunTeamsLocalDesktop?.prepareClose(" + (version == discardVersion ? "true" : "false") + ")"
+                : "window.RunTeamsLocalDesktop?.checkClose(false)";
+            string result = await view.CoreWebView2.ExecuteScriptAsync(script);
+            if (version == navigationVersion && !String.IsNullOrEmpty(result) && result != "null") return result;
+            await Task.Delay(100);
+        } while (elapsed.ElapsedMilliseconds < 5000);
+        return null;
     }
 
     private async void OnClosing(object sender, FormClosingEventArgs e)
@@ -446,15 +466,21 @@ internal sealed class LocalWindow : Form
         checkingClose = true;
         try
         {
-            var browser = view.CoreWebView2;
-            string result = await browser.ExecuteScriptAsync("window.RunTeamsLocalDesktop?.checkClose(false)");
-            bool discard = result == "\"dirty\"";
-            if (discard && MessageBox.Show(this, "Discard unsaved changes and quit?", Text,
-                MessageBoxButtons.YesNo, MessageBoxIcon.Question, MessageBoxDefaultButton.Button2) != DialogResult.Yes) return;
-            if (!await CanQuitWithDownloads()) return;
-            result = await browser.ExecuteScriptAsync("window.RunTeamsLocalDesktop?.prepareClose(" + (discard ? "true" : "false") + ")");
+            string result = await WorkspaceCloseState(false);
+            if (result != null) {
+                int discardVersion = -1;
+                if (result == "\"dirty\"") {
+                    discardVersion = navigationVersion;
+                    if (MessageBox.Show(this, CloseText("Discard unsaved changes and quit?", "放弃未保存的更改并退出吗？"), Text,
+                        MessageBoxButtons.YesNo, MessageBoxIcon.Question, MessageBoxDefaultButton.Button2) != DialogResult.Yes) return;
+                }
+                if (!await CanQuitWithDownloads()) return;
+                result = await WorkspaceCloseState(true, discardVersion);
+            }
             if (result == "\"ready\"") { closing = true; Close(); }
-            else MessageBox.Show(this, "Finish pending changes in the workspace before closing.", Text);
+            else MessageBox.Show(this, result == null
+                ? CloseText("Could not check the workspace for unsaved changes. Please try again.", "暂时无法核对工作区是否有未保存的更改，请稍后再试。")
+                : CloseText("Finish pending changes in the workspace before closing.", "请先完成工作区内待处理的更改，再关闭窗口。"), Text);
         }
         catch (Exception error) { MessageBox.Show(this, error.Message, Text); }
         finally { checkingClose = false; }
