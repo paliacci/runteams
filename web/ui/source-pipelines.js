@@ -1177,6 +1177,7 @@
  const creationErrors={
   localSaveFailed:'无法在本机保存创建请求。智能体团队尚未创建。',
   unconfirmed:'暂时无法确认智能体团队是否已创建。请核对创建结果。',
+  choicesChanged:'员工或技能版本已更新。请重新选择第一个岗位。',
   rejected:'无法创建智能体团队。请核对名称和首个岗位后重试。'
  };
  const creationText=(key,vars,fallback)=>window.RunTeamsLocale?.t('pipelineCreate.'+key,vars,fallback)??fallback;
@@ -1209,11 +1210,12 @@
   closeModal();
   if(c.ticket()&&c.anchor?.isConnected)c.anchor.focus({preventScroll:true});
  }
- async function readCreationChoices(){
-  const c=creation;if(!c||!creationVisible(c)||c.reading)return;
+ async function readCreationChoices(refresh=false){
+  const c=creation;if(!c||!creationVisible(c)||c.reading&&!refresh)return;
   const retry=c.choicesFailed;
-  c.loading=true;c.reading=true;c.choicesFailed=false;creationDialog(true);
-  const active=()=>creationVisible(c)&&c.ticket();
+  const read={};
+  c.loading=true;c.reading=read;c.choicesFailed=false;creationDialog(true);
+  const active=()=>c.reading===read&&creationVisible(c)&&c.ticket();
   try{
    const choices=request('creation-choices',{}, {readPriority:'foreground'}).then(reply=>({reply}),error=>({error}));
    if(!RunTeamsWorkState.ready)await RunTeamsWorkState.connect();
@@ -1234,13 +1236,15 @@
    }
   }catch(error){if(active())c.choicesFailed=true;}
   finally{
-   c.loading=false;c.reading=false;
-   if(active()){
-    creationDialog(!c.pending);
-    if(retry&&!c.choicesFailed&&document.activeElement===document.body){
-     c.modal.querySelector('#source_pipeline_create_name, [data-pipeline-create-submit]:not(:disabled)')?.focus({preventScroll:true});
-    }
-   }else if(creationVisible(c))closeCreation();
+   if(c.reading===read){
+    c.loading=false;c.reading=null;
+    if(creationVisible(c)&&c.ticket()){
+     creationDialog(!c.pending);
+     if(retry&&!c.choicesFailed&&document.activeElement===document.body){
+      c.modal.querySelector('#source_pipeline_create_name, [data-pipeline-create-submit]:not(:disabled)')?.focus({preventScroll:true});
+     }
+    }else if(creationVisible(c))closeCreation();
+   }
   }
  }
  function creationDialog(rebuild=false){
@@ -1297,7 +1301,16 @@
   }
   c.busy=true;c.error='';creationDialog();
   try{if(RunTeamsWorkState.pending)await RunTeamsWorkState.flush();const reply=await request('create',c.pending);if(c.scope!==scope()||creation!==c)return;const visible=revealTicket()&&c.modal?.isConnected&&document.getElementById('modalHost')?.firstChild===c.modal;RunTeamsWorkState.removeItem(creationKey());if(visible)closeModal();else c.modal?.remove();creation=null;const emptyModal=document.getElementById('modalHost')?.firstChild;await refreshCatalog();if(visible&&revealTicket()&&c.scope===scope()&&document.getElementById('modalHost')?.firstChild===emptyModal)await openReference(reply.reference);}
-  catch(error){if(c.scope===scope()&&creation===c){if(error.confirmedReply&&error.code!=='operation_unknown'){RunTeamsWorkState.removeItem(creationKey());c.pending=null;}c.error=c.pending?'unconfirmed':'rejected';}}
+  catch(error){
+   if(c.scope===scope()&&creation===c){
+    if(error.confirmedReply&&error.code!=='operation_unknown'){RunTeamsWorkState.removeItem(creationKey());c.pending=null;}
+    c.error=c.pending?'unconfirmed':'rejected';
+    if(!c.pending&&error.code==='source_revision_conflict'){
+     c.choice='';c.choices=[];c.error='choicesChanged';
+     await readCreationChoices(true);
+    }
+   }
+  }
   finally{c.busy=false;
    if(revealTicket()&&creationVisible(c)){
     creationDialog(true);

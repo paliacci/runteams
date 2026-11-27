@@ -997,6 +997,7 @@ globalThis.RUNTEAMS_LOCALES.en = {
   "pipelineCreate.localSaveFailed": "Couldn’t save the request on this device. The Agent Team hasn’t been created.",
   "pipelineCreate.unconfirmed": "Couldn’t confirm whether the Agent Team was created. Check its status.",
   "pipelineCreate.rejected": "Couldn’t create the Agent Team. Check the name and first role, then try again.",
+  "pipelineCreate.choicesChanged": "The employee or skill version has changed. Choose the first role again.",
   "pipelineCreate.choicesFailed": "Couldn’t load available employees and skills. Try again in a moment.",
   "pipelineCreate.choicesLoading": "Loading employees and skills…",
   "pipelineCreate.choicesFailedTitle": "Couldn’t Load Employees and Skills",

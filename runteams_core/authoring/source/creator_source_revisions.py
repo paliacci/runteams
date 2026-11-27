@@ -26,6 +26,10 @@ class SourceConflict(ValueError):
     pass
 
 
+class SourceRevisionChanged(SourceConflict):
+    """A new operation was based on an older source revision."""
+
+
 def _operation_revision(operation_key):
     if not isinstance(operation_key, str) or not re.fullmatch(r'[A-Za-z0-9_-]{8,128}', operation_key):
         raise ValueError('源码保存标识无效。')
@@ -202,7 +206,7 @@ class Revisions:
                         raise SourceConflict('这次保存的内容已变化，请保留编辑后重新核对。')
                     return {'revision': revision, 'source': previous['source'], 'original_revision': self.identity}
             if base != self._head():
-                raise SourceConflict('源码已在其他位置更新。当前编辑已保留，请先核对最新源码。')
+                raise SourceRevisionChanged('源码已在其他位置更新。当前编辑已保留，请先核对最新源码。')
             if not restoring:
                 from runteams_core.authoring.source.employee_starters import validate_edit
                 validate_edit(self._files(base), files)

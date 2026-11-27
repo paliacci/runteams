@@ -45,7 +45,11 @@ def dispatch(core,action,data,active_ids=(),wake=lambda:None):
         if action == 'creation-choices' and not data:
             return workspace.creation_choices(core), 200
         if action == 'create':
-            return workspace.create(core, data), 200
+            from runteams_core.authoring.source.creator_source_revisions import SourceRevisionChanged
+            try:
+                return workspace.create(core, data), 200
+            except SourceRevisionChanged as error:
+                return {'error': str(error), 'code': 'source_revision_conflict', 'status': 409}, 409
         if action == 'catalog' and not data:
             return workspace.catalog(core), 200
         if action == 'workspace' and set(data) in ({'reference'}, {'reference', 'background_revision'}):

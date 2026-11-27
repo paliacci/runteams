@@ -1027,6 +1027,7 @@ globalThis.RUNTEAMS_LOCALES = {
   "pipelineCreate.localSaveFailed": "无法在本机保存创建请求。智能体团队尚未创建。",
   "pipelineCreate.unconfirmed": "暂时无法确认智能体团队是否已创建。请核对创建结果。",
   "pipelineCreate.rejected": "无法创建智能体团队。请核对名称和首个岗位后重试。",
+  "pipelineCreate.choicesChanged": "员工或技能版本已更新。请重新选择第一个岗位。",
   "pipelineCreate.choicesFailed": "无法读取可用的员工和技能。请稍后重试。",
   "pipelineCreate.choicesLoading": "正在载入员工和技能…",
   "pipelineCreate.choicesFailedTitle": "无法载入员工和技能",

@@ -5,7 +5,7 @@ import vm from 'node:vm';
 import crypto from 'node:crypto';
 const source=p=>fs.readFileSync(new URL('../../'+p,import.meta.url),'utf8');
 
-async function pendingCreation(createReply,lateChoices){
+async function pendingCreation(createReply,lateChoices,refreshedChoices){
  const records=new Map(),calls=[],modalHost={firstChild:null},library={library_id:'actual-library',generation:'first'};let closed=0,navigated=0;
  const select={value:''};let finishChoices;
  const fields={querySelector:key=>key==='select'&&fields.innerHTML?.includes('<select')?select:null}, submit={setAttribute(name,value){this[name]=value;}}, error={removeAttribute(name){delete this[name];},setAttribute(name,value){this[name]=value;}};
@@ -24,6 +24,7 @@ async function pendingCreation(createReply,lateChoices){
    if(action==='ui-state-read')return {schema:'runteams.work-ui-state-list/1',items:Object.fromEntries(records)};
    if(action==='ui-state-save'){const revision=(records.get(body.key)?.revision||0)+1;assert.equal(body.expected_revision,revision-1);records.set(body.key,{revision,value:body.value});return {operation_id:body.operation_id,revision};}
    if(action==='creation-choices'){
+    if(finishChoices&&refreshedChoices)return {items:refreshedChoices,errors:[]};
     if(lateChoices)await new Promise(resolve=>{finishChoices=resolve;});
     return {items:lateChoices||[],errors:[]};
    }
@@ -62,7 +63,7 @@ test('validation releases a rejected creation while uncertain replies keep the o
    const saved=records.get('pipeline-create').value;
    assert.equal(closed,0);
    if(rejected){
-    assert.equal(saved,null);assert.equal(error['data-app-i18n'],'pipelineCreate.rejected');
+    assert.equal(saved,null);assert.equal(error['data-app-i18n'],code==='source_revision_conflict'?'pipelineCreate.choicesChanged':'pipelineCreate.rejected');
    }else{
     assert.deepEqual(JSON.parse(saved),original);assert.equal(submit.textContent,'核对创建结果');
    }
@@ -78,4 +79,13 @@ test('late employee choices recover the rejected draft and select only its origi
   const {fields,select}=await pendingCreation(reject,choices);
   assert.match(fields.innerHTML,/value="Original name"/);assert.equal(select.value,expected);
  }
+});
+
+test('a source conflict refreshes the roles and ignores an earlier reply with the stale revision',async()=>{
+ const row={reference:{source_id:'old-source'},revision:'saved',employee_name:'Old employee',skill_key:'review'};
+ const reject=()=>{throw Object.assign(Error('source changed'),{status:409,code:'source_revision_conflict'});};
+ const {fields,select,calls}=await pendingCreation(reject,[row],[{...row,revision:'new',employee_name:'Updated employee'}]);
+ assert.match(fields.innerHTML,/Updated employee/);assert.doesNotMatch(fields.innerHTML,/Old employee/);
+ assert.match(fields.innerHTML,/value="Original name"/);assert.equal(select.value,'');
+ assert.equal(calls.filter(r=>r.action==='create').length,1);
 });

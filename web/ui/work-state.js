@@ -37,7 +37,7 @@
  function change(value,raw){
   const s=state();if(!s.ready)throw Error('原操作尚未载入，请重新打开。');
   const k=key(value);
-  const claimEmpty=raw!==null&&(k.startsWith('pipeline-card:')&&!s.values.has(k)||
+  const claimEmpty=raw!==null&&((k==='pipeline-create'||k.startsWith('pipeline-card:'))&&!s.values.has(k)||
    k.startsWith('pipeline-flow:')&&!JSON.parse(s.values.get(k)??'null')?.pending);
   if(raw!==null){JSON.parse(raw);s.values.set(k,raw);}else s.values.delete(k);
   s.mutation++;

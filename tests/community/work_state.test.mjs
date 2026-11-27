@@ -43,13 +43,13 @@ test('scope change stops queued writes and cannot install a late previous-librar
  const b=backend(),s=subject(b);let release;s.c.api=()=>new Promise(r=>release=r);const old=s.state.connect();s.c.S.localLibrary={library_id:'other-library',generation:'second'};release({schema:'runteams.work-ui-state-list/1',items:{}});await assert.rejects(old,/资料库已改变/);assert.equal(s.state.ready,false);
  s.c.api=b.api;await s.state.connect();assert.throws(()=>s.state.setItem('runteams.pipeline-control:["library","library-one"]:foreign','{}'),/保存位置无效/);
 });
-for(const kind of ['pipeline-card','pipeline-flow'])test(`a new ${kind} command waits for a peer to clear its receipt, then claims the current empty revision`,async()=>{
+for(const kind of ['pipeline-card','pipeline-flow','pipeline-create'])test(`a new ${kind} command waits for a peer to clear its receipt, then claims the current empty revision`,async()=>{
  const b=backend(),peer=subject(b),local=subject(b);
  await Promise.all([peer.state.connect(),local.state.connect()]);
- const key=local.key(kind)+':17';
+ const key=kind==='pipeline-create'?'runteams.pipeline-create:'+local.c.workspaceDeviceStorageScope():local.key(kind)+':17';
  peer.state.setItem(key,'{"pending":"first"}');await peer.state.flush();
  local.state.setItem(key,'{"pending":"second"}');await assert.rejects(local.state.flush(),/stale/);
- const record=()=>b.records.get(kind+':same-reference:17');
+ const record=()=>b.records.get(kind==='pipeline-create'?kind:kind+':same-reference:17');
  assert.equal(record().value,'{"pending":"first"}');
  peer.state.removeItem(key);await peer.state.flush();
  await local.state.flush();
