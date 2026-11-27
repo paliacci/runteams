@@ -6,6 +6,7 @@ import json
 import unittest
 from unittest.mock import Mock, patch
 
+from runteams_core.application.local_work_core import LocalWorkCore
 from runteams_core.automation import chat_automations, device_employee_schedules
 from runteams_core.automation.portable_automations import source_reference
 from runteams_core.automation.source_pipeline_schedules import PipelineSchedules
@@ -34,7 +35,8 @@ class ChatAutomationTest(unittest.TestCase):
                 employee.side_effect = lambda identifier, ref: {'active_release': {'digest': 'sha'},
                     'native_asset': {'employee_reference': ref},
                     'runtime_source': {'asset': {'skill_bundles': [{'package_key': 'review'}]}}}
-                controller = lambda: SimpleNamespace(core=None)
+                core = LocalWorkCore()
+                controller = lambda: SimpleNamespace(core=core)
                 if kind == 'employee':
                     backend = device_employee_schedules.EmployeeSchedules(controller)
                     backend.admitted = Mock(return_value=None)
