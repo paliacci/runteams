@@ -59,6 +59,14 @@ test('a completed independent task shows the latest result with no conversation 
   assert.doesNotMatch(view.body, /查看对话|继续处理|确认并继续|continueEmployeeTask/);
 });
 
+test('failed execution rows preserve diagnostic identifiers and Windows filenames in the preview and tooltip', () => {
+  const {ui} = fixture();
+  const reason = String.raw`Missing approval_request in C:\QA_资料\工单#2\*.json`;
+  const run = {id: 17, state: 'failed', failure_reason: reason};
+  const row = ui.attemptsMarkup({snapshot_json: {}}, [run]);
+  assert.ok(row.includes(`title="${reason}">${reason}</span>`));
+});
+
 test('pipeline execution badges follow the recorded result regardless of column order', () => {
   const {ui} = fixture();
   const positions = [
