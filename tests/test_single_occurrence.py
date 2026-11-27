@@ -3,8 +3,10 @@ from contextlib import nullcontext
 from datetime import datetime, timezone
 import json
 from pathlib import Path
+import sqlite3
 import tempfile
 from threading import Barrier
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
@@ -79,6 +81,30 @@ class SingleOccurrenceTests(unittest.TestCase):
         with backend.connection() as connection:
             row = connection.execute('SELECT * FROM schedules').fetchone()
             return backend.record(connection, row)
+
+    def test_failed_pipeline_occurrence_follows_a_retry_of_its_original_workflow(self):
+        backend = self.schedule(PipelineSchedules)
+        ledger = sqlite3.connect(':memory:')
+        self.addCleanup(ledger.close)
+        ledger.execute('CREATE TABLE workflow_runs(id INTEGER PRIMARY KEY,state TEXT)')
+        ledger.execute("INSERT INTO workflow_runs VALUES(42,'running')")
+        repository = SimpleNamespace(read_snapshot=lambda: nullcontext(ledger),
+                                     storage=SimpleNamespace(assert_executable=lambda _: None))
+        backend.core = lambda: SimpleNamespace(repository=repository)
+        with backend.connection(write=True) as connection:
+            schedule = connection.execute('SELECT * FROM schedules').fetchone()
+            backend.fire(connection, schedule, FIRST)
+            connection.execute("UPDATE occurrences SET status='failed',workflow_id=42")
+            with self.assertRaises(ContractError):
+                backend.fire(connection, schedule, SECOND)
+        self.assertEqual(self.read(backend)['runs'][0]['status'], 'waiting')
+        ledger.execute("UPDATE workflow_runs SET state='completed' WHERE id=42")
+        run, = self.read(backend)['runs']
+        self.assertEqual((run['status'],run['workflow_id'],run['scheduled_for']), ('completed',42,FIRST))
+        self.assertFalse(backend.reconcile())
+        with backend.connection() as connection:
+            stored = connection.execute('SELECT status,workflow_id FROM occurrences').fetchall()
+        self.assertEqual([tuple(row) for row in stored], [('completed',42)])
 
     def tick(self, backend, stamp):
         Clock.value = stamp

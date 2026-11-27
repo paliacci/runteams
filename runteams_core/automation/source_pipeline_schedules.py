@@ -46,6 +46,43 @@ class PipelineSchedules(EmployeeSchedules):
             return ' AND 0', ()
         return ' AND ' + column + ' IN (' + ','.join('?' for _ in ids) + ')', ids
 
+    @staticmethod
+    def workflow_outcome(core, identifier, state):
+        if state in ('completed','failed','canceled','blocked'):
+            return state,''
+        try:
+            core.repository.storage.assert_executable(identifier)
+        except ContractError as error:
+            return 'interrupted',str(error)
+        return 'waiting',''
+
+    def retried_runs(self, rows):
+        # A stage retry reuses its workflow ID. A failed admission without a
+        # workflow, or a failure whose work was removed, stays in history.
+        failed = [row for row in rows if row['status']=='failed' and row['workflow_id']]
+        if not failed:
+            return
+        core = self.core()
+        for start in range(0,len(failed),500):
+            batch = failed[start:start+500]
+            identifiers = [row['workflow_id'] for row in batch]
+            placeholders = ','.join('?' for _ in identifiers)
+            with core.repository.read_snapshot() as connection:
+                states = dict(connection.execute(
+                    f'SELECT id,state FROM workflow_runs WHERE id IN ({placeholders}) AND state!=?',
+                    (*identifiers,'failed')))
+            for row in batch:
+                identifier = row['workflow_id']
+                if identifier in states:
+                    status,reason = self.workflow_outcome(core,identifier,states[identifier])
+                    yield row,status,reason
+
+    def record(self, connection, row):
+        value = super().record(connection,row)
+        for run,status,reason in self.retried_runs(value['runs']):
+            run.update(status=status,reason=reason)
+        return value
+
     def list_reference(self,reference):
         reference=pipeline_references.checked_reference(reference)
         core=self.core();saved=control.read(core,reference)
@@ -171,7 +208,10 @@ class PipelineSchedules(EmployeeSchedules):
             else:c.execute("UPDATE occurrences SET status='cancelled',reason='计划已暂停或更新，原触发未受理。' WHERE id=?",(row['id'],))
 
     def fire(self,c,row,scheduled):
-        if c.execute("SELECT 1 FROM occurrences WHERE schedule_id=? AND status IN ('queued','running','waiting','blocked','interrupted')",(row['id'],)).fetchone():raise ContractError('这项自动化还有未完成或需要核对的运行。')
+        open_run=c.execute("SELECT 1 FROM occurrences WHERE schedule_id=? AND status IN ('queued','running','waiting','blocked','interrupted')",(row['id'],)).fetchone()
+        failures=c.execute("SELECT status,workflow_id FROM occurrences WHERE schedule_id=? AND status='failed' AND workflow_id IS NOT NULL",(row['id'],))
+        if open_run or any(status in ('waiting','blocked','interrupted') for _,status,_ in self.retried_runs(failures)):
+            raise ContractError('这项自动化还有未完成或需要核对的运行。')
         op=str(uuid.uuid5(uuid.NAMESPACE_URL,canonical([self.binding(),row['id'],scheduled])))
         payload=json.loads(row['payload']);position=payload.pop('start_column_key')
         request={'operation_id':op,'reference':json.loads(row['reference']),'title':row['name'],'payload':payload,'start_column_key':position}
@@ -255,19 +295,25 @@ class PipelineSchedules(EmployeeSchedules):
         with _gate:
             if self.dispatch_ids() == ():return
             selection,ids=self.dispatch_selection('schedule_id')
-            with self.connection() as c:rows=[] if c is None else [dict(r) for r in c.execute("SELECT * FROM occurrences WHERE status IN ('running','waiting','blocked','interrupted')"+selection,ids)]
-            if not rows:return False
-            core=self.core()
+            with self.connection() as c:
+                if c is None:return False
+                rows=[dict(r) for r in c.execute("SELECT * FROM occurrences WHERE status IN ('running','waiting','blocked','interrupted')"+selection,ids)]
+                failures=c.execute("SELECT id,status,workflow_id,reason,chat_id FROM occurrences WHERE status='failed' AND workflow_id IS NOT NULL"+selection,ids).fetchall()
             tracking=False
+            for row,status,reason in self.retried_runs(failures):
+                self.record_outcome(row,status,row['workflow_id'],reason)
+                tracking |= status in ('waiting','blocked','interrupted')
+            if not rows:return tracking
+            core=self.core()
             for row in rows:
                 if row['id'] in self._executing:continue
                 request=json.loads(row['snapshot']);identifier=row['workflow_id'] or self._receipt(core,request)
                 current=core.workflow(identifier) if identifier else None
-                status=(current['state'] if current['state'] in ('completed','failed','canceled','blocked') else 'waiting') if current else 'interrupted' if identifier else row['status'] if row['status'] in ('blocked','interrupted') else 'queued'
-                reason='' if current else '原工作已不可读取，请核对工作记录。' if identifier else row['reason'] if status in ('blocked','interrupted') else '沿原编号等待受理。'
-                if current and status=='waiting':
-                    try:core.repository.storage.assert_executable(identifier)
-                    except ContractError as error:status,reason='interrupted',str(error)
+                if current:
+                    status,reason=self.workflow_outcome(core,identifier,current['state'])
+                else:
+                    status='interrupted' if identifier else row['status'] if row['status'] in ('blocked','interrupted') else 'queued'
+                    reason='原工作已不可读取，请核对工作记录。' if identifier else row['reason'] if status in ('blocked','interrupted') else '沿原编号等待受理。'
                 self.record_outcome(row,status,identifier,reason)
                 tracking |= identifier is not None and status in ('waiting','blocked','interrupted')
             return tracking
