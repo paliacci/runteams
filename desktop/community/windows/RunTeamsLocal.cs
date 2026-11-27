@@ -196,6 +196,29 @@ internal sealed class LocalWindow : Form
 
     private async Task StartService()
     {
+        CoreWebView2Environment environment;
+        try
+        {
+            string profile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                                          "RunTeams.ai", "Local", "WebView2");
+            environment = await CoreWebView2Environment.CreateAsync(null, profile);
+            if (IsDisposed || closing) return;
+            await view.EnsureCoreWebView2Async(environment);
+        }
+        catch (WebView2RuntimeNotFoundException) {
+            if (!closing && !IsDisposed) Fail(WindowText(
+                "Install Microsoft Edge WebView2 Evergreen Runtime, then reopen RunTeams Local.",
+                "请安装 Microsoft Edge WebView2 Evergreen Runtime，然后重新打开 RunTeams Local。"));
+            return;
+        }
+        catch (Exception error) {
+            if (!closing && !IsDisposed) Fail(WindowText(
+                "Could not start WebView2. Check that its data folder is writable and the runtime is working, then reopen RunTeams Local.",
+                "无法启动 WebView2。请检查其数据文件夹是否可写、运行时是否可用，然后重新打开 RunTeams Local。")
+                + Environment.NewLine + error.Message);
+            return;
+        }
+        if (IsDisposed || closing) return;
         try
         {
             service.Start();
@@ -221,11 +244,6 @@ internal sealed class LocalWindow : Form
                 || origin.PathAndQuery != "/" || origin.UserInfo != "" || origin.Fragment != "")
                 throw new InvalidDataException("Invalid local service address.");
 
-            string profile = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                                          "RunTeams.ai", "Local", "WebView2");
-            var environment = await CoreWebView2Environment.CreateAsync(null, profile);
-            if (IsDisposed || closing) return;
-            await view.EnsureCoreWebView2Async(environment);
             var browser = view.CoreWebView2;
             try { browser.DownloadStarting += TrackDownload; }
             catch (NotImplementedException) { /* Older runtimes can still open the library. */ }
@@ -308,9 +326,6 @@ internal sealed class LocalWindow : Form
             };
             if (service.HasExited) throw new IOException("The local service stopped during startup.");
             browser.Navigate(origin.AbsoluteUri);
-        }
-        catch (WebView2RuntimeNotFoundException) {
-            if (!closing && !IsDisposed) Fail("Install Microsoft Edge WebView2 Evergreen Runtime, then reopen RunTeams Local.");
         }
         catch (Exception error) { if (!closing && !IsDisposed) Fail(error.Message); }
     }
@@ -423,13 +438,13 @@ internal sealed class LocalWindow : Form
         for (int attempt = 0; downloads.Count > 0 && attempt < 20; attempt++)
             await Task.Delay(100);
         if (downloads.Count == 0) return true;
-        string message = CloseText("Files are still downloading. Cancel unfinished downloads and quit?",
+        string message = WindowText("Files are still downloading. Cancel unfinished downloads and quit?",
                                    "仍有文件正在下载。要取消未完成的下载并退出吗？");
         return MessageBox.Show(this, message, Text, MessageBoxButtons.YesNo, MessageBoxIcon.Question,
                                MessageBoxDefaultButton.Button2) == DialogResult.Yes;
     }
 
-    private static string CloseText(string english, string chinese)
+    private static string WindowText(string english, string chinese)
     {
         string language = DesktopSettings.SavedLanguage;
         if (String.IsNullOrEmpty(language) || language == "system")
@@ -480,7 +495,7 @@ internal sealed class LocalWindow : Form
                 int discardVersion = -1;
                 if (result == "\"dirty\"") {
                     discardVersion = navigationVersion;
-                    if (MessageBox.Show(this, CloseText("Discard unsaved changes and quit?", "放弃未保存的更改并退出吗？"), Text,
+                    if (MessageBox.Show(this, WindowText("Discard unsaved changes and quit?", "放弃未保存的更改并退出吗？"), Text,
                         MessageBoxButtons.YesNo, MessageBoxIcon.Question, MessageBoxDefaultButton.Button2) != DialogResult.Yes) return;
                 }
                 if (!await CanQuitWithDownloads()) return;
@@ -488,8 +503,8 @@ internal sealed class LocalWindow : Form
             }
             if (result == "\"ready\"") { closing = true; Close(); }
             else MessageBox.Show(this, result == null
-                ? CloseText("Could not check the workspace for unsaved changes. Please try again.", "暂时无法核对工作区是否有未保存的更改，请稍后再试。")
-                : CloseText("Finish pending changes in the workspace before closing.", "请先完成工作区内待处理的更改，再关闭窗口。"), Text);
+                ? WindowText("Could not check the workspace for unsaved changes. Please try again.", "暂时无法核对工作区是否有未保存的更改，请稍后再试。")
+                : WindowText("Finish pending changes in the workspace before closing.", "请先完成工作区内待处理的更改，再关闭窗口。"), Text);
         }
         catch (Exception error) { MessageBox.Show(this, error.Message, Text); }
         finally { checkingClose = false; }

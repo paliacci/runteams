@@ -30,7 +30,7 @@ def wait_for(check, seconds=45):
     raise TimeoutError(f'Timed out at {check.__name__}')
 
 
-def desktop_window(process):
+def visible_windows(process, class_name=None):
     user32 = ctypes.windll.user32
     windows = []
 
@@ -39,13 +39,39 @@ def desktop_window(process):
         pid = wintypes.DWORD()
         user32.GetWindowThreadProcessId(window, ctypes.byref(pid))
         if pid.value == process.pid and user32.IsWindowVisible(window):
-            windows.append(window)
+            name = ctypes.create_unicode_buffer(128)
+            user32.GetClassNameW(window, name, len(name))
+            if class_name is None or name.value == class_name:
+                windows.append(window)
         return True
 
     user32.EnumWindows(collect, 0)
+    return windows
+
+
+def desktop_window(process):
+    windows = visible_windows(process)
     if len(windows) != 1:
         raise RuntimeError('Expected one desktop window')
     return windows[0]
+
+
+def check_missing_runtime(executable, root):
+    runtime = root / 'empty-runtime'
+    runtime.mkdir()
+    library = root / '本机资料 QA'
+    environment = {**os.environ, 'WEBVIEW2_BROWSER_EXECUTABLE_FOLDER': str(runtime),
+                   'WEBVIEW2_USER_DATA_FOLDER': str(root / 'webview')}
+    with subprocess.Popen([executable, '--data-dir', library], env=environment) as app:
+        try:
+            dialog = wait_for(lambda: next(iter(visible_windows(app, '#32770'))))
+            assert not library.exists(), 'Opened the library before WebView2 was available'
+            ctypes.windll.user32.PostMessageW(dialog, 0x0010, 0, 0)  # WM_CLOSE
+            assert app.wait(timeout=15) == 1, 'Expected a startup error'
+            assert not library.exists()
+        finally:
+            if app.poll() is None:
+                app.terminate()
 
 
 def check_window_dpi(process, evaluate):
@@ -183,7 +209,9 @@ if __name__ == '__main__':
     args = parser.parse_args()
     folder = tempfile.TemporaryDirectory(prefix='runteams-desktop-qa-')
     try:
-        exercise(args.executable.resolve(strict=True), Path(folder.name))
+        executable = args.executable.resolve(strict=True)
+        check_missing_runtime(executable, Path(folder.name))
+        exercise(executable, Path(folder.name))
     finally:
         # Edge can retain the test profile briefly after its host window exits.
         wait_for(lambda: folder.cleanup() is None, 15)
