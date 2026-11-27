@@ -203,6 +203,7 @@
     "runteams_core/conversations/asset_history.py",
     "runteams_core/conversations/asset_memory.py",
     "runteams_core/conversations/asset_sources.py",
+    "runteams_core/conversations/windows_knowledge_viewers.py",
     "runteams_core/conversations/page_paths.py",
     "runteams_core/conversations/project_memory.py",
     "runteams_core/conversations/workspace_context.py",
