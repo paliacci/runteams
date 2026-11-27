@@ -9,6 +9,8 @@ import secrets
 import re
 import socketserver
 import sqlite3
+import sys
+import threading
 from urllib.parse import parse_qs, urlsplit
 
 from runteams_core.assets.library_assets import AssetConflict, MAX_SOURCE_BYTES
@@ -45,8 +47,21 @@ class LocalServer(ThreadingHTTPServer):
         if (self.application.binding.root/'work/runteams.db').is_file() or any((self.application.binding.root/(kind+'-schedules')/'schedules.sqlite3').is_file() for kind in ('employee','pipeline')):
             self.application.runtime.activate_employee_host()
         self.application.automatic_backups.start()
-        try:return super().serve_forever(poll_interval)
-        finally:self.application.automatic_backups.close()
+        stopping = threading.Event()
+        if sys.platform == 'win32':
+            from runteams_core.conversations.windows_knowledge_viewers import reclaim_abandoned
+
+            def clean_reader_copies():
+                while not stopping.is_set():
+                    reclaim_abandoned()
+                    stopping.wait(60)
+
+            threading.Thread(target=clean_reader_copies, daemon=True, name='knowledge-viewer-cleanup').start()
+        try:
+            return super().serve_forever(poll_interval)
+        finally:
+            stopping.set()
+            self.application.automatic_backups.close()
 
     def server_bind(self):
         # HTTPServer's getfqdn performs DNS; this service has no DNS dependency.

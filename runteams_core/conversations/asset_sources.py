@@ -383,6 +383,9 @@ _viewer_lock = threading.Lock()
 @cache
 def _viewer_directory(sha):
     # Each digest owns its directory, without adding a 64-character path component.
+    if os.name == 'nt':
+        from runteams_core.conversations.windows_knowledge_viewers import ViewerDirectory
+        return ViewerDirectory()
     return tempfile.TemporaryDirectory(prefix='runteams-knowledge-', dir=storage_path(tempfile.gettempdir()))
 
 
@@ -409,7 +412,8 @@ def open_original(bank, source, bundled):
 
         # External readers need a stable copy after the request returns.
         with _viewer_lock:
-            directory = Path(_viewer_directory(sha).name)
+            viewer = _viewer_directory(sha)
+            directory = Path(viewer.name)
         shell_directory = Path(tempfile.gettempdir()) / directory.name
         viewer_name = Path(name).name
         if os.name == 'nt' and len(str(shell_directory / viewer_name).encode('utf-16-le')) >= 520:
@@ -418,6 +422,9 @@ def open_original(bank, source, bundled):
             viewer_name = 'original' + suffix
         path = _write_original(stream, viewer_name, size, sha, directory)['path']
     os.chmod(path, 0o400)
+    if os.name == 'nt':
+        with _viewer_lock:
+            viewer.record(path)
     # Third-party readers receive an ordinary shell path.
     file_manager.open_path(str(shell_directory / viewer_name))
     return {'kind':'opened'}

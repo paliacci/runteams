@@ -518,7 +518,8 @@ class AssetMemoryTests(TestCase):
         with device_data.connect() as connection:
             identifier = asset_sources._store(connection, bank, name, content, [])
         viewer = asset_sources._viewer_directory.__wrapped__('test digest')
-        with viewer, patch.object(asset_sources, '_viewer_directory', return_value=viewer), patch.object(file_manager, 'open_path') as opened:
+        with ExitStack() as cleanup, patch.object(asset_sources, '_viewer_directory', return_value=viewer), patch.object(file_manager, 'open_path') as opened:
+            cleanup.callback(viewer.cleanup)
             for _ in range(2):
                 self.assertEqual(asset_sources.open_original(bank, identifier, {}), {'kind':'opened'})
             path = Path(opened.call_args.args[0])
@@ -526,6 +527,57 @@ class AssetMemoryTests(TestCase):
             self.assertEqual(path.name, name)
             self.assertEqual(storage_path(path).read_bytes(), content)
         self.assertFalse(Path(viewer.name).exists())
+
+    def test_windows_viewer_waits_for_both_owner_and_reader(self):
+        if os.name != 'nt':
+            self.skipTest('Windows file sharing')
+        from runteams_core.conversations import windows_knowledge_viewers as viewers
+
+        with TemporaryDirectory() as root, patch('tempfile.gettempdir', return_value=root):
+            owner = viewers.ViewerDirectory()
+            self.addCleanup(owner.cleanup)
+            directory = Path(owner.name)
+            copy = directory / '双页.PDF'
+            copy.write_bytes(b'read-only copy')
+            copy.chmod(0o400)
+            owner.record(copy)
+            viewers.reclaim_abandoned()
+            self.assertTrue(copy.is_file())
+            with copy.open('rb') as reader:
+                owner.cleanup()
+                viewers.reclaim_abandoned()
+                self.assertEqual(reader.read(), b'read-only copy')
+                self.assertTrue(copy.is_file())
+            viewers.reclaim_abandoned()
+            self.assertFalse(directory.exists())
+
+    def test_windows_viewer_recovery_preserves_unregistered_and_changed_files(self):
+        if os.name != 'nt':
+            self.skipTest('Windows file sharing')
+        from runteams_core.conversations import windows_knowledge_viewers as viewers
+
+        with TemporaryDirectory() as root, patch('tempfile.gettempdir', return_value=root):
+            owner = viewers.ViewerDirectory()
+            self.addCleanup(owner.cleanup)
+            directory = Path(owner.name)
+            for name in ['unchanged.pdf', 'edited.pdf', 'replaced.pdf']:
+                path = directory / name
+                path.write_bytes(b'original')
+                owner.record(path)
+            (directory / 'edited.pdf').write_bytes(b'new contents')
+            (directory / 'extra.txt').write_bytes(b'unregistered')
+            (directory / 'new.pdf').write_bytes(b'original')
+            (directory / 'new.pdf').replace(directory / 'replaced.pdf')
+            other = Path(root) / 'runteams-knowledge-unregistered'
+            other.mkdir()
+            (other / 'another.pdf').write_bytes(b'unowned')
+            owner.cleanup()
+            viewers.reclaim_abandoned()
+            self.assertFalse((directory / 'unchanged.pdf').exists())
+            self.assertEqual((directory / 'edited.pdf').read_bytes(), b'new contents')
+            self.assertEqual((directory / 'extra.txt').read_bytes(), b'unregistered')
+            self.assertEqual((directory / 'replaced.pdf').read_bytes(), b'original')
+            self.assertTrue((other / 'another.pdf').is_file())
 
     def test_viewer_adapts_its_copy_without_renaming_an_export(self):
         from tempfile import gettempdir
