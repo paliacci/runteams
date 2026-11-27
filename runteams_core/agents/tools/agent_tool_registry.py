@@ -1179,15 +1179,19 @@ register(AgentTool(name='runteams_audit_public_website', display_label='检查�
 
 
 register(AgentTool(name='runteams_creator_source',
-    description='读取当前 SDK 合同、导入用户发来的员工资源文件夹或提交完整员工源码。创建员工时先读 reference(kind=authoring)，按其中的命名指引和选题方法确定员工显示名与快捷问题。schema 必须带 kind=employee|pipeline|skill，reference 必须带 kind=project|dependencies|authoring。import 的 attachment_id 必须是当前对话已保存的用户文件夹附件编号，不接受任意路径；只读取快照，不执行包内代码。submit 的 files 为相对路径到 base64 字节的映射，必须使用文件／终端工具从实际文件字节编码，不能手写或拼接 base64；校验拒绝会返回具体问题，可修正后再提交。通过原完整校验后直接保存并绑定当前对话。后续使用原生文件工具编辑同一 SDK 工程。不能提交派生员工定义、发布、安装或授权。',
+    description='创建空智能体团队／流水线用 create_pipeline 并提供 name；创建有岗位的团队用 submit 提交含一个团队入口的完整 SDK 工程。也可读取 SDK 合同、导入员工文件夹或提交完整员工源码。创建员工时先读 reference(kind=authoring)，按其中的命名指引和选题方法确定员工显示名与快捷问题。schema 必须带 kind=employee|pipeline|skill，reference 必须带 kind=project|dependencies|authoring。import 的 attachment_id 必须是当前对话已保存的用户文件夹附件编号，不接受任意路径；只读取快照，不执行包内代码。submit 的 files 为相对路径到 base64 字节的映射，必须使用文件／终端工具从实际文件字节编码，不能手写或拼接 base64；校验拒绝会返回具体问题，可修正后再提交。通过原完整校验后直接保存并绑定当前对话。后续使用原生文件工具编辑同一 SDK 工程。不能提交派生员工定义、发布、安装或授权。',
     input_schema={'type':'object','properties':{
-        'action':{'enum':['schema','reference','submit','import']},
+        'action':{'enum':['schema','reference','submit','import','create_pipeline']},
+        'name':{'type':'string','minLength':1,'maxLength':80,
+                'description':'create_pipeline: save a new empty Agent Team in the current personal workspace.'},
         'kind':{'enum':['employee','pipeline','skill','authoring','project','dependencies'],
                 'description':'schema 时必填 employee、pipeline 或 skill；reference 时必填 project、dependencies 或 authoring。'},
         'attachment_id':{'type':'string','pattern':'^[a-f0-9]{24}$'},
         'files':{'type':'object','minProperties':1,'maxProperties':500,'additionalProperties':{'type':'string'}}},
         'required':['action'],'additionalProperties':False,
         'oneOf':[
+            {'properties':{'action':{'enum':['create_pipeline']},'name':{}},
+             'required':['action','name'],'additionalProperties':False},
             {'properties':{'action':{'enum':['schema']},'kind':{'enum':['employee','pipeline','skill']}},
              'required':['action','kind'],'additionalProperties':False},
             {'properties':{'action':{'enum':['reference']},'kind':{'enum':['project','dependencies','authoring']}},

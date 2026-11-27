@@ -196,6 +196,8 @@ def prepare_bundle(ref, operation_id, revision):
     asset = compiled['pipelines'].get(ref['pipeline_source'])
     if asset is None:
         raise ContractError('智能体团队源码入口已不存在。')
+    if not asset['pipeline']['positions']:
+        raise ContractError('请先为智能体团队添加岗位，再应用运行版本。')
     from runteams_core.pipelines.pipeline_dependency_contracts import key as member_key, selector
     has_dependencies = any('dependency' in member for member in asset['employees'])
     if has_dependencies:

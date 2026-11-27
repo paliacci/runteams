@@ -7374,6 +7374,11 @@ async function sendConversationPanel(options={}){
     live.id=result.message_id||live.id;live.text=typeof result.reply==="string"?result.reply:live.text;live.systemNotice=result.system_notice||null;live.health=result.health||null;live.contextRefs=Array.isArray(result.context_refs)?result.context_refs:[];live.streaming=false;live.stopped=live.systemNotice?.kind==="stopped";live.trace.cancelled=live.stopped;live.trace.complete=true;live.trace.failed=!live.stopped&&!!(result.failed||result.incomplete);live.trace.finishedAt=Date.now();
     succeeded=!result.failed&&!result.incomplete&&!panel.stopRequested;
     {live.applied=result.applied||[];live.runCards=result.run_cards||[];if(result.name||result.avatar)panel.identity={name:result.name||panel.identity?.name,avatar:result.avatar||panel.identity?.avatar};panel.status=result.status||"active";}refreshLiveAgentMessage(live,"panel",panel);
+    if(result.session?.context?.source_pipeline_workspace && !panel.context?.source_pipeline_workspace &&
+       Number(panel.id)===Number(result.session.id) && businessGenerationAtSend===_workspaceBusinessGeneration){
+      panel.context=result.session.context;deviceChatRemember(result.session);rememberConversationPanel(panel);
+      await RunTeamsSourcePipelines.refreshCatalog({force:true});
+    }
     if(result.session)adoptCreatedEmployeeConversation(panel,result.session,businessGenerationAtSend);
     try{await syncConversationWork(true);}catch(ignore){}
     try{const chats=await conversationChatDirectory(panel.id);if(chats.error)throw new Error(chats.error);S.chats=chats.chats||[];panel.title=conversationPanelTitle(panel);if(!S.localLibrary&&(!deviceChatKnown(panel.id)||(result.applied||[]).length||(result.run_cards||[]).length))await refreshCoreTeam();if(result.session){try{await RunTeamsHost.routes.readIndex?.({force:true});}catch(ignore){}adoptCreatedEmployeeConversation(panel,result.session,businessGenerationAtSend);}

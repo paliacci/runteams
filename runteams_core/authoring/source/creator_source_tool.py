@@ -4,9 +4,10 @@ New drafts and fully submitted projects share LocalSources/Revisions with import
 Existing definitions are historical data, not permission to invent SDK provenance.
 """
 import json
+import uuid
 
 from runteams_core.storage import device_data
-from runteams_core.authoring.creator_contracts import CreatorContractError, decode_files, digest, strict_json
+from runteams_core.authoring.creator_contracts import CreatorContractError, canonical, decode_files, digest, strict_json
 from runteams_core.authoring.source.creator_local_source import current_store
 
 
@@ -74,13 +75,66 @@ def attachment_source(session, attachment_id):
     return read_folder(inputs[0][1])
 
 
+def _team_files(session_id, name):
+    key = 'team-' + digest([session_id, name])[:24]
+    path = 'pipelines/team.json'
+    return {
+        'project.json': canonical({'schema': 'runteams.creator-project/2', 'key': key, 'name': name,
+            'version': '1.0.0', 'sdk': 'mcp-apps/1-dev', 'entrypoints': {'employees': [], 'pipelines': [path]},
+            'dependency_lock': 'dependencies.lock.json', 'source_access': {'default': 'author', 'public_files': []}}),
+        'dependencies.lock.json': canonical({'schema': 'runteams.dependencies/2', 'root': key,
+            'runtime': {'protocol': 'mcp', 'managed_node': '24'}, 'dependencies': []}),
+        path: canonical({'schema': 'runteams.pipeline-source/3', 'key': key, 'employees': [],
+            'pipeline': {'name': name, 'positions': [], 'edges': []}})}
+
+
+def _save_team(session_id, scope, files, raw, report):
+    from runteams_core.foundation import file_locks
+    from runteams_core.pipelines.pipeline_references import reference
+    from runteams_core.storage import product_store as product
+    from runteams_core.storage.device_runtime_links import reset
+    from runteams_core.authoring.source.creator_source_import import inspect_source
+
+    store = current_store(scope['cache_scope'])
+    path, = strict_json(files['project.json'])['entrypoints']['pipelines']
+    ref = reference(report['source']['sha256'], path)
+    with file_locks.held(store.root / f'.team-chat-{int(session_id)}.lock'):
+        session = product.get_chat(session_id, include_messages=False)
+        _workspace(session)
+        context = session['context']
+        bound = context.get('source_pipeline_workspace')
+        if (bound and bound != ref) or context.get('creator_local_source_id'):
+            raise ValueError('对话已绑定其他作品，请从新对话创建。')
+        original = store.save(raw, report['source']['sha256'], inspect_source)
+        if original['id'] != ref['source_id']:
+            raise ValueError('智能体团队源码回执不匹配。')
+        if not bound:
+            updated = {'context_type': 'general', 'intent': 'general', 'source_pipeline_workspace': ref,
+                       'source_pipeline_discussion': str(uuid.uuid5(uuid.NAMESPACE_URL, f'runteams:chat:{session_id}'))}
+            with device_data.connect() as connection:
+                device_data.check(scope)
+                changed = connection.execute("UPDATE chats SET context_json=?,updated_at=? WHERE id=? "
+                    "AND kind='general' AND subject_type='workspace' AND json_extract(context_json,"
+                    "'$.source_pipeline_workspace') IS NULL AND json_extract(context_json,'$.creator_local_source_id') IS NULL",
+                    (json.dumps(updated), product.now(), session_id)).rowcount
+                if changed != 1:
+                    raise ValueError('对话已变化，请重新打开。')
+                reset(connection, session_id)
+    return {'state': 'saved', 'reference': ref, 'session_id': session_id,
+            'name': strict_json(files[path])['pipeline']['name'], 'published': False}
+
+
 def _validate_arguments(arguments):
     """Reject malformed calls before any SDK read/write, with a model-visible result."""
     from runteams_core.agents.tools.agent_tool_registry import AgentToolError
     if not isinstance(arguments, dict):
         raise AgentToolError('SDK 工具参数必须是对象。')
     action = arguments.get('action')
-    if action in ('schema', 'reference'):
+    if action == 'create_pipeline':
+        if (set(arguments) != {'action', 'name'} or not isinstance(arguments['name'], str)
+                or not 1 <= len(arguments['name'].strip()) <= 80):
+            raise AgentToolError('创建智能体团队需要 1 至 80 字的名称。')
+    elif action in ('schema', 'reference'):
         kinds = ('employee', 'pipeline', 'skill') if action == 'schema' else ('project', 'dependencies', 'authoring')
         if set(arguments) != {'action', 'kind'} or arguments.get('kind') not in kinds:
             raise AgentToolError('{} 必须且只能提供 action、kind；kind 可选 {}。例如 {{"action":"{}","kind":"{}"}}。'
@@ -123,7 +177,7 @@ def tool(arguments, context):
     elif action == 'reference' and set(arguments) == {'action','kind'}:
         from runteams_core.authoring.creator_authoring import reference
         result = reference(arguments['kind'])
-    elif (action == 'submit' and set(arguments) == {'action','files'}
+    elif (action == 'create_pipeline' or action == 'submit' and set(arguments) == {'action','files'}
             or action == 'import' and set(arguments) == {'action','attachment_id'}):
         from runteams_core.authoring.source.creator_source_archive import pack
         from runteams_core.authoring.source.creator_source_import import inspect_source
@@ -133,10 +187,17 @@ def tool(arguments, context):
         # Only rejected input validation is recoverable. Storage/binding failures
         # below may follow a write and must retain their original failure semantics.
         try:
-            files = (attachment_source(session,arguments['attachment_id']) if action=='import'
+            files = (_team_files(session['id'], arguments['name'].strip()) if action == 'create_pipeline' else
+                attachment_source(session,arguments['attachment_id']) if action=='import'
                 else decode_files(arguments['files']))
             raw = pack(files)
             report = inspect_source(raw)
+            if report['pipelines'] == 1 and strict_json(files['project.json'])['schema'] == 'runteams.creator-project/2':
+                result = _save_team(session['id'], scope, files, raw, report)
+                device_data.check(scope)
+                return AgentToolResult('creator_source', '智能体团队已创建。', result)
+            if saved.get('source_pipeline_workspace'):
+                raise AgentToolError('当前对话已经绑定智能体团队，请在新对话中创建其他作品。')
             if (strict_json(files['project.json'])['schema'] != 'runteams.creator-project/2'
                     or report['employees'] != 1 or report['pipelines']):
                 raise CreatorContractError('invalid_employee_bundle', '员工须提交一份完整的当前 SDK 源码。')

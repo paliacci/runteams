@@ -315,11 +315,13 @@ class LocalRuntime:
                 meta = json.loads(row['metadata'] or '{}')
                 if meta.get('local_turn_id') == operation:
                     reply, meta = self.store.project_local_turn_text(row['text'], meta)
+                    session = self.store.get_chat(chat_id, include_messages=False)
                     return {'type': 'result', 'message_id': row['id'], 'reply': reply,
                             'failed': bool(meta.get('failed')), 'incomplete': bool(meta.get('stopped')),
                             **({'system_notice': meta['system_notice']} if meta.get('system_notice') else {}),
                             'applied':json.loads(row['applied'] or '[]'),'run_cards':meta.get('run_cards',[]),
-                            **({'session':self.public_chat(self.chat(chat_id,include_live=False))} if self.source_chat(self.store.get_chat(chat_id,include_messages=False)) else {}),
+                            **({'session':self.public_chat(self.chat(chat_id,include_live=False))}
+                               if self.source_chat(session) or session.get('context', {}).get('source_pipeline_workspace') else {}),
                             **({'device_page_ids':self.work_core().page_ids()} if json.loads(row['applied'] or '[]') else {})}
         return None
 

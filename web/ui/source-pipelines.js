@@ -1172,158 +1172,11 @@
   }
   return '';
  }
- let creation=null;
- const creationKey=()=> 'runteams.pipeline-create:'+durableScope();
- const creationErrors={
-  localSaveFailed:'无法在本机保存创建请求。智能体团队尚未创建。',
-  unconfirmed:'暂时无法确认智能体团队是否已创建。请核对创建结果。',
-  choicesChanged:'员工或技能版本已更新。请重新选择第一个岗位。',
-  rejected:'无法创建智能体团队。请核对名称和首个岗位后重试。'
- };
- const creationText=(key,vars,fallback)=>window.RunTeamsLocale?.t('pipelineCreate.'+key,vars,fallback)??fallback;
- const creationVisible=c=>creation===c&&c.scope===scope()&&c.modal?.isConnected&&document.getElementById('modalHost')?.firstChild===c.modal;
- function creationChoiceLabel(row,index){
-  const local=row.origin==='创作'||row.dependency?.kind==='source';
-  const label=[row.employee_name+' / '+row.skill_name,row.project_name].filter(Boolean).join(' · ');
-  const key=local?'localChoice':row.origin==='租用'?'rentedChoice':'downloadedChoice';
-  const version=local?String(row.version||'').replace(/^修订\s+/,''):String(row.version||'');
-  const vars={label,version};
-  return `<option value="${index}" data-app-i18n="pipelineCreate.${key}" data-app-i18n-vars="${esc(JSON.stringify(vars))}">${esc(creationText(key,vars,label))}</option>`;
+ function newPipeline(){
+  const prompt=window.RunTeamsLocale?.t('newConversation.pipelinePrompt',{},'创建一个智能体团队，处理以下工作：')??'创建一个智能体团队，处理以下工作：';
+  return newRailChat({draft:prompt});
  }
- async function newPipeline(){
-  if(creation&&creationVisible(creation))return;
-  const c={scope:scope(),ticket:navigationTicket(),anchor:document.activeElement,choices:[],loading:true,busy:false,error:''};
-  creation=c;
-  const host=openDialog({
-   title:'新建智能体团队',titleKey:'pipelineCreate.title',closeLabelKey:'employeeSettings.closeDialog',
-   attrs:'role="dialog" aria-modal="true" aria-label="新建智能体团队" data-app-i18n-aria-label="pipelineCreate.title"',
-   closeAction:'RunTeamsSourcePipelines.closeCreation()',
-   body:'<div data-pipeline-create-fields></div><p role="alert" data-pipeline-create-error hidden></p>',
-   footer:'<button class="btn" type="button" onclick="RunTeamsSourcePipelines.closeCreation()" data-app-i18n="pipelineCreate.close">关闭</button><button type="button" class="btn" data-app-i18n="materials.import" onclick="RunTeamsCreatorAuthor.choosePackage()">导入资产包</button><div class="grow"></div><button class="btn pri" type="button" data-pipeline-create-submit onclick="RunTeamsSourcePipelines.create()" disabled></button>'
-  });
-  c.modal=host.firstChild;
-  c.modal.querySelector('.modal-x')?.focus({preventScroll:true});
-  await readCreationChoices();
- }
- function closeCreation(){
-  const c=creation;if(!c||!creationVisible(c))return;
-  closeModal();
-  if(c.ticket()&&c.anchor?.isConnected)c.anchor.focus({preventScroll:true});
- }
- async function readCreationChoices(refresh=false){
-  const c=creation;if(!c||!creationVisible(c)||c.reading&&!refresh)return;
-  const retry=c.choicesFailed;
-  const read={};
-  c.loading=true;c.reading=read;c.choicesFailed=false;creationDialog(true);
-  const active=()=>c.reading===read&&creationVisible(c)&&c.ticket();
-  try{
-   // Clearing a refused creation updates the read generation. Load the new roles after that write.
-   if(c.error==='choicesChanged'&&RunTeamsWorkState.pendingSave)await RunTeamsWorkState.flush();
-   if(!active())return;
-   const choices=request('creation-choices',{}, {readPriority:'foreground'}).then(reply=>({reply}),error=>({error}));
-   if(!RunTeamsWorkState.ready)await RunTeamsWorkState.connect();
-   if(!active())return;
-   const original=JSON.parse(RunTeamsWorkState.getItem(creationKey())||'null');
-   c.pending=original;
-   if(c.pending){c.name=c.pending.name;c.loading=false;creationDialog(true);}
-   const {reply,error}=await choices;
-   if(!active())return;
-   if(error)throw error;
-   if(!Array.isArray(reply.items))throw Error('pipeline creation choices missing');
-   c.choices=reply.items;c.choiceErrors=Array.isArray(reply.errors)?reply.errors:[];
-   if(original?.employee_reference){
-    const fields=Object.keys(original.employee_reference);
-    const index=c.choices.findIndex(row=>row.skill_key===original.skill_key&&row.revision===original.source_revision&&
-     fields.length===Object.keys(row.reference).length&&fields.every(key=>row.reference[key]===original.employee_reference[key]));
-    c.choice=index<0?'':String(index);
-   }
-  }catch(error){if(active())c.choicesFailed=true;}
-  finally{
-   if(c.reading===read){
-    c.loading=false;c.reading=null;
-    if(creationVisible(c)&&c.ticket()){
-     creationDialog(!c.pending);
-     if(retry&&!c.choicesFailed&&document.activeElement===document.body){
-      c.modal.querySelector('#source_pipeline_create_name, [data-pipeline-create-submit]:not(:disabled)')?.focus({preventScroll:true});
-     }
-    }else if(creationVisible(c))closeCreation();
-   }
-  }
- }
- function creationDialog(rebuild=false){
-  const c=creation;if(!c||!creationVisible(c))return;
-  const fields=c.modal.querySelector('[data-pipeline-create-fields]');
-  if(rebuild){
-   const form=c.choices.length?`<form id="source_pipeline_create" onsubmit="event.preventDefault();RunTeamsSourcePipelines.create()">
-    <label class="lbl" for="source_pipeline_create_name" data-app-i18n="pipelineCreate.name">智能体团队名称</label>
-    <input class="input" style="width:100%" id="source_pipeline_create_name" name="name" required maxlength="80" value="${esc(c.name||'')}" oninput="RunTeamsSourcePipelines.creationName(this.value)">
-    <label class="lbl" for="source_pipeline_first_role" data-app-i18n="pipelineCreate.firstRole">第一个岗位</label>
-    <select class="input" style="width:100%" id="source_pipeline_first_role" name="choice" required><option value="" data-app-i18n="pipelineCreate.choose">选择员工和技能</option>${c.choices.map(creationChoiceLabel).join('')}</select>
-   </form><p data-app-i18n="pipelineCreate.next">创建后，可以直接从岗位添加任务。</p>`:
-   '<p data-app-i18n="pipelineCreate.empty">添加一名带有工作技能的员工后，即可创建智能体团队。</p>';
-   const failed=RunTeamsLoadFailure.markup({variant:'local',title:'无法载入员工和技能',titleKey:'pipelineCreate.choicesFailedTitle',
-    labelKey:'employeeHistory.retry',busyLabelKey:'pipelineCreate.choicesLoading',retry:'RunTeamsSourcePipelines.readCreationChoices()'});
-   const partial=c.choiceErrors?.length?'<p role="status" data-app-i18n="pipelineCreate.partialChoices">部分员工或技能暂时无法载入。</p>':'';
-   fields.innerHTML=c.pending?`<p><b>${esc(c.pending.name)}</b></p><p data-app-i18n="pipelineCreate.unconfirmed">无法确认智能体团队是否已创建。请核对创建结果。</p>`:
-    c.loading?RunTeamsSkeletons.region('parameters',undefined,'pipelineCreate.choicesLoading'):
-    c.choicesFailed||!c.choices.length&&partial?failed:form+partial;
-   const select=fields.querySelector('select');if(select&&c.choice!=null)select.value=c.choice;
-  }
-  const form=fields.querySelector('form');
-  form?.querySelectorAll('input,select').forEach(input=>input.disabled=c.busy||!!c.pending);
-  const submit=c.modal.querySelector('[data-pipeline-create-submit]');
-  submit.disabled=!c.pending&&(!c.choices.length||c.choicesFailed||c.loading);
-  submit.setAttribute('aria-disabled',String(c.busy||submit.disabled));
-  submit.setAttribute('aria-busy',String(c.busy));
-  const key=c.busy?(c.checking?'checking':'creating'):c.pending?'check':'create';
-  submit.setAttribute('data-app-i18n','pipelineCreate.'+key);
-  submit.textContent=creationText(key,{},({checking:'正在核对…',creating:'正在创建…',check:'核对创建结果',create:'创建智能体团队'})[key]);
-  const error=c.modal.querySelector('[data-pipeline-create-error]');
-  const errorKey=c.pending&&rebuild&&c.error==='unconfirmed'?'':c.error;
-  error.hidden=!errorKey;
-  if(errorKey)error.setAttribute('data-app-i18n','pipelineCreate.'+errorKey);else error.removeAttribute('data-app-i18n');
-  error.textContent=errorKey?creationErrors[errorKey]:'';
-  window.RunTeamsLocale?.apply(c.modal);
- }
- async function create(){
-  const c=creation;if(!c||c.busy||!creationVisible(c)||!c.ticket())return;const revealTicket=navigationTicket();
-  c.checking=!!c.pending;const focus=document.activeElement;
-  const form=document.getElementById('source_pipeline_create');
-  if(!c.pending){
-   if(form)form.elements.name.value=form.elements.name.value.trim();
-   if(!form?.reportValidity())return;
-   try{
-   const values=new FormData(form),choice=c.choices[Number(values.get('choice'))];c.choice=String(values.get('choice'));
-   c.name=String(values.get('name')).trim();
-   const endName=window.RunTeamsLocale?.t('pipelineEditor.defaultEnd',{},'已完成')??'已完成';
-   c.pending={operation_id:crypto.randomUUID(),employee_reference:choice.reference,source_revision:choice.revision,
-    skill_key:choice.skill_key,name:c.name,end_name:endName,
-    ...(choice.dependency?.kind==='download'?{dependency:structuredClone(choice.dependency)}:{})};
-   RunTeamsWorkState.setItem(creationKey(),JSON.stringify(c.pending));
-   }catch(error){c.pending=null;c.error='localSaveFailed';creationDialog();return;}
-  }
-  c.busy=true;c.error='';creationDialog();
-  try{if(RunTeamsWorkState.pending)await RunTeamsWorkState.flush();const reply=await request('create',c.pending);if(c.scope!==scope()||creation!==c)return;const visible=revealTicket()&&c.modal?.isConnected&&document.getElementById('modalHost')?.firstChild===c.modal;RunTeamsWorkState.removeItem(creationKey());if(visible)closeModal();else c.modal?.remove();creation=null;const emptyModal=document.getElementById('modalHost')?.firstChild;await refreshCatalog();if(visible&&revealTicket()&&c.scope===scope()&&document.getElementById('modalHost')?.firstChild===emptyModal)await openReference(reply.reference);}
-  catch(error){
-   if(c.scope===scope()&&creation===c){
-    if(error.confirmedReply&&error.code!=='operation_unknown'){RunTeamsWorkState.removeItem(creationKey());c.pending=null;}
-    c.error=c.pending?'unconfirmed':'rejected';
-    if(!c.pending&&error.code==='source_revision_conflict'){
-     c.choice='';c.choices=[];c.error='choicesChanged';
-     await readCreationChoices(true);
-    }
-   }
-  }
-  finally{c.busy=false;
-   if(revealTicket()&&creationVisible(c)){
-    creationDialog(true);
-    if(document.activeElement===document.body){
-     const target=(focus?.id&&document.getElementById(focus.id))||c.modal.querySelector('[data-pipeline-create-submit]:not(:disabled)')||c.modal.querySelector('.modal-x');
-     target?.focus({preventScroll:true});
-    }
-   }}
- }
- function reset(){stopActivity();catalogSequence++;sequence++;rows=[];catalogScope='';catalogError='';catalogErrorScope='';creation=null;}
+ function reset(){stopActivity();catalogSequence++;sequence++;rows=[];catalogScope='';catalogError='';catalogErrorScope='';}
  window.addEventListener('runteams:business-scope-will-change',reset);
  setInterval(()=>{
   const s=current();
@@ -1347,5 +1200,5 @@
  setInterval(()=>void pollWorkspace({detailOnly:true}),2000);
  window.addEventListener('focus',()=>void pollWorkspace());
  document.addEventListener('visibilitychange',()=>{if(document.hidden)stopActivity();else void pollWorkspace();});
- window.RunTeamsSourcePipelines={newDiscussion,pipelineIcon,cardFeedback,cardKeydown,cardMenu,cardCommand,editCard,draftMenu,restoreCard,taskWorkspace,openEmployeeTask,workCommitted,workContext,ensureWorkContext,request,select,operationError,current,sameScope,refreshCatalog,readCatalog,pageRoute,selectDockChat,catalogState,items:()=>catalogScope===scope()?rows.slice():[],sidebar,sidebarAvatar,sidebarMenu,openRoute,openFromLink,openVersion,refresh,retryRecovery,openReference,key,referenceKey,boot,header,editName,editIcon,board,workspace,conversation,dockPanel,messageToggle,toggleMessages,restoreMessageVisibility,animateComposer,retryBoard,control,compose,composeDraft,cancelCompose,composerKeydown,composerFocusin,composerFocusout,submit,openWork,refreshOpenWork,applyWorkReply,syncActivity,retainActivity,drawer,reset,newPipeline,closeCreation,readCreationChoices,create,retryControl,retryAdmission,creationName:value=>{if(creation)creation.name=value;}};
+ window.RunTeamsSourcePipelines={newDiscussion,pipelineIcon,cardFeedback,cardKeydown,cardMenu,cardCommand,editCard,draftMenu,restoreCard,taskWorkspace,openEmployeeTask,workCommitted,workContext,ensureWorkContext,request,select,operationError,current,sameScope,refreshCatalog,readCatalog,pageRoute,selectDockChat,catalogState,items:()=>catalogScope===scope()?rows.slice():[],sidebar,sidebarAvatar,sidebarMenu,openRoute,openFromLink,openVersion,refresh,retryRecovery,openReference,key,referenceKey,boot,header,editName,editIcon,board,workspace,conversation,dockPanel,messageToggle,toggleMessages,restoreMessageVisibility,animateComposer,retryBoard,control,compose,composeDraft,cancelCompose,composerKeydown,composerFocusin,composerFocusout,submit,openWork,refreshOpenWork,applyWorkReply,syncActivity,retainActivity,drawer,reset,newPipeline,retryControl,retryAdmission};
 })();

@@ -1587,6 +1587,7 @@ button.cmessage-image { padding:0; cursor:pointer; }
   gap:8px;
   margin:44px 0 0;
 }
+.conversation-main .conversation-new-action[aria-pressed="true"] {background:var(--surface-hover);}
 .conversation-main .conversation-new-action {
   position:relative;
   min-width:0;

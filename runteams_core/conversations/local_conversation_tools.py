@@ -80,6 +80,10 @@ def run(channel, chat, message, attachments, workspace, activity, cancel, store,
         instructions += chat_employee_followup.GUIDANCE
     if automation_available:
         instructions += chat_automation_tool.GUIDANCE
+    if not worker and not authoring and not pipeline_workspace:
+        instructions = instructions.replace('员工、智能体团队和共享业务工具未在此入口开放。',
+            '用户要求创建空智能体团队或流水线时，调用 runteams_creator_source(action=create_pipeline, name=团队名称)。'
+            '有明确岗位和流程要求时用 submit 提交含一个流水线入口的完整 SDK 工程。按保存回执汇报。')
     purpose_guidance = agent_guidance.conversation_purpose(chat.get('context'))
     if purpose_guidance:instructions += '\n\n' + purpose_guidance
     from runteams_core.assets.resource_discovery import GUIDANCE

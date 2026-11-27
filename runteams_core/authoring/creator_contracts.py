@@ -246,8 +246,10 @@ def _compile_checked_source(files, *, schema_validator=None, source_index=None):
         from runteams_core.pipelines.portable_pipeline import validate_pipeline_bindings
         try:
             from runteams_core.pipelines.pipeline_dependency_contracts import skills as member_skills
-            validate_pipeline_bindings(pipeline['pipeline'], {
-                row['ref']: member_skills(row, employees) for row in refs})
+            # The author schema also admits a completely empty local draft.
+            if refs:
+                validate_pipeline_bindings(pipeline['pipeline'], {
+                    row['ref']: member_skills(row, employees) for row in refs})
         except ContractError as error:
             raise CreatorContractError('invalid_pipeline_definition', str(error)) from error
         pipelines[path] = pipeline

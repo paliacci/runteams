@@ -119,7 +119,7 @@ function conversationNewAction(label,action,icon,description,id,copy={}){
   const tooltipId=description?`conversation_starter_${id}`:'';
   const heading=`<span class="conversation-new-action-heading"><span class="conversation-new-action-icon" aria-hidden="true">${ICON(icon)}</span><b${copy.workExample?' data-work-example-label':''}${copy.title?` data-app-i18n="${esc(copy.title)}"`:''}>${esc(label)}</b></span>`;
   const tooltip=description?`<span class="conversation-new-action-description" id="${tooltipId}" role="tooltip"${copy.detail?` data-app-i18n="${esc(copy.detail)}"`:''}>${esc(description)}</span>`:'';
-  return `<button type="button" class="conversation-new-action" onclick="${esc(action)}"${copy.workExample?conversationWorkExampleAttribute(copy.workExample):''}${tooltipId?` aria-describedby="${tooltipId}"`:''}>${heading}${tooltip}</button>`;
+  return `<button type="button" class="conversation-new-action"${copy.selected?' aria-pressed="true"':''} onclick="${esc(action)}"${copy.workExample?conversationWorkExampleAttribute(copy.workExample):''}${tooltipId?` aria-describedby="${tooltipId}"`:''}>${heading}${tooltip}</button>`;
 }
 
 /* module-function:conversationNewEmpty */
@@ -2050,9 +2050,9 @@ function conversationPanelEmpty(panel=S.conversationPanel,composer=''){
   const guidance=conversationEmployeeGuidance(panel),type=conversationContextType(panel),employeeCreation=conversationEmployeeCreation(panel);
   if(!employeeCreation&&(guidance||RunTeamsAssetOverview.employeeEligible(panel)||(type==='worker'&&['chat','work'].includes(conversationIntent(panel)))))return conversationEmployeeEmpty(panel,guidance,composer);
   if(type==='general'||employeeCreation){
-    const actions=conversationHomeItems(panel).map(([key,label,,description,icon],index)=>{
+    const actions=conversationHomeItems(panel).map(([key,label,prompt,description,icon],index)=>{
       const prefix=employeeCreation?'employeeCreate':'newConversation';
-      return conversationNewAction(label,`conversationHomeInsertChoice('${key}')`,icon,description,index,{title:`${prefix}.${key}Title`,detail:`${prefix}.${key}Detail`});
+      return conversationNewAction(label,`conversationHomeInsertChoice('${key}')`,icon,description,index,{title:`${prefix}.${key}Title`,detail:`${prefix}.${key}Detail`,selected:!employeeCreation&&String(panel.input||'').startsWith(globalThis.RunTeamsLocale?.t(`${prefix}.${key}Prompt`,{},prompt)??prompt)});
     }).join('');
     return conversationNewEmpty({title:employeeCreation?'这名员工要负责什么？':'今天想完成什么？',titleKey:employeeCreation?'employeeCreate.title':'newConversation.title',actions:actions+(employeeCreation?conversationNewAction('导入资产包','RunTeamsCreatorAuthor.choosePackage()','doc','使用已有员工和随附素材',2,{title:'materials.import',detail:'materials.use'}):''),composer});
   }

@@ -54,6 +54,12 @@ def author_schema(kind, *, version='3'):
         from runteams_core.pipelines.pipeline_dependency_contracts import schema as dependency_schema
         schema = catalog['extensions']['marketplace_pipeline']
         return {'$schema': schema['$schema'], '$defs': schema['$defs'],
+            'if': {'properties': {'employees': {'maxItems': 0}}},
+            'then': {'properties': {'pipeline': {
+                'type': 'object', 'additionalProperties': False, 'required': ['name', 'positions', 'edges'],
+                'properties': {'name': schema['$defs']['pipeline']['properties']['name'],
+                               'positions': {'const': []}, 'edges': {'const': []}}}}},
+            'else': {'properties': {'pipeline': {'$ref': '#/$defs/pipeline'}}},
             'type': 'object', 'additionalProperties': False,
             'required': ['schema', 'pipeline', 'employees'], 'properties': {
                 'schema': {'const': 'runteams.pipeline-source/' + version},
@@ -64,8 +70,8 @@ def author_schema(kind, *, version='3'):
                     'configuration': definitions['employee_configuration'],
                     'programs': {'type':'array','maxItems':64,
                         'items':{'$ref':'#/$defs/pipeline_program_source'}}} if version == '3' else {}),
-                'pipeline': {'$ref': '#/$defs/pipeline'},
-                'employees': {'type': 'array', 'minItems': 1, 'maxItems': 64,
+                'pipeline': {'type': 'object'},
+                'employees': {'type': 'array', 'maxItems': 64,
                     'items': {'type': 'object', 'additionalProperties': False,
                         'required': ['ref'], 'oneOf': [{'required': ['source']}, {'required': ['dependency']}],
                         'properties': {
