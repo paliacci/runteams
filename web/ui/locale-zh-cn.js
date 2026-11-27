@@ -1788,6 +1788,7 @@ globalThis.RUNTEAMS_LOCALES = {
   "scheduledAutomation.historyFailed": "无法载入运行记录。关闭后可重新打开。",
   "scheduledAutomation.manual": "手动运行",
   "scheduledAutomation.skippedByUser": "用户已跳过这一次定时。",
+  "scheduledAutomation.skippedInTrash": "团队已在垃圾箱，本次未创建任务。",
   "scheduledAutomation.openWork": "查看工作记录",
   "scheduledAutomation.linkedTaskCompleted": "关联任务现已完成。",
   "scheduledAutomation.delete": "删除自动化",

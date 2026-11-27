@@ -214,6 +214,13 @@
   const key=status==='waiting'?'running':status==='cancelled'?'canceled':status;
   return Object.hasOwn(runStates,key)?runStates[key]:['workRecords.state.unknown','状态未知'];
  }
+ function runReason({status,reason}){
+  if(status==='skipped'){
+   if(reason==='用户已跳过这一次定时。')return copy('scheduledAutomation.skippedByUser',reason);
+   if(reason==='触发时智能体团队已在垃圾箱，本次未创建工作。')return copy('scheduledAutomation.skippedInTrash','团队已在垃圾箱，本次未创建任务。');
+  }
+  return esc(reason);
+ }
  const copy=(key,fallback)=>`<span data-app-i18n="${key}">${fallback}</span>`;
  const localError=(detailKey,message)=>Object.assign(new Error(message),{detailKey});
  function applyCopy(node,text,key,parameters){
@@ -345,8 +352,7 @@
   const list=runs.length?`<div class="employee-automation-records">${runs.map(r=>`<div>
    <b>${copy(...runState(r))}</b>
    <span>${r.scheduled_for?.startsWith('manual:')?copy('scheduledAutomation.manual','手动运行'):automationRunTimeMarkup(r.scheduled_for)}</span>
-   ${r.reason?`<p>${r.status==='skipped'&&r.reason==='用户已跳过这一次定时。'
-    ?copy('scheduledAutomation.skippedByUser','用户已跳过这一次定时。'):esc(r.reason)}</p>`:''}
+   ${r.reason?`<p>${runReason(r)}</p>`:''}
    ${r.status==='failed'&&completedWork.has(r.workflow_id)?`<p>${copy('scheduledAutomation.linkedTaskCompleted','关联任务现已完成。')}</p>`:''}
    ${r.workflow_id?`<button class="btn" onclick="closeModal();${owner.pipeline?`RunTeamsSourcePipelines.openWork(${Number(r.workflow_id)})`:`openCoreWorkflow(${Number(r.workflow_id)},{storageScope:'device'})`}">${copy('scheduledAutomation.openWork','查看工作记录')}</button>`:''}
    ${r.chat_id&&!owner.pipeline?`<button class="btn" onclick="closeModal();openConversationSession(${Number(r.chat_id)},'general',{readCurrent:true})">${copy('workRecordDetail.openConversation','打开对话')}</button>`:''}
