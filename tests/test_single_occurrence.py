@@ -138,7 +138,7 @@ class SingleOccurrenceTests(unittest.TestCase):
             rows = connection.execute('SELECT scheduled_for,status,chat_id,reason FROM occurrences ORDER BY id')
             self.assertEqual([tuple(row) for row in rows],
                              [(FIRST, 'skipped', None, '该员工所属团队均在垃圾箱，本次未创建工作。'),
-                              (SECOND, 'skipped', None, '员工已在垃圾箱，本次未创建工作。'),
+                              (SECOND, 'skipped', None, '该员工已被移入垃圾箱，本次未创建工作。'),
                               (THIRD, 'queued', None, '')])
 
     def test_legacy_trash_refusal_checks_admission_receipt_before_skipping(self):

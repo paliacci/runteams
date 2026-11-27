@@ -23,7 +23,7 @@ from runteams_core.authoring.definition_contracts import validate_definition, se
 
 DIRECTORY = 'employee-schedules'
 TRASH_REASONS = {
-    'employee': '员工已在垃圾箱，本次未创建工作。',
+    'employee': '该员工已被移入垃圾箱，本次未创建工作。',
     'pipeline': '该员工所属团队均在垃圾箱，本次未创建工作。',
 }
 DATABASE = 'schedules.sqlite3'
