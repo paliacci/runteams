@@ -15,6 +15,7 @@ from runteams_core.foundation.contracts import ContractError
 from runteams_core.automation.device_employee_schedules import EmployeeSchedules, canonical, next_run, operation_id
 
 DIRECTORY='pipeline-schedules'
+HUMAN_WAIT_STATES=('needs_approval','needs_human')
 _gate=threading.RLock()
 
 
@@ -56,11 +57,11 @@ class PipelineSchedules(EmployeeSchedules):
             return 'interrupted',str(error)
         # An admitted task awaiting a review must be opened in its own card.
         # The schedule's interrupted state also permits abandoning an occurrence.
-        if state=='interrupted':
+        if state=='interrupted' or state in HUMAN_WAIT_STATES:
             return 'blocked',''
         return 'waiting',''
 
-    def changed_workflow_outcomes(self, rows):
+    def linked_workflow_outcomes(self, rows):
         # Only linked, recoverable records follow their original workflow.
         linked = [row for row in rows if row['status'] in ('failed','waiting','blocked') and row['workflow_id']]
         if not linked:
@@ -75,15 +76,18 @@ class PipelineSchedules(EmployeeSchedules):
                     f'SELECT id,state FROM workflow_runs WHERE id IN ({placeholders})',identifiers))
             for row in batch:
                 identifier = row['workflow_id']
-                if identifier in states and states[identifier]!=row['status']:
-                    status,reason = self.workflow_outcome(core,identifier,states[identifier])
-                    if status!=row['status']:
-                        yield row,status,reason
+                if identifier in states:
+                    state=states[identifier]
+                    status,reason=self.workflow_outcome(core,identifier,state)
+                    yield row,status,reason,state
 
     def record(self, connection, row):
         value = super().record(connection,row)
-        for run,status,reason in self.changed_workflow_outcomes(value['runs']):
-            run.update(status=status,reason=reason)
+        for run,status,reason,state in self.linked_workflow_outcomes(value['runs']):
+            if status!=run['status']:
+                run.update(status=status,reason=reason)
+            if status=='blocked' and state in HUMAN_WAIT_STATES:
+                run['workflow_state']=state
         return value
 
     def list_reference(self,reference):
@@ -213,7 +217,7 @@ class PipelineSchedules(EmployeeSchedules):
     def fire(self,c,row,scheduled):
         open_run=c.execute("SELECT 1 FROM occurrences WHERE schedule_id=? AND status IN ('queued','running','waiting','blocked','interrupted')",(row['id'],)).fetchone()
         failures=c.execute("SELECT status,workflow_id FROM occurrences WHERE schedule_id=? AND status='failed' AND workflow_id IS NOT NULL",(row['id'],))
-        if open_run or any(status in ('waiting','blocked','interrupted') for _,status,_ in self.changed_workflow_outcomes(failures)):
+        if open_run or any(status in ('waiting','blocked','interrupted') for _,status,_,_ in self.linked_workflow_outcomes(failures)):
             raise ContractError('这项自动化还有未完成或需要核对的运行。')
         op=str(uuid.uuid5(uuid.NAMESPACE_URL,canonical([self.binding(),row['id'],scheduled])))
         payload=json.loads(row['payload']);position=payload.pop('start_column_key')
@@ -303,9 +307,10 @@ class PipelineSchedules(EmployeeSchedules):
                 rows=[dict(r) for r in c.execute("SELECT * FROM occurrences WHERE status IN ('running','waiting','blocked','interrupted')"+selection,ids)]
                 failures=c.execute("SELECT id,status,workflow_id,reason,chat_id FROM occurrences WHERE status='failed' AND workflow_id IS NOT NULL"+selection,ids).fetchall()
             tracking=False
-            for row,status,reason in self.changed_workflow_outcomes(failures):
-                self.record_outcome(row,status,row['workflow_id'],reason)
-                tracking |= status in ('waiting','blocked','interrupted')
+            for row,status,reason,_ in self.linked_workflow_outcomes(failures):
+                if status!=row['status']:
+                    self.record_outcome(row,status,row['workflow_id'],reason)
+                    tracking |= status in ('waiting','blocked','interrupted')
             if not rows:return tracking
             core=self.core()
             for row in rows:

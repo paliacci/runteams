@@ -50,9 +50,10 @@ function historyDialog(){
  const item={id:2,name:'Daily review',runs:[]};
  let body;
  const records=vm.runInNewContext(
+  script.slice(script.indexOf(' const runStates='),script.indexOf(' const copy='))+
   script.slice(script.indexOf(' async function records(id)'),script.indexOf(' function closeRecords(id)'))+'\nrecords',
   {current:()=>owner,refresh:async()=>{},document:{getElementById:()=>null},find:()=>item,
-   copy:key=>key,runState:status=>[status],esc:s=>s,vars:()=>'',automationRunTimeMarkup:()=>'',
+   copy:key=>key,esc:s=>s,vars:()=>'',automationRunTimeMarkup:()=>'',
    openDialog:options=>{body=options.body;return {querySelector:()=>null}}}
  );
  return async(pipeline,run)=>{
@@ -70,8 +71,16 @@ test('failed schedule history shows completion only for its own recovered team t
  ]){
   const body=await render(pipeline,{status,workflow_id:id});
   assert.equal(body.includes('scheduledAutomation.linkedTaskCompleted'),showCompletion);
-  assert.ok(body.includes('<b>'+status+'</b>'));
+  assert.ok(body.includes('<b>automationList.'+status+'</b>'));
  }
+});
+
+test('team history names an outstanding decision and preserves the generic blocked state',async()=>{
+ const render=historyDialog();
+ for(const state of ['needs_approval','needs_human']){
+  assert.ok((await render(true,{status:'blocked',workflow_state:state})).includes('<b>workRecords.state.'+state+'</b>'));
+ }
+ assert.ok((await render(true,{status:'blocked'})).includes('<b>scheduledAutomation.needsAttention</b>'));
 });
 
 test('employee and team history translate a user-skipped occurrence and retain other reasons',async()=>{

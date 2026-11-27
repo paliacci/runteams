@@ -82,15 +82,23 @@ class SingleOccurrenceTests(unittest.TestCase):
             row = connection.execute('SELECT * FROM schedules').fetchone()
             return backend.record(connection, row)
 
-    def test_failed_pipeline_occurrence_follows_a_retry_of_its_original_workflow(self):
+    def linked_pipeline(self, state):
         backend = self.schedule(PipelineSchedules)
         ledger = sqlite3.connect(':memory:')
         self.addCleanup(ledger.close)
         ledger.execute('CREATE TABLE workflow_runs(id INTEGER PRIMARY KEY,state TEXT)')
-        ledger.execute("INSERT INTO workflow_runs VALUES(42,'running')")
+        ledger.execute("INSERT INTO workflow_runs VALUES(42,?)",(state,))
         repository = SimpleNamespace(read_snapshot=lambda: nullcontext(ledger),
                                      storage=SimpleNamespace(assert_executable=lambda _: None))
-        backend.core = lambda: SimpleNamespace(repository=repository)
+        def workflow(identifier):
+            row = ledger.execute('SELECT state FROM workflow_runs WHERE id=?',(identifier,)).fetchone()
+            return {'state': row[0]} if row else None
+        backend.core = lambda: SimpleNamespace(repository=repository,workflow=workflow)
+        backend._executing = set()
+        return backend,ledger
+
+    def test_failed_pipeline_occurrence_follows_a_retry_of_its_original_workflow(self):
+        backend,ledger = self.linked_pipeline('running')
         with backend.connection(write=True) as connection:
             schedule = connection.execute('SELECT * FROM schedules').fetchone()
             backend.fire(connection, schedule, FIRST)
@@ -112,6 +120,27 @@ class SingleOccurrenceTests(unittest.TestCase):
         with backend.connection() as connection:
             stored = connection.execute('SELECT status,workflow_id FROM occurrences').fetchall()
         self.assertEqual([tuple(row) for row in stored], [('completed',42)])
+
+    def test_pipeline_occurrence_reports_what_the_user_must_do(self):
+        backend,ledger = self.linked_pipeline('needs_approval')
+        with backend.connection(write=True) as connection:
+            schedule = connection.execute('SELECT * FROM schedules').fetchone()
+            backend.fire(connection,schedule,FIRST)
+            connection.execute("UPDATE occurrences SET status='waiting',workflow_id=42")
+        for state in ('needs_approval','needs_human'):
+            ledger.execute('UPDATE workflow_runs SET state=? WHERE id=42',(state,))
+            run, = self.read(backend)['runs']
+            self.assertEqual((run['status'],run['workflow_state']), ('blocked',state))
+            self.assertTrue(backend.reconcile())
+            with backend.connection(write=True) as connection:
+                self.assertEqual(connection.execute('SELECT status FROM occurrences').fetchone()[0],'blocked')
+                with self.assertRaises(ContractError):
+                    backend.fire(connection,schedule,SECOND)
+        ledger.execute("UPDATE workflow_runs SET state='completed' WHERE id=42")
+        self.assertFalse(backend.reconcile())
+        run, = self.read(backend)['runs']
+        self.assertEqual((run['status'],run['workflow_id']), ('completed',42))
+        self.assertNotIn('workflow_state',run)
 
     def tick(self, backend, stamp):
         Clock.value = stamp

@@ -207,7 +207,11 @@
   blocked:['scheduledAutomation.needsAttention','需要处理'],interrupted:['scheduledAutomation.needsReview','需要核对'],
   skipped:['automationList.skipped','已跳过'],canceled:['workRecords.state.canceled','已停止']
  };
- function runState(status){
+ function runState({status,workflow_state}){
+  if(status==='blocked'){
+   if(workflow_state==='needs_approval')return ['workRecords.state.needs_approval','等待审批'];
+   if(workflow_state==='needs_human')return ['workRecords.state.needs_human','待人工处理'];
+  }
   const key=status==='waiting'?'running':status==='cancelled'?'canceled':status;
   return Object.hasOwn(runStates,key)?runStates[key]:['workRecords.state.unknown','状态未知'];
  }
@@ -226,7 +230,7 @@
   const statusId='employee-schedule-status-'+id,description=`aria-describedby="${statusId}"`;
   const actionKey=paused?'scheduledAutomation.enableFor':'scheduledAutomation.pauseFor';
   return `<div class="employee-automation-row rt-list-row" data-schedule-id="${id}" onclick="RunTeamsEmployeeAutomation.records(${id})">
-   <span hidden id="${statusId}">${enabled}${latest?` · ${copy('scheduledAutomation.latestRun','最近运行')} ${copy(...runState(latest.status))}`:''}</span>
+   <span hidden id="${statusId}">${enabled}${latest?` · ${copy('scheduledAutomation.latestRun','最近运行')} ${copy(...runState(latest))}`:''}</span>
    <button type="button" class="employee-automation-icon-action employee-automation-toggle" data-schedule-control="toggle" title="${paused?'启用自动化':'暂停自动化'}" data-app-i18n-title="${paused?'automationList.enable':'automationList.pause'}" aria-label="${esc((paused?'启用':'暂停')+item.name)}" data-app-i18n-aria-label="${actionKey}" ${vars(item.name)} ${description} onclick="event.stopPropagation();RunTeamsEmployeeAutomation.action(${id},'${paused?'resume':'pause'}')" ${disabled?'disabled':''}>${ICON(paused?'play':'pause')}</button>
    <button type="button" class="employee-automation-open" data-schedule-control="history" aria-label="${esc(item.name)}的运行记录" data-app-i18n-aria-label="scheduledAutomation.historyFor" ${vars(item.name)} ${description}><span class="employee-automation-copy"><b title="${esc(item.name)}">${esc(item.name)}</b><small data-employee-schedule-time>${esc(automationListSchedule(item))}</small></span></button>
    <button type="button" class="employee-automation-icon-action" data-schedule-control="menu" aria-label="${esc(item.name)}的更多操作" data-app-i18n-aria-label="automationList.moreFor" ${vars(item.name)} aria-haspopup="menu" onclick="event.stopPropagation();RunTeamsEmployeeAutomation.menu(event,${id})" ${disabled?'disabled':''}>${ICON('more')}</button>
@@ -339,7 +343,7 @@
   const completedWork=new Set((workflows||[]).filter(work=>work.state==='completed').map(work=>work.id));
   const notice=owner.error?`<p role="status">${runs.length?copy('scheduledAutomation.cachedHistory','无法载入最新记录。正在显示上次载入的记录。'):copy('scheduledAutomation.historyFailed','无法载入运行记录。关闭后可重新打开。')}</p>`:'';
   const list=runs.length?`<div class="employee-automation-records">${runs.map(r=>`<div>
-   <b>${copy(...runState(r.status))}</b>
+   <b>${copy(...runState(r))}</b>
    <span>${r.scheduled_for?.startsWith('manual:')?copy('scheduledAutomation.manual','手动运行'):automationRunTimeMarkup(r.scheduled_for)}</span>
    ${r.reason?`<p>${r.status==='skipped'&&r.reason==='用户已跳过这一次定时。'
     ?copy('scheduledAutomation.skippedByUser','用户已跳过这一次定时。'):esc(r.reason)}</p>`:''}
