@@ -4234,12 +4234,23 @@ async function saveBeforeDocumentNavigation(navigate,available=()=>true){
     else if(current())documentLeaveDialog(false,closeModal,()=>{closeModal();proceed("discard");});
   }finally{clearTimeout(notice);if(_documentNavigationPending===state)_documentNavigationPending=null;}
 }
+function saveBeforeHistoryNavigation(navigate,available){
+  return saveBeforeDocumentNavigation(()=>{
+    if(_documentNavigationReplay==="discard"){
+      _workspaceStateByKey.delete(S.activeWorkspaceKey);
+      teardownDocumentReader(true);
+    }
+    navigate();
+  },available);
+}
+RunTeamsShell.setHistoryGuard({needsSave:documentNavigationNeedsSave,confirm:saveBeforeHistoryNavigation});
 document.addEventListener("click",event=>{
   if(!documentNavigationNeedsSave())return;
   const target=event.target.closest?.("button,a,[role=tab]");
   if(!target?.closest("#rgRail,#rgWorkspaceTabs"))return;
   event.preventDefault();event.stopImmediatePropagation();
-  void saveBeforeDocumentNavigation(()=>target.click(),()=>target.isConnected);
+  const guard=target.hasAttribute("data-history-direction")?saveBeforeHistoryNavigation:saveBeforeDocumentNavigation;
+  void guard(()=>target.click(),()=>target.isConnected);
 },true);
 window.addEventListener("beforeunload",event=>{if(S.docReader?.tableDirty||S.docReader?.richDirty||S.docReader?.richSaving){event.preventDefault();event.returnValue="";}});
 function downloadCurrentTaskInput(){const doc=S.docReader?.doc;if(doc?.task_input)downloadCoreTaskInput(Number(doc.workflow_id)||0,doc.task_input_item||{});}

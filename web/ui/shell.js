@@ -48,6 +48,12 @@
   const historyStorageKey = 'runteams_navigation_history_v1';
   let navigation = null;
   let historyMoving = false;
+  let historyGuard = null;
+  let interruptedTraversal = null;
+
+  function setHistoryGuard(guard) {
+    historyGuard = guard;
+  }
 
   function navigationState() {
     if (navigation) return navigation;
@@ -92,6 +98,49 @@
     historyMoving = true;
     syncHistoryControls();
     global.history.go(direction);
+  }
+
+  function historyShortcut(event) {
+    if (!global.chrome?.webview || !event.altKey || event.ctrlKey || event.metaKey || event.shiftKey ||
+        event.defaultPrevented || event.isComposing || !['ArrowLeft','ArrowRight'].includes(event.key)) return;
+    if (document.getElementById('modalHost') || document.body.inert) return;
+    const direction = event.key === 'ArrowLeft' ? 'back' : 'forward';
+    const button = [...document.querySelectorAll(`[data-history-direction="${direction}"]:not(:disabled)`)].find(el => el.getClientRects().length);
+    if (!button) return;
+    event.preventDefault();
+    if (!event.repeat) button.click();
+  }
+
+  function handleHistoryChange(event) {
+    const next = global.history.state?.[historyKey];
+    const sameStack = next?.id === navigation.id && Number.isSafeInteger(next.index) && next.index >= 0;
+    if (sameStack && (interruptedTraversal || (next.index !== navigation.index && historyGuard?.needsSave()))) {
+      // A popstate arrives after the history cursor moves. Keep the editor mounted
+      // and restore its original entry before offering to save or discard.
+      event.stopImmediatePropagation();
+      const move = interruptedTraversal || {id:next.id, source:navigation.index, target:next.index};
+      if (next.index !== move.source) {
+        interruptedTraversal = move;
+        historyMoving = true;
+        syncHistoryControls();
+        global.history.go(move.source - next.index);
+        return;
+      }
+      interruptedTraversal = null;
+      historyMoving = false;
+      syncHistoryControls();
+      const available = () => navigation.id === move.id && navigation.index === move.source;
+      const resume = () => { if (available()) global.history.go(move.target - move.source); };
+      if (historyGuard.needsSave()) historyGuard.confirm(resume, available);
+      else resume();
+      return;
+    }
+    interruptedTraversal = null;
+    if (sameStack) navigation.index = next.index;
+    else { navigation = null; navigationState(); }
+    historyMoving = false;
+    saveNavigationState();
+    syncHistoryControls();
   }
 
   function historyActions(icon, pending = false) {
@@ -322,16 +371,15 @@
   }
 
   function accountEntry({icon,...options}){if(typeof global.RunTeamsHost.shell.entry==='function')return global.RunTeamsHost.shell.entry({icon,...options});return `<div class="railfoot-wrap rail-settings-entry">${navigationItem({label:'设置',labelKey:'shell.settingsTitle',icon:icon('settings'),action:"openSettingsPage('general',{returnFocus:this})",className:'rail-settings-button'})}</div>`;}
-  global.RunTeamsShell = Object.freeze({navigationItem, historyActions, commandShortcut, settingsToolbar, modeTabs, moveMode, moveWindowTab, topActions, collapsedActions, syncHistoryControls, recordNavigation, goHistory, trashEntry, footer, accountEntry, windowTabs, patchWindowTabs, syncWindowTabs, scrollWindowTabs, workspaceHeading, headerAction, pageHeader, frame, patchSections});
+  global.RunTeamsShell = Object.freeze({navigationItem, historyActions, commandShortcut, settingsToolbar, modeTabs, moveMode, moveWindowTab, topActions, collapsedActions, syncHistoryControls, recordNavigation, goHistory, setHistoryGuard, trashEntry, footer, accountEntry, windowTabs, patchWindowTabs, syncWindowTabs, scrollWindowTabs, workspaceHeading, headerAction, pageHeader, frame, patchSections});
   if (global.history && global.location) {
     navigationState();
-    global.addEventListener('popstate', () => {
-      const next = global.history.state?.[historyKey];
-      if (next?.id === navigation.id && Number.isSafeInteger(next.index) && next.index >= 0) navigation.index = next.index;
-      else { navigation = null; navigationState(); }
-      historyMoving = false;
-      saveNavigationState();
-      syncHistoryControls();
-    });
+    global.addEventListener('popstate', handleHistoryChange);
+    if (global.chrome?.webview) {
+      global.addEventListener('keydown', historyShortcut);
+      document.addEventListener('load', event => {
+        if (event.target.matches?.('iframe[data-rich-token]')) event.target.contentDocument?.addEventListener('keydown', historyShortcut);
+      }, true);
+    }
   }
 })(window);
