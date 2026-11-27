@@ -378,7 +378,8 @@
   }
   const showTargets=!s.pipeline&&targets.length&&(selected>=0||!item||payload.schema!=='runteams.task-input/v2');
   const fixedSkill=!s.pipeline&&selected<0&&payload.skill_key?s.skills.find(skill=>skill.key===payload.skill_key):null;
-  const f={owner:s,item,targets,fixedSkill,scheduleSelected:!!item,scheduleExpanded:false,hasSchedule:!!item,enabled:item?item.enabled:true,saving:false,position:payload.start_column_key||s.startColumn,parameterDrafts:{[payload.start_column_key||s.startColumn]:payload.parameters||{}}};form=f;
+  const timezone=schedule.timezone||Intl.DateTimeFormat().resolvedOptions().timeZone;
+  const f={owner:s,item,targets,fixedSkill,timezone,scheduleSelected:!!item,scheduleExpanded:false,hasSchedule:!!item,enabled:item?item.enabled:true,saving:false,position:payload.start_column_key||s.startColumn,parameterDrafts:{[payload.start_column_key||s.startColumn]:payload.parameters||{}}};form=f;
   const title=item?'编辑自动化':'新建自动化',titleKey=item?'scheduledAutomation.editTitle':'scheduledAutomation.new';
   const promptKey=s.pipeline?'scheduledAutomation.pipelinePrompt':'scheduledAutomation.employeePrompt';
   const dialog=openDialog({
@@ -457,7 +458,7 @@
  }
  function scheduleValue(){
   const kind=scheduleKind(),item=form?.item,saved=item?.schedule;
-  const schedule={time:saved?.time||'09:00',weekdays:saved?.weekdays||[],timezone:saved?.timezone||Intl.DateTimeFormat().resolvedOptions().timeZone};
+  const schedule={time:saved?.time||'09:00',weekdays:saved?.weekdays||[],timezone:form.timezone};
   let intervalSec=item?.interval_sec||3600;
   if(kind==='weekly'){
    schedule.weekdays=[...document.querySelectorAll('#employee_schedule_days input:checked')].map(node=>Number(node.value));

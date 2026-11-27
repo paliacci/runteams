@@ -4,6 +4,15 @@ const fs=require('node:fs');
 const vm=require('node:vm');
 
 const script=fs.readFileSync('web/ui/employee-automation.js','utf8');
+test('submitting a calendar draft keeps the timezone displayed in its editor',()=>{
+ const start=script.indexOf('function scheduleValue()'),end=script.indexOf('function editOptions(',start);
+ const read=vm.runInNewContext('('+script.slice(start,end).trim()+')',{
+  form:{item:null,timezone:'America/New_York'},scheduleKind:()=>'daily',field:()=>({value:'07:15'}),
+  Intl:{DateTimeFormat:()=>({resolvedOptions:()=>({timeZone:'Asia/Shanghai'})})}
+ });
+ assert.equal(read().schedule.timezone,'America/New_York');
+});
+
 test('calendar schedules retain their zone and repeated local hours identify distinct runs',()=>{
  const source=fs.readFileSync('web/index.html','utf8'),start=source.indexOf('function automationClockLabel(');
  class NewYorkDate extends Date{
@@ -127,7 +136,7 @@ test('switching repeat modes validates the visible fields and preserves saved ti
  let kind='weekly',days=[0,4];
  const value=vm.runInNewContext(
   script.slice(script.indexOf(' function scheduleValue()'),script.indexOf(' function editOptions('))+'\nscheduleValue',
-  {scheduleKind:()=>kind,field:name=>fields[name],form:{item},localError:key=>new Error(key),
+  {scheduleKind:()=>kind,field:name=>fields[name],form:{item,timezone:item.schedule.timezone},localError:key=>new Error(key),
    document:{querySelectorAll:()=>days.map(value=>({value:String(value)}))}}
  );
  const weekly=value();
