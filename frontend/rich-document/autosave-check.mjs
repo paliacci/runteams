@@ -12,8 +12,14 @@ c.acknowledge({request_id:writes[0].request_id,revision:2});assert.equal(writes.
 c.acknowledge({request_id:writes[1].request_id,revision:3});assert.equal(navigated,1);assert.equal(dirty.at(-1),false);
 c.update(value(4));c.flush();c.acknowledge({request_id:writes.at(-1).request_id,error:'空间不足'});assert.equal(states.at(-1)[0],'error');assert.equal(dirty.at(-1),true);await wait(10);assert.equal(writes.length,3);
 c.retry();assert.equal(writes.length,4);c.acknowledge({request_id:writes.at(-1).request_id,revision:4});
-c.update(value(5));c.flush();const pending=writes.at(-1);await wait(40);assert.equal(states.at(-1)[0],'error');c.retry();assert.deepEqual(writes.at(-1),pending);c.acknowledge({request_id:pending.request_id,revision:5});assert.equal(dirty.at(-1),false);c.dispose();
+c.update(value(5));c.flush();const pending=writes.at(-1);await wait(40);assert.equal(states.at(-1)[0],'error');c.retry();assert.deepEqual(writes.at(-1),pending);
+c.update(value(6));c.acknowledge({request_id:pending.request_id,error:'Failed to fetch',unconfirmed:true});
+const attempts=writes.length;await wait(10);assert.equal(writes.length,attempts);c.flush();
+assert.equal(writes.length,attempts+1);assert.deepEqual(writes.at(-1),pending);
+c.acknowledge({request_id:pending.request_id,revision:5});assert.equal(dirty.at(-1),true);await wait(10);
+const later=writes.at(-1);assert.equal(later.base_revision,5);assert.notEqual(later.request_id,pending.request_id);assert.deepEqual(later.document,value(6).document);
+c.acknowledge({request_id:later.request_id,revision:6});assert.equal(dirty.at(-1),false);c.dispose();
 
 let afterDispose=0;const d=createAutosave({revision:1,initial:value(0),delay:5,write:()=>afterDispose++,status(){},clean(){}});d.update(value(1));d.dispose();await wait(10);assert.equal(afterDispose,0);
 let queued=[],flags=[];const make=()=>createAutosave({revision:1,initial:value(0),write:v=>queued.push(v),clean:v=>flags.push(v),status(){}});const a=make();a.update(value(1));a.flush();a.update(value(0));assert.equal(flags.at(-1),true);a.acknowledge({request_id:queued[0].request_id,revision:2});a.flush();assert.equal(queued.length,2);assert.deepEqual(queued[1].document,value(0).document);a.dispose();const e=make();e.update(value(1));e.flush();assert.notEqual(queued[0].request_id,queued.at(-1).request_id);e.dispose();
-console.log(JSON.stringify({passed:10,checks:['Opening and normalization do not save','Debounced latest edit','Stale acknowledgements ignored','Edits during save persist in next revision','Navigation waits for latest acknowledgement','Failure retains changes without retry loop','Unknown result retries same operation','Unmount clears pending timer','Undo during save remains protected until acknowledged','Reopening uses unique operation identifiers']}));
+console.log(JSON.stringify({passed:11,checks:['Opening and normalization do not save','Debounced latest edit','Stale acknowledgements ignored','Edits during save persist in next revision','Navigation waits for latest acknowledgement','Failure retains changes without retry loop','Unknown result retries same operation','Unconfirmed response preserves the original write and subsequent edits','Unmount clears pending timer','Undo during save remains protected until acknowledged','Reopening uses unique operation identifiers']}));

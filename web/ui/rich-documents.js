@@ -56,12 +56,15 @@
   if(state.richSaving)return state.richSaving;
   const account=workspaceAccountCacheToken();
   const run=(async()=>{
-   let ok=false;
+   let ok=false,awaitingReceipt=false;
    try{
     if(state.doc.content_model!=='rich-document'||!state.doc.editable||state.doc.is_current_revision===false)throw Error('这份文档当前不能编辑。');
+    awaitingReceipt=true;
     const response=await api('/api/core/documents/'+Number(state.doc.id),'POST',{content_model:'rich-document',name:data.name,document:data.document,base_revision:data.base_revision});
     if(S.docReader!==state||account!==workspaceAccountCacheToken()||!frame.isConnected)return false;
-    if(response?.error||response?.conflict)throw Error(response.error||'文档已变化，请重新打开后核对。');
+    if(response?.error||response?.conflict)throw Object.assign(Error(response.error||'文档已变化，请重新打开后核对。'),{status:response.conflict?409:response.status,code:response.code});
+    if(!Number.isSafeInteger(response?.id)||response.id<1||!Number.isSafeInteger(response.revision)||response.revision<1)throw Error('尚未确认保存结果，请重试确认。');
+    awaitingReceipt=false;
     if(response.device_page_ids)deviceChatRemember({device_page_ids:response.device_page_ids});
     if(response.id!==state.doc.id)state.revisions=[];
     state.doc={...state.doc,...response};state.text=JSON.stringify(data.document);if(state.richProtocol!==2)state.richDirty=false;state.saveStatus='saved';state.saveError='';
@@ -74,7 +77,13 @@
      RunTeamsLocale.apply(title);
     }
     post(frame,'saved',{request_id:data.request_id,revision:response.revision});ok=true;loadDocumentRevisions(state.doc);
-   }catch(error){if(S.docReader===state&&account===workspaceAccountCacheToken()){state.saveStatus='error';state.saveError=error.message||'保存失败，请重试。';post(frame,'saved',{request_id:data.request_id,error:state.saveError});}}
+   }catch(error){
+    if(S.docReader===state&&account===workspaceAccountCacheToken()){
+     const rejected=error.status>=400&&error.status<500&&error.status!==408&&error.code!=='mutation_outcome_unknown';
+     state.saveStatus='error';state.saveError=error.message||'保存失败，请重试。';
+     post(frame,'saved',{request_id:data.request_id,error:state.saveError,unconfirmed:awaitingReceipt&&!rejected});
+    }
+   }
    finally{const wait=pending.get(state.richToken);if(wait&&(!ok||state.richProtocol!==2)){pending.delete(state.richToken);wait.done(ok);}}
    return ok;
   })();state.richSaving=run;try{return await run;}finally{if(state.richSaving===run)state.richSaving=null;}
