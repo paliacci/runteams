@@ -371,13 +371,15 @@ class EmployeeSchedules:
                 self.edit_employee(c, row, data['value'], asset)
             elif action == 'reschedule':
                 self.reschedule(c, row, data['value'])
+            elif action == 'resolve':
+                if row is None:
+                    raise ContractError('请选择原自动化。')
+                self.resolve_interrupted(c, identifier, data['value'])
             else:
                 if row is None or data['value'] is not None:
                     raise ContractError('请选择原自动化。')
                 if action == 'run':
                     self.fire(c, row, 'manual:' + data['operation_id'])
-                elif action == 'resolve':
-                    c.execute("UPDATE occurrences SET status='cancelled',reason='用户核对后结束本次记录，原工作未重做。' WHERE schedule_id=? AND status='interrupted'", (identifier,))
                 else:
                     enabled = action == 'resume'
                     following = next_run(row['schedule_kind'], row['interval_sec'], json.loads(row['schedule'])) if enabled else ''
@@ -388,6 +390,24 @@ class EmployeeSchedules:
             result = {'id': identifier, 'operation_id': data['operation_id']}
             c.execute('INSERT INTO commands VALUES(?,?,?)', (data['operation_id'], request, canonical(result)))
             return result
+
+    def is_interrupted(self, run):
+        return run['status'] == 'interrupted'
+
+    def resolve_interrupted(self, connection, schedule_id, value):
+        message = '请重新打开运行记录，核对要处理的那一次运行。'
+        if not isinstance(value, dict) or set(value) != {'run_id'}:
+            raise ContractError(message)
+        run_id = value['run_id']
+        if type(run_id) is not int or not 0 < run_id <= 2**63 - 1:
+            raise ContractError(message)
+        run = connection.execute(
+            'SELECT id,status,workflow_id FROM occurrences WHERE schedule_id=? AND id=?',
+            (schedule_id, run_id)).fetchone()
+        if run is None or not self.is_interrupted(run):
+            raise ContractError(message)
+        connection.execute("UPDATE occurrences SET status='cancelled',reason='用户核对后结束本次记录，原工作未重做。' "
+                           "WHERE schedule_id=? AND id=?", (schedule_id, run_id))
 
     def reschedule(self, connection, row, value):
         if row is None or not isinstance(value, dict) or set(value) != {'schedule_kind', 'interval_sec', 'schedule'}:

@@ -266,6 +266,7 @@
  function commandFailure(message,action){
   if(message==='润色失败，尚未创建。请重试或勾选原文。'||message==='润色结果无效。')return localError('scheduledAutomation.polishFailed','无法润色任务说明。请重试，或选择使用原文。');
   if(message==='自动化已变化，请重新读取。')return localError('scheduledAutomation.changed','这项自动化已有更新。请重新打开自动化后再试。');
+  if(message==='请重新打开运行记录，核对要处理的那一次运行。')return localError('scheduledAutomation.reviewRunAgain',message);
   if(message==='这项自动化还有未完成或需要核对的运行。')return localError('scheduledAutomation.unfinishedRun','请先在运行记录中处理上次运行。');
   return action==='save'?localError('automationEditor.saveFailed','无法保存自动化。请稍后再试。'):localError('scheduledAutomation.operationFailed','无法完成操作。请稍后再试。');
  }
@@ -349,7 +350,7 @@
    ${r.status==='failed'&&completedWork.has(r.workflow_id)?`<p>${copy('scheduledAutomation.linkedTaskCompleted','关联任务现已完成。')}</p>`:''}
    ${r.workflow_id?`<button class="btn" onclick="closeModal();${owner.pipeline?`RunTeamsSourcePipelines.openWork(${Number(r.workflow_id)})`:`openCoreWorkflow(${Number(r.workflow_id)},{storageScope:'device'})`}">${copy('scheduledAutomation.openWork','查看工作记录')}</button>`:''}
    ${r.chat_id&&!owner.pipeline?`<button class="btn" onclick="closeModal();openConversationSession(${Number(r.chat_id)},'general',{readCurrent:true})">${copy('workRecordDetail.openConversation','打开对话')}</button>`:''}
-   ${r.status==='interrupted'?`<button class="btn" onclick="closeModal();RunTeamsEmployeeAutomation.resolve(${Number(item.id)})">${copy('scheduledAutomation.markIncomplete','标记为未完成')}</button>`:''}
+   ${r.status==='interrupted'?`<button class="btn" onclick="closeModal();RunTeamsEmployeeAutomation.resolve(${Number(item.id)},${Number(r.id)})">${copy('scheduledAutomation.markIncomplete','标记为未完成')}</button>`:''}
   </div>`).join('')}</div>`:owner.error?'':`<p>${copy('automationEditor.historyEmpty','还没有运行记录')}</p>`;
   const dialog=openDialog({
    title:item.name+'的运行记录',titleKey:'scheduledAutomation.historyFor',titleVars:{name:item.name},
@@ -363,7 +364,11 @@
   closeModal();
   document.querySelector(`${drawerSelector} [data-schedule-id="${Number(id)}"] .employee-automation-open`)?.focus();
  }
- function resolve(id){const owner=current();if(!owner)return;confirmModal('将这次运行标记为未完成？','请先检查已有工作和外部操作的结果。标记后，后续计划可以继续运行。',()=>current()===owner&&action(id,'resolve'),false,{titleKey:'scheduledAutomation.markTitle',messageKey:'scheduledAutomation.markMessage',cancelKey:'scheduledAutomation.cancel',action:'标记为未完成',actionKey:'scheduledAutomation.markIncomplete',closeKey:'employeeConsent.close'});}
+ function resolve(id,runId){
+  const owner=current(),item=find(id);if(!item||!Number.isSafeInteger(runId)||runId<1)return;
+  confirmModal('将这次运行标记为未完成？','请先检查已有工作和外部操作的结果。标记后，后续计划可以继续运行。',
+   ()=>current()===owner&&command('resolve',item,{run_id:runId}),false,{titleKey:'scheduledAutomation.markTitle',messageKey:'scheduledAutomation.markMessage',cancelKey:'scheduledAutomation.cancel',action:'标记为未完成',actionKey:'scheduledAutomation.markIncomplete',closeKey:'employeeConsent.close'});
+ }
  function field(name){return document.getElementById('employee_schedule_'+name);}
  function formCurrent(f=form){return !!f&&form===f&&valid(f.owner)&&document.getElementById('modalHost')===f.element;}
  function edit(id=0){

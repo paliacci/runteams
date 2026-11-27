@@ -1834,6 +1834,7 @@ globalThis.RUNTEAMS_LOCALES = {
   "scheduledAutomation.saveUnconfirmed": "无法确认是否已保存。关闭此窗口，在自动化中核对上次操作。",
   "scheduledAutomation.polishFailed": "无法润色任务说明。请重试，或选择使用原文。",
   "scheduledAutomation.changed": "这项自动化已有更新。请重新打开自动化后再试。",
+  "scheduledAutomation.reviewRunAgain": "请重新打开运行记录，核对要处理的那一次运行。",
   "scheduledAutomation.unfinishedRun": "请先在运行记录中处理上次运行。",
   "scheduledAutomation.receiptFailed": "无法在本机保存操作记录。请检查储存空间后重试。",
   "scheduledAutomation.operationFailed": "无法完成操作。请稍后再试。",

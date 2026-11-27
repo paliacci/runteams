@@ -173,7 +173,7 @@ class PipelineSchedules(EmployeeSchedules):
             elif action == 'edit':
                 # Read the referenced source/schema outside the device write transaction.
                 edited = self.prepare_edit(original, value, ref, data['operation_id'])
-            elif action != 'reschedule' and value is not None:raise ContractError('请选择原自动化。')
+            elif action not in ('reschedule','resolve') and value is not None:raise ContractError('请选择原自动化。')
             core=self.core()
             with self.connection(write=True) as c:
                 # Abandon can commit while contract validation runs.
@@ -198,7 +198,7 @@ class PipelineSchedules(EmployeeSchedules):
                     if control.read(core,ref)['status']!='running':raise ContractError('智能体团队已暂停，不能开始新工作。')
                     self.fire(c,row,'manual:'+data['operation_id'])
                 elif action=='resolve':
-                    self.resolve_interrupted(c,identifier)
+                    self.resolve_interrupted(c,identifier,value)
                 else:
                     enabled=action=='resume'
                     following=next_run(row['schedule_kind'],row['interval_sec'],json.loads(row['schedule'])) if enabled else ''
@@ -208,16 +208,10 @@ class PipelineSchedules(EmployeeSchedules):
                 c.execute('INSERT INTO commands VALUES(?,?,?)',(data['operation_id'],request,canonical(result)))
                 return result
 
-    def resolve_interrupted(self,connection,identifier):
-        rows=connection.execute("SELECT id,status,workflow_id FROM occurrences WHERE schedule_id=? "
-                                "AND (status='interrupted' OR (status IN ('waiting','blocked','failed') "
-                                "AND workflow_id IS NOT NULL))",(identifier,)).fetchall()
-        interrupted=[row['id'] for row in rows if row['status']=='interrupted']
+    def is_interrupted(self, run):
         # A restored library can be reviewed before the scheduler reconciles its ledger.
-        interrupted.extend(row['id'] for row,status,_,_ in self.linked_workflow_outcomes(rows)
-                           if status=='interrupted')
-        connection.executemany("UPDATE occurrences SET status='cancelled',reason='用户核对后结束本次记录，原工作未重做。' "
-                               "WHERE id=?",((run_id,) for run_id in interrupted))
+        return super().is_interrupted(run) or any(
+            status == 'interrupted' for _, status, _, _ in self.linked_workflow_outcomes([run]))
 
     def cancel_rows(self,c,identifier):
         for row in c.execute("SELECT * FROM occurrences WHERE schedule_id=? AND status IN ('queued','running','blocked')",(identifier,)).fetchall():

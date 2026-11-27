@@ -8,6 +8,7 @@ import tempfile
 from threading import Barrier
 from types import SimpleNamespace
 import unittest
+from uuid import uuid4
 from unittest.mock import patch
 
 from runteams_core.automation import single_occurrence
@@ -158,17 +159,48 @@ class SingleOccurrenceTests(unittest.TestCase):
                 c.execute("INSERT INTO occurrences(schedule_id,scheduled_for,operation_id,status,snapshot,workflow_id) "
                           "VALUES(1,?,?,?,'{}',?)",(str(index),str(index),status,workflow))
         command = {'operation_id':'735f2a82-1eac-463d-9003-320f2286a724','action':'resolve',
-                   'reference':REFERENCE,'id':1,'expected_revision':0,'value':None}
+                   'reference':REFERENCE,'id':1,'expected_revision':0,'value':{'run_id':2}}
         before = {r['scheduled_for']:r['status'] for r in self.read(backend)['runs']}
         self.assertEqual(before,{
             '0':'interrupted','1':'interrupted','2':'blocked','3':'completed','4':'blocked','5':'interrupted'})
         receipt = backend.command(command)
         self.assertEqual(backend.command(command), receipt)
         after = {r['scheduled_for']:r['status'] for r in self.read(backend)['runs']}
-        self.assertEqual(after,{key:'cancelled' if state=='interrupted' else state for key,state in before.items()})
+        self.assertEqual(after,{**before,'1':'cancelled'})
+        with self.assertRaises(ContractError):
+            backend.command({**command,'operation_id':str(uuid4()),'value':{'run_id':3}})
         with backend.connection() as c:
             self.assertEqual([row[0] for row in c.execute('SELECT status FROM occurrences ORDER BY id')],
-                             ['cancelled','cancelled','waiting','failed','blocked','cancelled'])
+                             ['blocked','cancelled','waiting','failed','blocked','interrupted'])
+
+    def test_review_of_earlier_run_cannot_close_later_or_foreign_run(self):
+        self.enterContext(patch('runteams_core.automation.device_employee_schedules.employee',return_value={}))
+        self.enterContext(patch('runteams_core.automation.device_employee_schedules.record_id',return_value=0))
+        self.enterContext(patch('runteams_core.automation.source_pipeline_schedules.pipeline_references.checked_reference',
+                                return_value=REFERENCE))
+        for kind in (EmployeeSchedules, PipelineSchedules):
+            with self.subTest(kind=kind.__name__):
+                backend = self.schedule(kind)
+                def insert(schedule_id, stamp):
+                    with backend.connection(write=True) as c:
+                        return c.execute("INSERT INTO occurrences(schedule_id,scheduled_for,operation_id,status,snapshot) "
+                                         "VALUES(?,?,?,'interrupted','{}')",
+                                         (schedule_id,stamp,str(uuid4()))).lastrowid
+                first = insert(1,FIRST)
+                command = {'operation_id':str(uuid4()),'action':'resolve','reference':REFERENCE,
+                           'id':1,'expected_revision':0,'value':{'run_id':first}}
+                receipt = backend.command(command)
+                later = insert(1,SECOND)
+                foreign = insert(2,THIRD)
+                for value in (None, {}, {'run_id':first}, {'run_id':foreign}, {'run_id':True},
+                              {'run_id':2**64}, {'run_id':later,'all':True}):
+                    with self.assertRaisesRegex(ContractError,'重新打开运行记录'):
+                        backend.command({**command,'operation_id':str(uuid4()),'value':value})
+                self.assertEqual(backend.command(command),receipt)
+                with backend.connection() as c:
+                    self.assertEqual(dict(c.execute('SELECT id,status FROM occurrences')),
+                                     {first:'cancelled',later:'interrupted',foreign:'interrupted'})
+                    self.assertEqual(c.execute('SELECT count(*) FROM commands').fetchone()[0],1)
 
     def tick(self, backend, stamp):
         Clock.value = stamp

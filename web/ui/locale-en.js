@@ -1804,6 +1804,7 @@ globalThis.RUNTEAMS_LOCALES.en = {
   "scheduledAutomation.saveUnconfirmed": "Couldn’t confirm that your changes were saved. Close this window and check the last operation in Automations.",
   "scheduledAutomation.polishFailed": "Couldn’t refine your instructions. Try again or select Use Original.",
   "scheduledAutomation.changed": "This automation has changed. Reopen it and try again.",
+  "scheduledAutomation.reviewRunAgain": "Reopen the run history and select the run you want to review.",
   "scheduledAutomation.unfinishedRun": "Review the last run in Run History before starting another.",
   "scheduledAutomation.receiptFailed": "Couldn’t record this operation on this computer. Check available storage and try again.",
   "scheduledAutomation.operationFailed": "Couldn’t complete the operation. Try again in a moment.",
