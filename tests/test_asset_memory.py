@@ -477,18 +477,22 @@ class AssetMemoryTests(TestCase):
             self.assertEqual(office_text.preview('.doc', b'original')['text'], 'Word text')
         self.assertEqual(worker.call_args.kwargs['stdin'], subprocess.DEVNULL)
 
-    def test_windows_pdf_uses_explorer_open_and_respects_dispatch_errors(self):
+    def test_windows_documents_and_media_use_registered_shell_commands(self):
         from runteams_core.foundation import file_manager
 
         with TemporaryDirectory() as folder, patch.object(file_manager.sys, 'platform', 'win32'), \
                 patch.object(file_manager, '_invoke_explorer_open') as invoke, \
                 patch.object(file_manager.os, 'startfile', create=True) as default:
-            pdf = Path(folder) / '原件.PDF'
-            pdf.write_bytes(b'%PDF-')
-            file_manager.open_path(pdf)
-            invoke.assert_called_once_with(pdf)
+            for extension in ('PDF', 'WAV', 'mp3', 'M4A', 'ogg', 'flac', 'mp4', 'MOV'):
+                with self.subTest(extension=extension):
+                    source = Path(folder) / f'原件.{extension}'
+                    source.touch()
+                    file_manager.open_path(source)
+                    invoke.assert_called_once_with(source)
+                    invoke.reset_mock()
             default.assert_not_called()
 
+            pdf = Path(folder) / '原件.PDF'
             no_verb = OSError('no associated Open verb')
             no_verb.winerror = 1155
             invoke.side_effect = no_verb
@@ -507,6 +511,11 @@ class AssetMemoryTests(TestCase):
             directory.mkdir()
             file_manager.open_path(directory)
             default.assert_called_once_with(str(directory))
+            default.reset_mock()
+            other = Path(folder) / '原件.txt'
+            other.touch()
+            file_manager.open_path(other)
+            default.assert_called_once_with(str(other))
 
     def test_external_viewer_keeps_long_original_name_and_cleans_up(self):
         from runteams_core.conversations import asset_sources

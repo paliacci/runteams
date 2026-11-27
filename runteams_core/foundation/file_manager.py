@@ -5,9 +5,13 @@ import subprocess
 import sys
 
 
+_EXPLORER_OPEN_TYPES = frozenset('.pdf .wav .mp3 .m4a .ogg .flac .mp4 .mov'.split())
+
+
 def open_path(path):
     if sys.platform == 'win32':
-        if Path(path).suffix.casefold() == '.pdf' and Path(path).is_file():
+        target = Path(path)
+        if target.suffix.casefold() in _EXPLORER_OPEN_TYPES and target.is_file():
             try:
                 _invoke_explorer_open(path)
                 return
