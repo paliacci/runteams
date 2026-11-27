@@ -56,6 +56,21 @@ for(const kind of ['pipeline-card','pipeline-flow'])test(`a new ${kind} command 
  assert.deepEqual(record(),{revision:3,value:'{"pending":"second"}'});
  assert.equal(local.state.pendingSave,false);
 });
+test('two windows can submit from the same saved approval draft after the first decision clears it',async()=>{
+ const b=backend(),first=subject(b),second=subject(b),key=first.key('pipeline-flow');
+ await first.state.connect();
+ first.state.setItem(key,JSON.stringify({response:'shared note'}));await first.state.flush();
+ await second.state.connect();
+ const approve=JSON.stringify({pending:{operation_id:'first'},response:'shared note'});
+ const reject=JSON.stringify({pending:{operation_id:'second'},response:'shared note'});
+ first.state.setItem(key,approve);await first.state.flush();
+ second.state.setItem(key,reject);await assert.rejects(second.state.flush(),/stale/);
+ assert.equal(b.records.get('pipeline-flow:same-reference').value,approve);
+ first.state.removeItem(key);await first.state.flush();
+ await second.state.flush();
+ assert.equal(b.records.get('pipeline-flow:same-reference').value,reject);
+ assert.equal(second.state.pendingSave,false);
+});
 test('foreign concurrent revision blocks future business execution without overwriting existing state',async()=>{
  const b=backend(),a=subject(b),other=subject(b);await a.state.connect();await other.state.connect();a.state.setItem(a.key('pipeline-create'),'{}');await a.state.flush();other.state.setItem(other.key('pipeline-create'),'{"draft":"different"}');await assert.rejects(other.state.flush(),/stale/);assert.equal(other.state.pending,true);assert.equal(other.state.saveRejected,true);await assert.rejects(other.state.flush(),/stale/);assert.equal(b.records.values().next().value.value,'{}');
 });
