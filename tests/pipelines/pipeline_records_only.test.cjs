@@ -87,7 +87,7 @@ test('paused and failed records show their own execution previews', async () => 
   const replies = new Map();
   let paints = 0;
   const context = vm.createContext({
-    window: {addEventListener() {}}, S: {sel: selection}, render() { paints++; }, esc: String, ICON: () => '',
+    window: {addEventListener() {}}, S: {sel: selection}, render() { paints++; }, esc: String, ICON: () => '', renderMarkdown: String,
     workRecordStateCopy: value => ({key: 'state.' + value, label: value}), coreWorkflowStateClass: String,
     RunTeamsSourcePipelines: {
       taskWorkspace: () => workspace, referenceKey: ref => ref.source_id,

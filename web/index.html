@@ -8306,7 +8306,8 @@ function documentInternalLinkId(value){
 function documentInternalLinkHref(id,anchor="",revisionId=0){const safe=String(anchor||"").replace(/^#/ ,"").replace(/[^a-zA-Z0-9._:-]/g,"");return publicAppRoute(`/docs?document=${encodeURIComponent(Number(id))}${revisionId?`&revision=${revisionId}`:""}${safe?`#${encodeURIComponent(safe)}`:""}`);}
 function renderMarkdown(value,options={}){
   const source=String(value||"");
-  if(!window.marked||!window.DOMPurify||window.DOMPurify.isSupported===false)return `<pre class="md-fallback">${esc(source)}</pre>`;
+  const fallback=()=>options.plainText?source:`<pre class="md-fallback">${esc(source)}</pre>`;
+  if(!window.marked||!window.DOMPurify||window.DOMPurify.isSupported===false)return fallback();
   try{
     const rendered=window.marked.parse(source,{gfm:true,breaks:true,pedantic:false});
     // A native drive looks like a URL scheme to the sanitizer. Make reply
@@ -8324,6 +8325,12 @@ function renderMarkdown(value,options={}){
     });
     const clean=window.DOMPurify.sanitize(normalized,{USE_PROFILES:{html:true},FORBID_TAGS:["style"],FORBID_ATTR:["style"]});
     const template=document.createElement("template");template.innerHTML=clean;
+    if(options.plainText){
+      for(const node of template.content.querySelectorAll("br,img")){
+        node.replaceWith(node.tagName==="IMG"?(node.getAttribute("alt")||" "):" ");
+      }
+      return template.content.textContent;
+    }
     template.content.querySelectorAll("img[src]").forEach(image=>{
       const source=image.getAttribute("src");let target=options.imageUrls?.[source];
       if(!target&&options.imageUrls){try{target=options.imageUrls[decodeURI(source)];}catch(error){}}
@@ -8348,7 +8355,7 @@ function renderMarkdown(value,options={}){
       prepareMarkdownLink(link,options.replyFiles);
     });
     return template.innerHTML;
-  }catch(error){return `<pre class="md-fallback">${esc(source)}</pre>`;}
+  }catch(error){return fallback();}
 }
 const _cardOutputExpanded=new Set();
 

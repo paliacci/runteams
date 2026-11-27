@@ -85,7 +85,7 @@
  function rowMarkup({key,title,summary,state,updated_at,created_at,report_document,icon,role,executionRole,returnTo,previousTime},action,attributes=''){
   const value=String(summary||'');
   const literal=state==='failed'||report_document||role!==undefined;
-  const plain=(literal?value:value.replace(/\[([^\]]+)\]\([^)]+\)/g,'$1').replace(/[*_`#]/g,'')).replace(/\s+/g,' ').trim();
+  const plain=(literal||!value?value:renderMarkdown(value,{plainText:true})).replace(/\s+/g,' ').trim();
   const name=title||text('untitled','未命名工作');
   const badge=role===undefined?stateMarkup(state,returnTo):'';
   const description=plain?`<span class="result-delivery-conclusion"${icon||role!==undefined||executionRole!==undefined?` title="${esc(plain)}"`:''}>${esc(plain)}</span>`:'';

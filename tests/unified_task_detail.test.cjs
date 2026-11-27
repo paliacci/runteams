@@ -78,6 +78,20 @@ test('failed task diagnostics preserve literal text instead of passing paths thr
   assert.ok(!view.body.includes('[Markdown] ' + reason));
 });
 
+test('formatted execution previews use the Markdown reader’s plain text, including punctuation within code', () => {
+  const {context, ui} = fixture();
+  const path = String.raw`C:\输入 QA\_待复核_\工单 #2.json`;
+  const summary = '**已读入** `' + path + '`';
+  context.renderMarkdown = (source, options) => {
+    assert.equal(source, summary);
+    assert.equal(options.plainText, true);
+    return '已读入 ' + path;
+  };
+  const run = {id: 18, state: 'completed', work_name: '读取文件', output_json: {summary}};
+  const row = ui.attemptsMarkup({snapshot_json: {}}, [run]);
+  assert.ok(row.includes('title="已读入 ' + path + '">已读入 ' + path + '</span>'));
+});
+
 test('pipeline execution badges follow the recorded result regardless of column order', () => {
   const {ui} = fixture();
   const positions = [
