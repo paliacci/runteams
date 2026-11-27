@@ -119,6 +119,9 @@ internal static class AttachmentPicker
     private static string[] Mixed()
     {
         using (var form = new Form()) {
+            form.SuspendLayout();
+            form.AutoScaleDimensions = new SizeF(96, 96);
+            form.AutoScaleMode = AutoScaleMode.Dpi;
             form.Text = Label("Choose files and folders", "选择文件和文件夹");
             form.StartPosition = FormStartPosition.CenterScreen;
             form.ClientSize = new Size(540, 280);
@@ -149,6 +152,7 @@ internal static class AttachmentPicker
                 if (items.SelectedIndex >= 0) items.Items.RemoveAt(items.SelectedIndex);
                 add.Enabled = items.Items.Count > 0;
             };
+            form.ResumeLayout();
             if (form.ShowDialog() != DialogResult.OK) return null;
             var result = new string[items.Items.Count];
             items.Items.CopyTo(result, 0);

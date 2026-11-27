@@ -12,6 +12,8 @@ using System.Windows.Forms;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
 
+[assembly: System.Runtime.Versioning.TargetFramework(".NETFramework,Version=v4.7")]
+
 internal sealed class LocalWindow : Form
 {
     private readonly WebView2 view = new WebView2();
@@ -138,6 +140,9 @@ internal sealed class LocalWindow : Form
 
     private LocalWindow(string[] args)
     {
+        SuspendLayout();
+        AutoScaleDimensions = new SizeF(96, 96);
+        AutoScaleMode = AutoScaleMode.Dpi;
         Text = "RunTeams Local";
         ClientSize = new Size(1120, 760);
         MinimumSize = new Size(780, 560);
@@ -186,6 +191,7 @@ internal sealed class LocalWindow : Form
             if (started) service.StandardInput.Close();
             service.Dispose();
         };
+        ResumeLayout();
     }
 
     private async Task StartService()

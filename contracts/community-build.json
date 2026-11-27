@@ -867,7 +867,9 @@
     "web/vendor/licenses/MARKED-LICENSE.md",
     "runteams_core/devtools/check_ui_boundary.py",
     "desktop/community/windows/build.py",
-    "desktop/community/windows/installer.iss"
+    "desktop/community/windows/installer.iss",
+    "desktop/community/windows/RunTeamsLocal.exe.config",
+    "desktop/community/windows/RunTeamsLocal.manifest"
   ],
   "notices": [
     "LICENSE",

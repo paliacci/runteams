@@ -36,13 +36,15 @@ def compile_host(payload, package):
     compiler = Path(os.environ['WINDIR']) / 'Microsoft.NET/Framework64/v4.0.30319/csc.exe'
     metadata = Path(os.environ['WINDIR']) / 'System32/WinMetadata'
     subprocess.run([compiler, '/nologo', '/codepage:65001', '/target:winexe', '/platform:x64', '/optimize+',
-                    '/out:RunTeamsLocal.exe', '/reference:System.Windows.Forms.dll',
+                    '/out:RunTeamsLocal.exe', '/win32manifest:' + str(HERE / 'RunTeamsLocal.manifest'),
+                    '/reference:System.Windows.Forms.dll',
                     '/reference:System.Drawing.dll', '/reference:System.Web.Extensions.dll', '/reference:System.Net.Http.dll',
                     '/reference:System.Runtime.dll', '/reference:System.Runtime.InteropServices.WindowsRuntime.dll',
                     *['/reference:' + str(metadata / (name + '.winmd')) for name in ('Windows.Foundation', 'Windows.Data', 'Windows.UI')],
                     *['/reference:' + name for name in assemblies], HERE / 'RunTeamsLocal.cs', HERE / 'DesktopNotifications.cs',
                     HERE / 'AttachmentPicker.cs', HERE / 'DesktopSettings.cs', HERE / 'DesktopWorkspace.cs'],
                    cwd=payload, check=True)
+    shutil.copy2(HERE / 'RunTeamsLocal.exe.config', payload)
 
 
 def build(args):

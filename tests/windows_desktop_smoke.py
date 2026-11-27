@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import socket
 import subprocess
+import sys
 import tempfile
 import time
 from urllib.parse import urlsplit
@@ -29,7 +30,7 @@ def wait_for(check, seconds=45):
     raise TimeoutError(f'Timed out at {check.__name__}')
 
 
-def close_window(process):
+def desktop_window(process):
     user32 = ctypes.windll.user32
     windows = []
 
@@ -44,7 +45,23 @@ def close_window(process):
     user32.EnumWindows(collect, 0)
     if len(windows) != 1:
         raise RuntimeError('Expected one desktop window')
-    user32.PostMessageW(windows[0], 0x0010, 0, 0)  # WM_CLOSE
+    return windows[0]
+
+
+def check_window_dpi(process, evaluate):
+    # Windows 10 version 1703 introduced Per-Monitor V2 awareness.
+    if sys.getwindowsversion().build < 15063:
+        return
+    user32 = ctypes.windll.user32
+    window = desktop_window(process)
+    user32.GetWindowDpiAwarenessContext.argtypes = [wintypes.HWND]
+    user32.GetWindowDpiAwarenessContext.restype = wintypes.HANDLE
+    user32.AreDpiAwarenessContextsEqual.argtypes = [wintypes.HANDLE, wintypes.HANDLE]
+    user32.GetDpiForWindow.argtypes = [wintypes.HWND]
+    context = user32.GetWindowDpiAwarenessContext(window)
+    assert user32.AreDpiAwarenessContextsEqual(context, -4), 'Expected Per-Monitor V2 desktop window'
+    dpi = user32.GetDpiForWindow(window)
+    assert dpi and abs(evaluate('devicePixelRatio') - dpi / 96) < .01, 'WebView2 scale differs from window DPI'
 
 
 def check_theme_contrast(origin, command, evaluate):
@@ -83,7 +100,7 @@ def close_during_navigation(app, origin, command, evaluate, paused):
     evaluate("""Object.defineProperty(window, 'RunTeamsLocalDesktop', {
         configurable: true, get() { window.closeGuardReads++; return undefined; }
     }); window.closeGuardReads = 0""")
-    close_window(app)
+    ctypes.windll.user32.PostMessageW(desktop_window(app), 0x0010, 0, 0)  # WM_CLOSE
     wait_for(lambda: evaluate('window.closeGuardReads >= 2'))
     evaluate('delete window.RunTeamsLocalDesktop')
     command('Fetch.continueRequest', {'requestId': paused[0]['requestId']})
@@ -129,6 +146,7 @@ def exercise(executable, root):
 
                 wait_for(lambda: evaluate("!!window.RunTeamsLocalDesktop && !!document.querySelector('.rail-top-search')"))
                 wait_for(lambda: evaluate("S.appInfo?.native_attachment_picker === true"))
+                check_window_dpi(app, evaluate)
                 assert evaluate("document.querySelector('.rail-top-search').getAttribute('aria-keyshortcuts')") == 'Control+K'
                 evaluate("""document.querySelector('[data-app-i18n="shell.documents"]').closest('button,a').click()""")
                 wait_for(lambda: evaluate("location.pathname === '/documents' && !!window.RunTeamsLocalDesktop && !!document.querySelector('.rail-settings-button')"))
