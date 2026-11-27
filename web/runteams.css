@@ -669,6 +669,9 @@ button:focus-visible,.csel:focus-visible,a[href]:focus-visible{outline:1px solid
 .seg2{display:inline-flex;background:var(--rail-active);border-radius:var(--r-sm);padding:3px;gap:2px}
 .seg2 button{font-size:calc(12px * var(--interface-font-scale,1));font-weight:500;color:var(--sub);padding:6px 12px;border-radius:7px}
 .seg2 button.on{background:var(--panel);color:var(--ink);box-shadow:var(--sh-sm);font-weight:600}
+@media (forced-colors:active){
+  .seg2 button.on:enabled{forced-color-adjust:none;background:Highlight;color:HighlightText;--control-focus-border:HighlightText;box-shadow:none}
+}
 /* modal */
 .scrim{position:fixed;inset:0;background:var(--scrim);backdrop-filter:blur(2px);display:grid;place-items:center;z-index:40}.scrim.nested-scrim{z-index:50}
 .modal{width:520px;max-width:92%;max-height:88vh;background:var(--dialog-bg);border:1px solid var(--line2);border-radius:20px;box-shadow:var(--sh-lg);display:flex;flex-direction:column;overflow:hidden;animation:pop .28s cubic-bezier(.2,.8,.2,1)}

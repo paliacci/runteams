@@ -47,6 +47,32 @@ def close_window(process):
     user32.PostMessageW(windows[0], 0x0010, 0, 0)  # WM_CLOSE
 
 
+def check_theme_contrast(origin, command, evaluate):
+    command('Page.navigate', {'url': origin + '/design-system?theme=system'})
+    wait_for(lambda: evaluate("!!document.querySelector('[data-design-theme=system]')"))
+    for palette in ('light', 'dark'):
+        command('Emulation.setEmulatedMedia', {'features': [
+            {'name': 'forced-colors', 'value': 'active'},
+            {'name': 'prefers-color-scheme', 'value': palette},
+        ]})
+        assert evaluate("""(() => {
+            const buttons = [...document.querySelectorAll('[data-design-theme]')];
+            const sample = document.createElement('span');
+            sample.style.cssText = 'forced-color-adjust:none;background:Highlight;color:HighlightText';
+            document.body.append(sample);
+            const colors = getComputedStyle(sample);
+            const result = buttons.length === 3 && buttons.every(button => {
+                button.click();
+                const selected = buttons.filter(b => b.getAttribute('aria-pressed') === 'true');
+                const style = getComputedStyle(button);
+                return selected.length === 1 && selected[0] === button &&
+                    style.backgroundColor === colors.backgroundColor && style.color === colors.color;
+            });
+            sample.remove();
+            return matchMedia('(forced-colors: active)').matches && result;
+        })()"""), f'Active theme does not use the {palette} forced-color selection'
+
+
 def exercise(executable, root):
     with socket.socket() as reservation:
         reservation.bind(('127.0.0.1', 0))
@@ -65,15 +91,21 @@ def exercise(executable, root):
             target = wait_for(page)
             origin = 'http://' + urlsplit(target['url']).netloc
             with closing(websocket.create_connection(target['webSocketDebuggerUrl'], timeout=8, suppress_origin=True)) as ws:
-                def evaluate(script):
-                    ws.send(json.dumps({'id': 1, 'method': 'Runtime.evaluate', 'params': {
-                        'expression': script, 'awaitPromise': True, 'returnByValue': True}}))
+                def command(method, params):
+                    ws.send(json.dumps({'id': 1, 'method': method, 'params': params}))
                     while True:
                         reply = json.loads(ws.recv())
                         if reply.get('id') == 1:
-                            if 'exceptionDetails' in reply['result']:
-                                raise AssertionError(reply['result']['exceptionDetails']['text'])
-                            return reply['result']['result'].get('value')
+                            if 'error' in reply:
+                                raise AssertionError(reply['error'])
+                            return reply['result']
+
+                def evaluate(script):
+                    result = command('Runtime.evaluate', {
+                        'expression': script, 'awaitPromise': True, 'returnByValue': True})
+                    if 'exceptionDetails' in result:
+                        raise AssertionError(result['exceptionDetails']['text'])
+                    return result['result'].get('value')
 
                 wait_for(lambda: evaluate("!!window.RunTeamsLocalDesktop && !!document.querySelector('.rail-top-search')"))
                 wait_for(lambda: evaluate("S.appInfo?.native_attachment_picker === true"))
@@ -88,6 +120,7 @@ def exercise(executable, root):
                         'X-RunTeams-Library': library.library_id, 'X-RunTeams-Library-Generation': library.generation}});
                     return r.ok && (await r.json()).library_id === library.library_id;
                 })()""")
+                check_theme_contrast(origin, command, evaluate)
                 wait_for(lambda: evaluate("window.RunTeamsLocalDesktop.checkClose(false) === 'ready'"))
             close_window(app)
             if app.wait(timeout=20) != 0:
