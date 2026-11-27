@@ -434,17 +434,20 @@ internal sealed class LocalWindow : Form
     private async Task<string> WorkspaceCloseState(bool prepare, int discardVersion = -1)
     {
         // A new document can be visible before its workspace close guard is installed.
+        // Let in-flight saves settle as well, then keep the last verified decision.
         var elapsed = Stopwatch.StartNew();
+        string state;
         do {
             int version = navigationVersion;
             string script = prepare
                 ? "window.RunTeamsLocalDesktop?.prepareClose(" + (version == discardVersion ? "true" : "false") + ")"
                 : "window.RunTeamsLocalDesktop?.checkClose(false)";
             string result = await view.CoreWebView2.ExecuteScriptAsync(script);
-            if (version == navigationVersion && !String.IsNullOrEmpty(result) && result != "null") return result;
+            state = version == navigationVersion && !String.IsNullOrEmpty(result) && result != "null" ? result : null;
+            if (state != null && state != "\"pending\"") return state;
             await Task.Delay(100);
         } while (elapsed.ElapsedMilliseconds < 5000);
-        return null;
+        return state;
     }
 
     private async void OnClosing(object sender, FormClosingEventArgs e)
@@ -467,7 +470,7 @@ internal sealed class LocalWindow : Form
         try
         {
             string result = await WorkspaceCloseState(false);
-            if (result != null) {
+            if (result == "\"ready\"" || result == "\"dirty\"") {
                 int discardVersion = -1;
                 if (result == "\"dirty\"") {
                     discardVersion = navigationVersion;
