@@ -59,12 +59,25 @@
   await check();if(error)return;if(automatic.some(v=>v.backup_id===id))download(id);
   else{report('backupExpired');paint();}
  }
+ async function createReceipt(id){
+  try{return await api('/api/backups','POST',{operation_id:id});}
+  catch(writeError){
+   if(writeError.status===403)throw writeError;
+   // The host can commit a final receipt even when its response is lost or reports an error.
+   try{return await api('/api/backups/'+id+'/status');}
+   catch(readError){
+    if(readError.status===403)throw readError;
+    if(readError.status===404&&[400,409].includes(writeError.status))forget();
+    throw writeError;
+   }
+  }
+ }
  async function start(){
   if(busy||pending)return;busy=true;busyKind='backup';error='';notice='';
   try{
    if(!await flushDocument()){report('documentPending');return;}
    remember({operation_id:crypto.randomUUID(),kind:'backup'});paint();
-   const value=await api('/api/backups','POST',{operation_id:pending.operation_id});
+   const value=await createReceipt(pending.operation_id);
    if(confirmed(value))download(value.backup_id);
   }catch(e){requestError(e,pending?'backupUnknown':'backupFailed');}
   finally{busy=false;paint();}

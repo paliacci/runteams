@@ -35,6 +35,38 @@ test('backup uses the shared rows and a single loading position',async()=>{
 test('a document flush failure sends no backup request',async()=>{
  let calls=0;const h=harness({flush:false,api:async()=>{calls++}});h.ui.markup();await h.ui.create();assert.equal(calls,0);assert.ok(h.ui.markup().includes('更改未保存'));assert.equal(h.ui.pending,false);
 });
+test('manual backup shows the recorded failure immediately or the reason a request was refused',async()=>{
+ for(const admitted of [true,false]){
+  const h=harness({api:async(p,m)=>{
+   if(m)throw Object.assign(Error(admitted?'invalid_request':'Finish the file selection first'),{status:admitted?400:409});
+   if(admitted)return {state:'failed',kind:'backup',error:'Managed folder is unavailable'};
+   throw Object.assign(Error('not_found'),{status:404});
+  }});
+  await h.ui.create();
+  assert.deepEqual(h.calls.map(c=>c[0]),['/api/backups',`/api/backups/${op}/status`]);
+  assert.match(h.ui.markup(),/localBackup\.backupFailed/);
+  assert.ok(h.ui.markup().includes(admitted?'Managed folder is unavailable':'Finish the file selection first'));
+  assert.equal(h.ui.pending,false);assert.deepEqual(h.downloads,[]);
+ }
+});
+test('a lost backup acknowledgement downloads the committed archive using its original receipt',async()=>{
+ const h=harness({api:async(p,m)=>{if(m)throw Error('lost acknowledgement');return {state:'completed',kind:'backup',backup_id:op};}});
+ await h.ui.create();
+ assert.deepEqual(h.calls.map(c=>c[0]),['/api/backups',`/api/backups/${op}/status`]);
+ assert.deepEqual(h.downloads,[`/api/backups/${op}/download`]);assert.equal(h.ui.pending,false);
+});
+test('an interrupted receipt check retains the operation until the original result is available',async()=>{
+ let ready=false;
+ const h=harness({api:async(p,m)=>{
+  if(m)throw Error('lost acknowledgement');
+  if(!ready)throw Object.assign(Error('not found yet'),{status:404});
+  return {state:'completed',kind:'backup',backup_id:op};
+ }});
+ await h.ui.create();assert.equal(h.ui.pending,true);assert.match(h.ui.markup(),/localBackup\.backupUnknown/);
+ ready=true;await h.ui.check();assert.equal(h.ui.pending,false);assert.deepEqual(h.downloads,[]);
+ assert.deepEqual(h.calls.map(c=>c[0]),['/api/backups',`/api/backups/${op}/status`,`/api/backups/${op}/status`]);
+ assert.match(h.ui.markup(),/localBackup\.backupCreated/);
+});
 test('an unknown result resumes the original receipt without creating a new backup',async()=>{
  const calls=[];const h=harness({pending:{operation_id:op,kind:'backup'},api:async(p,m)=>{calls.push([p,m]);return {state:'completed',kind:'backup',backup_id:op}}});h.ui.markup();assert.equal(h.ui.pending,true);await h.tasks[0]();await new Promise(r=>setImmediate(r));assert.deepEqual(calls,[[`/api/backups/${op}/status`,undefined]]);assert.equal(h.ui.pending,false);
 });
