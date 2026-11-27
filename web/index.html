@@ -4076,7 +4076,12 @@ async function saveDocumentTableEdit(){
   if(_documentTableSaveInFlight){state.saveQueued=true;return;}
   const draft=documentTableDraft(state);
   const baseline=String(state.text||"");
-  if(draft===baseline)return;
+  if(draft===baseline&&state.saveStatus!=="error"){
+    state.tableDirty=false;
+    state.saveStatus="saved";
+    documentReaderSyncSaveUI();
+    return;
+  }
   state.saveStatus="saving";state.saveError="";documentReaderSyncSaveUI();
   const docId=Number(state.doc.id);
   const request=(async()=>{
@@ -4236,7 +4241,7 @@ document.addEventListener("click",event=>{
   event.preventDefault();event.stopImmediatePropagation();
   void saveBeforeDocumentNavigation(()=>target.click(),()=>target.isConnected);
 },true);
-window.addEventListener("beforeunload",event=>{if(S.docReader?.richDirty||S.docReader?.richSaving){event.preventDefault();event.returnValue="";}});
+window.addEventListener("beforeunload",event=>{if(S.docReader?.tableDirty||S.docReader?.richDirty||S.docReader?.richSaving){event.preventDefault();event.returnValue="";}});
 function downloadCurrentTaskInput(){const doc=S.docReader?.doc;if(doc?.task_input)downloadCoreTaskInput(Number(doc.workflow_id)||0,doc.task_input_item||{});}
 function documentReaderActionsMarkup(doc){
   if(doc?.task_input||doc?.work_artifact){

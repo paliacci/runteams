@@ -67,6 +67,16 @@ test('a document deep link is still opened after the initial catalog load',async
  assert.equal(state.booting,false);
 });
 
+test('native quit waits for edits before autosave and until the editor acknowledges the save',async()=>{
+ const {state,native}=await start('/');
+ for(const pending of [{tableDirty:true},{richDirty:true},{richSaving:Promise.resolve()}]){
+  state.docReader={saveStatus:'saved',...pending};
+  assert.equal(native.checkClose(),'pending');
+ }
+ state.docReader={saveStatus:'saved',tableDirty:false,richDirty:false,richSaving:null};
+ assert.equal(native.checkClose(),'ready');
+});
+
 test('Windows drafts load from the native scope and close waits for the latest acknowledged snapshot',async()=>{
  const prior=JSON.stringify({'chat:17':{input:'persisted at the previous port'}});
  const writes=[];
