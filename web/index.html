@@ -546,7 +546,7 @@ let _rightDetailWidth=loadRightDetailWidth();
 const MODEL_CATALOG_SNAPSHOT=loadModelCatalogSnapshot();
 function accountInitial(){return Array.from(String(RunTeamsHost.session.displayName(S)||'').trim())[0]||'';}
 
-const S = {booting:true,bootRoute:null,bootError:null,deviceWorkflows:[],deviceWorkScope:"",deviceWorkError:"",coreTeamLoaded:false,coreTeamLoading:false,coreTeamError:"",navigationLoading:false,navigationError:"",coreWorkflows:[],coreExecutor:null,corePackages:[],channels:[],providerCatalog:window.RunTeamsModelProviders||[],channelUsage:null,channelUsageLoading:false,channelUsageUpdatedAt:0,modelCatalog:MODEL_CATALOG_SNAPSHOT,modelCatalogReady:false,documents:[],documentsLoading:false,documentsPage:null,documentsAppendLoading:false,documentsAppendError:"",opportunities:[],opportunitiesLoading:false,workItems:[],workItemsLoading:false,workItemDetails:{},workItemSelected:"",workItemsShowClosed:false,workItemsError:"",docsMode:"documents",docsQuery:"",opportunityDetail:null,docReader:null,docReaderStack:[],docsSort:"created_at",docsSortDesc:true,docOutlineCollapsed:loadDocOutlineCollapsed(),docVersionsOpen:loadDocVersionsOpen(),docImageActual:loadDocImageScalePref(),surface:"team",pageTransition:null,sel:null,chats:[],chatId:null,chatMode:"",chatMsgs:[],chatBusy:false,chatStopping:false,chatStopRequested:false,chatActivity:"",chatDraft:"",chatCfg:null,chatModelPrefs:loadChatModelPrefs(),chatAttachments:[],chatCapabilities:[],chatRewind:null,conversationPanel:null,conversationDebugType:"",conversationFocus:false,conversationPanelsByWorkspace:{},conversationPanelsByChat:{},conversationPanelDrafts:loadConversationPanelDrafts(),workspaceWindows:loadWorkspaceWindows(),activeWorkspaceKey:"",activity:[],activityTotal:0,interventions:[],environment:loadEnvironmentSnapshot(),environmentLoading:false,account:loadAccountPrefs(),settingsTab:"general",appInfo:null,railSections:{pipelines:true,favorites:false,pending:false,recent:false},railRecentExpanded:false,chatDirectoryLoaded:false,railSearchOpen:false,railQuery:"",railSearchIndex:0,railSearchComposing:false,railPinnedChats:loadRailPinnedChats(),railMode:"navigation",railNavScrollTop:0,railNavTab:RAIL_LAYOUT.navTab,railCollapsed:RAIL_LAYOUT.collapsed,railRouteHydrating:false,_railLocatedKey:"",_selKey:"",_mainViewKey:"",_conversationViewKey:"",_renderedRailMode:"",...RunTeamsHost.lifecycle.initialState()};
+const S = {booting:true,bootRoute:null,bootError:null,deviceWorkflows:[],deviceWorkScope:"",deviceWorkError:"",coreTeamLoaded:false,coreTeamLoading:false,coreTeamError:"",navigationLoading:false,navigationError:"",coreWorkflows:[],coreExecutor:null,corePackages:[],channels:[],providerCatalog:window.RunTeamsModelProviders||[],channelUsage:null,channelUsageLoading:false,channelUsageUpdatedAt:0,modelCatalog:MODEL_CATALOG_SNAPSHOT,modelCatalogReady:false,documents:[],documentsLoading:false,documentsPage:null,documentsAppendLoading:false,documentsAppendError:"",opportunities:[],opportunitiesLoading:false,workItems:[],workItemsLoading:false,workItemDetails:{},workItemSelected:"",workItemsShowClosed:false,workItemsError:"",docsMode:"documents",docsQuery:"",opportunityDetail:null,docReader:null,docReaderStack:[],docsSort:"created_at",docsSortDesc:true,docOutlineCollapsed:loadDocOutlineCollapsed(),docVersionsOpen:loadDocVersionsOpen(),docImageActual:loadDocImageScalePref(),surface:"team",pageTransition:null,sel:null,chats:[],chatId:null,chatMode:"",chatMsgs:[],chatBusy:false,chatStopping:false,chatStopRequested:false,chatActivity:"",chatDraft:"",chatCfg:null,chatModelPrefs:loadChatModelPrefs(),chatAttachments:[],chatCapabilities:[],chatRewind:null,conversationPanel:null,conversationDebugType:"",conversationFocus:false,conversationPanelsByWorkspace:{},conversationPanelsByChat:{},conversationPanelDrafts:loadConversationPanelDrafts(),workspaceWindows:loadWorkspaceWindows(),activeWorkspaceKey:"",activity:[],activityTotal:0,interventions:[],environment:loadEnvironmentSnapshot(),environmentLoading:false,account:loadAccountPrefs(),settingsTab:"general",appInfo:null,railSections:{pipelines:true,favorites:false,pending:false,recent:false},railRecentExpanded:false,chatDirectoryLoaded:false,railSearchOpen:false,railQuery:"",railSearchIndex:0,railPinnedChats:loadRailPinnedChats(),railMode:"navigation",railNavScrollTop:0,railNavTab:RAIL_LAYOUT.navTab,railCollapsed:RAIL_LAYOUT.collapsed,railRouteHydrating:false,_railLocatedKey:"",_selKey:"",_mainViewKey:"",_conversationViewKey:"",_renderedRailMode:"",...RunTeamsHost.lifecycle.initialState()};
 RunTeamsBoot.railTabChanged=tab=>{S.railNavTab=tab;};
 RunTeamsLoadFailure.connect(()=>JSON.stringify([_workspaceBusinessGeneration,workspaceAccountCacheToken()]));
 
@@ -1542,14 +1542,27 @@ function railSearchRenderResults(reset=true){
     (target||document.getElementById("rail_search_input"))?.focus({preventScroll:true});
   }
 }
+function bindSearchInput(input,update){
+  if(!input||input._searchInputBound)return;
+  input._searchInputBound=true;
+  input.addEventListener('compositionstart',()=>{input.dataset.composing='true';});
+  input.addEventListener('compositionend',()=>{delete input.dataset.composing;update(input);});
+  input.addEventListener('input',event=>{
+    if(!event.isComposing&&input.dataset.composing!=='true')update(input);
+  });
+}
+function searchKeyComposing(event){
+  return event.isComposing||event.keyCode===229||event.target?.dataset?.composing==='true';
+}
 function openRailSearch(trigger){
   const newChatShortcut=RunTeamsShell.commandShortcut('N');
   const existing=document.getElementById("railSearchHost");if(existing){existing.querySelector("#rail_search_input")?.focus();return;}
-  S.railSearchOpen=true;S.railQuery="";S.railSearchIndex=0;S.railSearchComposing=false;
+  S.railSearchOpen=true;S.railQuery="";S.railSearchIndex=0;
   const host=document.createElement("div");host.id="railSearchHost";host._returnFocus=trigger||(document.activeElement===document.body?document.querySelector(".rail-top-search"):document.activeElement);
-  host.innerHTML=`<div class="rail-command-scrim" onclick="if(event.target===this)closeRailSearch(true)"><section class="rail-command" role="dialog" aria-modal="true" aria-label="搜索对话、智能体团队和文档" data-app-i18n-aria-label="shell.searchLabel"><div class="rail-command-search"><label class="rt-search-field rt-search-field--command">${ICON("search")}<input id="rail_search_input" role="combobox" aria-controls="rail_search_options" aria-autocomplete="list" aria-expanded="false" autocomplete="off" spellcheck="false" placeholder="搜索对话、智能体团队和文档" data-app-i18n-placeholder="shell.searchLabel" aria-label="搜索对话、智能体团队和文档" data-app-i18n-aria-label="shell.searchLabel" oncompositionstart="S.railSearchComposing=true" oncompositionend="railSearchCompositionEnd(this)" oninput="railSearchInput(this)" onkeydown="railSearchKeydown(event)"></label><kbd>Esc</kbd></div><div class="rail-command-results" id="rail_search_results"></div><footer><button type="button" aria-keyshortcuts="${newChatShortcut.aria}" onclick="railSearchNewChat()">${ICON("square-pen")}<span data-app-i18n="shell.newChat">新对话</span><kbd>${newChatShortcut.label}</kbd></button><small data-app-i18n="globalSearch.keyboard">↑↓ 选择 ↵ 打开</small></footer></section></div>`;
+  host.innerHTML=`<div class="rail-command-scrim" onclick="if(event.target===this)closeRailSearch(true)"><section class="rail-command" role="dialog" aria-modal="true" aria-label="搜索对话、智能体团队和文档" data-app-i18n-aria-label="shell.searchLabel"><div class="rail-command-search"><label class="rt-search-field rt-search-field--command">${ICON("search")}<input id="rail_search_input" role="combobox" aria-controls="rail_search_options" aria-autocomplete="list" aria-expanded="false" autocomplete="off" spellcheck="false" placeholder="搜索对话、智能体团队和文档" data-app-i18n-placeholder="shell.searchLabel" aria-label="搜索对话、智能体团队和文档" data-app-i18n-aria-label="shell.searchLabel" onkeydown="railSearchKeydown(event)"></label><kbd>Esc</kbd></div><div class="rail-command-results" id="rail_search_results"></div><footer><button type="button" aria-keyshortcuts="${newChatShortcut.aria}" onclick="railSearchNewChat()">${ICON("square-pen")}<span data-app-i18n="shell.newChat">新对话</span><kbd>${newChatShortcut.label}</kbd></button><small data-app-i18n="globalSearch.keyboard">↑↓ 选择 ↵ 打开</small></footer></section></div>`;
   host.addEventListener('keydown',event=>{
-    if(event.key==='Escape'&&!event.isComposing&&!S.railSearchComposing){event.preventDefault();closeRailSearch(true);return;}
+    if(searchKeyComposing(event))return;
+    if(event.key==='Escape'){event.preventDefault();closeRailSearch(true);return;}
     if(event.key!=='Tab')return;
     const controls=[...host.querySelectorAll('input,button:not(:disabled)')].filter(node=>node.tabIndex>=0&&node.getClientRects().length);
     const first=controls[0],last=controls.at(-1);
@@ -1557,18 +1570,21 @@ function openRailSearch(trigger){
     else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first?.focus();}
   });
   document.body.appendChild(host);document.body.classList.add("rail-command-open");S.railDocumentSearch=null;railSearchRenderResults();
-  RunTeamsLocale.apply(host);host.querySelector("#rail_search_input")?.focus();
+  const input=host.querySelector("#rail_search_input");
+  bindSearchInput(input,railSearchInput);RunTeamsLocale.apply(host);input.focus();
 }
 function closeRailSearch(restoreFocus=false){
   const host=document.getElementById("railSearchHost"),returnFocus=host?._returnFocus;
-  host?.remove();document.body.classList.remove("rail-command-open");S.railSearchOpen=false;S.railQuery="";S.railSearchComposing=false;S.railDocumentSearch=null;++_railDocumentSearchSequence;clearTimeout(_railDocumentSearchTimer);
+  host?.remove();document.body.classList.remove("rail-command-open");S.railSearchOpen=false;S.railQuery="";S.railDocumentSearch=null;++_railDocumentSearchSequence;clearTimeout(_railDocumentSearchTimer);
   if(restoreFocus)(returnFocus?.isConnected?returnFocus:document.querySelector(".rail-top-search:not(:disabled), .rail-reopen"))?.focus({preventScroll:true});
 }
 window.addEventListener('runteams:pipeline-catalog-changed',()=>{if(S.railSearchOpen)railSearchRenderResults(false);});
-function railSearchInput(input){S.railQuery=input.value;if(!S.railSearchComposing)searchRailDocuments();}
-function railSearchCompositionEnd(input){S.railSearchComposing=false;S.railQuery=input.value;searchRailDocuments();}
+function railSearchInput(input){
+  if(S.railQuery===input.value)return;
+  S.railQuery=input.value;searchRailDocuments();
+}
 function railSearchKeydown(event){
-  if(event.isComposing||S.railSearchComposing)return;
+  if(searchKeyComposing(event))return;
   const items=[...document.querySelectorAll("#rail_search_results [data-command-item]")];if(!items.length)return;
   if(event.key==="ArrowDown"){event.preventDefault();S.railSearchIndex=(S.railSearchIndex+1)%items.length;railSearchSyncActive();}
   else if(event.key==="ArrowUp"){event.preventDefault();S.railSearchIndex=(S.railSearchIndex-1+items.length)%items.length;railSearchSyncActive();}
@@ -5560,7 +5576,7 @@ function editCoreEmployeeHeaderName(event){
 
 
 
-let _botListQuery="",_botListSearchComposing=false;
+let _botListQuery="";
 function refreshBotList(){
   render();
 }
@@ -7738,6 +7754,7 @@ function botListSyncScroll(position){
   botListSyncGroupTitles(scroll);
   if(!scroll)return;
   botListSyncSelection(scroll);
+  bindSearchInput(scroll.querySelector('#bot_list_search'),botListSearchInput);
   scroll.dataset.employeeScrollScope=workspaceAccountCacheToken();
   const search=scroll.querySelector('.bot-list-search');
   if(search){
@@ -7756,15 +7773,16 @@ function botListVisibleEmployees(pinned){
    pinned.has(entry.key)||entry.pipeline_groups?.length||entry.source||entry.open.action!=='work'||entry.record.history_only||employeeDirectAssignment(entry.record)||employeeHasConversation(entry.record)));
 }
 function botListSearchInput(input){
-  _botListQuery=String(input?.value||"");
+  if(_botListQuery===input.value)return;
+  _botListQuery=input.value;
   const list=document.querySelector(".bot-list");
   if(list){list.innerHTML=botListRowsMarkup();botListSyncSelection(list);botListSyncGroupTitles(list);}
   else refreshBotList();
 }
 function botListSearchKeydown(event){
+  if(searchKeyComposing(event))return;
   if(event.key==="Escape"){
     event.preventDefault();
-    _botListQuery="";
     event.currentTarget.value="";
     botListSearchInput(event.currentTarget);
     return;
@@ -7874,7 +7892,7 @@ function botListMarkup(){
   const query=esc(_botListQuery||"");
   const hasEmployees=RunTeamsEmployeeDirectory.current().length>0||!!RunTeamsHost.assets?.marketRows?.('employee');
   const listError=S.coreTeamError,error=listError&&hasEmployees?RunTeamsLoadFailure.markup({variant:'local',title:'员工列表暂未更新',titleKey:'shell.employeesStale',labelKey:'trash.retry',busyLabelKey:'shell.employeesLoading',retry:'retryBotList()',error:listError,compact:true}):'';
-  const search=hasEmployees?`<label class="bot-list-search rt-search-field rt-search-field--compact">${ICON("search")}<input type="search" id="bot_list_search" onfocus="this.closest('.bot-list-scroll').scrollTop=0" value="${query}" placeholder="搜索员工" autocomplete="off" spellcheck="false" aria-label="搜索全部员工" data-app-i18n-aria-label="shell.employeeSearchLabel" data-app-i18n-placeholder="shell.employeeSearch" oncompositionstart="_botListSearchComposing=true" oncompositionend="_botListSearchComposing=false;botListSearchInput(this)" oninput="if(!_botListSearchComposing)botListSearchInput(this)" onkeydown="botListSearchKeydown(event)"></label>`:"";
+  const search=hasEmployees?`<label class="bot-list-search rt-search-field rt-search-field--compact">${ICON("search")}<input type="search" id="bot_list_search" onfocus="this.closest('.bot-list-scroll').scrollTop=0" value="${query}" placeholder="搜索员工" autocomplete="off" spellcheck="false" aria-label="搜索全部员工" data-app-i18n-aria-label="shell.employeeSearchLabel" data-app-i18n-placeholder="shell.employeeSearch" onkeydown="botListSearchKeydown(event)"></label>`:"";
   return `<div class="bot-list-shell"><div class="bot-list-scroll" onscroll="botListUpdateFade(this)">${search}<div class="bot-list-content">${error}<div class="bot-list">${botListRowsMarkup()}</div></div></div></div>`;
 }
 

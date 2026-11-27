@@ -6,6 +6,45 @@ const vm = require('node:vm');
 
 const source = fs.readFileSync(path.join(__dirname, '../web/ui/employee-directory.js'), 'utf8');
 
+test('global and employee searches keep their results during IME selection and cancellation', () => {
+ const html = fs.readFileSync(path.join(__dirname, '../web/index.html'), 'utf8');
+ const functions = ['bindSearchInput', 'searchKeyComposing', 'railSearchInput', 'botListSearchInput', 'botListSearchKeydown'];
+ let searches = 0;
+ const context = {S: {railQuery: ''}, _botListQuery: '', document: {querySelector: () => null},
+  searchRailDocuments: () => searches++, refreshBotList: () => searches++};
+ for (const name of functions) {
+  const start = html.indexOf('function ' + name + '(');
+  assert.notEqual(start, -1);
+  vm.runInNewContext(html.slice(start, html.indexOf('\n}', start) + 2), context);
+ }
+ for (const update of [context.railSearchInput, context.botListSearchInput]) {
+  searches = 0;
+  const input = Object.assign(new EventTarget(), {value: '', dataset: {}});
+  context.bindSearchInput(input, update);
+  context.bindSearchInput(input, update);
+  input.dispatchEvent(new Event('compositionstart'));
+  input.value = "ni'hao";
+  input.dispatchEvent(new Event('input'));
+  assert.equal(context.searchKeyComposing({target: input}), true);
+  context.botListSearchKeydown({key: 'Escape', target: input});
+  assert.equal(searches, 0);
+  input.value = '你好';
+  input.dispatchEvent(new Event('compositionend'));
+  input.dispatchEvent(new Event('input'));
+  assert.equal(searches, 1);
+  input.dispatchEvent(new Event('compositionstart'));
+  input.value += 'zai';
+  input.dispatchEvent(new Event('input'));
+  input.value = '你好';
+  input.dispatchEvent(new Event('compositionend'));
+  assert.equal(searches, 1);
+  assert.equal(context.searchKeyComposing({keyCode: 229, target: input}), true);
+  input.value = '';
+  input.dispatchEvent(new Event('input'));
+  assert.equal(searches, 2);
+ }
+});
+
 for (const organization of [false, true]) {
  test(`background employee refresh is scoped and throttled (${organization ? 'organization' : 'personal'})`, async () => {
   let now = 0, scope = 'first', fullReads = 0, localReads = 0, unavailable = false;
