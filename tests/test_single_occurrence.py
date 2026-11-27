@@ -15,6 +15,7 @@ from runteams_core.automation import single_occurrence
 from runteams_core.automation.device_employee_schedules import EmployeeSchedules, canonical
 from runteams_core.automation.source_pipeline_schedules import PipelineSchedules
 from runteams_core.foundation.contracts import ContractError
+from runteams_core.pipelines import source_pipeline_trash
 
 
 NOW = '2040-04-11T12:00:00+00:00'
@@ -97,6 +98,40 @@ class SingleOccurrenceTests(unittest.TestCase):
         backend.core = lambda: SimpleNamespace(repository=repository,workflow=workflow)
         backend._executing = set()
         return backend,ledger
+
+    def test_pipeline_trashed_before_or_after_timer_does_not_block_next_trigger(self):
+        backend, _ = self.linked_pipeline('running')
+        refusal = source_pipeline_trash.PipelineTrashed(source_pipeline_trash.TRASHED_REASON)
+        with patch.object(source_pipeline_trash, 'check_available', side_effect=refusal):
+            Clock.value = FIRST
+            backend.materialize_due_automations()
+        Clock.value = SECOND
+        backend.materialize_due_automations()
+        job = backend.claim_next_automation_run()
+        with patch.object(backend, '_receipt', return_value=None), patch(
+                'runteams_core.automation.source_pipeline_schedules.work.create', side_effect=refusal):
+            backend.execute(job)
+        Clock.value = THIRD
+        backend.materialize_due_automations()
+        with backend.connection() as connection:
+            rows = connection.execute('SELECT scheduled_for,status,workflow_id FROM occurrences ORDER BY id')
+            self.assertEqual([tuple(row) for row in rows],
+                             [(FIRST, 'skipped', None), (SECOND, 'skipped', None), (THIRD, 'queued', None)])
+
+    def test_legacy_trash_refusal_checks_admission_receipt_before_skipping(self):
+        backend, _ = self.linked_pipeline('completed')
+        with backend.connection(write=True) as connection:
+            for key, reason in [('refused', source_pipeline_trash.TRASHED_REASON),
+                                ('other', 'different refusal'), ('admitted', source_pipeline_trash.TRASHED_REASON)]:
+                connection.execute("INSERT INTO occurrences(schedule_id,scheduled_for,operation_id,status,snapshot,reason) "
+                                   "VALUES(1,?,?,'blocked',?,?)", (key, key, canonical({'key': key}), reason))
+        with patch.object(backend, '_receipt', side_effect=lambda core, request: 42 if request['key']=='admitted' else None):
+            backend.reconcile()
+            backend.reconcile()
+        with backend.connection() as connection:
+            rows = connection.execute('SELECT operation_id,status,workflow_id FROM occurrences ORDER BY id')
+            self.assertEqual([tuple(row) for row in rows],
+                             [('refused', 'skipped', None), ('other', 'blocked', None), ('admitted', 'completed', 42)])
 
     def test_failed_pipeline_occurrence_follows_a_retry_of_its_original_workflow(self):
         backend,ledger = self.linked_pipeline('running')

@@ -9,6 +9,11 @@ from runteams_core.storage.repository import utc_now
 
 PREFIX = 'source-pipeline-trash:'
 EVENT = 'pipeline.trash_state'
+TRASHED_REASON = '此智能体团队已移到垃圾箱，请先恢复。'
+
+
+class PipelineTrashed(ContractError):
+    """The requested pipeline is currently in the trash."""
 
 
 def _stream(ref):
@@ -30,7 +35,7 @@ def check_available(core, ref, connection=None):
             return check_available(core, ref, connection)
     row = _state(connection, ref)
     if row and json.loads(row['data_json'])['trashed_at']:
-        raise ContractError('此智能体团队已移到垃圾箱，请先恢复。')
+        raise PipelineTrashed(TRASHED_REASON)
 
 
 def catalog(core):

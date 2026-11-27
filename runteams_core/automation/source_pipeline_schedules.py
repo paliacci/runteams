@@ -3,7 +3,7 @@
 An occurrence durably owns the exact request before admission. Recovery retries
 that request only; it never sends an employee turn or creates another occurrence.
 """
-from runteams_core.pipelines import pipeline_references
+from runteams_core.pipelines import pipeline_references, source_pipeline_trash
 from runteams_core.work import workflow_policy
 import json
 import threading
@@ -16,6 +16,7 @@ from runteams_core.automation.device_employee_schedules import EmployeeSchedules
 
 DIRECTORY='pipeline-schedules'
 HUMAN_WAIT_STATES=('needs_approval','needs_human')
+SKIPPED_IN_TRASH = '触发时智能体团队已在垃圾箱，本次未创建工作。'
 _gate=threading.RLock()
 
 
@@ -220,13 +221,15 @@ class PipelineSchedules(EmployeeSchedules):
             else:c.execute("UPDATE occurrences SET status='cancelled',reason='计划已暂停或更新，原触发未受理。' WHERE id=?",(row['id'],))
 
     def fire(self,c,row,scheduled):
+        reference = json.loads(row['reference'])
+        source_pipeline_trash.check_available(self.core(), reference)
         open_run=c.execute("SELECT 1 FROM occurrences WHERE schedule_id=? AND status IN ('queued','running','waiting','blocked','interrupted')",(row['id'],)).fetchone()
         failures=c.execute("SELECT status,workflow_id FROM occurrences WHERE schedule_id=? AND status='failed' AND workflow_id IS NOT NULL",(row['id'],))
         if open_run or any(status in ('waiting','blocked','interrupted') for _,status,_,_ in self.linked_workflow_outcomes(failures)):
             raise ContractError('这项自动化还有未完成或需要核对的运行。')
         op=str(uuid.uuid5(uuid.NAMESPACE_URL,canonical([self.binding(),row['id'],scheduled])))
         payload=json.loads(row['payload']);position=payload.pop('start_column_key')
-        request={'operation_id':op,'reference':json.loads(row['reference']),'title':row['name'],'payload':payload,'start_column_key':position}
+        request={'operation_id':op,'reference':reference,'title':row['name'],'payload':payload,'start_column_key':position}
         c.execute("INSERT OR IGNORE INTO occurrences(schedule_id,scheduled_for,operation_id,status,snapshot) VALUES(?,?,?,'queued',?)",(row['id'],scheduled,op,canonical(request)))
 
     def materialize_due_automations(self,limit=20,has_open_work=None):
@@ -248,7 +251,8 @@ class PipelineSchedules(EmployeeSchedules):
                         if control.read(core,json.loads(row['reference']))['status']!='running':raise ContractError('智能体团队已暂停，本次未创建工作。')
                         self.fire(c,row,row['due_at'])
                     except ContractError as exc:
-                        c.execute("INSERT OR IGNORE INTO occurrences(schedule_id,scheduled_for,operation_id,status,snapshot,reason) VALUES(?,?,?,'skipped',?,?)",(row['id'],row['due_at'],str(uuid.uuid4()),canonical(dict(row)),str(exc)))
+                        reason = SKIPPED_IN_TRASH if isinstance(exc, source_pipeline_trash.PipelineTrashed) else str(exc)
+                        c.execute("INSERT OR IGNORE INTO occurrences(schedule_id,scheduled_for,operation_id,status,snapshot,reason) VALUES(?,?,?,'skipped',?,?)",(row['id'],row['due_at'],str(uuid.uuid4()),canonical(dict(row)),reason))
                     single_occurrence.consume(c, row, single_occurrence.instant(params[0]))
 
     def claim_next_automation_run(self):
@@ -298,6 +302,8 @@ class PipelineSchedules(EmployeeSchedules):
                             self.finish_automation_run(job['id'],'queued','沿原编号核对受理。');return
                 with self.connection(write=True) as c:c.execute("UPDATE occurrences SET status='waiting',workflow_id=?,reason='' WHERE id=?",(identifier,job['id']))
                 self.controller_factory().wake()
+            except source_pipeline_trash.PipelineTrashed:
+                self.finish_automation_run(job['id'],'skipped',SKIPPED_IN_TRASH)
             except (ContractError,PermissionError) as exc:
                 state='queued' if control.read(core,request['reference'])['status']!='running' else 'blocked'
                 self.finish_automation_run(job['id'],state,str(exc))
@@ -324,6 +330,9 @@ class PipelineSchedules(EmployeeSchedules):
                 current=core.workflow(identifier) if identifier else None
                 if current:
                     status,reason=self.workflow_outcome(core,identifier,current['state'])
+                elif identifier is None and row['status']=='blocked' and row['reason']==source_pipeline_trash.TRASHED_REASON:
+                    # Older installations left this refused admission blocking the plan after restore.
+                    status,reason='skipped',SKIPPED_IN_TRASH
                 else:
                     status='interrupted' if identifier else row['status'] if row['status'] in ('blocked','interrupted') else 'queued'
                     reason='原工作已不可读取，请核对工作记录。' if identifier else row['reason'] if status in ('blocked','interrupted') else '沿原编号等待受理。'
