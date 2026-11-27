@@ -44,19 +44,23 @@
  const ownsTask=s=>!!s&&taskWorkspace()===s;
  function navigationTicket(){const owner=scope(),key=workspaceCurrentKey(),route=_routeSequence,switching=_workspaceSwitchSequence;return ()=>owner===scope()&&key===workspaceCurrentKey()&&route===_routeSequence&&switching===_workspaceSwitchSequence;}
  function leaveForBoard(){captureConversationPanelDraft();if(S.conversationPanel?.loading)++_conversationPanelLoadSequence;S.railMode='navigation';S._pendingRailMode='';saveRailLayout();}
+ const creationRefused=error=>error.status===400||error.status===422||error.status===409&&error.code==='source_revision_conflict';
  async function request(action,data={},options={}){
   const token=scope(),configuration=action==='configuration'||action==='employee-configuration'||action==='work-configuration';
   const control=action==='control'||action==='control-operation',edit=action==='edit'||action==='edit-operation',flow=['flow','flow-operation','card','card-operation'].includes(action);let reply;
   try{reply=await api('/api/device/work/source-pipelines/'+action,'POST',data,{readPriority:options.readPriority,retryOnDisconnect:options.retryOnDisconnect,readCurrent:action==='records'||action==='catalog'||action==='trash-catalog'||action==='workspace'||action==='settings'||action==='work'||action==='asset-knowledge'&&!data.action,errorStatus:configuration||control||edit||flow});}
   catch(error){
    if(token!==scope())throw Error('工作区已改变，请重新打开智能体团队。');
+   if(action==='create'&&creationRefused(error)){
+    error.confirmedReply=true;throw error;
+   }
    if((configuration||control||edit||flow)&&error.status>=400&&error.status<500)error.confirmedReply=true;
    if(error.code||(configuration||control||edit||flow)&&error.status)throw error;
    throw Object.assign(Error((['dispatch','control','create','edit','flow'].includes(action)||action==='employee-configuration'&&data.action==='save')?'尚未收到服务回执，请核对原操作。':'本机智能体团队暂时无法读取，请重试。'),{cause:error});
   }
   if(token!==scope())throw Error('工作区已改变，请重新打开智能体团队。');
   if(reply?.error)throw Object.assign(Error(reply.error),{code:reply.code,fields:reply.fields,reason:reply.reason,status:reply.status??(reply.code==='employee_configuration_invalid'?422:409),
-   confirmedReply:!(control||edit||flow)||reply.status>=400&&reply.status<500});
+   confirmedReply:action==='create'&&reply.status!=null?creationRefused(reply):!(control||edit||flow)||reply.status>=400&&reply.status<500});
   if(action==='catalog'&&(!Array.isArray(reply.items)||!Array.isArray(reply.errors)||reply.items.some(row=>!/^[0-9][a-z][a-z0-9]{6}$/.test(row.page_id)||!referenceKey(row.reference)||typeof row.name!=='string'||S.localLibrary&&(row.reference.schema!=='runteams.local-pipeline-reference/1'||row.reference.storage_kind!=='local'||row.reference.library_id!==S.localLibrary.library_id))))throw Error('智能体团队目录回执无效。');
   return reply;
  }
@@ -1215,12 +1219,19 @@
    if(!RunTeamsWorkState.ready)await RunTeamsWorkState.connect();
    if(!active())return;
    c.pending=JSON.parse(RunTeamsWorkState.getItem(creationKey())||'null');
-   if(c.pending){c.loading=false;creationDialog(true);}
+   if(c.pending){c.name=c.pending.name;c.loading=false;creationDialog(true);}
    const {reply,error}=await choices;
    if(!active())return;
    if(error)throw error;
    if(!Array.isArray(reply.items))throw Error('pipeline creation choices missing');
    c.choices=reply.items;c.choiceErrors=Array.isArray(reply.errors)?reply.errors:[];
+   if(c.pending?.employee_reference){
+    const original=c.pending;
+    const fields=Object.keys(original.employee_reference);
+    const index=c.choices.findIndex(row=>row.skill_key===original.skill_key&&row.revision===original.source_revision&&
+     fields.length===Object.keys(row.reference).length&&fields.every(key=>row.reference[key]===original.employee_reference[key]));
+    c.choice=index<0?'':String(index);
+   }
   }catch(error){if(active())c.choicesFailed=true;}
   finally{
    c.loading=false;c.reading=false;
@@ -1272,6 +1283,7 @@
   c.checking=!!c.pending;const focus=document.activeElement;
   const form=document.getElementById('source_pipeline_create');
   if(!c.pending){
+   if(form)form.elements.name.value=form.elements.name.value.trim();
    if(!form?.reportValidity())return;
    try{
    const values=new FormData(form),choice=c.choices[Number(values.get('choice'))];c.choice=String(values.get('choice'));
