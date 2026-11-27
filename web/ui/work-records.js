@@ -566,7 +566,16 @@
  }
  function focusAttemptControl(key){
   if(!key||document.activeElement!==document.body)return;
-  document.querySelector('#rgDrawer button[data-attempt-focus="'+CSS.escape(key)+'"]')?.focus({preventScroll:true});
+  const control=document.querySelector('#rgDrawer button[data-attempt-focus="'+CSS.escape(key)+'"]');
+  if(control?.getClientRects().length){control.focus({preventScroll:true});return;}
+  if(!S.sel?.workflow||key.startsWith('back-'))return;
+  // The current execution can become a history row while its detail is open.
+  const runId=key.slice(key.lastIndexOf('-')+1);
+  const row=document.querySelector('#rgDrawer button[data-attempt-id="'+CSS.escape(runId)+'"]');
+  const section=row?.closest('.work-execution-section');
+  const target=[row,section?.querySelector('[data-execution-count]'),section?.querySelector('.settings-section-toggle')]
+   .find(button=>button?.getClientRects().length);
+  target?.focus();
  }
  function openAttempt(runId){
   const previous=S.sel,work=previous?.type==='source-pipeline'&&previous.id==='work'||previous?.employeeTask?previous.workflow:null;

@@ -35,7 +35,7 @@ test('opening an execution by keyboard and returning while it loads restores the
     snapshot_json: {pipeline_work: {reference}}, employee_runs: [{id: 7}]}};
   let finishRead;
   const doc = context.document;
-  const button = key => ({dataset: {attemptFocus: key}, focus() { doc.activeElement = this; }});
+  const button = key => ({dataset: {attemptFocus: key}, getClientRects: () => [1], focus() { doc.activeElement = this; }});
   const entry = button('record-7'), back = button('back-7');
   doc.body = {}; doc.activeElement = entry;
   doc.querySelector = selector => selector.includes('"back-7"') ? back : entry;
@@ -56,6 +56,23 @@ test('opening an execution by keyboard and returning while it loads restores the
   await pending;
   ui.focusAttemptControl('record-7');
   assert.equal(doc.activeElement, elsewhere);
+});
+
+test('when a running execution moves into history, focus follows its row or the control that reveals it', () => {
+  const {context, ui} = fixture();
+  const doc = context.document;
+  const control = () => ({visible: true, getClientRects() { return this.visible ? [1] : []; },
+    focus() { doc.activeElement = this; }});
+  const row = control(), earlier = control(), heading = control();
+  row.closest = () => ({querySelector: selector => selector === '[data-execution-count]' ? earlier : heading});
+  doc.querySelector = selector => selector.endsWith('[data-attempt-id="7"]') ? row : null;
+  context.S = {sel: {workflow: {id: 42}}}; context.CSS = {escape: String}; doc.body = {};
+  for (const target of [row, earlier, heading]) {
+    doc.activeElement = doc.body;
+    ui.focusAttemptControl('current-7');
+    assert.equal(doc.activeElement, target);
+    target.visible = false;
+  }
 });
 
 test('independent and pipeline tasks use the same task shell while loading', () => {
