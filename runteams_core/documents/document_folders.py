@@ -1,10 +1,14 @@
 """Folders in the personal device library, keyed to stable document lineages."""
+import json
 import re
 import sqlite3
 
 from runteams_core.documents import rich_documents
-from runteams_core.foundation.contracts import ContractError
+from runteams_core.foundation.contracts import ContractError, digest
 from runteams_core.work.device_work import DeviceWorkStorage
+
+_UUID = r'[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}'
+_MOVE_EVENT = 'document_folder.documents_moved'
 
 
 def _require_device(core):
@@ -16,7 +20,7 @@ def _require_device(core):
 def _folder_id(value, *, root=False):
     if root and value == '':
         return None
-    if not isinstance(value, str) or not re.fullmatch(r'[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}', value):
+    if not isinstance(value, str) or not re.fullmatch(_UUID, value):
         raise ContractError('文件夹标识无效。')
     return value
 
@@ -78,6 +82,8 @@ def mutate(core, data):
         'move_document': {'document', 'folder'},
         'move_documents': {'documents', 'folder'},
     }
+    if action == 'move_documents' and 'operation_id' in data:
+        fields[action].add('operation_id')
     if not isinstance(action, str) or action not in fields or set(data) != fields[action] | {'action'}:
         raise ContractError('文件夹操作无效。')
     identifier = _folder_id(data['folder'], root=action in ('move_document', 'move_documents'))
@@ -96,18 +102,37 @@ def mutate(core, data):
                 raise ContractError('请先移出此文件夹中的文档和子文件夹。')
             connection.execute('DELETE FROM document_folders WHERE id=?', (identifier,))
         else:
-            _folder(connection, identifier)
             documents = [data['document']] if action == 'move_document' else data['documents']
-            if not isinstance(documents, list) or not documents or any(
-                    type(document) is not int or not 0 < document < 2**53 for document in documents):
-                raise ContractError('请选择要移动的文档。')
-            for document in dict.fromkeys(documents):
-                row = connection.execute('SELECT * FROM artifacts WHERE id=? AND trashed_at IS NULL',
-                                         (document,)).fetchone()
-                if row is None or not core.is_document_artifact(core._decode_meta(row['meta_json']), row['name']):
-                    raise ContractError('文档已不存在，请刷新文档列表。')
-                _place(connection, core._document_root_id(row), identifier)
+            if 'operation_id' in data and (not isinstance(data['operation_id'], str)
+                                           or not re.fullmatch(_UUID, data['operation_id'])):
+                raise ContractError('文档移动操作标识无效。')
+            _move(core, connection, documents, identifier, data.get('operation_id'))
     return {'ok': True, 'storage_scope': 'device'}
+
+
+def _move(core, connection, documents, folder, operation_id):
+    if not isinstance(documents, list) or not documents or any(
+            type(document) is not int or not 0 < document < 2**53 for document in documents):
+        raise ContractError('请选择要移动的文档。')
+    documents = sorted(set(documents))
+    if operation_id:
+        stream = 'document-folder-move:' + operation_id
+        request_digest = digest({'folder': folder, 'documents': documents})
+        prior = connection.execute('SELECT data_json FROM events WHERE stream=? AND type=?',
+                                   (stream, _MOVE_EVENT)).fetchone()
+        if prior:
+            if json.loads(prior['data_json'])['request_digest'] != request_digest:
+                raise ContractError('此移动操作已用于其他文档或目标文件夹。')
+            return
+    _folder(connection, folder)
+    for document in documents:
+        row = connection.execute('SELECT * FROM artifacts WHERE id=? AND trashed_at IS NULL',
+                                 (document,)).fetchone()
+        if row is None or not core.is_document_artifact(core._decode_meta(row['meta_json']), row['name']):
+            raise ContractError('文档已不存在，请刷新文档列表。')
+        _place(connection, core._document_root_id(row), folder)
+    if operation_id:
+        core.repository.event(stream, _MOVE_EVENT, {'request_digest': request_digest}, connection=connection)
 
 
 def _save_folder(connection, identifier, name, *, parent=None, rename=False):

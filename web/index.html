@@ -2494,8 +2494,16 @@ function docsMoveDocument(id){
   const doc=docsById(id);
   if(doc)docsMoveDocuments([doc]);
 }
+function docsMoveSubmission(){
+  let request;
+  return (documents,folder)=>{
+    if(request?.folder!==folder)request={action:'move_documents',documents,folder,operation_id:crypto.randomUUID()};
+    return request;
+  };
+}
 function docsMoveDocuments(docs){
   const folders=new Map(docsFolders().map(folder=>[folder.id,folder])),current=docs[0].folder_id||'';
+  const submission=docsMoveSubmission(),ids=docs.map(doc=>Number(doc.id));
   const options=[{id:'',name:RunTeamsLocale.t('documentList.folderRoot',{},'文档根目录')},
     ...[...folders.values()].map(folder=>({id:folder.id,name:docsFolderPath(folder.id,folders).map(item=>item.name).join(' / ')}))
       .sort((a,b)=>a.name.localeCompare(b.name))];
@@ -2503,7 +2511,7 @@ function docsMoveDocuments(docs){
     key:'moveFolderTitle',title:'移到文件夹',label:['moveDestination','目标文件夹'],
     control:`<select class="inp" id="docs_folder_value">${options.map(option=>`<option value="${esc(option.id)}"${option.id===current?' selected':''}>${esc(option.name)}</option>`).join('')}</select>`,
     action:'moveFolderConfirm',copy:'移动',
-    payload:folder=>({action:'move_documents',documents:docs.map(doc=>Number(doc.id)),folder}),
+    payload:folder=>submission(ids,folder),
   });
 }
 let docsMove=null;
@@ -2513,7 +2521,7 @@ function activeDocsMove(){
 function docsStartMove(entries,scope){
   const source=S.docsFolder||'';
   const documents=entries.map(({item})=>({id:Number(item.id),folder:item.folder_id||''}));
-  docsMove={scope,documents,source,folder:source,query:S.docsQuery||'',sort:S.docsSort,descending:S.docsSortDesc,busy:false,error:'',destination:null,
+  docsMove={scope,documents,source,submission:docsMoveSubmission(),folder:source,query:S.docsQuery||'',sort:S.docsSort,descending:S.docsSortDesc,busy:false,error:'',destination:null,
     scrollTop:document.querySelector('.docs-page .list-page-scroll')?.scrollTop||0};
   render();
   document.querySelector('.docs-move-toolbar button')?.focus({preventScroll:true});
@@ -2595,7 +2603,7 @@ async function docsConfirmMove(){
   move.busy=true;move.error='';
   render();
   try{
-    await docsFolderMutation({action:'move_documents',documents:docsMoveTargets(move),folder:move.folder});
+    await docsFolderMutation(move.submission(docsMoveTargets(move),move.folder));
     if(activeDocsMove()===move){
       docsFinishMove(move,true);
       toast('文档已移动','ok','documentList.moveSuccess');

@@ -47,6 +47,37 @@ class DocumentFolderTests(unittest.TestCase):
     def ids(self, core, folder, **options):
         return [document['id'] for document in document_folders.page(core, folder, **options)['documents']]
 
+    def test_receipted_move_survives_reopen_and_later_changes(self):
+        scope = {'storage_kind': 'local', 'library_id': 'test', 'storage_namespace': 'test'}
+        with TemporaryDirectory() as directory, \
+                patch.object(device_data, 'root', return_value=Path(directory)), \
+                patch.object(device_data, 'identity', return_value=scope), \
+                patch.object(device_data, 'personal', return_value=True):
+            core = LocalDocuments()
+            ids = [rich_documents.write(core, name=name, document_key=name,
+                   document=rich_documents.from_markdown(name))['id'] for name in ('One', 'Two')]
+            folder = str(uuid4())
+            move = {'action': 'move_documents', 'folder': folder, 'documents': ids, 'operation_id': str(uuid4())}
+            # A rejected attempt must leave the operation available for retry.
+            with self.assertRaises(ContractError):
+                document_folders.mutate(core, move)
+            document_folders.mutate(core, {'action': 'create', 'folder': folder, 'parent': '', 'name': 'Target'})
+            with patch.object(core.repository, 'event', side_effect=RuntimeError('receipt write failed')), \
+                    self.assertRaises(RuntimeError):
+                document_folders.mutate(core, move)
+            self.assertEqual(self.ids(core, folder), [])
+            receipt = document_folders.mutate(core, move)
+            core = LocalDocuments()
+            document_folders.mutate(core, {**move, 'folder': '', 'operation_id': str(uuid4())})
+            document_folders.mutate(core, {'action': 'delete', 'folder': folder})
+            self.assertEqual(document_folders.mutate(core, {**move, 'documents': ids[::-1]}), receipt)
+            self.assertCountEqual(self.ids(core, ''), ids)
+            for changed in ({'folder': ''}, {'documents': ids[:1]}, {'operation_id': None}, {'operation_id': ''}):
+                with self.subTest(changed=changed), self.assertRaises(ContractError):
+                    document_folders.mutate(core, {**move, **changed})
+            events = core.repository.events('document-folder-move:' + move['operation_id'])
+            self.assertEqual(len(events), 1)
+
     def test_batch_move_rolls_back_and_export_preserves_duplicate_names(self):
         scope = {'storage_kind': 'local', 'library_id': 'test', 'storage_namespace': 'test'}
         with TemporaryDirectory() as directory, \

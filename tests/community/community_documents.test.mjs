@@ -1,5 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
+import {randomUUID} from 'node:crypto';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import {createLocalClient} from './community_transport_fixture.mjs';
@@ -16,18 +17,23 @@ function code(name){const start=new RegExp('^(?:async )?function '+name+'\\(','m
 function load(name,context){vm.createContext(context);vm.runInContext(code(name),context);return context[name];}
 
 test('moving root search results uses each selected document’s folder',async()=>{
- const writes=[],context={S:{docsFolder:'',docsQuery:'notes',surface:'docs'},docsMove:null,documentsReadKey:()=>'search',
+ const writes=[],context={S:{docsFolder:'',docsQuery:'notes',surface:'docs'},docsMove:null,documentsReadKey:()=>'search',crypto:{randomUUID},
   render(){},toast(){},docsFinishMove(){},document:{querySelector:()=>null},docsFolders:()=>[{id:'subfolder'}],
-  docsFolderMutation:async data=>writes.push(JSON.parse(JSON.stringify(data)))};
- for(const name of ['activeDocsMove','docsStartMove','docsMoveTargets','docsCanConfirmMove','docsConfirmMove'])load(name,context);
+  docsFolderMutation:async data=>{writes.push(JSON.parse(JSON.stringify(data)));if(writes.length<3)throw Error('failed to fetch');}};
+ for(const name of ['activeDocsMove','docsMoveSubmission','docsStartMove','docsMoveTargets','docsCanConfirmMove','docsConfirmMove'])load(name,context);
  const select=items=>context.docsStartMove(items.map(item=>({item})),'search');
  const root={id:1,folder_id:null},nested={id:2,folder_id:'subfolder'};
  select([root,nested]);assert.equal(context.docsCanConfirmMove(context.docsMove),true);
- await context.docsConfirmMove();assert.deepEqual(writes,[{action:'move_documents',documents:[2],folder:''}]);
+ await context.docsConfirmMove();const first=writes[0].operation_id;assert.ok(first);
+ assert.deepEqual(writes,[{action:'move_documents',documents:[2],folder:'',operation_id:first}]);
+ assert.equal(context.docsMove.busy,false);await context.docsConfirmMove();assert.deepEqual(writes[1],writes[0]);
+ context.docsMove.folder='subfolder';await context.docsConfirmMove();
+ assert.notEqual(writes[2].operation_id,first);assert.deepEqual(writes[2].documents,[1]);
  select([root]);assert.equal(context.docsCanConfirmMove(context.docsMove),false);
  select([nested]);context.docsMove.folder='subfolder';assert.equal(context.docsCanConfirmMove(context.docsMove),false);
  select([root,nested]);context.docsMove.folder='subfolder';await context.docsConfirmMove();
- assert.deepEqual(writes[1],{action:'move_documents',documents:[1],folder:'subfolder'});
+ assert.notEqual(writes[3].operation_id,writes[2].operation_id);
+ assert.deepEqual(writes[3],{action:'move_documents',documents:[1],folder:'subfolder',operation_id:writes[3].operation_id});
 });
 
 test('reader back preserves a rejected draft until the user confirms leaving its reader',async()=>{
