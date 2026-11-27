@@ -1117,6 +1117,10 @@ function feedbackConfigurationFields(selection){
 function feedbackRequiresText(option){
  return ['text','fields_and_text'].includes(option?.input_mode);
 }
+function feedbackDraftText(draft,visit,allowLegacy){
+ if(draft.feedbackVisit===visit||(allowLegacy&&draft.feedbackVisit==null))return draft.response||'';
+ return '';
+}
 function topicApprovalChoices(workflow){
  // The tarot pipeline already stores candidate IDs and reads the chosen ID from the approval note.
  const {pipeline_work:work,pipeline_waiting:wait}=workflow.snapshot_json||{};
@@ -1769,7 +1773,7 @@ function workDrawer(selection){const s=current(),w=selection.workflow;let body='
     interaction+=workflowHumanChoicesMarkup(topics,'source_pipeline_choice',selected,'RunTeamsSourcePipelinePanels.answer(document.getElementById(\'source_pipeline_response\')?.value||\'\',this.value)','source_pipeline_question');
    }
    const noteLabel=topics.length?workLabel('topicReturnNote','退回说明（选填）'):workLabel('note','决定说明');
-   const response=!topics.length||f.feedbackVisit===frozen.pipeline_visit?f.response||'':'';
+   const response=feedbackDraftText(f,frozen.pipeline_visit,!topics.length);
    interaction+=`<label class="lbl" for="source_pipeline_response">${noteLabel}</label><textarea class="input${topics.length?' source-work-custom-answer':''}" id="source_pipeline_response" oninput="RunTeamsSourcePipelinePanels.answer(this.value)">${esc(response)}</textarea>`;
    workActions=choices.map(option=>{
     const decision=option.decision;
@@ -1801,7 +1805,7 @@ function workDrawer(selection){const s=current(),w=selection.workflow;let body='
    const customReply=options.length?` placeholder="${esc(noteText)}" aria-label="${esc(noteText)}" data-app-i18n-placeholder="${noteKey}" data-app-i18n-aria-label="${noteKey}"`:'';
    if(!typed&&selected)responseBody+=`<label class="lbl" for="source_pipeline_response">${workLabel('legacyFeedbackNote','如需补充资料，请填写在这里')}</label>`;
    if(!typed||requiresText){
-    const input=`<textarea class="input${options.length?' source-work-custom-answer':''}" id="source_pipeline_response"${requiresText?' required maxlength="4000"':customReply} oninput="RunTeamsSourcePipelinePanels.answer(this.value)">${esc(sameVisit||f.feedbackVisit==null?f.response||'':'')}</textarea>`;
+    const input=`<textarea class="input${options.length?' source-work-custom-answer':''}" id="source_pipeline_response"${requiresText?' required maxlength="4000"':customReply} oninput="RunTeamsSourcePipelinePanels.answer(this.value)">${esc(feedbackDraftText(f,frozen.pipeline_visit,true))}</textarea>`;
     responseBody+=requiresText?`<div class="source-work-feedback-text"><label class="source-work-feedback-prompt" for="source_pipeline_response">${esc(selected.response_prompt)} ${workLabel('feedbackRequiredMark','（必填）')}</label>${input}</div>`:input;
    }
    interaction+=feedbackFields.length||requiresText?`<div class="settings-section-stack">${responseBody}</div>`:responseBody;

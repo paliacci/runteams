@@ -339,6 +339,20 @@ test('background workspace reads preserve the board on failure and skip unchange
   assert.equal(paints, 1);
 });
 
+test('only the current pipeline visit can restore a tagged feedback draft', () => {
+  const {context} = fixture();
+  const start = panels.indexOf('function feedbackDraftText(');
+  vm.runInContext(panels.slice(start, panels.indexOf('\n}', start) + 2), context);
+  const draft = {response: 'Draft for the input role', feedbackVisit: 1};
+  for (const allowLegacy of [true, false]) {
+    assert.equal(context.feedbackDraftText(draft, 1, allowLegacy), draft.response);
+    assert.equal(context.feedbackDraftText(draft, 5, allowLegacy), '');
+  }
+  const legacy = {response: 'Saved before visit tracking'};
+  assert.equal(context.feedbackDraftText(legacy, 5, true), legacy.response);
+  assert.equal(context.feedbackDraftText(legacy, 5, false), '');
+});
+
 test('typing a note keeps the selected option and choosing an option keeps the note', () => {
   const {context, owner} = fixture();
   const notes = panels.slice(panels.indexOf('function answer('), panels.indexOf('function retryFlow('));
